@@ -11,28 +11,48 @@ import {
 } from '../../shared/implementation-attributes.js';
 import { createRegistry } from './registry.js';
 
-const CATEGORY = 'environment' as const;
+const STRINGS = {
+  CDN_SKIP_TITLE: 'CDN environment check skipped.',
+  CDN_NO_REQUESTS_SKIP_REASON: 'No Adyen CDN requests detected.',
+  CDN_ENV_UNKNOWN_SKIP_REASON: 'Configured environment unknown.',
+  CDN_MISMATCH_FAIL_URL:
+    'https://docs.adyen.com/online-payments/web-best-practices/#embed-script-and-stylesheet',
 
-function regionSourceDetail(source: 'config' | 'network' | 'unknown'): string {
-  if (source === 'config') {
-    return 'Determined from checkoutConfig.environment.';
-  }
-  if (source === 'unknown') {
-    return 'No Adyen CDN or API requests captured to determine region.';
-  }
-  return 'Determined from captured Adyen CDN / API request hostnames.';
-}
+  REGION_SKIP_TITLE: 'Region check skipped.',
+  REGION_SKIP_REASON: 'Environment is test, which uses a global endpoint.',
+  REGION_SOURCE_CONFIG_DETAIL: 'Determined from checkoutConfig.environment.',
+  REGION_SOURCE_UNKNOWN_DETAIL: 'No Adyen CDN or API requests captured to determine region.',
+  REGION_SOURCE_NETWORK_DETAIL: 'Determined from captured Adyen CDN / API request hostnames.',
+
+  KEY_SKIP_TITLE: 'Key-environment mismatch check skipped.',
+  KEY_NO_KEY_SKIP_REASON: 'Client key not detected.',
+  KEY_NO_ENV_SKIP_REASON: 'Unable to determine environment.',
+  KEY_MISMATCH_FAIL_REMEDIATION:
+    'Ensure your client key prefix matches the environment your checkout is configured for. Test client keys (prefixed with test_) must only be used against Adyen test endpoints, and live client keys (prefixed with live_) must only be used against live endpoints. Mixing them causes authentication failures at payment time.',
+  KEY_MISMATCH_FAIL_URL: 'https://docs.adyen.com/development-resources/client-side-authentication/',
+  KEY_PASS_TITLE: 'Client key prefix matches the API environment.',
+
+  IFRAME_WARN_TITLE: 'Checkout appears to be rendered inside an <iframe>.',
+  IFRAME_WARN_DETAIL:
+    'Embedding checkout in an iframe may cause issues with 3DS redirects, cookies, and CSP.',
+  IFRAME_WARN_REMEDIATION:
+    'Render Drop-in or Components directly in the top-level page document rather than inside a parent iframe. Embedding checkout in an iframe breaks 3DS redirect flows, causes cookie restrictions in cross-origin contexts, and complicates CSP configuration.',
+  IFRAME_WARN_URL: 'https://docs.adyen.com/online-payments/web-best-practices/#iframe',
+  IFRAME_PASS_TITLE: 'Checkout is not embedded inside an iframe.',
+} as const;
+
+const CATEGORY = 'environment' as const;
 
 export const ENVIRONMENT_CHECKS = createRegistry(CATEGORY)
   .add('env-cdn-mismatch', (payload, { skip, pass, fail }) => {
     const cdnEnv = detectEnvironmentFromCdnRequests(payload);
     if (cdnEnv === null) {
-      return skip('CDN environment check skipped — no Adyen CDN requests observed.');
+      return skip(STRINGS.CDN_SKIP_TITLE, STRINGS.CDN_NO_REQUESTS_SKIP_REASON);
     }
 
     const configuredEnv = resolveEnvironment(payload).env;
     if (configuredEnv === null) {
-      return skip('CDN environment check skipped — configured environment unknown.');
+      return skip(STRINGS.CDN_SKIP_TITLE, STRINGS.CDN_ENV_UNKNOWN_SKIP_REASON);
     }
 
     if (cdnEnv !== configuredEnv) {
@@ -40,7 +60,7 @@ export const ENVIRONMENT_CHECKS = createRegistry(CATEGORY)
         `CDN environment (${cdnEnv}) does not match configured environment (${configuredEnv}).`,
         `Assets are being loaded from the Adyen ${cdnEnv} CDN, but the checkout is configured for ${configuredEnv}. This mismatch can cause subtle failures such as mismatched locale files, component versions, or payment method availability.`,
         `Ensure your checkoutConfig.environment matches the CDN you are loading assets from. If you intend to use the ${configuredEnv} environment, update your script and stylesheet URLs to use the corresponding ${configuredEnv} CDN origin.`,
-        'https://docs.adyen.com/online-payments/web-best-practices/#embed-script-and-stylesheet'
+        STRINGS.CDN_MISMATCH_FAIL_URL
       );
     }
 
@@ -49,49 +69,54 @@ export const ENVIRONMENT_CHECKS = createRegistry(CATEGORY)
   .add('env-region', (payload, { skip, info }) => {
     const env = resolveEnvironment(payload).env;
     if (env === 'test') {
-      return skip('Region check skipped — test environment.');
+      return skip(STRINGS.REGION_SKIP_TITLE, STRINGS.REGION_SKIP_REASON);
     }
 
     const regionResolution = resolveRegion(payload);
     const region = regionResolution.region;
-    const detail = regionSourceDetail(regionResolution.source);
+    const detail =
+      regionResolution.source === 'config'
+        ? STRINGS.REGION_SOURCE_CONFIG_DETAIL
+        : regionResolution.source === 'unknown'
+          ? STRINGS.REGION_SOURCE_UNKNOWN_DETAIL
+          : STRINGS.REGION_SOURCE_NETWORK_DETAIL;
 
     return info(`Region: ${region}.`, detail);
   })
   .add('env-key-mismatch', (payload, { skip, fail, pass }) => {
     const clientKey = payload.page.checkoutConfig?.clientKey;
     if (clientKey === undefined || clientKey === '') {
-      return skip('Key-environment mismatch check skipped — client key not detected.');
+      return skip(STRINGS.KEY_SKIP_TITLE, STRINGS.KEY_NO_KEY_SKIP_REASON);
     }
 
     const envFromKey = detectEnvironmentFromClientKey(clientKey);
     const envFromRequests = detectEnvironmentFromRequests(payload);
 
     if (envFromKey === null || envFromRequests === null) {
-      return skip('Key-environment mismatch check skipped — insufficient data.');
+      return skip(STRINGS.KEY_SKIP_TITLE, STRINGS.KEY_NO_ENV_SKIP_REASON);
     }
 
     if (envFromKey !== envFromRequests) {
       return fail(
         `Client key prefix (${envFromKey}) does not match API endpoint environment (${envFromRequests}).`,
         `Using a ${envFromKey} client key against a ${envFromRequests} endpoint will cause authentication errors.`,
-        'Ensure your client key prefix matches the environment your checkout is configured for. Test client keys (prefixed with test_) must only be used against Adyen test endpoints, and live client keys (prefixed with live_) must only be used against live endpoints. Mixing them causes authentication failures at payment time.',
-        'https://docs.adyen.com/development-resources/client-side-authentication/'
+        STRINGS.KEY_MISMATCH_FAIL_REMEDIATION,
+        STRINGS.KEY_MISMATCH_FAIL_URL
       );
     }
 
-    return pass('Client key prefix matches the API environment.');
+    return pass(STRINGS.KEY_PASS_TITLE);
   })
   .add('env-not-iframe', (payload, { pass, warn }) => {
     if (payload.page.isInsideIframe) {
       return warn(
-        'Checkout appears to be rendered inside an <iframe>.',
-        'Embedding checkout in an iframe may cause issues with 3DS redirects, cookies, and CSP.',
-        'Render Drop-in or Components directly in the top-level page document rather than inside a parent iframe. Embedding checkout in an iframe breaks 3DS redirect flows, causes cookie restrictions in cross-origin contexts, and complicates CSP configuration.',
-        'https://docs.adyen.com/online-payments/web-best-practices/#iframe'
+        STRINGS.IFRAME_WARN_TITLE,
+        STRINGS.IFRAME_WARN_DETAIL,
+        STRINGS.IFRAME_WARN_REMEDIATION,
+        STRINGS.IFRAME_WARN_URL
       );
     }
 
-    return pass('Checkout is not embedded inside an iframe.');
+    return pass(STRINGS.IFRAME_PASS_TITLE);
   })
   .getChecks();
