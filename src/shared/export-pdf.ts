@@ -1,6 +1,6 @@
 import type { ScanResult, CapturedRequest, CheckCategory } from './types';
 import type { ExportIssueRow } from './utils';
-import { buildIssueExportRows } from './utils';
+import { buildIssueExportRows, extractHostname, isAdyenHost } from './utils';
 import { buildImplementationAttributes } from './implementation-attributes';
 
 /**
@@ -268,7 +268,14 @@ function buildCategorySectionHtml(
 }
 
 function buildNetworkHtml(result: ScanResult): string {
-  const reqs: readonly CapturedRequest[] = result.payload.capturedRequests;
+  const reqs: readonly CapturedRequest[] = result.payload.capturedRequests.filter((req) => {
+    if (req.type !== 'other') {
+      return true;
+    }
+
+    const host = extractHostname(req.url);
+    return host !== null && isAdyenHost(host);
+  });
   const parts: string[] = [];
 
   parts.push('<h3 style="font-size:12px;margin:12px 0 6px">Captured Requests</h3>');
@@ -278,7 +285,9 @@ function buildNetworkHtml(result: ScanResult): string {
     const rows = reqs
       .map(
         (req) =>
-          `<tr><td>${escapeHtml(req.type)}</td><td style="font-family:monospace;font-size:11px">${escapeHtml(req.url)}</td><td>${req.statusCode}</td></tr>`
+          `<tr><td>${escapeHtml(req.type)}</td><td style="font-family:monospace;font-size:11px">${escapeHtml(
+            req.url
+          )}</td><td>${req.statusCode === 0 ? '&mdash;' : req.statusCode}</td></tr>`
       )
       .join('');
     parts.push(

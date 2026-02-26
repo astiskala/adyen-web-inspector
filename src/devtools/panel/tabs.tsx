@@ -1,6 +1,6 @@
 import type { JSX } from 'preact';
 import type { ScanResult, CapturedRequest, CheckResult } from '~shared/types';
-import { getImpactLevel } from '~shared/utils';
+import { extractHostname, getImpactLevel, isAdyenHost } from '~shared/utils';
 import { IdentityCard } from '../../popup/components/IdentityCard';
 import { HealthScore } from '../../popup/components/HealthScore';
 import { IssueList } from '../../popup/components/IssueList';
@@ -305,7 +305,14 @@ export function SecurityTab({ result }: Props): JSX.Element {
  * Network capture table for requests recorded during the scan.
  */
 export function NetworkTab({ result }: Props): JSX.Element {
-  const reqs: readonly CapturedRequest[] = result.payload.capturedRequests;
+  const reqs: readonly CapturedRequest[] = result.payload.capturedRequests.filter((req) => {
+    if (req.type !== 'other') {
+      return true;
+    }
+
+    const host = extractHostname(req.url);
+    return host !== null && isAdyenHost(host);
+  });
 
   return (
     <div class={s('tabContent')}>
@@ -327,7 +334,7 @@ export function NetworkTab({ result }: Props): JSX.Element {
                 <tr key={`${req.type}-${req.url}-${req.statusCode}`}>
                   <td>{req.type}</td>
                   <td>{req.url}</td>
-                  <td>{req.statusCode}</td>
+                  <td>{req.statusCode === 0 ? '—' : req.statusCode}</td>
                 </tr>
               ))}
             </tbody>
