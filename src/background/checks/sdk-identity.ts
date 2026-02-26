@@ -99,12 +99,12 @@ export const SDK_IDENTITY_CHECKS = createRegistry(CATEGORY)
     const { scripts } = payload.page;
     const method = detectImportMethod(scripts);
 
-    let detail = STRINGS.IMPORT_METHOD_NPM_DETAIL;
-    if (method === 'CDN') {
-      detail = STRINGS.IMPORT_METHOD_CDN_DETAIL;
-    } else if (method === 'Adyen') {
-      detail = STRINGS.IMPORT_METHOD_ADYEN_DETAIL;
-    }
+    const detail =
+      method === 'CDN'
+        ? STRINGS.IMPORT_METHOD_CDN_DETAIL
+        : method === 'Adyen'
+          ? STRINGS.IMPORT_METHOD_ADYEN_DETAIL
+          : STRINGS.IMPORT_METHOD_NPM_DETAIL;
 
     return info(`Import method: ${method}.`, detail);
   })
