@@ -24,7 +24,7 @@ export interface CheckContext {
   warn(title: string, detail?: string, remediation?: string, docsUrl?: string): CheckOutcome;
   notice(title: string, detail?: string, remediation?: string, docsUrl?: string): CheckOutcome;
   info(title: string, detail?: string): CheckOutcome;
-  skip(title: string, detail?: string): CheckOutcome;
+  skip(title: string, detail: string): CheckOutcome;
 }
 
 type CheckRunner = (payload: ScanPayload, context: CheckContext) => CheckOutcome;
