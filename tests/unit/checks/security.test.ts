@@ -16,7 +16,9 @@ const sriScript = requireCheck(SECURITY_CHECKS, 'security-sri-script');
 const sriCss = requireCheck(SECURITY_CHECKS, 'security-sri-css');
 const referrerPolicy = requireCheck(SECURITY_CHECKS, 'security-referrer-policy');
 const xContentType = requireCheck(SECURITY_CHECKS, 'security-x-content-type');
+const xssProtection = requireCheck(SECURITY_CHECKS, 'security-xss-protection');
 const hsts = requireCheck(SECURITY_CHECKS, 'security-hsts');
+const iframeReferrerPolicy = requireCheck(SECURITY_CHECKS, 'security-iframe-referrerpolicy');
 
 describe('Security Checks', () => {
   describe('HTTPS', () => {
@@ -56,6 +58,15 @@ describe('Security Checks', () => {
   });
 
   describe('SRI Scripts', () => {
+    it('returns skip when no Adyen scripts are present', () => {
+      const payload = makeScanPayload({
+        page: makePageExtract({
+          scripts: [{ src: 'https://example.com/app.js' }],
+        }),
+      });
+      expect(sriScript.run(payload).severity).toBe('skip');
+    });
+
     it('returns pass when Adyen CDN script has SRI attributes', () => {
       const payload = makeScanPayload({
         page: makePageExtract({
@@ -101,6 +112,33 @@ describe('Security Checks', () => {
     });
   });
 
+  describe('SRI CSS', () => {
+    it('returns skip when no Adyen stylesheets are present', () => {
+      const payload = makeScanPayload({
+        page: makePageExtract({
+          links: [{ rel: 'stylesheet', href: 'https://example.com/app.css' }],
+        }),
+      });
+      expect(sriCss.run(payload).severity).toBe('skip');
+    });
+
+    it('returns pass when Adyen CDN stylesheet has SRI attributes', () => {
+      const payload = makeScanPayload({
+        page: makePageExtract({
+          links: [
+            {
+              rel: 'stylesheet',
+              href: 'https://checkoutshopper-test.adyen.com/checkoutshopper-sdk/5.67.0/adyen.css',
+              integrity: 'sha384-ABC',
+              crossorigin: 'anonymous',
+            },
+          ],
+        }),
+      });
+      expect(sriCss.run(payload).severity).toBe('pass');
+    });
+  });
+
   describe('Referrer-Policy', () => {
     it('passes when strict policy is set', () => {
       const payload = makeScanPayload({
@@ -114,6 +152,13 @@ describe('Security Checks', () => {
       const result = referrerPolicy.run(payload);
       expect(result.severity).toBe('notice');
       expect(result.detail).toContain('referrer policy');
+    });
+
+    it('passes when same-origin is set', () => {
+      const payload = makeScanPayload({
+        mainDocumentHeaders: [makeHeader('Referrer-Policy', 'same-origin')],
+      });
+      expect(referrerPolicy.run(payload).severity).toBe('pass');
     });
   });
 
@@ -146,6 +191,79 @@ describe('Security Checks', () => {
       const result = hsts.run(payload);
       expect(result.severity).toBe('notice');
       expect(result.detail).toContain('downgraded to HTTP');
+    });
+
+    it('passes when present on live', () => {
+      const payload = makeAdyenPayload(
+        {},
+        { clientKey: 'live_XXXX', environment: 'live' },
+        {
+          mainDocumentHeaders: [makeHeader('strict-transport-security', 'max-age=31536000')],
+        }
+      );
+      expect(hsts.run(payload).severity).toBe('pass');
+    });
+  });
+
+  describe('X-XSS-Protection', () => {
+    it('passes when header is disabled', () => {
+      const payload = makeScanPayload({
+        mainDocumentHeaders: [makeHeader('x-xss-protection', '0')],
+      });
+      expect(xssProtection.run(payload).severity).toBe('pass');
+    });
+
+    it('returns notice when header is enabled', () => {
+      const payload = makeScanPayload({
+        mainDocumentHeaders: [makeHeader('x-xss-protection', '1; mode=block')],
+      });
+      const result = xssProtection.run(payload);
+      expect(result.severity).toBe('notice');
+      expect(result.detail).toContain('Legacy X-XSS-Protection');
+    });
+  });
+
+  describe('Iframe referrerpolicy', () => {
+    it('returns info when no Adyen iframes are present', () => {
+      const payload = makeScanPayload({
+        page: makePageExtract({
+          iframes: [{ src: 'https://example.com/embedded-content' }],
+        }),
+      });
+      expect(iframeReferrerPolicy.run(payload).severity).toBe('info');
+    });
+
+    it('passes when all Adyen iframes have referrerpolicy', () => {
+      const payload = makeScanPayload({
+        page: makePageExtract({
+          iframes: [
+            {
+              src: 'https://checkoutshopper-test.adyen.com/checkoutshopper/sdk/iframe.html',
+              referrerpolicy: 'origin',
+            },
+            {
+              src: 'https://checkout-live.adyenpayments.com/checkout',
+              referrerpolicy: 'strict-origin-when-cross-origin',
+            },
+          ],
+        }),
+      });
+      expect(iframeReferrerPolicy.run(payload).severity).toBe('pass');
+    });
+
+    it('returns info when an Adyen iframe is missing referrerpolicy', () => {
+      const payload = makeScanPayload({
+        page: makePageExtract({
+          iframes: [
+            {
+              src: 'https://checkoutshopper-test.adyen.com/checkoutshopper/sdk/iframe.html',
+            },
+          ],
+        }),
+      });
+      const result = iframeReferrerPolicy.run(payload);
+      expect(result.severity).toBe('info');
+      expect(result.title).toContain('missing referrerpolicy');
     });
   });
 });
