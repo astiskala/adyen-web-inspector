@@ -241,11 +241,17 @@ function buildSuccessfulChecksTableForCategory(
     return `<p style="color:#6b7280">${escapeHtml(emptyMessage)}</p>`;
   }
 
-  const rows = checks.map((check) => `<tr><td>${escapeHtml(check.title)}</td></tr>`).join('');
+  const rows = checks
+    .map(
+      (check) =>
+        `<tr><td style="color:#16a34a;font-weight:600;text-transform:uppercase;white-space:nowrap;width:80px">PASS</td><td>${escapeHtml(check.title)}</td></tr>`
+    )
+    .join('');
 
   return `<table>
     <thead>
       <tr>
+        <th style="width:80px">Status</th>
         <th>Check</th>
       </tr>
     </thead>

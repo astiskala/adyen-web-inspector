@@ -18,7 +18,9 @@ export function DetectedReady(): JSX.Element {
       <div style={{ fontWeight: 600, marginBottom: '4px', color: 'var(--color-text)' }}>
         Adyen Web SDK detected
       </div>
-      <div>Run a scan to inspect implementation quality and security checks.</div>
+      <div style={{ padding: '4px 8px' }}>
+        Run a scan to inspect implementation quality and security checks.
+      </div>
     </div>
   );
 }
