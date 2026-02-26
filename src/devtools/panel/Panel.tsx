@@ -202,7 +202,7 @@ export function Panel(): JSX.Element {
     a.href = url;
     a.download = `adyen-inspector-${Date.now()}.json`;
     a.click();
-    URL.revokeObjectURL(url);
+    globalThis.setTimeout(() => URL.revokeObjectURL(url), 10_000);
   }
 
   function handleExportPdf(): void {

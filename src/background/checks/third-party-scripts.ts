@@ -88,7 +88,8 @@ export const THIRD_PARTY_CHECKS = createRegistry(CATEGORY)
         detail:
           'Tag managers can load unreviewed scripts on checkout, increasing PCI and supply-chain risk.',
         remediation: 'Audit tags carefully on payment pages.',
-        docsUrl: 'https://docs.adyen.com/online-payments/web-best-practices/#third-party-tools',
+        docsUrl:
+          'https://docs.adyen.com/development-resources/pci-dss-compliance-guide/script-security',
         passTitle: 'No known tag managers detected.',
       },
       context
@@ -99,11 +100,12 @@ export const THIRD_PARTY_CHECKS = createRegistry(CATEGORY)
       payload,
       {
         patterns: SESSION_REPLAY_PATTERNS,
-        detectedTitlePrefix: 'Session replay detected',
+        detectedTitlePrefix: 'Session replay tool detected',
         detectionSeverity: 'fail',
         detail: 'Session replay tools may capture sensitive payment data, violating PCI DSS.',
         remediation: 'Remove session replay and screen recording tools from checkout pages.',
-        docsUrl: 'https://docs.adyen.com/development-resources/pci-dss-compliance-guide/',
+        docsUrl:
+          'https://docs.adyen.com/development-resources/pci-dss-compliance-guide/script-security',
         passTitle: 'No known session replay tools detected.',
       },
       context
@@ -120,7 +122,8 @@ export const THIRD_PARTY_CHECKS = createRegistry(CATEGORY)
           'Ad pixels on checkout can expose payment journey metadata and conflict with compliance controls.',
         remediation:
           'Move advertising and conversion tracking pixels to the post-payment order confirmation page.',
-        docsUrl: 'https://docs.adyen.com/online-payments/web-best-practices/#third-party-tools',
+        docsUrl:
+          'https://docs.adyen.com/development-resources/pci-dss-compliance-guide/script-security',
         passTitle: 'No known ad pixels detected.',
       },
       context

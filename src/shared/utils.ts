@@ -49,3 +49,11 @@ export function getHeader(payload: ScanPayload, name: string): string | null {
       ?.value ?? null
   );
 }
+
+/** Returns all values for a given header name (case-insensitive). */
+export function getAllHeaders(payload: ScanPayload, name: string): string[] {
+  const lower = name.toLowerCase();
+  return payload.mainDocumentHeaders
+    .filter((h: CapturedHeader) => h.name.toLowerCase() === lower)
+    .map((h) => h.value);
+}

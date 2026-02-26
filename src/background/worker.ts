@@ -68,6 +68,10 @@ function clearTabSessionState(tabId: number): Promise<void> {
     .catch(() => {});
 }
 
+// ─── Scan Guard ───────────────────────────────────────────────────────────────
+
+const scanInFlight = new Set<number>();
+
 // ─── Message Handlers ─────────────────────────────────────────────────────────
 
 function handleAdyenDetected(msg: AdyenDetectedMessage, senderTabId: number): void {
@@ -90,6 +94,9 @@ function handleAdyenNotDetected(_msg: AdyenNotDetectedMessage, senderTabId: numb
 }
 
 async function handleScanRequest(senderTabId: number): Promise<void> {
+  if (scanInFlight.has(senderTabId)) return;
+  scanInFlight.add(senderTabId);
+
   setBadgeScanning(senderTabId);
   sendUiMessage({
     type: MSG_SCAN_STARTED,
@@ -114,6 +121,8 @@ async function handleScanRequest(senderTabId: number): Promise<void> {
     };
     sendUiMessage(response);
     clearBadge(senderTabId);
+  } finally {
+    scanInFlight.delete(senderTabId);
   }
 }
 

@@ -1,4 +1,5 @@
 import { ADYEN_WEB_TRANSLATION_LOCALES, ORIGIN_KEY_PREFIX } from '../../shared/constants.js';
+import { detectIntegrationFlow } from '../../shared/implementation-attributes.js';
 import { SKIP_REASONS } from './constants.js';
 import { createRegistry } from './registry.js';
 
@@ -41,7 +42,9 @@ const STRINGS = {
 } as const;
 
 const CATEGORY = 'auth' as const;
-const SUPPORTED_LOCALES = new Set<string>(ADYEN_WEB_TRANSLATION_LOCALES);
+const SUPPORTED_LOCALES = new Set<string>(
+  ADYEN_WEB_TRANSLATION_LOCALES.map((l) => l.toLowerCase())
+);
 
 export const AUTH_CHECKS = createRegistry(CATEGORY)
   .add('auth-client-key', (payload, { pass, skip, warn }) => {
@@ -62,22 +65,32 @@ export const AUTH_CHECKS = createRegistry(CATEGORY)
 
     return pass(STRINGS.CLIENT_KEY_PASS_TITLE);
   })
-  .add('auth-country-code', (payload, { pass, fail, skip }) => {
+  .add('auth-country-code', (payload, { pass, fail, skip, warn }) => {
     const config = payload.page.checkoutConfig;
     if (!config) {
       return skip(STRINGS.COUNTRY_CODE_SKIP_TITLE, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
     }
 
-    if (config.countryCode === undefined || config.countryCode === '') {
-      return fail(
+    if (config.countryCode !== undefined && config.countryCode !== '') {
+      return pass(STRINGS.COUNTRY_CODE_PASS_TITLE);
+    }
+
+    const flow = detectIntegrationFlow(payload);
+    if (flow === 'sessions') {
+      return warn(
         STRINGS.COUNTRY_CODE_FAIL_TITLE,
-        STRINGS.COUNTRY_CODE_FAIL_DETAIL,
+        'Sessions flow typically sets countryCode server-side in the /sessions request. Setting it in the client config is still recommended for optimal payment method filtering.',
         STRINGS.COUNTRY_CODE_FAIL_REMEDIATION,
         STRINGS.COUNTRY_CODE_FAIL_URL
       );
     }
 
-    return pass(STRINGS.COUNTRY_CODE_PASS_TITLE);
+    return fail(
+      STRINGS.COUNTRY_CODE_FAIL_TITLE,
+      STRINGS.COUNTRY_CODE_FAIL_DETAIL,
+      STRINGS.COUNTRY_CODE_FAIL_REMEDIATION,
+      STRINGS.COUNTRY_CODE_FAIL_URL
+    );
   })
   .add('auth-locale', (payload, { pass, skip, warn }) => {
     const config = payload.page.checkoutConfig;
@@ -94,7 +107,7 @@ export const AUTH_CHECKS = createRegistry(CATEGORY)
       );
     }
 
-    if (!SUPPORTED_LOCALES.has(config.locale)) {
+    if (!SUPPORTED_LOCALES.has(config.locale.toLowerCase())) {
       return warn(
         `locale "${config.locale}" is not in the supported Adyen Web translations list.`,
         STRINGS.LOCALE_UNSUPPORTED_WARN_DETAIL,

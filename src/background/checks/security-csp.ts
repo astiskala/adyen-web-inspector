@@ -3,7 +3,7 @@
  */
 
 import type { ScanPayload, CapturedHeader } from '../../shared/types.js';
-import { cspIncludesDomain, getHeader, parseCsp } from '../../shared/utils.js';
+import { cspIncludesDomain, getAllHeaders, getHeader, parseCsp } from '../../shared/utils.js';
 import { COMMON_DETAILS } from './constants.js';
 import { createRegistry } from './registry.js';
 
@@ -69,7 +69,9 @@ const STRINGS = {
 } as const;
 
 function getCspHeader(payload: ScanPayload): string | null {
-  return getHeader(payload, 'content-security-policy');
+  const values = getAllHeaders(payload, 'content-security-policy');
+  if (values.length === 0) return null;
+  return values.join(', ');
 }
 
 function allowsAnySources(values: string[]): boolean {

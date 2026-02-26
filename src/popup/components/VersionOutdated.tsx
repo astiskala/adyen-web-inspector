@@ -29,7 +29,7 @@ export function VersionOutdated({ version }: VersionOutdatedProps): JSX.Element 
       >
         Adyen Web Version Outdated
       </div>
-      <div style={{ color: 'var(--color-text-secondary)', marginBottom: '10px' }}>
+      <div style={{ color: 'var(--color-text-secondary)', margin: '5px 5px 10px' }}>
         This page uses Adyen Web <strong style={{ color: 'var(--color-text)' }}>v{version}</strong>,
         which is no longer actively supported. Version {MIN_SUPPORTED_MAJOR_VERSION}+ is required
         for new features, security updates, and compliance.
