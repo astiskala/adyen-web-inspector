@@ -402,7 +402,7 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
         label: 'onAdditionalDetails',
         readCallback: (config) => config.onAdditionalDetails,
         presentTitle: 'onAdditionalDetails callback is present.',
-        missingTitle: 'onAdditionalDetails callback is missing (required for Advanced flow).',
+        missingTitle: 'onAdditionalDetails callback is missing.',
         missingDetail:
           'Without onAdditionalDetails, 3DS and other follow-up actions cannot complete correctly.',
         remediation:
