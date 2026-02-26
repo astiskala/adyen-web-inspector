@@ -361,6 +361,7 @@ function buildPrintableHtml(result: ScanResult): string {
     .footer { margin-top: 32px; text-align: center; color: #9ca3af; font-size: 10px; border-top: 1px solid #e5e7eb; padding-top: 12px; }
     @media print { body { padding: 16px; } }
   </style>
+  <script>window.addEventListener('load', () => { window.print(); });</script>
 </head>
 <body>
   <h1>Adyen Web Inspector</h1>
