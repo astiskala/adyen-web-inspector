@@ -1,14 +1,16 @@
 /**
  * Health score calculation logic.
+ *
+ * Uses traffic-light (RAG) tiering:
+ *   Red   (critical)  — any failing check
+ *   Amber (issues)    — any warning (no failures)
+ *   Green (excellent)  — no failures or warnings
  */
 
 import type { CheckResult, HealthScore } from './types.js';
-import { HEALTH_THRESHOLDS } from './constants.js';
-import { getImpactLevel } from './results.js';
 
 /**
- * Computes aggregate health metrics and tier from check outcomes.
- * High-impact issues force the `critical` tier even with a strong pass ratio.
+ * Computes aggregate health metrics and RAG tier from check outcomes.
  */
 export function calculateHealthScore(checks: CheckResult[]): HealthScore {
   const scoreable = checks.filter(
@@ -21,20 +23,13 @@ export function calculateHealthScore(checks: CheckResult[]): HealthScore {
 
   const score = total === 0 ? 100 : Math.round((passing / total) * 100);
 
-  const issueChecks = checks.filter(
-    (check) => check.severity === 'fail' || check.severity === 'warn' || check.severity === 'notice'
-  );
-  const hasHighImpactIssue = issueChecks.some((check) => getImpactLevel(check) === 'high');
-
   let tier: HealthScore['tier'];
-  if (hasHighImpactIssue) {
+  if (failing > 0) {
     tier = 'critical';
-  } else if (issueChecks.length === 0) {
-    tier = 'excellent';
-  } else if (score >= HEALTH_THRESHOLDS.good) {
-    tier = 'good';
-  } else {
+  } else if (warnings > 0) {
     tier = 'issues';
+  } else {
+    tier = 'excellent';
   }
 
   return { score, passing, failing, warnings, total, tier };

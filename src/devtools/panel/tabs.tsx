@@ -380,30 +380,24 @@ export function SkippedChecksTab({ result }: Props): JSX.Element {
         <div class={s('emptyState')}>No checks were skipped.</div>
       ) : (
         <div class={s('checkList')}>
-          {skipped.map((check) => {
-            const dashIndex = check.title.indexOf(' — ');
-            const checkName =
-              dashIndex === -1 ? check.title : check.title.slice(0, dashIndex).trim();
-            const skipReason = dashIndex === -1 ? '' : check.title.slice(dashIndex + 3).trim();
-            return (
-              <div key={check.id} class={s('checkCard')}>
-                <div class={s('checkSummaryStatic')}>
-                  <span class={s('checkSummaryTitle')}>{checkName}</span>
-                  {skipReason && (
-                    <span
-                      style={{
-                        color: 'var(--color-text-secondary)',
-                        fontSize: '11px',
-                        flexShrink: 0,
-                      }}
-                    >
-                      {skipReason}
-                    </span>
-                  )}
-                </div>
+          {skipped.map((check) => (
+            <div key={check.id} class={s('checkCard')}>
+              <div class={s('checkSummaryStatic')}>
+                <span class={s('checkSummaryTitle')}>{check.title}</span>
+                {check.detail !== undefined && check.detail !== '' && (
+                  <span
+                    style={{
+                      color: 'var(--color-text-secondary)',
+                      fontSize: '11px',
+                      flexShrink: 0,
+                    }}
+                  >
+                    {check.detail}
+                  </span>
+                )}
               </div>
-            );
-          })}
+            </div>
+          ))}
         </div>
       )}
     </div>

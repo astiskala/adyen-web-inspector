@@ -10,7 +10,6 @@ interface Props {
 
 function tierClass(tier: string): string {
   if (tier === 'excellent') return 'Excellent';
-  if (tier === 'good') return 'Good';
   if (tier === 'issues') return 'Issues';
   return 'Critical';
 }

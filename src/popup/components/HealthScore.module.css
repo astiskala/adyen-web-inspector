@@ -33,9 +33,6 @@
 .scoreExcellent {
   color: var(--color-green);
 }
-.scoreGood {
-  color: var(--color-blue);
-}
 .scoreIssues {
   color: var(--color-amber);
 }
@@ -63,9 +60,6 @@
 
 .fillExcellent {
   background: var(--color-green);
-}
-.fillGood {
-  background: var(--color-blue);
 }
 .fillIssues {
   background: var(--color-amber);

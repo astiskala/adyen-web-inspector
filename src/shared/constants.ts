@@ -48,7 +48,7 @@ const ADYEN_ANALYTICS_DOMAINS = [
 ] as const;
 
 export const ANALYTICS_URL_PATTERNS = [
-  '*://checkoutanalytics.adyen.com/*',
+  '*://checkoutanalytics-live.adyen.com/*',
   '*://checkoutanalytics-test.adyen.com/*',
 ] as const;
 
@@ -198,9 +198,3 @@ export const MIN_SUPPORTED_MAJOR_VERSION = 6;
 export const DEVTOOLS_PANEL_TITLE = 'Adyen Inspector';
 export const DEVTOOLS_PANEL_ICON_PATH = '';
 export const DEVTOOLS_PANEL_PAGE = 'devtools/panel/panel.html';
-
-export const HEALTH_THRESHOLDS = {
-  excellent: 90,
-  good: 70,
-  issues: 50,
-} as const;

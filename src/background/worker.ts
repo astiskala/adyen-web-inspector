@@ -34,7 +34,6 @@ function setBadgeDetected(tabId: number): void {
 
 function healthBadgeColor(tier: HealthScore['tier']): string {
   if (tier === 'excellent') return '#188038';
-  if (tier === 'good') return '#1a73e8';
   if (tier === 'issues') return '#f29900';
   return '#d93025';
 }

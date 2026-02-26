@@ -6,3 +6,5 @@ coverage/
 *.crx
 .env
 .env.local
+.claude/
+.playwright-cli/

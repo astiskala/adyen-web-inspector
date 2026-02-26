@@ -72,7 +72,7 @@ function getCspHeader(payload: ScanPayload): string | null {
   return getHeader(payload, 'content-security-policy');
 }
 
-function allowsAnyHttpsIframeSource(values: string[]): boolean {
+function allowsAnySources(values: string[]): boolean {
   return values.includes('*') || values.includes('https:');
 }
 
@@ -96,7 +96,11 @@ export const CSP_CHECKS = createRegistry(CATEGORY)
     }
 
     const csp = parseCsp(cspValue);
+    const scriptSrcValues = csp.directives['script-src'] ?? [];
+    const defaultSrcValues = csp.directives['default-src'] ?? [];
     const hasAdyen =
+      allowsAnySources(scriptSrcValues) ||
+      allowsAnySources(defaultSrcValues) ||
       cspIncludesDomain(csp, 'script-src', ADYEN_CDN) ||
       cspIncludesDomain(csp, 'default-src', ADYEN_CDN);
 
@@ -131,7 +135,7 @@ export const CSP_CHECKS = createRegistry(CATEGORY)
       );
     }
 
-    if (allowsAnyHttpsIframeSource(effectiveFrameValues)) {
+    if (allowsAnySources(effectiveFrameValues)) {
       return pass(STRINGS.FRAME_SRC_PASS_TITLE);
     }
 

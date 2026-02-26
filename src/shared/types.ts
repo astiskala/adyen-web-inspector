@@ -236,7 +236,7 @@ export interface HealthScore {
   readonly failing: number;
   readonly warnings: number;
   readonly total: number;
-  readonly tier: 'excellent' | 'good' | 'issues' | 'critical';
+  readonly tier: 'excellent' | 'issues' | 'critical';
 }
 
 export interface ScanResult {

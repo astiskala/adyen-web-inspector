@@ -6,7 +6,7 @@
   "type": "module",
   "license": "MIT",
   "engines": {
-    "node": ">=20",
+    "node": ">=24",
     "pnpm": ">=9"
   },
   "scripts": {

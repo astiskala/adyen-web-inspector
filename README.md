@@ -29,7 +29,7 @@ Adyen Web Inspector is a Chrome Manifest V3 extension that inspects `adyen-web` 
 
 ### Prerequisites
 
-- Node.js 20+
+- Node.js 24+
 - pnpm 9+
 
 ### Install
@@ -103,7 +103,6 @@ Contributor workflow and coding conventions: [CONTRIBUTING.md](CONTRIBUTING.md)
 - Check catalog and rule logic: [docs/architecture/check-catalog.md](docs/architecture/check-catalog.md)
 - Contributor workflow: [CONTRIBUTING.md](CONTRIBUTING.md)
 - Security policy: [SECURITY.md](SECURITY.md)
-- Chrome Web Store release flow: [docs/release/chrome-web-store-publish.md](docs/release/chrome-web-store-publish.md)
 - Privacy policy: [docs/legal/privacy-policy.md](docs/legal/privacy-policy.md)
 
 ## License

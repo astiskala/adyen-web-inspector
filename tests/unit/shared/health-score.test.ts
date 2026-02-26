@@ -12,7 +12,7 @@ function makeCheck(id: CheckId, severity: Severity): CheckResult {
 }
 
 describe('calculateHealthScore', () => {
-  it('returns excellent when there are no issue severities', () => {
+  it('returns excellent (green) when no fails or warnings', () => {
     const health = calculateHealthScore([
       makeCheck('sdk-detected', 'pass'),
       makeCheck('sdk-flavor', 'pass'),
@@ -24,17 +24,17 @@ describe('calculateHealthScore', () => {
     expect(health.score).toBe(100);
   });
 
-  it('returns good when only notice-level issues exist', () => {
+  it('returns excellent (green) when only notice-level issues exist', () => {
     const health = calculateHealthScore([
       makeCheck('sdk-detected', 'pass'),
       makeCheck('security-referrer-policy', 'notice'),
     ]);
 
-    expect(health.tier).toBe('good');
+    expect(health.tier).toBe('excellent');
     expect(health.score).toBe(100);
   });
 
-  it('returns good when warnings exist but score remains above threshold', () => {
+  it('returns issues (amber) when any warning exists', () => {
     const health = calculateHealthScore([
       makeCheck('sdk-detected', 'pass'),
       makeCheck('sdk-flavor', 'pass'),
@@ -42,11 +42,11 @@ describe('calculateHealthScore', () => {
       makeCheck('version-latest', 'warn'),
     ]);
 
-    expect(health.tier).toBe('good');
+    expect(health.tier).toBe('issues');
     expect(health.score).toBe(75);
   });
 
-  it('returns issues when warnings lower score below the good threshold', () => {
+  it('returns issues (amber) when multiple warnings exist', () => {
     const health = calculateHealthScore([
       makeCheck('sdk-detected', 'pass'),
       makeCheck('version-latest', 'warn'),
@@ -57,10 +57,10 @@ describe('calculateHealthScore', () => {
     expect(health.score).toBe(33);
   });
 
-  it('returns critical when a high-impact issue is present', () => {
+  it('returns critical (red) when any failing check is present', () => {
     const health = calculateHealthScore([
       makeCheck('sdk-detected', 'pass'),
-      makeCheck('risk-df-iframe', 'warn'),
+      makeCheck('auth-country-code', 'fail'),
     ]);
 
     expect(health.tier).toBe('critical');

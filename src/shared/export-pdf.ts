@@ -42,17 +42,30 @@ function openPrintableWindow(html: string): boolean {
       return false;
     }
 
-    popup.addEventListener(
-      'load',
-      () => {
+    let printed = false;
+    const doPrint = (): void => {
+      if (printed) return;
+      printed = true;
+      try {
         popup.focus();
         popup.print();
-        globalThis.setTimeout(() => {
-          URL.revokeObjectURL(url);
-        }, 15_000);
-      },
-      { once: true }
-    );
+      } catch {
+        // Window may have been closed or become inaccessible.
+      }
+      globalThis.setTimeout(() => URL.revokeObjectURL(url), 15_000);
+    };
+
+    // Primary: listen for the load event.
+    try {
+      popup.addEventListener('load', doPrint, { once: true });
+    } catch {
+      // Cross-origin blob URL — event listener may fail.
+    }
+
+    // Fallback: fire after a delay if the load event does not reach us
+    // (e.g. MV3 extension popup losing context after window.open).
+    globalThis.setTimeout(doPrint, 1500);
+
     return true;
   } catch {
     return false;
@@ -69,7 +82,7 @@ function severityColor(severity: string): string {
 }
 
 function scoreColor(tier: string): string {
-  if (tier === 'excellent' || tier === 'good') return severityColor('pass');
+  if (tier === 'excellent') return severityColor('pass');
   if (tier === 'issues') return severityColor('warn');
   return severityColor('fail');
 }
@@ -361,7 +374,6 @@ function buildPrintableHtml(result: ScanResult): string {
     .footer { margin-top: 32px; text-align: center; color: #9ca3af; font-size: 10px; border-top: 1px solid #e5e7eb; padding-top: 12px; }
     @media print { body { padding: 16px; } }
   </style>
-  <script>window.addEventListener('load', () => { window.print(); });</script>
 </head>
 <body>
   <h1>Adyen Web Inspector</h1>
