@@ -51,6 +51,18 @@ describe('flow-type', () => {
     expect(result.detail).toContain('checkout config');
   });
 
+  it('includes analytics data signal in advanced flow description', () => {
+    const payload = makeAdyenPayload(
+      {},
+      {},
+      { analyticsData: makeAnalyticsData({ flavor: 'components' }) }
+    );
+    const result = flowType.run(payload);
+    expect(result.severity).toBe('info');
+    expect(result.title).toContain('Advanced flow');
+    expect(result.detail).toContain('checkout analytics data');
+  });
+
   it('reports unknown flow when no Adyen API requests captured', () => {
     const payload = makeScanPayload();
     const result = flowType.run(payload);
@@ -179,6 +191,13 @@ describe('callback-on-submit', () => {
 });
 
 describe('callback-on-submit-filtering', () => {
+  it('skips when no checkout config present', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({ checkoutConfig: null }),
+    });
+    expect(onSubmitSelectiveHandling.run(payload).severity).toBe('skip');
+  });
+
   it('passes when onSubmit does not selectively filter payment methods or action codes', () => {
     const payload = makeAdyenPayload(
       {},
@@ -203,6 +222,32 @@ describe('callback-on-submit-filtering', () => {
     const result = onSubmitSelectiveHandling.run(payload);
     expect(result.severity).toBe('warn');
     expect(result.detail).toContain('payment methods');
+  });
+
+  it('warns when both payment method and action code are filtered without fallback', () => {
+    const payload = makeAdyenPayload(
+      {},
+      {
+        onSubmitSource:
+          "onSubmit: (state, component, actions) => { if (state.data.paymentMethod.type === 'scheme') { actions.resolve(result); } switch (resultCode) { case 'Authorised': break; } }",
+      }
+    );
+    const result = onSubmitSelectiveHandling.run(payload);
+    expect(result.severity).toBe('warn');
+    expect(result.detail).toContain('payment methods');
+    expect(result.detail).toContain('action codes');
+  });
+
+  it('warns when if-body is a single statement without else', () => {
+    const payload = makeAdyenPayload(
+      {},
+      {
+        onSubmitSource:
+          "onSubmit: (state, component, actions) => { if (state.data.paymentMethod.type === 'scheme') actions.resolve(result); }",
+      }
+    );
+    const result = onSubmitSelectiveHandling.run(payload);
+    expect(result.severity).toBe('warn');
   });
 
   it('warns when action code switch has no default branch', () => {
@@ -380,6 +425,13 @@ describe('callback-on-payment-failed', () => {
 });
 
 describe('callback-on-error', () => {
+  it('skips when no checkout config present', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({ checkoutConfig: null }),
+    });
+    expect(onError.run(payload).severity).toBe('skip');
+  });
+
   it('passes when callback is present at checkout level', () => {
     const payload = makeAdyenPayload({}, { onError: 'checkout' });
     expect(onError.run(payload).severity).toBe('pass');
@@ -402,6 +454,13 @@ describe('callback-on-error', () => {
 });
 
 describe('callback-before-submit', () => {
+  it('skips when no checkout config present', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({ checkoutConfig: null }),
+    });
+    expect(beforeSubmit.run(payload).severity).toBe('skip');
+  });
+
   it('passes when callback is present at checkout level', () => {
     const payload = makeAdyenPayload({}, { beforeSubmit: 'checkout' });
     expect(beforeSubmit.run(payload).severity).toBe('pass');

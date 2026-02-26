@@ -19,7 +19,6 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
   const WRAPPED = '__awInspectorWrapped';
 
   type PlainRecord = Record<string, unknown>;
-  type CaptureSource = 'checkout' | 'component';
 
   /** Broad callable — we wrap arbitrary SDK exports whose shape is unknown. */
   type SdkCallable = (this: unknown, ...args: unknown[]) => unknown;
@@ -47,7 +46,7 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
     return typeof value === 'boolean' ? value : typeof value === 'function';
   }
 
-  function extractFields(raw: unknown, source: CaptureSource): Partial<CheckoutConfig> | null {
+  function extractFields(raw: unknown, source: CallbackSource): Partial<CheckoutConfig> | null {
     if (raw === null || typeof raw !== 'object') return null;
     const r = raw as PlainRecord;
     const c: PlainRecord = {};
@@ -72,10 +71,10 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
 
     // Tag each callback with its source ('checkout' or 'component').
     for (const key of CALLBACK_KEYS) {
-      if (hasCallback(r[key])) c[key] = source satisfies CallbackSource;
+      if (hasCallback(r[key])) c[key] = source;
     }
 
-    // Capture onSubmit source for static-analysis checks.
+    // Capture onSubmit function body for callback-pattern checks.
     if (typeof r['onSubmit'] === 'function') {
       try {
         c['onSubmitSource'] = (r['onSubmit'] as () => void).toString().slice(0, 1200);
@@ -114,7 +113,7 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
     (globalThis as PlainRecord)[CAPTURED_CONFIG_KEY] = structuredClone(captured);
   }
 
-  function captureConfig(raw: unknown, source: CaptureSource): void {
+  function captureConfig(raw: unknown, source: CallbackSource): void {
     mergeAndPublish(extractFields(raw, source));
   }
 

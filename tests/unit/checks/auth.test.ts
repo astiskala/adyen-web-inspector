@@ -55,6 +55,13 @@ describe('auth-country-code', () => {
     const payload = makeAdyenPayload({}, { countryCode: undefined });
     expect(authCountryCode.run(payload).severity).toBe('fail');
   });
+
+  it('skips when no checkout config present', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({ checkoutConfig: null }),
+    });
+    expect(authCountryCode.run(payload).severity).toBe('skip');
+  });
 });
 
 describe('auth-locale', () => {
@@ -80,5 +87,12 @@ describe('auth-locale', () => {
   it('warns when locale is missing', () => {
     const payload = makeAdyenPayload({}, { locale: undefined });
     expect(authLocale.run(payload).severity).toBe('warn');
+  });
+
+  it('skips when no checkout config present', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({ checkoutConfig: null }),
+    });
+    expect(authLocale.run(payload).severity).toBe('skip');
   });
 });
