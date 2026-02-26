@@ -15,7 +15,6 @@ import { createRegistry, type CheckContext } from './registry.js';
 const CATEGORY = 'callbacks' as const;
 const FLOW_DOCS = {
   advanced: {
-    overview: 'https://docs.adyen.com/online-payments/build-your-integration/advanced-flow/',
     callbacks: {
       'Drop-in':
         'https://docs.adyen.com/online-payments/build-your-integration/advanced-flow/?platform=Web&integration=Drop-in#add',
@@ -208,7 +207,7 @@ function runAdvancedRequiredCallbackCheck(
     options.missingTitle,
     options.missingDetail,
     options.remediation,
-    FLOW_DOCS.advanced.overview
+    getFlowSensitiveCallbackDocsUrl(payload, 'advanced')
   );
 }
 
@@ -457,7 +456,7 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
         STRINGS.SUBMIT_FILTER_WARN_TITLE,
         `Static analysis detected selective filtering on ${joinSignals(filteredTargets)} without a clear catch-all branch (else/default).`,
         STRINGS.SUBMIT_FILTER_WARN_REMEDIATION,
-        FLOW_DOCS.advanced.overview
+        getFlowSensitiveCallbackDocsUrl(payload, 'advanced')
       );
     }
 
@@ -523,7 +522,7 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
       STRINGS.ON_ERROR_FAIL_TITLE,
       STRINGS.ON_ERROR_FAIL_DETAIL,
       STRINGS.ON_ERROR_FAIL_REMEDIATION,
-      FLOW_DOCS.advanced.overview
+      getFlowSensitiveCallbackDocsUrl(payload, 'advanced')
     );
   })
   .add('callback-before-submit', (payload, { pass, info, skip }) => {
@@ -562,7 +561,7 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
         STRINGS.ACTIONS_PATTERN_WARN_TITLE,
         STRINGS.ACTIONS_PATTERN_WARN_DETAIL,
         STRINGS.ACTIONS_PATTERN_WARN_REMEDIATION,
-        FLOW_DOCS.advanced.overview
+        getFlowSensitiveCallbackDocsUrl(payload, 'advanced')
       );
     }
 
