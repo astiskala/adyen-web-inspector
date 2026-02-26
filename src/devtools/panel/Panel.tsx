@@ -27,9 +27,9 @@ const TABS = [
   'Overview',
   'Best Practices',
   'Security',
+  'Skipped Checks',
   'Network',
   'Raw Config',
-  'Skipped Checks',
 ] as const;
 type TabName = (typeof TABS)[number];
 const CONTEXT_INVALIDATED_ERROR_TEXT = 'Extension context invalidated';
