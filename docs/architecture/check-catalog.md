@@ -15,11 +15,11 @@ This catalog is the documentation source of truth for checks registered in:
 | `version-lifecycle` |           2 | `sdk-version.ts`                 |
 | `environment`       |           4 | `environment.ts`                 |
 | `auth`              |           3 | `auth.ts`                        |
-| `callbacks`         |           8 | `callbacks.ts`                   |
+| `callbacks`         |           9 | `callbacks.ts`                   |
 | `risk`              |           2 | `risk-module.ts`                 |
 | `security`          |          13 | `security.ts`, `security-csp.ts` |
 | `third-party`       |           4 | `third-party-scripts.ts`         |
-| **Total**           |      **40** | `ALL_CHECKS`                     |
+| **Total**           |      **41** | `ALL_CHECKS`                     |
 
 ## Severity Model
 
@@ -50,6 +50,7 @@ This catalog is the documentation source of truth for checks registered in:
 | `auth`              | `auth-locale`                    | Validate `locale` is set and supported by Adyen Web translations.                                  | `pass`, `warn`, `skip`           |
 | `callbacks`         | `flow-type`                      | Infer integration flow (`Sessions`, `Advanced`, `Unknown`) from runtime signals.                   | `info`                           |
 | `callbacks`         | `callback-on-submit`             | Require `onSubmit` for Advanced flow.                                                              | `pass`, `fail`, `skip`           |
+| `callbacks`         | `callback-on-submit-filtering`   | Advanced flow: detect `onSubmit` filtering by payment type/action code without catch-all fallback. | `pass`, `warn`, `skip`           |
 | `callbacks`         | `callback-on-additional-details` | Require `onAdditionalDetails` for Advanced flow follow-up actions (for example, 3DS).              | `pass`, `fail`, `skip`           |
 | `callbacks`         | `callback-on-payment-completed`  | Verify payment-success outcome handling; stricter for Sessions flow.                               | `pass`, `fail`, `warn`, `skip`   |
 | `callbacks`         | `callback-on-payment-failed`     | Verify payment-failure outcome handling; stricter for Sessions flow.                               | `pass`, `fail`, `warn`, `skip`   |

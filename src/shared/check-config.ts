@@ -25,6 +25,7 @@ export const WARNING_PRIORITY_BY_ID: Partial<Record<CheckId, WarningPriority>> =
   'callback-on-payment-completed': 'medium',
   'callback-on-payment-failed': 'medium',
   'callback-actions-pattern': 'medium',
+  'callback-on-submit-filtering': 'medium',
   'sdk-analytics': 'medium',
   'sdk-bundle-type': 'medium',
   'version-detected': 'medium',

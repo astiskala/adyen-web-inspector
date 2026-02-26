@@ -12,6 +12,7 @@ import { requireCheck } from './requireCheck';
 
 const flowType = requireCheck(CALLBACK_CHECKS, 'flow-type');
 const onSubmit = requireCheck(CALLBACK_CHECKS, 'callback-on-submit');
+const onSubmitSelectiveHandling = requireCheck(CALLBACK_CHECKS, 'callback-on-submit-filtering');
 const onAdditionalDetails = requireCheck(CALLBACK_CHECKS, 'callback-on-additional-details');
 const onPaymentCompleted = requireCheck(CALLBACK_CHECKS, 'callback-on-payment-completed');
 const onPaymentFailed = requireCheck(CALLBACK_CHECKS, 'callback-on-payment-failed');
@@ -163,6 +164,75 @@ describe('callback-on-submit', () => {
   it('skips when sessions flow is detected', () => {
     const payload = makeAdyenPayload({}, {}, { capturedRequests: sessionsRequests });
     expect(onSubmit.run(payload).severity).toBe('skip');
+  });
+});
+
+describe('callback-on-submit-filtering', () => {
+  it('passes when onSubmit does not selectively filter payment methods or action codes', () => {
+    const payload = makeAdyenPayload(
+      {},
+      {
+        onSubmitSource:
+          'onSubmit: async (state, component, actions) => { const result = await submit(state.data); actions.resolve(result); }',
+      }
+    );
+
+    expect(onSubmitSelectiveHandling.run(payload).severity).toBe('pass');
+  });
+
+  it('warns when paymentMethod.type filtering has no fallback branch', () => {
+    const payload = makeAdyenPayload(
+      {},
+      {
+        onSubmitSource:
+          "onSubmit: (state, component, actions) => { if (state.data.paymentMethod.type === 'scheme') { actions.resolve(result); } }",
+      }
+    );
+
+    const result = onSubmitSelectiveHandling.run(payload);
+    expect(result.severity).toBe('warn');
+    expect(result.detail).toContain('payment methods');
+  });
+
+  it('warns when action code switch has no default branch', () => {
+    const payload = makeAdyenPayload(
+      {},
+      {
+        onSubmitSource:
+          "onSubmit: (state, component, actions) => { switch (resultCode) { case 'Authorised': actions.resolve(result); break; } }",
+      }
+    );
+
+    const result = onSubmitSelectiveHandling.run(payload);
+    expect(result.severity).toBe('warn');
+    expect(result.detail).toContain('action codes');
+  });
+
+  it('passes when selective filtering includes an else fallback', () => {
+    const payload = makeAdyenPayload(
+      {},
+      {
+        onSubmitSource:
+          "onSubmit: (state, component, actions) => { if (state.data.paymentMethod.type === 'scheme') { actions.resolve(cardResult); } else { actions.resolve(otherResult); } }",
+      }
+    );
+
+    expect(onSubmitSelectiveHandling.run(payload).severity).toBe('pass');
+  });
+
+  it('skips when flow is Sessions', () => {
+    const payload = makeAdyenPayload(
+      {},
+      { onSubmitSource: "if (resultCode === 'Authorised') { actions.resolve(result); }" },
+      { capturedRequests: sessionsRequests }
+    );
+
+    expect(onSubmitSelectiveHandling.run(payload).severity).toBe('skip');
+  });
+
+  it('skips when onSubmit source is unavailable', () => {
+    const payload = makeAdyenPayload({}, { onSubmitSource: undefined });
+    expect(onSubmitSelectiveHandling.run(payload).severity).toBe('skip');
   });
 });
 

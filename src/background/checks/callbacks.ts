@@ -44,6 +44,17 @@ interface CheckOutcome {
   readonly docsUrl?: string;
 }
 
+interface UnhandledOnSubmitFilters {
+  readonly paymentMethod: boolean;
+  readonly actionCode: boolean;
+}
+
+const STRING_LITERAL_PATTERN = /['"`][^'"`\n]+['"`]/;
+const PAYMENT_METHOD_SELECTOR_PATTERN =
+  /\bpaymentMethod(?:\?\.)?\.type\b|\bpaymentMethod\s*\[\s*['"]type['"]\s*\]/;
+const ACTION_CODE_SELECTOR_PATTERN =
+  /\bresultCode\b|\baction(?:\?\.)?\.type\b|\baction\s*\[\s*['"]type['"]\s*\]/;
+
 function flowLabel(flow: IntegrationFlow): string {
   if (flow === 'sessions') return 'Sessions flow';
   if (flow === 'advanced') return 'Advanced flow';
@@ -174,6 +185,158 @@ function runFlowSensitiveOutcomeCallbackCheck(
   );
 }
 
+function isWhitespaceChar(char: string | undefined): boolean {
+  return char === ' ' || char === '\n' || char === '\r' || char === '\t' || char === '\f';
+}
+
+function skipWhitespace(source: string, start: number): number {
+  let index = start;
+  while (isWhitespaceChar(source[index])) {
+    index += 1;
+  }
+  return index;
+}
+
+function findMatchingDelimiter(
+  source: string,
+  start: number,
+  openDelimiter: string,
+  closeDelimiter: string
+): number {
+  let depth = 0;
+  for (let index = start; index < source.length; index += 1) {
+    const char = source[index];
+    if (char === openDelimiter) {
+      depth += 1;
+      continue;
+    }
+    if (char === closeDelimiter) {
+      depth -= 1;
+      if (depth === 0) {
+        return index;
+      }
+    }
+  }
+  return -1;
+}
+
+function findStatementEnd(source: string, start: number): number {
+  const firstToken = source[start];
+  if (firstToken === '{') {
+    return findMatchingDelimiter(source, start, '{', '}');
+  }
+
+  const semicolonIndex = source.indexOf(';', start);
+  if (semicolonIndex !== -1) {
+    return semicolonIndex;
+  }
+
+  const newlineIndex = source.indexOf('\n', start);
+  if (newlineIndex !== -1) {
+    return newlineIndex;
+  }
+
+  return source.length - 1;
+}
+
+function hasUnhandledSelectorIfStatement(source: string, selectorPattern: RegExp): boolean {
+  const ifPattern = /\bif\s*\(/g;
+  let match = ifPattern.exec(source);
+
+  while (match !== null) {
+    const conditionStart = source.indexOf('(', match.index);
+    if (conditionStart === -1) {
+      match = ifPattern.exec(source);
+      continue;
+    }
+
+    const conditionEnd = findMatchingDelimiter(source, conditionStart, '(', ')');
+    if (conditionEnd === -1) {
+      return false;
+    }
+
+    const condition = source.slice(conditionStart + 1, conditionEnd);
+    const hasSelector = selectorPattern.test(condition);
+    const hasSpecificLiteral = STRING_LITERAL_PATTERN.test(condition);
+    if (hasSelector && hasSpecificLiteral) {
+      const statementStart = skipWhitespace(source, conditionEnd + 1);
+      const statementEnd = findStatementEnd(source, statementStart);
+      if (statementEnd === -1) {
+        return false;
+      }
+
+      const trailingTokenStart = skipWhitespace(source, statementEnd + 1);
+      if (!source.startsWith('else', trailingTokenStart)) {
+        return true;
+      }
+    }
+
+    ifPattern.lastIndex = conditionEnd + 1;
+    match = ifPattern.exec(source);
+  }
+
+  return false;
+}
+
+function hasUnhandledSelectorSwitchStatement(source: string, selectorPattern: RegExp): boolean {
+  const switchPattern = /\bswitch\s*\(/g;
+  let match = switchPattern.exec(source);
+
+  while (match !== null) {
+    const conditionStart = source.indexOf('(', match.index);
+    if (conditionStart === -1) {
+      match = switchPattern.exec(source);
+      continue;
+    }
+
+    const conditionEnd = findMatchingDelimiter(source, conditionStart, '(', ')');
+    if (conditionEnd === -1) {
+      return false;
+    }
+
+    const condition = source.slice(conditionStart + 1, conditionEnd);
+    if (selectorPattern.test(condition)) {
+      const blockStart = skipWhitespace(source, conditionEnd + 1);
+      if (source[blockStart] !== '{') {
+        match = switchPattern.exec(source);
+        continue;
+      }
+
+      const blockEnd = findMatchingDelimiter(source, blockStart, '{', '}');
+      if (blockEnd === -1) {
+        return false;
+      }
+
+      const switchBlock = source.slice(blockStart + 1, blockEnd);
+      const hasStringCases = /\bcase\s*['"`][^'"`\n]+['"`]\s*:/.test(switchBlock);
+      const hasDefaultCase = /\bdefault\s*:/.test(switchBlock);
+
+      if (hasStringCases && !hasDefaultCase) {
+        return true;
+      }
+    }
+
+    switchPattern.lastIndex = conditionEnd + 1;
+    match = switchPattern.exec(source);
+  }
+
+  return false;
+}
+
+function detectUnhandledOnSubmitFilters(source: string): UnhandledOnSubmitFilters {
+  const paymentMethodFiltered =
+    hasUnhandledSelectorIfStatement(source, PAYMENT_METHOD_SELECTOR_PATTERN) ||
+    hasUnhandledSelectorSwitchStatement(source, PAYMENT_METHOD_SELECTOR_PATTERN);
+  const actionCodeFiltered =
+    hasUnhandledSelectorIfStatement(source, ACTION_CODE_SELECTOR_PATTERN) ||
+    hasUnhandledSelectorSwitchStatement(source, ACTION_CODE_SELECTOR_PATTERN);
+
+  return {
+    paymentMethod: paymentMethodFiltered,
+    actionCode: actionCodeFiltered,
+  };
+}
+
 export const CALLBACK_CHECKS = createRegistry(CATEGORY)
   .add('flow-type', (payload, { info }) => {
     const flow = detectIntegrationFlow(payload);
@@ -192,6 +355,44 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
           "Add an onSubmit handler to your AdyenCheckout configuration. When the shopper submits payment details, forward the payment state to your server's /payments endpoint and then call actions.resolve() with the result or actions.reject() if the request fails.",
       },
       context
+    );
+  })
+  .add('callback-on-submit-filtering', (payload, { skip, warn, pass }) => {
+    const config = payload.page.checkoutConfig;
+    if (!config) {
+      return skip('onSubmit filtering check skipped — config not detected.');
+    }
+
+    const flow = detectIntegrationFlow(payload);
+    if (flow === 'sessions') {
+      return skip('onSubmit filtering check skipped — Sessions flow detected.');
+    }
+
+    const onSubmitSource = config.onSubmitSource ?? '';
+    if (onSubmitSource === '') {
+      return skip('onSubmit filtering check skipped — onSubmit source not available.');
+    }
+
+    const filters = detectUnhandledOnSubmitFilters(onSubmitSource);
+    if (filters.paymentMethod || filters.actionCode) {
+      const filteredTargets: string[] = [];
+      if (filters.paymentMethod) {
+        filteredTargets.push('payment methods');
+      }
+      if (filters.actionCode) {
+        filteredTargets.push('action codes');
+      }
+
+      return warn(
+        'onSubmit appears to leave some payment methods or action codes unhandled.',
+        `Static analysis detected selective filtering on ${joinSignals(filteredTargets)} without a clear catch-all branch (else/default).`,
+        'Refactor onSubmit so all submissions follow a generic fallback path. Method-specific or action-specific logic can be added as an exception, but all other cases should still call actions.resolve(...) or actions.reject(...).',
+        FLOW_DOCS.advanced.overview
+      );
+    }
+
+    return pass(
+      'onSubmit appears to handle payment methods and action codes through a generic fallback path.'
     );
   })
   .add('callback-on-additional-details', (payload, context) => {

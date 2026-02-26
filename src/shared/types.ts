@@ -43,6 +43,7 @@ export type CheckId =
   // Callbacks
   | 'flow-type'
   | 'callback-on-submit'
+  | 'callback-on-submit-filtering'
   | 'callback-on-additional-details'
   | 'callback-on-payment-completed'
   | 'callback-on-payment-failed'
