@@ -4,8 +4,6 @@
 
 export const SKIP_REASONS = {
   CHECKOUT_CONFIG_NOT_DETECTED: 'Checkout config not detected.',
-  SESSIONS_FLOW_DETECTED: 'Sessions flow detected.',
-  ON_SUBMIT_SOURCE_NOT_AVAILABLE: 'onSubmit source not available.',
   NO_CSP_HEADER: 'No Content-Security-Policy header present.',
   SDK_NOT_ACTIVE: 'SDK not active on this page.',
   ADYEN_WEB_METADATA_NOT_AVAILABLE: 'AdyenWebMetadata not available.',

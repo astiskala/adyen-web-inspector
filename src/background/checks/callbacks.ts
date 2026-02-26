@@ -9,6 +9,7 @@ import {
   resolveIntegrationFlavor,
   type IntegrationFlow,
 } from '../../shared/implementation-attributes.js';
+import { SKIP_REASONS } from './constants.js';
 import { createRegistry, type CheckContext } from './registry.js';
 
 const CATEGORY = 'callbacks' as const;
@@ -105,6 +106,76 @@ function getFlowSensitiveCallbackDocsUrl(payload: ScanPayload, flow: Integration
   return FLOW_DOCS.advanced.callbacks[callbackDocFlavor];
 }
 
+const STRINGS = {
+  SESSIONS_FLOW_SKIP_REASON: 'Sessions flow detected.',
+  NO_SOURCE_SKIP_REASON: 'onSubmit source not available.',
+
+  ON_SUBMIT_PASS_TITLE: 'onSubmit callback is present.',
+  ON_SUBMIT_FAIL_TITLE: 'onSubmit callback is missing.',
+  ON_SUBMIT_FAIL_DETAIL:
+    'Advanced flow requires handling onSubmit to call your /payments endpoint.',
+  ON_SUBMIT_FAIL_REMEDIATION:
+    "Add an onSubmit handler to your AdyenCheckout configuration. When the shopper submits payment details, forward the payment state to your server's /payments endpoint and then call actions.resolve() with the result or actions.reject() if the request fails.",
+
+  SUBMIT_FILTER_WARN_TITLE:
+    'onSubmit appears to leave some payment methods or action codes unhandled.',
+  // SUBMIT_FILTER_WARN_DETAIL stays inline (dynamic: uses joinSignals(filteredTargets))
+  SUBMIT_FILTER_WARN_REMEDIATION:
+    'Refactor onSubmit so all submissions follow a generic fallback path. Method-specific or action-specific logic can be added as an exception, but all other cases should still call actions.resolve(...) or actions.reject(...).',
+  SUBMIT_FILTER_PASS_TITLE:
+    'onSubmit appears to handle payment methods and action codes through a generic fallback path.',
+
+  ON_ADD_DETAILS_PASS_TITLE: 'onAdditionalDetails callback is present.',
+  ON_ADD_DETAILS_FAIL_TITLE: 'onAdditionalDetails callback is missing.',
+  ON_ADD_DETAILS_FAIL_DETAIL:
+    'Without onAdditionalDetails, 3DS and other follow-up actions cannot complete correctly.',
+  ON_ADD_DETAILS_FAIL_REMEDIATION:
+    'Add an onAdditionalDetails handler to your AdyenCheckout configuration. This callback fires when follow-up data is needed (such as after 3DS authentication).',
+
+  ON_PAYMENT_COMPLETED_PASS_TITLE: 'onPaymentCompleted callback is present.',
+  ON_PAYMENT_COMPLETED_MISSING_TITLE: 'onPaymentCompleted callback is not set.',
+  ON_PAYMENT_COMPLETED_SESSIONS_DETAIL:
+    'For Sessions flow, onPaymentCompleted is the primary handler for authorised and refused outcomes.',
+  ON_PAYMENT_COMPLETED_ADVANCED_DETAIL:
+    'Without onPaymentCompleted, successful outcomes may not trigger your confirmation and fulfillment logic.',
+  ON_PAYMENT_COMPLETED_SESSIONS_REMEDIATION:
+    'Add an onPaymentCompleted handler to your AdyenCheckout configuration. For Sessions flow, this is the primary callback for payment outcomes.',
+  ON_PAYMENT_COMPLETED_ADVANCED_REMEDIATION:
+    'Add an onPaymentCompleted handler to receive notification when a payment is authorised.',
+
+  ON_PAYMENT_FAILED_PASS_TITLE: 'onPaymentFailed callback is present.',
+  ON_PAYMENT_FAILED_MISSING_TITLE: 'onPaymentFailed callback is not set.',
+  ON_PAYMENT_FAILED_SESSIONS_DETAIL:
+    'For Sessions flow, onPaymentFailed handles refused and error payment outcomes.',
+  ON_PAYMENT_FAILED_ADVANCED_DETAIL:
+    'Without onPaymentFailed, refused or errored payments can end without clear shopper recovery handling.',
+  ON_PAYMENT_FAILED_SESSIONS_REMEDIATION:
+    'Add an onPaymentFailed handler to your AdyenCheckout configuration. For Sessions flow, this callback fires when a payment is refused or encounters an error.',
+  ON_PAYMENT_FAILED_ADVANCED_REMEDIATION:
+    'Add an onPaymentFailed handler to receive notification when a payment is refused.',
+
+  ON_ERROR_SKIP_TITLE: 'onError check skipped.',
+  ON_ERROR_PASS_TITLE: 'onError callback is present.',
+  ON_ERROR_FAIL_TITLE: 'onError callback is missing.',
+  ON_ERROR_FAIL_DETAIL:
+    'Without onError, technical checkout failures can fail silently and block shopper recovery.',
+  ON_ERROR_FAIL_REMEDIATION:
+    'Add an onError handler to your AdyenCheckout configuration to catch and respond to technical errors during the checkout lifecycle.',
+
+  BEFORE_SUBMIT_SKIP_TITLE: 'beforeSubmit check skipped.',
+  BEFORE_SUBMIT_PASS_TITLE: 'beforeSubmit callback is present (custom pay button flow).',
+  BEFORE_SUBMIT_INFO_TITLE: 'beforeSubmit is not configured.',
+
+  ACTIONS_PATTERN_SKIP_TITLE: 'Actions pattern check skipped.',
+  ACTIONS_PATTERN_PASS_TITLE: 'onSubmit uses the v6 actions.resolve() / actions.reject() pattern.',
+  ACTIONS_PATTERN_WARN_TITLE:
+    'onSubmit appears to use v5-style component callbacks — update to v6 actions pattern.',
+  ACTIONS_PATTERN_WARN_DETAIL: 'v6 adopts actions.resolve() / actions.reject() inside onSubmit.',
+  ACTIONS_PATTERN_WARN_REMEDIATION:
+    'Migrate your onSubmit handler from the v5-style component callbacks to the v6 actions pattern.',
+  ACTIONS_PATTERN_INFO_TITLE: 'Could not determine onSubmit callback pattern from static analysis.',
+} as const;
+
 interface AdvancedRequiredCallbackOptions {
   readonly label: string;
   readonly readCallback: (config: CheckoutConfig) => CallbackValue;
@@ -121,12 +192,12 @@ function runAdvancedRequiredCallbackCheck(
 ): CheckOutcome {
   const config = payload.page.checkoutConfig;
   if (!config) {
-    return skip(`${options.label} check skipped — config not detected.`);
+    return skip(`${options.label} check skipped.`, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
   }
 
   const flow = detectIntegrationFlow(payload);
   if (flow === 'sessions') {
-    return skip(`${options.label} check skipped — Sessions flow detected.`);
+    return skip(`${options.label} check skipped.`, STRINGS.SESSIONS_FLOW_SKIP_REASON);
   }
 
   if (hasCallbackSignal(options.readCallback(config))) {
@@ -159,7 +230,7 @@ function runFlowSensitiveOutcomeCallbackCheck(
 ): CheckOutcome {
   const config = payload.page.checkoutConfig;
   if (!config) {
-    return skip(`${options.label} check skipped — config not detected.`);
+    return skip(`${options.label} check skipped.`, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
   }
 
   const flow = detectIntegrationFlow(payload);
@@ -348,11 +419,10 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
       {
         label: 'onSubmit',
         readCallback: (config) => config.onSubmit,
-        presentTitle: 'onSubmit callback is present.',
-        missingTitle: 'onSubmit callback is missing.',
-        missingDetail: 'Advanced flow requires handling onSubmit to call your /payments endpoint.',
-        remediation:
-          "Add an onSubmit handler to your AdyenCheckout configuration. When the shopper submits payment details, forward the payment state to your server's /payments endpoint and then call actions.resolve() with the result or actions.reject() if the request fails.",
+        presentTitle: STRINGS.ON_SUBMIT_PASS_TITLE,
+        missingTitle: STRINGS.ON_SUBMIT_FAIL_TITLE,
+        missingDetail: STRINGS.ON_SUBMIT_FAIL_DETAIL,
+        remediation: STRINGS.ON_SUBMIT_FAIL_REMEDIATION,
       },
       context
     );
@@ -360,17 +430,17 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
   .add('callback-on-submit-filtering', (payload, { skip, warn, pass }) => {
     const config = payload.page.checkoutConfig;
     if (!config) {
-      return skip('onSubmit filtering check skipped — config not detected.');
+      return skip('onSubmit filtering check skipped.', SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
     }
 
     const flow = detectIntegrationFlow(payload);
     if (flow === 'sessions') {
-      return skip('onSubmit filtering check skipped — Sessions flow detected.');
+      return skip('onSubmit filtering check skipped.', STRINGS.SESSIONS_FLOW_SKIP_REASON);
     }
 
     const onSubmitSource = config.onSubmitSource ?? '';
     if (onSubmitSource === '') {
-      return skip('onSubmit filtering check skipped — onSubmit source not available.');
+      return skip('onSubmit filtering check skipped.', STRINGS.NO_SOURCE_SKIP_REASON);
     }
 
     const filters = detectUnhandledOnSubmitFilters(onSubmitSource);
@@ -384,16 +454,14 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
       }
 
       return warn(
-        'onSubmit appears to leave some payment methods or action codes unhandled.',
+        STRINGS.SUBMIT_FILTER_WARN_TITLE,
         `Static analysis detected selective filtering on ${joinSignals(filteredTargets)} without a clear catch-all branch (else/default).`,
-        'Refactor onSubmit so all submissions follow a generic fallback path. Method-specific or action-specific logic can be added as an exception, but all other cases should still call actions.resolve(...) or actions.reject(...).',
+        STRINGS.SUBMIT_FILTER_WARN_REMEDIATION,
         FLOW_DOCS.advanced.overview
       );
     }
 
-    return pass(
-      'onSubmit appears to handle payment methods and action codes through a generic fallback path.'
-    );
+    return pass(STRINGS.SUBMIT_FILTER_PASS_TITLE);
   })
   .add('callback-on-additional-details', (payload, context) => {
     return runAdvancedRequiredCallbackCheck(
@@ -401,12 +469,10 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
       {
         label: 'onAdditionalDetails',
         readCallback: (config) => config.onAdditionalDetails,
-        presentTitle: 'onAdditionalDetails callback is present.',
-        missingTitle: 'onAdditionalDetails callback is missing.',
-        missingDetail:
-          'Without onAdditionalDetails, 3DS and other follow-up actions cannot complete correctly.',
-        remediation:
-          'Add an onAdditionalDetails handler to your AdyenCheckout configuration. This callback fires when follow-up data is needed (such as after 3DS authentication).',
+        presentTitle: STRINGS.ON_ADD_DETAILS_PASS_TITLE,
+        missingTitle: STRINGS.ON_ADD_DETAILS_FAIL_TITLE,
+        missingDetail: STRINGS.ON_ADD_DETAILS_FAIL_DETAIL,
+        remediation: STRINGS.ON_ADD_DETAILS_FAIL_REMEDIATION,
       },
       context
     );
@@ -417,16 +483,12 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
       {
         label: 'onPaymentCompleted',
         readCallback: (config) => config.onPaymentCompleted,
-        presentTitle: 'onPaymentCompleted callback is present.',
-        missingTitle: 'onPaymentCompleted callback is not set.',
-        missingSessionsDetail:
-          'For Sessions flow, onPaymentCompleted is the primary handler for authorised and refused outcomes.',
-        missingAdvancedDetail:
-          'Without onPaymentCompleted, successful outcomes may not trigger your confirmation and fulfillment logic.',
-        missingSessionsRemediation:
-          'Add an onPaymentCompleted handler to your AdyenCheckout configuration. For Sessions flow, this is the primary callback for payment outcomes.',
-        missingAdvancedRemediation:
-          'Add an onPaymentCompleted handler to receive notification when a payment is authorised.',
+        presentTitle: STRINGS.ON_PAYMENT_COMPLETED_PASS_TITLE,
+        missingTitle: STRINGS.ON_PAYMENT_COMPLETED_MISSING_TITLE,
+        missingSessionsDetail: STRINGS.ON_PAYMENT_COMPLETED_SESSIONS_DETAIL,
+        missingAdvancedDetail: STRINGS.ON_PAYMENT_COMPLETED_ADVANCED_DETAIL,
+        missingSessionsRemediation: STRINGS.ON_PAYMENT_COMPLETED_SESSIONS_REMEDIATION,
+        missingAdvancedRemediation: STRINGS.ON_PAYMENT_COMPLETED_ADVANCED_REMEDIATION,
       },
       context
     );
@@ -437,16 +499,12 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
       {
         label: 'onPaymentFailed',
         readCallback: (config) => config.onPaymentFailed,
-        presentTitle: 'onPaymentFailed callback is present.',
-        missingTitle: 'onPaymentFailed callback is not set.',
-        missingSessionsDetail:
-          'For Sessions flow, onPaymentFailed handles refused and error payment outcomes.',
-        missingAdvancedDetail:
-          'Without onPaymentFailed, refused or errored payments can end without clear shopper recovery handling.',
-        missingSessionsRemediation:
-          'Add an onPaymentFailed handler to your AdyenCheckout configuration. For Sessions flow, this callback fires when a payment is refused or encounters an error.',
-        missingAdvancedRemediation:
-          'Add an onPaymentFailed handler to receive notification when a payment is refused.',
+        presentTitle: STRINGS.ON_PAYMENT_FAILED_PASS_TITLE,
+        missingTitle: STRINGS.ON_PAYMENT_FAILED_MISSING_TITLE,
+        missingSessionsDetail: STRINGS.ON_PAYMENT_FAILED_SESSIONS_DETAIL,
+        missingAdvancedDetail: STRINGS.ON_PAYMENT_FAILED_ADVANCED_DETAIL,
+        missingSessionsRemediation: STRINGS.ON_PAYMENT_FAILED_SESSIONS_REMEDIATION,
+        missingAdvancedRemediation: STRINGS.ON_PAYMENT_FAILED_ADVANCED_REMEDIATION,
       },
       context
     );
@@ -454,60 +512,60 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
   .add('callback-on-error', (payload, { pass, fail, skip }) => {
     const config = payload.page.checkoutConfig;
     if (!config) {
-      return skip('onError check skipped — config not detected.');
+      return skip(STRINGS.ON_ERROR_SKIP_TITLE, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
     }
 
     if (hasCallbackSignal(config.onError)) {
-      return pass('onError callback is present.');
+      return pass(STRINGS.ON_ERROR_PASS_TITLE);
     }
 
     return fail(
-      'onError callback is missing.',
-      'Without onError, technical checkout failures can fail silently and block shopper recovery.',
-      'Add an onError handler to your AdyenCheckout configuration to catch and respond to technical errors during the checkout lifecycle.',
+      STRINGS.ON_ERROR_FAIL_TITLE,
+      STRINGS.ON_ERROR_FAIL_DETAIL,
+      STRINGS.ON_ERROR_FAIL_REMEDIATION,
       FLOW_DOCS.advanced.overview
     );
   })
   .add('callback-before-submit', (payload, { pass, info, skip }) => {
     const config = payload.page.checkoutConfig;
     if (!config) {
-      return skip('beforeSubmit check skipped — config not detected.');
+      return skip(STRINGS.BEFORE_SUBMIT_SKIP_TITLE, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
     }
 
     if (hasCallbackSignal(config.beforeSubmit)) {
-      return pass('beforeSubmit callback is present (custom pay button flow).');
+      return pass(STRINGS.BEFORE_SUBMIT_PASS_TITLE);
     }
-    return info('beforeSubmit is not configured.');
+    return info(STRINGS.BEFORE_SUBMIT_INFO_TITLE);
   })
   .add('callback-actions-pattern', (payload, { skip, pass, warn, info }) => {
     const config = payload.page.checkoutConfig;
     if (!config) {
-      return skip('Actions pattern check skipped — config not detected.');
+      return skip(STRINGS.ACTIONS_PATTERN_SKIP_TITLE, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
     }
 
     const flow = detectIntegrationFlow(payload);
     if (flow === 'sessions') {
-      return skip('Actions pattern check skipped — Sessions flow detected.');
+      return skip(STRINGS.ACTIONS_PATTERN_SKIP_TITLE, STRINGS.SESSIONS_FLOW_SKIP_REASON);
     }
 
     const onSubmitSource = config.onSubmitSource ?? '';
     if (onSubmitSource === '') {
-      return skip('Actions pattern check skipped — onSubmit source not available.');
+      return skip(STRINGS.ACTIONS_PATTERN_SKIP_TITLE, STRINGS.NO_SOURCE_SKIP_REASON);
     }
 
     if (/actions\.(resolve|reject)\(/.test(onSubmitSource)) {
-      return pass('onSubmit uses the v6 actions.resolve() / actions.reject() pattern.');
+      return pass(STRINGS.ACTIONS_PATTERN_PASS_TITLE);
     }
 
     if (/component\.(setStatus|handleAction)\(/.test(onSubmitSource)) {
       return warn(
-        'onSubmit appears to use v5-style component callbacks — update to v6 actions pattern.',
-        'v6 adopts actions.resolve() / actions.reject() inside onSubmit.',
-        'Migrate your onSubmit handler from the v5-style component callbacks to the v6 actions pattern.',
+        STRINGS.ACTIONS_PATTERN_WARN_TITLE,
+        STRINGS.ACTIONS_PATTERN_WARN_DETAIL,
+        STRINGS.ACTIONS_PATTERN_WARN_REMEDIATION,
         FLOW_DOCS.advanced.overview
       );
     }
 
-    return info('Could not determine onSubmit callback pattern from static analysis.');
+    return info(STRINGS.ACTIONS_PATTERN_INFO_TITLE);
   })
   .getChecks();
