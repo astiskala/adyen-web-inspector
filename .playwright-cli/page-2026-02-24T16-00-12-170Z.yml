@@ -1,0 +1,82 @@
+- generic [ref=e2]:
+    - generic [ref=e3]:
+        - link "Back" [ref=e4] [cursor=pointer]:
+            - /url: ../
+        - generic [ref=e5]:
+            - heading "Drop-in" [level=1] [ref=e6]
+            - heading "Configuration Options" [level=2] [ref=e8]
+            - generic [ref=e10]:
+                - heading "3DS2" [level=3] [ref=e11]
+                - generic [ref=e12]: 'Enable Native 3DS2:'
+                - checkbox "Enable Native 3DS2:" [checked] [ref=e13]
+                - generic [ref=e14]: 'executeThreeD:'
+                - checkbox "executeThreeD:" [checked] [ref=e15]
+                - heading "Drop-in" [level=3] [ref=e16]
+                - generic [ref=e17]: 'openFirstPaymentMethod:'
+                - checkbox "openFirstPaymentMethod:" [checked] [ref=e18]
+                - generic [ref=e19]: 'openFirstStoredPaymentMethod:'
+                - checkbox "openFirstStoredPaymentMethod:" [checked] [ref=e20]
+                - generic [ref=e21]: 'showStoredPaymentMethods:'
+                - checkbox "showStoredPaymentMethods:" [checked] [ref=e22]
+                - generic [ref=e23]: 'showPaymentMethods:'
+                - checkbox "showPaymentMethods:" [checked] [ref=e24]
+                - generic [ref=e25]: 'showPayButton:'
+                - checkbox "showPayButton:" [checked] [ref=e26]
+                - generic [ref=e27]: 'showRemovePaymentMethodButton:'
+                - checkbox "showRemovePaymentMethodButton:" [checked] [ref=e28]
+                - heading "Cards Component" [level=3] [ref=e29]
+                - generic [ref=e30]: 'enableStoreDetails:'
+                - checkbox "enableStoreDetails:" [ref=e31]
+                - generic [ref=e32]: 'hasHolderName:'
+                - checkbox "hasHolderName:" [ref=e33]
+                - generic [ref=e34]: 'holderNameRequired:'
+                - checkbox "holderNameRequired:" [ref=e35]
+                - generic [ref=e36]: 'hideCVC:'
+                - checkbox "hideCVC:" [ref=e37]
+                - generic [ref=e38]: 'showBrandIcon:'
+                - checkbox "showBrandIcon:" [checked] [ref=e39]
+                - generic [ref=e40]: 'billingAddressRequired:'
+                - checkbox "billingAddressRequired:" [ref=e41]
+                - heading "Locale Configuration" [level=3] [ref=e42]
+                - generic [ref=e43]: 'locale:'
+                - textbox "locale:" [ref=e44]: en-SG
+                - generic [ref=e45]: 'countryCode:'
+                - textbox "countryCode:" [ref=e46]: AU
+                - generic [ref=e47]: 'currency:'
+                - textbox "currency:" [ref=e48]: AUD
+                - generic [ref=e49]: 'value:'
+                - textbox "value:" [ref=e50]: '195'
+                - button "Reload Drop-in" [ref=e51]
+                - heading "/payments Configuration" [level=3] [ref=e52]
+                - generic [ref=e53]: 'captureDelayHours:'
+                - textbox "captureDelayHours:" [ref=e54]
+                - generic [ref=e55]: 'enableOneClick:'
+                - checkbox "enableOneClick:" [ref=e56]
+                - generic [ref=e57]: 'store:'
+                - textbox "store:" [ref=e58]
+                - generic [ref=e59]: 'threeDSAuthenticationOnly:'
+                - checkbox "threeDSAuthenticationOnly:" [ref=e60]
+                - generic [ref=e61]: 'RequestedTestAcquirerResponseCode:'
+                - textbox "RequestedTestAcquirerResponseCode:" [ref=e62]
+                - generic [ref=e63]: 'industryUsage:'
+                - textbox "industryUsage:" [ref=e64]
+                - generic [ref=e65]: 'Force Challenge:'
+                - checkbox "Force Challenge:" [ref=e66]
+                - button "Pay" [ref=e67]
+        - generic [ref=e68]:
+            - paragraph [ref=e69]:
+                - text: To make a payment, use our
+                - link "test card numbers" [ref=e70] [cursor=pointer]:
+                    - /url: https://docs.adyen.com/development-resources/test-cards/test-card-numbers
+                - text: .
+            - paragraph [ref=e71]:
+                - text: For more information, please refer to the
+                - link "Drop-in documentation" [ref=e72] [cursor=pointer]:
+                    - /url: https://docs.adyen.com/checkout/drop-in-web/
+                - text: .
+    - generic [ref=e73]:
+        - heading "Current state" [level=2] [ref=e75]
+        - generic [ref=e76]: '{}'
+        - generic [ref=e77]:
+            - heading "/paymentMethods Request" [level=2] [ref=e79]
+            - generic [ref=e80]: '{ "merchantAccount": "PME_ECOM_AU_2", "shopperReference": "AdamStiskala", "channel": "Web", "shopperLocale": "en-SG", "countryCode": "AU", "amount": { "currency": "AUD", "value": 195 } }'

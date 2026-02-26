@@ -1,0 +1,79 @@
+{
+  "name": "adyen-web-inspector",
+  "version": "0.1.0",
+  "description": "Chrome Extension that analyses adyen-web (Drop-in / Components) implementations",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=9"
+  },
+  "scripts": {
+    "dev": "vite build --watch",
+    "build": "vite build",
+    "clean": "rm -rf dist coverage test-results playwright-report tsconfig.tsbuildinfo",
+    "icons:generate": "./scripts/generate-icons.sh",
+    "store-assets:generate": "./scripts/generate-store-assets.sh",
+    "package:chrome": "./scripts/package-chrome.sh",
+    "typecheck": "tsc --noEmit",
+    "lint": "pnpm lint:code && pnpm lint:md",
+    "lint:code": "eslint .",
+    "lint:code:fix": "eslint . --fix",
+    "lint:md": "markdownlint-cli2 \"**/*.md\" \"#node_modules\" \"#dist\" \"#coverage\" \"#playwright-report\" \"#test-results\"",
+    "lint:md:fix": "markdownlint-cli2 --fix \"**/*.md\" \"#node_modules\" \"#dist\" \"#coverage\" \"#playwright-report\" \"#test-results\"",
+    "lint:fix": "pnpm lint:code:fix && pnpm lint:md:fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "pnpm build && playwright test",
+    "depcruise": "depcruise src --config .dependency-cruiser.cjs",
+    "knip": "knip",
+    "validate": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm depcruise && pnpm knip && pnpm test",
+    "prepare": "husky"
+  },
+  "dependencies": {
+    "preact": "^10.28.4"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^20.4.2",
+    "@commitlint/config-conventional": "^20.4.2",
+    "@playwright/test": "^1.58.2",
+    "@preact/preset-vite": "^2.10.3",
+    "@types/chrome": "^0.1.37",
+    "@vitest/coverage-v8": "^4.0.18",
+    "dependency-cruiser": "^17.3.8",
+    "eslint": "^10.0.2",
+    "eslint-plugin-jsdoc": "^62.7.1",
+    "gts": "^7.0.0",
+    "husky": "^9.1.7",
+    "jsdom": "^28.1.0",
+    "knip": "^5.85.0",
+    "lint-staged": "^16.2.7",
+    "markdownlint-cli2": "^0.21.0",
+    "prettier": "^3.8.1",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.1",
+    "vitest": "^4.0.18"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.md": [
+      "markdownlint-cli2 --fix",
+      "prettier --write"
+    ],
+    "*.{css,html,json,yaml,yml}": [
+      "prettier --write"
+    ]
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
+}

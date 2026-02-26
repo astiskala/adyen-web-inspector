@@ -1,0 +1,57 @@
+.card {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.card h2 {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 2px 0;
+}
+
+.label {
+  color: var(--color-text-secondary);
+  flex-shrink: 0;
+  margin-right: 8px;
+}
+
+.value {
+  font-weight: 500;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.badgeTest {
+  background: #fce8e6;
+  color: var(--color-red);
+}
+
+.badgeLive {
+  background: #e6f4ea;
+  color: var(--color-green);
+}
+
+.badgeUnknown {
+  background: var(--color-surface-alt);
+  color: var(--color-text-secondary);
+}

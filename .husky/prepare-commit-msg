@@ -1,0 +1,70 @@
+#!/bin/sh
+
+MESSAGE_FILE="$1"
+COMMIT_SOURCE="${2:-}"
+
+# Auto-normalize `git commit -m "..."` messages only.
+if [ "$COMMIT_SOURCE" != "message" ]; then
+  exit 0
+fi
+
+FIRST_LINE="$(head -n 1 "$MESSAGE_FILE")"
+if [ -z "$FIRST_LINE" ]; then
+  exit 0
+fi
+
+ALLOWED_TYPES='feat fix chore docs style refactor test ci build revert'
+NORMALIZED_FIRST_LINE=''
+
+case "$FIRST_LINE" in
+  *": "*)
+    PREFIX="${FIRST_LINE%%: *}"
+    SUBJECT_PART="${FIRST_LINE#*: }"
+    TYPE_PART="$PREFIX"
+    SCOPE_PART=''
+
+    case "$PREFIX" in
+      *'('*')')
+        TYPE_PART="${PREFIX%%(*}"
+        SCOPE_PART="${PREFIX#"$TYPE_PART"}"
+        ;;
+      *'('*|*')')
+        TYPE_PART=''
+        ;;
+    esac
+
+    if [ -n "$TYPE_PART" ]; then
+      IS_ALLOWED='false'
+      for TYPE in $ALLOWED_TYPES; do
+        if [ "$TYPE" = "$TYPE_PART" ]; then
+          IS_ALLOWED='true'
+          break
+        fi
+      done
+
+      IS_SCOPE_VALID='false'
+      if [ -z "$SCOPE_PART" ]; then
+        IS_SCOPE_VALID='true'
+      elif [ "$SCOPE_PART" != "()" ] && [ "${SCOPE_PART#(}" != "$SCOPE_PART" ] && [ "${SCOPE_PART%)}" != "$SCOPE_PART" ]; then
+        IS_SCOPE_VALID='true'
+      fi
+
+      if [ "$IS_ALLOWED" = "true" ] && [ "$IS_SCOPE_VALID" = "true" ]; then
+        LOWER_SUBJECT="$(printf "%s" "$SUBJECT_PART" | tr '[:upper:]' '[:lower:]')"
+        NORMALIZED_FIRST_LINE="${PREFIX}: ${LOWER_SUBJECT}"
+      fi
+    fi
+    ;;
+esac
+
+if [ -z "$NORMALIZED_FIRST_LINE" ]; then
+  LOWER_SUBJECT="$(printf "%s" "$FIRST_LINE" | tr '[:upper:]' '[:lower:]')"
+  NORMALIZED_FIRST_LINE="chore: ${LOWER_SUBJECT}"
+fi
+
+TMP_FILE="$(mktemp)"
+{
+  printf "%s\n" "$NORMALIZED_FIRST_LINE"
+  tail -n +2 "$MESSAGE_FILE"
+} > "$TMP_FILE"
+mv "$TMP_FILE" "$MESSAGE_FILE"

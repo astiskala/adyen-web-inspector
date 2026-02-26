@@ -1,0 +1,75 @@
+.container {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.scoreWrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.scoreValue {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.scoreExcellent {
+  color: var(--color-green);
+}
+.scoreGood {
+  color: var(--color-blue);
+}
+.scoreIssues {
+  color: var(--color-amber);
+}
+.scoreCritical {
+  color: var(--color-red);
+}
+
+.meta {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
+.bar {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--color-border);
+  overflow: hidden;
+}
+
+.fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.fillExcellent {
+  background: var(--color-green);
+}
+.fillGood {
+  background: var(--color-blue);
+}
+.fillIssues {
+  background: var(--color-amber);
+}
+.fillCritical {
+  background: var(--color-red);
+}

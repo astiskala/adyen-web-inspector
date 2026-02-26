@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Adyen Test Merchant</title>
+  </head>
+  <body>
+    <h1>Adyen Checkout Test Page</h1>
+    <div id="dropin-container" class="adyen-checkout__dropin"></div>
+    <script>
+      // Simulate adyen-web metadata exposure
+      globalThis.AdyenWebMetadata = {
+        version: '5.67.0',
+        bundleType: 'esm',
+      };
+    </script>
+  </body>
+</html>

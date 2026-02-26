@@ -1,0 +1,137 @@
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.section {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.sectionHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-text-secondary);
+  user-select: none;
+}
+
+.sectionHeader:hover {
+  background: var(--color-surface-alt);
+}
+
+.badge {
+  background: var(--color-surface-alt);
+  border-radius: 10px;
+  padding: 1px 7px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.badgeFail {
+  color: var(--color-red);
+}
+.badgeWarn {
+  color: var(--color-amber);
+}
+.badgeNotice {
+  color: var(--color-blue);
+}
+
+.item {
+  display: block;
+  padding: 0;
+}
+
+.summary {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 7px 12px 7px 20px;
+  cursor: pointer;
+  font-size: 12px;
+  list-style: none;
+}
+
+.summary:hover {
+  background: var(--color-surface-alt);
+}
+
+.summary::marker,
+.summary::-webkit-details-marker {
+  display: none;
+  content: '';
+}
+
+.dot {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-top: 5px;
+}
+
+.dotFail {
+  background: var(--color-red);
+}
+.dotWarn {
+  background: var(--color-amber);
+}
+.dotNotice {
+  background: var(--color-blue);
+}
+
+.priorityHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 12px 4px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+.checkTitle {
+  flex: 1;
+  line-height: 1.4;
+}
+
+.detail {
+  padding: 4px 12px 8px 34px;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
+
+.remediation {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text);
+}
+
+.docsLink {
+  display: inline-block;
+  margin-top: 4px;
+  color: var(--color-blue);
+  text-decoration: none;
+}
+
+.docsLink:hover {
+  text-decoration: underline;
+}
+
+.empty {
+  padding: 12px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  text-align: center;
+}
