@@ -18,6 +18,12 @@
   "content_scripts": [
     {
       "matches": ["http://*/*", "https://*/*"],
+      "js": ["config-interceptor.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["http://*/*", "https://*/*"],
       "js": ["detector.js"],
       "run_at": "document_idle"
     }

@@ -117,9 +117,16 @@ describe('flow-type', () => {
 });
 
 describe('callback-on-additional-details', () => {
-  it('passes when callback is present', () => {
-    const payload = makeAdyenPayload({}, { onAdditionalDetails: 'function(state,c){...}' });
+  it('passes when callback is present at checkout level', () => {
+    const payload = makeAdyenPayload({}, { onAdditionalDetails: 'checkout' });
     expect(onAdditionalDetails.run(payload).severity).toBe('pass');
+  });
+
+  it('warns when callback is present at component level only', () => {
+    const payload = makeAdyenPayload({}, { onAdditionalDetails: 'component' });
+    const result = onAdditionalDetails.run(payload);
+    expect(result.severity).toBe('warn');
+    expect(result.title).toContain('component level');
   });
 
   it('fails when callback is missing on advanced flow', () => {
@@ -141,12 +148,16 @@ describe('callback-on-additional-details', () => {
 });
 
 describe('callback-on-submit', () => {
-  it('passes when callback is present on advanced flow', () => {
-    const payload = makeAdyenPayload(
-      {},
-      { onSubmit: 'function(state,component,actions){ actions.resolve({}); }' }
-    );
+  it('passes when callback is present at checkout level', () => {
+    const payload = makeAdyenPayload({}, { onSubmit: 'checkout' });
     expect(onSubmit.run(payload).severity).toBe('pass');
+  });
+
+  it('warns when callback is present at component level only', () => {
+    const payload = makeAdyenPayload({}, { onSubmit: 'component' });
+    const result = onSubmit.run(payload);
+    expect(result.severity).toBe('warn');
+    expect(result.title).toContain('component level');
   });
 
   it('fails when callback is missing on advanced flow', () => {
@@ -237,13 +248,24 @@ describe('callback-on-submit-filtering', () => {
 });
 
 describe('callback-on-payment-completed', () => {
-  it('passes when callback is present', () => {
+  it('passes when callback is present at checkout level', () => {
     const payload = makeAdyenPayload(
       {},
-      { onPaymentCompleted: 'function(result,c){...}' },
+      { onPaymentCompleted: 'checkout' },
       { capturedRequests: sessionsRequests }
     );
     expect(onPaymentCompleted.run(payload).severity).toBe('pass');
+  });
+
+  it('warns when callback is present at component level only', () => {
+    const payload = makeAdyenPayload(
+      {},
+      { onPaymentCompleted: 'component' },
+      { capturedRequests: sessionsRequests }
+    );
+    const result = onPaymentCompleted.run(payload);
+    expect(result.severity).toBe('warn');
+    expect(result.title).toContain('component level');
   });
 
   it('fails for sessions flow when missing', () => {
@@ -296,13 +318,24 @@ describe('callback-on-payment-completed', () => {
 });
 
 describe('callback-on-payment-failed', () => {
-  it('passes when callback is present', () => {
+  it('passes when callback is present at checkout level', () => {
     const payload = makeAdyenPayload(
       {},
-      { onPaymentFailed: 'function(r,c){...}' },
+      { onPaymentFailed: 'checkout' },
       { capturedRequests: sessionsRequests }
     );
     expect(onPaymentFailed.run(payload).severity).toBe('pass');
+  });
+
+  it('warns when callback is present at component level only', () => {
+    const payload = makeAdyenPayload(
+      {},
+      { onPaymentFailed: 'component' },
+      { capturedRequests: sessionsRequests }
+    );
+    const result = onPaymentFailed.run(payload);
+    expect(result.severity).toBe('warn');
+    expect(result.title).toContain('component level');
   });
 
   it('fails for sessions flow when missing', () => {
@@ -347,9 +380,16 @@ describe('callback-on-payment-failed', () => {
 });
 
 describe('callback-on-error', () => {
-  it('passes when callback is present', () => {
-    const payload = makeAdyenPayload({}, { onError: 'function(e,c){...}' });
+  it('passes when callback is present at checkout level', () => {
+    const payload = makeAdyenPayload({}, { onError: 'checkout' });
     expect(onError.run(payload).severity).toBe('pass');
+  });
+
+  it('warns when callback is present at component level only', () => {
+    const payload = makeAdyenPayload({}, { onError: 'component' });
+    const result = onError.run(payload);
+    expect(result.severity).toBe('warn');
+    expect(result.title).toContain('component level');
   });
 
   it('fails when callback is missing', () => {
@@ -362,9 +402,16 @@ describe('callback-on-error', () => {
 });
 
 describe('callback-before-submit', () => {
-  it('passes when callback is present', () => {
-    const payload = makeAdyenPayload({}, { beforeSubmit: 'function(d,c,a){...}' });
+  it('passes when callback is present at checkout level', () => {
+    const payload = makeAdyenPayload({}, { beforeSubmit: 'checkout' });
     expect(beforeSubmit.run(payload).severity).toBe('pass');
+  });
+
+  it('warns when callback is present at component level only', () => {
+    const payload = makeAdyenPayload({}, { beforeSubmit: 'component' });
+    const result = beforeSubmit.run(payload);
+    expect(result.severity).toBe('warn');
+    expect(result.title).toContain('component level');
   });
 
   it('returns info when callback is absent', () => {

@@ -15,11 +15,10 @@ import { HeaderCollector } from './header-collector.js';
 import { getLatestAdyenWebVersion } from './npm-registry.js';
 import { ALL_CHECKS } from './checks/index.js';
 import {
-  extractBundleInsights,
+  extractVersionFromBundles,
   extractVersionFromRequests,
   extractVersionFromScripts,
   probeMainDocumentHeaders,
-  withCheckoutConfigFallback,
 } from './payload-builder.js';
 
 const TAB_READY_TIMEOUT_MS = 15_000;
@@ -56,21 +55,20 @@ export async function runScan(tabId: number): Promise<ScanResult> {
         : await probeMainDocumentHeaders(pageData.pageUrl);
 
     const scriptUrls = pageData.scripts.map((s) => s.src);
-    const bundleInsights = await extractBundleInsights(pageData.pageUrl, scriptUrls);
-    const enrichedPageData = withCheckoutConfigFallback(pageData, bundleInsights.checkoutConfig);
+    const bundleVersion = await extractVersionFromBundles(pageData.pageUrl, scriptUrls);
 
     const detectedVersion =
-      enrichedPageData.adyenMetadata?.version ??
+      pageData.adyenMetadata?.version ??
       collected.analyticsData?.version ??
       extractVersionFromScripts(scriptUrls) ??
       extractVersionFromRequests(capturedRequests) ??
-      bundleInsights.version ??
+      bundleVersion ??
       null;
 
     const payload: ScanPayload = {
       tabId,
       pageUrl: pageData.pageUrl,
-      page: enrichedPageData,
+      page: pageData,
       mainDocumentHeaders,
       capturedRequests,
       versionInfo: {

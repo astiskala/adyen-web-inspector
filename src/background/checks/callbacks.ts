@@ -33,7 +33,7 @@ const FLOW_DOCS = {
 } as const;
 
 type CheckoutConfig = NonNullable<ScanPayload['page']['checkoutConfig']>;
-type CallbackValue = string | boolean | undefined;
+type CallbackValue = CheckoutConfig[keyof CheckoutConfig];
 
 /** Simplified outcome for internal helpers */
 interface CheckOutcome {
@@ -61,8 +61,12 @@ function flowLabel(flow: IntegrationFlow): string {
   return 'Unknown';
 }
 
-function hasCallbackSignal(value: string | boolean | undefined): boolean {
-  return value === true || (typeof value === 'string' && value !== '');
+function isCallbackPresent(value: CallbackValue): boolean {
+  return value === 'checkout' || value === 'component';
+}
+
+function isComponentOnly(value: CallbackValue): boolean {
+  return value === 'component';
 }
 
 function joinSignals(signals: readonly string[]): string {
@@ -187,7 +191,7 @@ interface AdvancedRequiredCallbackOptions {
 function runAdvancedRequiredCallbackCheck(
   payload: ScanPayload,
   options: AdvancedRequiredCallbackOptions,
-  { pass, fail, skip }: CheckContext
+  { pass, fail, skip, warn }: CheckContext
 ): CheckOutcome {
   const config = payload.page.checkoutConfig;
   if (!config) {
@@ -199,16 +203,22 @@ function runAdvancedRequiredCallbackCheck(
     return skip(`${options.label} check skipped.`, STRINGS.SESSIONS_FLOW_SKIP_REASON);
   }
 
-  if (hasCallbackSignal(options.readCallback(config))) {
+  const value = options.readCallback(config);
+  const docsUrl = getFlowSensitiveCallbackDocsUrl(payload, 'advanced');
+
+  if (isCallbackPresent(value)) {
+    if (isComponentOnly(value)) {
+      return warn(
+        `${options.label} is handled at the component level.`,
+        `${options.label} was detected on a component rather than AdyenCheckout. Registering callbacks at the AdyenCheckout level ensures they apply to all payment methods.`,
+        `Move ${options.label} from your component configuration to the AdyenCheckout initialisation.`,
+        docsUrl
+      );
+    }
     return pass(options.presentTitle);
   }
 
-  return fail(
-    options.missingTitle,
-    options.missingDetail,
-    options.remediation,
-    getFlowSensitiveCallbackDocsUrl(payload, 'advanced')
-  );
+  return fail(options.missingTitle, options.missingDetail, options.remediation, docsUrl);
 }
 
 interface FlowSensitiveOutcomeCallbackOptions {
@@ -233,11 +243,21 @@ function runFlowSensitiveOutcomeCallbackCheck(
   }
 
   const flow = detectIntegrationFlow(payload);
-  if (hasCallbackSignal(options.readCallback(config))) {
+  const value = options.readCallback(config);
+  const docsUrl = getFlowSensitiveCallbackDocsUrl(payload, flow);
+
+  if (isCallbackPresent(value)) {
+    if (isComponentOnly(value)) {
+      return warn(
+        `${options.label} is handled at the component level.`,
+        `${options.label} was detected on a component rather than AdyenCheckout. Registering callbacks at the AdyenCheckout level ensures they apply to all payment methods.`,
+        `Move ${options.label} from your component configuration to the AdyenCheckout initialisation.`,
+        docsUrl
+      );
+    }
     return pass(options.presentTitle);
   }
 
-  const docsUrl = getFlowSensitiveCallbackDocsUrl(payload, flow);
   if (flow === 'sessions') {
     return fail(
       options.missingTitle,
@@ -508,13 +528,21 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
       context
     );
   })
-  .add('callback-on-error', (payload, { pass, fail, skip }) => {
+  .add('callback-on-error', (payload, { pass, fail, skip, warn }) => {
     const config = payload.page.checkoutConfig;
     if (!config) {
       return skip(STRINGS.ON_ERROR_SKIP_TITLE, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
     }
 
-    if (hasCallbackSignal(config.onError)) {
+    if (isCallbackPresent(config.onError)) {
+      if (isComponentOnly(config.onError)) {
+        return warn(
+          'onError is handled at the component level.',
+          'onError was detected on a component rather than AdyenCheckout. Registering callbacks at the AdyenCheckout level ensures they apply to all payment methods.',
+          'Move onError from your component configuration to the AdyenCheckout initialisation.',
+          getFlowSensitiveCallbackDocsUrl(payload, 'advanced')
+        );
+      }
       return pass(STRINGS.ON_ERROR_PASS_TITLE);
     }
 
@@ -525,13 +553,21 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
       getFlowSensitiveCallbackDocsUrl(payload, 'advanced')
     );
   })
-  .add('callback-before-submit', (payload, { pass, info, skip }) => {
+  .add('callback-before-submit', (payload, { pass, info, skip, warn }) => {
     const config = payload.page.checkoutConfig;
     if (!config) {
       return skip(STRINGS.BEFORE_SUBMIT_SKIP_TITLE, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
     }
 
-    if (hasCallbackSignal(config.beforeSubmit)) {
+    if (isCallbackPresent(config.beforeSubmit)) {
+      if (isComponentOnly(config.beforeSubmit)) {
+        return warn(
+          'beforeSubmit is handled at the component level.',
+          'beforeSubmit was detected on a component rather than AdyenCheckout. Registering callbacks at the AdyenCheckout level ensures they apply to all payment methods.',
+          'Move beforeSubmit from your component configuration to the AdyenCheckout initialisation.',
+          getFlowSensitiveCallbackDocsUrl(payload, 'advanced')
+        );
+      }
       return pass(STRINGS.BEFORE_SUBMIT_PASS_TITLE);
     }
     return info(STRINGS.BEFORE_SUBMIT_INFO_TITLE);

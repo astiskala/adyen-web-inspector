@@ -54,6 +54,7 @@ export default defineConfig({
       input: {
         worker: resolve(root, 'src/background/worker.ts'),
         detector: resolve(root, 'src/content/detector.ts'),
+        'config-interceptor': resolve(root, 'src/content/config-interceptor.ts'),
         'page-extractor': resolve(root, 'src/content/page-extractor.ts'),
         popup: resolve(root, 'src/popup/index.html'),
         devtools: resolve(root, 'src/devtools/devtools.html'),

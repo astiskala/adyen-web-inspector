@@ -2,12 +2,7 @@
  * Payload builder — logic to enrich the ScanPayload with extra signals.
  */
 
-import type {
-  CapturedHeader,
-  CapturedRequest,
-  CheckoutConfig,
-  PageExtractResult,
-} from '../shared/types.js';
+import type { CapturedHeader, CapturedRequest } from '../shared/types.js';
 import { extractHostname, parseVersion } from '../shared/utils.js';
 
 const SCRIPT_FETCH_TIMEOUT_MS = 2_500;
@@ -57,22 +52,17 @@ async function fetchHeaders(url: string, method: 'HEAD' | 'GET'): Promise<Captur
   }
 }
 
-interface BundleInsights {
-  version: string | null;
-  checkoutConfig: Partial<CheckoutConfig> | null;
-}
-
 /**
  * Downloads likely same-origin bundles and heuristically extracts
- * SDK version and checkout config fallback values.
+ * the SDK version string.
  */
-export async function extractBundleInsights(
+export async function extractVersionFromBundles(
   pageUrl: string,
   scriptUrls: string[]
-): Promise<BundleInsights> {
+): Promise<string | null> {
   const pageHost = extractHostname(pageUrl);
   if (pageHost === null || pageHost === '') {
-    return { version: null, checkoutConfig: null };
+    return null;
   }
 
   const sameHostScripts = scriptUrls
@@ -81,9 +71,6 @@ export async function extractBundleInsights(
     .sort((a, b) => b.score - a.score)
     .map((item) => item.url);
 
-  let detectedVersion: string | null = null;
-  let detectedConfig: Partial<CheckoutConfig> | null = null;
-
   const uniqueScripts = [...new Set(sameHostScripts)].slice(0, SCRIPT_FETCH_LIMIT);
   for (const scriptUrl of uniqueScripts) {
     const scriptText = await fetchScriptText(scriptUrl);
@@ -91,14 +78,13 @@ export async function extractBundleInsights(
       continue;
     }
 
-    detectedVersion ??= extractVersionFromScriptText(scriptText);
-    detectedConfig ??= extractCheckoutConfigFromScriptText(scriptText);
-    if (detectedVersion !== null && detectedConfig !== null) {
-      break;
+    const version = extractVersionFromScriptText(scriptText);
+    if (version !== null) {
+      return version;
     }
   }
 
-  return { version: detectedVersion, checkoutConfig: detectedConfig };
+  return null;
 }
 
 function getScriptPriority(url: string): number {
@@ -153,30 +139,6 @@ function extractVersionFromScriptText(scriptText: string): string | null {
   return null;
 }
 
-function extractCheckoutConfigFromScriptText(scriptText: string): Partial<CheckoutConfig> | null {
-  const clientKey = /clientKey["']?\s*[:=]\s*["']((?:test|live)_[A-Za-z0-9]+)/i.exec(
-    scriptText
-  )?.[1];
-  const environment = /environment["']?\s*[:=]\s*["'](test|live)["']/i.exec(scriptText)?.[1];
-  const locale = /locale["']?\s*[:=]\s*["']([A-Za-z]{2,3}-[A-Za-z]{2,4})["']/i.exec(
-    scriptText
-  )?.[1];
-  const countryCode = /countryCode["']?\s*[:=]\s*["']([A-Za-z]{2})["']/i.exec(scriptText)?.[1];
-
-  const config: Partial<CheckoutConfig> = {
-    ...(clientKey === undefined ? {} : { clientKey }),
-    ...(environment === undefined ? {} : { environment }),
-    ...(locale === undefined ? {} : { locale }),
-    ...(countryCode === undefined ? {} : { countryCode }),
-  };
-
-  if (Object.keys(config).length === 0) {
-    return null;
-  }
-
-  return config;
-}
-
 function matchCdnVersion(url: string): string | null {
   for (const pattern of CDN_VERSION_PATTERNS) {
     const match = pattern.exec(url);
@@ -206,30 +168,4 @@ export function extractVersionFromScripts(srcs: string[]): string | null {
  */
 export function extractVersionFromRequests(requests: CapturedRequest[]): string | null {
   return findFirstVersionInUrls(requests.map((request) => request.url));
-}
-
-/**
- * Merges inferred checkout config values into extracted page data.
- * Existing page config fields always take precedence over fallback fields.
- */
-export function withCheckoutConfigFallback(
-  pageData: PageExtractResult,
-  fallback: Partial<CheckoutConfig> | null
-): PageExtractResult {
-  if (fallback === null) {
-    return pageData;
-  }
-
-  const mergedConfig: CheckoutConfig = {
-    ...(fallback.clientKey === undefined ? {} : { clientKey: fallback.clientKey }),
-    ...(fallback.environment === undefined ? {} : { environment: fallback.environment }),
-    ...(fallback.locale === undefined ? {} : { locale: fallback.locale }),
-    ...(fallback.countryCode === undefined ? {} : { countryCode: fallback.countryCode }),
-    ...(pageData.checkoutConfig ?? {}),
-  };
-
-  return {
-    ...pageData,
-    checkoutConfig: mergedConfig,
-  };
 }

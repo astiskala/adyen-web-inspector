@@ -168,6 +168,13 @@ export interface PageExtractResult {
 
 // ─── Checkout Config (detected from page) ────────────────────────────────────
 
+/**
+ * Where a callback was registered:
+ * - `'checkout'` — on the AdyenCheckout instance (recommended).
+ * - `'component'` — on a component such as Card or Dropin.
+ */
+export type CallbackSource = 'checkout' | 'component';
+
 export interface CheckoutConfig {
   readonly clientKey?: string;
   readonly environment?: string;
@@ -176,12 +183,12 @@ export interface CheckoutConfig {
   readonly riskEnabled?: boolean;
   /** Derived from checkout config analytics.enabled when present. */
   readonly analyticsEnabled?: boolean;
-  readonly onSubmit?: string | boolean;
-  readonly onAdditionalDetails?: string | boolean;
-  readonly onPaymentCompleted?: string | boolean;
-  readonly onPaymentFailed?: string | boolean;
-  readonly onError?: string | boolean;
-  readonly beforeSubmit?: string | boolean;
+  readonly onSubmit?: CallbackSource;
+  readonly onAdditionalDetails?: CallbackSource;
+  readonly onPaymentCompleted?: CallbackSource;
+  readonly onPaymentFailed?: CallbackSource;
+  readonly onError?: CallbackSource;
+  readonly beforeSubmit?: CallbackSource;
   /** Captured source of onSubmit as string for static analysis */
   readonly onSubmitSource?: string;
   /** True when a session object was detected in the checkout configuration (Sessions flow indicator). */
