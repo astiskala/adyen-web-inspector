@@ -132,6 +132,7 @@ Check-specific guidance:
 - Register all new checks in `src/background/checks/index.ts` and add the new ID to `CheckId` in `src/shared/types.ts`.
 - Prefer `createRegistry()` context helpers in check runners: `pass()`, `fail()`, `warn()`, `notice()`, `skip()`, `info()`.
 - Severity set is: `pass`, `warn`, `fail`, `notice`, `info`, `skip`. Use `notice` for "cannot verify automatically" outcomes.
+- Keep `docs/architecture/check-catalog.md` in sync with code changes. Drift is enforced by `tests/unit/docs/check-catalog.test.ts` (runs in `pnpm test` and `pnpm validate`).
 
 ---
 

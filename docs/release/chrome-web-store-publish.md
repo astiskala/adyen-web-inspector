@@ -1,6 +1,6 @@
 # Chrome Web Store Publish Checklist
 
-Last updated: 2026-02-25
+Last updated: 2026-02-26
 
 ## 0. Account prerequisites
 
@@ -10,17 +10,18 @@ Last updated: 2026-02-25
 
 ## 1. Prepare extension package
 
-Prerequisite for asset generation scripts:
+Prerequisites:
 
-- `rsvg-convert` (from `librsvg`)
+- `zip` (used by `scripts/package-chrome.sh`)
+- `rsvg-convert` (from `librsvg`) if regenerating icons
 
-1. Regenerate icons from source logos:
+1. Regenerate extension icons from source branding (optional but recommended for a visual release):
 
 ```bash
 pnpm icons:generate
 ```
 
-1. Build and run the quality gate:
+1. Run the quality gate and build:
 
 ```bash
 pnpm validate
@@ -39,22 +40,15 @@ Upload artifact:
 
 ## 2. Prepare listing assets
 
-Generate baseline store assets:
+Current repository assets live in `store-assets/`:
 
-```bash
-pnpm store-assets:generate
-```
+- `chrome-store-icon-128.png`
+- `chrome-store-small-promo-440x280.png`
+- `chrome-store-marquee-promo-1400x560.png`
+- `screenshot-1.png`, `screenshot-2.png`, `screenshot-3.png`
+- listing copy template: `listing-copy.md`
 
-Generated files:
-
-- `store-assets/chrome-store-icon-128.png`
-- `store-assets/chrome-store-small-promo-440x280.png`
-- `store-assets/chrome-store-marquee-promo-1400x560.png` (optional in listing flow)
-
-Still required manually before submission:
-
-- At least one real product screenshot for the listing (`1280x800` or `640x400`)
-- Promo video URL (YouTube) if requested by the listing form for your account/region
+Before submission, verify screenshot dimensions and replace any placeholder imagery with current product UI captures.
 
 ## 3. Listing content and compliance
 
@@ -67,7 +61,7 @@ Still required manually before submission:
 
 1. Confirm `public/manifest.json` version matches release intent.
 2. Verify extension behavior in unpacked mode from `dist/`.
-3. Verify that no debug/test-only code or placeholder text is present.
+3. Verify no debug/test-only code or placeholder text is present.
 4. Confirm trademark/branding usage is acceptable for store publication.
 
 ## 5. Submit

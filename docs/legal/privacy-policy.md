@@ -1,6 +1,6 @@
 # Privacy Policy
 
-Last updated: 2026-02-25
+Last updated: 2026-02-26
 
 Adyen Web Inspector is a browser extension that analyzes Adyen Web integrations on pages you choose to scan.
 
@@ -22,9 +22,10 @@ Processed data is used only to generate scan findings, health scores, and remedi
 
 The extension can make network requests to:
 
-- The currently scanned page and detected script URLs (for header/script inspection)
-- Adyen-related endpoints observed during scans
+- The currently scanned page URL (header probing) and same-host script URLs (bundle/config fallback inspection)
 - `https://registry.npmjs.org/@adyen/adyen-web/latest` to check the latest SDK version
+
+Adyen-related requests made by the page are passively observed via `chrome.webRequest` for local analysis; the extension does not actively replay those requests.
 
 ## Data sharing
 

@@ -13,7 +13,7 @@ Thank you for your interest in contributing! This guide will help you get set up
 ## Setup
 
 ```bash
-git clone https://github.com/user/adyen-web-inspector.git
+git clone <your-fork-or-origin-url>
 cd adyen-web-inspector
 pnpm install
 ```
@@ -161,6 +161,7 @@ it('fails when ...', () => {
 ### 4. Update the check catalog
 
 Add the check to `docs/architecture/check-catalog.md`.
+`tests/unit/docs/check-catalog.test.ts` enforces this catalog against `ALL_CHECKS` and will fail if docs drift.
 
 ---
 
@@ -218,7 +219,7 @@ Please open a GitHub issue with:
 - Steps to reproduce
 - Expected vs actual behaviour
 - Chrome version and OS
-- Extension version (from `manifest.json`)
+- Extension version (from `public/manifest.json`)
 
 ---
 

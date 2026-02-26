@@ -8,10 +8,11 @@ The extension does **not** send scan payloads to a project backend, analytics se
 
 During scans, the extension can make network requests to:
 
-- The scanned page URL (header probing)
+- The scanned page URL (header probing via `HEAD`/`GET`)
 - Same-host script URLs (bundle/config detection fallback)
-- Adyen-related URLs observed during scanning (for local analysis only)
 - `https://registry.npmjs.org/@adyen/adyen-web/latest` (latest SDK version check, cached in `chrome.storage.local` for 24 hours)
+
+In addition to those extension-initiated requests, Adyen network traffic triggered by the page is passively observed via `chrome.webRequest` for local analysis.
 
 No merchant payment payloads, credentials, or checkout data are intentionally transmitted to a maintainer-controlled service.
 
@@ -39,12 +40,12 @@ You should receive an acknowledgement within 48 hours. A fix will be prioritised
 
 ### Permissions
 
-The extension requests `host_permissions: ["<all_urls>"]` because it needs to inspect arbitrary merchant checkout pages. This is the minimum permission set required for the `chrome.webRequest` and `chrome.scripting` APIs.
+The extension requests `host_permissions: ["<all_urls>"]` because it needs to inspect arbitrary merchant checkout pages. This is required by the current design, which uses `chrome.webRequest` and `chrome.scripting` across any scanned checkout origin.
 
 ### Content Security
 
 - The page-world extractor (`page-extractor.ts`) runs via `chrome.scripting.executeScript` with `world: "MAIN"` — it reads globals but does not modify the page DOM or inject any scripts.
-- The passive detector (`detector.ts`) performs only a lightweight selector check and a single `window.AdyenWebMetadata` read.
+- The passive detector (`detector.ts`) uses lightweight DOM selectors and route/mutation listeners to detect checkout mounts; it does not execute remote code or make network calls.
 - No `eval()`, `new Function()`, or `document.write()` is used anywhere in the codebase.
 - CSP is not relaxed in the manifest — the extension runs with Chrome's default extension CSP.
 

@@ -25,8 +25,6 @@ Adyen Web Inspector is a Chrome Manifest V3 extension that inspects `adyen-web` 
 | Security          | 13     |
 | Third-party       | 4      |
 
-Full check and rule reference: [docs/architecture/check-catalog.md](docs/architecture/check-catalog.md)
-
 ## Getting Started
 
 ### Prerequisites
@@ -74,6 +72,7 @@ pnpm validate
 
 `pnpm lint` runs ESLint for TypeScript files and markdownlint for Markdown files.
 `pnpm validate` runs the local quality gate: typecheck, lint, format check, dependency-cruiser, knip, and unit tests. CI also runs coverage, build, and E2E tests.
+Contributor workflow and coding conventions: [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## Architecture
 
@@ -102,6 +101,8 @@ pnpm validate
 ## Additional Docs
 
 - Check catalog and rule logic: [docs/architecture/check-catalog.md](docs/architecture/check-catalog.md)
+- Contributor workflow: [CONTRIBUTING.md](CONTRIBUTING.md)
+- Security policy: [SECURITY.md](SECURITY.md)
 - Chrome Web Store release flow: [docs/release/chrome-web-store-publish.md](docs/release/chrome-web-store-publish.md)
 - Privacy policy: [docs/legal/privacy-policy.md](docs/legal/privacy-policy.md)
 
