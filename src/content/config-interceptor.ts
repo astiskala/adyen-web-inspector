@@ -166,11 +166,19 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
       captured = incoming;
     }
 
-    (globalThis as PlainRecord)[CAPTURED_CONFIG_KEY] = structuredClone(captured);
+    try {
+      (globalThis as PlainRecord)[CAPTURED_CONFIG_KEY] = structuredClone(captured);
+    } catch {
+      /* ignore cloning errors */
+    }
   }
 
   function captureConfig(raw: unknown, source: CallbackSource): void {
-    mergeAndPublish(extractFields(raw, source));
+    try {
+      mergeAndPublish(extractFields(raw, source));
+    } catch {
+      /* ignore capture errors */
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -233,9 +241,13 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
 
   function captureInstanceConfig(instance: unknown): void {
     if (instance !== null && instance !== undefined && typeof instance === 'object') {
-      const inst = instance as PlainRecord;
-      captureConfig(inst['options'] ?? inst['_options'], 'checkout');
-      wrapInstanceCreate(inst);
+      try {
+        const inst = instance as PlainRecord;
+        captureConfig(inst['options'] ?? inst['_options'], 'checkout');
+        wrapInstanceCreate(inst);
+      } catch {
+        /* ignore */
+      }
     }
   }
 
@@ -251,25 +263,29 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
    */
   function looksLikeCheckoutInstance(value: unknown): boolean {
     if (value === null || typeof value !== 'object') return false;
-    const v = value as PlainRecord;
+    try {
+      const v = value as PlainRecord;
 
-    const opts = v['options'] ?? v['_options'];
-    if (
-      opts === null ||
-      opts === undefined ||
-      typeof opts !== 'object' ||
-      typeof (opts as PlainRecord)['clientKey'] !== 'string'
-    ) {
+      const opts = v['options'] ?? v['_options'];
+      if (
+        opts === null ||
+        opts === undefined ||
+        typeof opts !== 'object' ||
+        typeof (opts as PlainRecord)['clientKey'] !== 'string'
+      ) {
+        return false;
+      }
+
+      return (
+        'modules' in v ||
+        'paymentMethodsResponse' in v ||
+        'loadingContext' in v ||
+        'createFromAction' in v ||
+        typeof v['create'] === 'function'
+      );
+    } catch {
       return false;
     }
-
-    return (
-      'modules' in v ||
-      'paymentMethodsResponse' in v ||
-      'loadingContext' in v ||
-      'createFromAction' in v ||
-      typeof v['create'] === 'function'
-    );
   }
 
   function observeCheckoutFactoryResult(result: unknown): void {
@@ -291,17 +307,21 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
   /** Wrap `checkout.create()` so component-level config is also captured. */
   function wrapInstanceCreate(inst: PlainRecord | null): void {
     if (!inst) return;
-    const originalCreate = inst['create'];
-    if (typeof originalCreate !== 'function' || isWrapped(originalCreate)) return;
+    try {
+      const originalCreate = inst['create'];
+      if (typeof originalCreate !== 'function' || isWrapped(originalCreate)) return;
 
-    const wrappedCreate = function (this: unknown, ...args: unknown[]): unknown {
-      // checkout.create('card', componentConfig)
-      if (args.length > 1) captureConfig(args[1], 'component');
-      return originalCreate.apply(this, args);
-    };
+      const wrappedCreate = function (this: unknown, ...args: unknown[]): unknown {
+        // checkout.create('card', componentConfig)
+        if (args.length > 1) captureConfig(args[1], 'component');
+        return originalCreate.apply(this, args);
+      };
 
-    markWrapped(wrappedCreate);
-    inst['create'] = wrappedCreate;
+      markWrapped(wrappedCreate);
+      inst['create'] = wrappedCreate;
+    } catch {
+      /* ignore */
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -323,9 +343,13 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
     };
 
     markWrapped(wrapped);
-    (wrapped as unknown as PlainRecord)['prototype'] = (original as unknown as PlainRecord)[
-      'prototype'
-    ];
+    try {
+      (wrapped as unknown as PlainRecord)['prototype'] = (original as unknown as PlainRecord)[
+        'prototype'
+      ];
+    } catch {
+      /* ignore */
+    }
     copyStatics(original, wrapped);
     return wrapped;
   }
@@ -333,15 +357,19 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
   /** Walk all exports on the AdyenWeb namespace and wrap known patterns. */
   function instrumentAdyenWeb(ns: PlainRecord): void {
     for (const key of Object.keys(ns)) {
-      const prop = ns[key];
-      if (typeof prop !== 'function' || isWrapped(prop)) continue;
+      try {
+        const prop = ns[key];
+        if (typeof prop !== 'function' || isWrapped(prop)) continue;
 
-      if (key === 'AdyenCheckout') {
-        ns[key] = wrapCheckoutFactory(prop as SdkCallable);
-      } else {
-        // Every other exported function is assumed to be a component
-        // constructor (Card, Dropin, GooglePay, …).
-        ns[key] = wrapComponentConstructor(prop as SdkCallable);
+        if (key === 'AdyenCheckout') {
+          ns[key] = wrapCheckoutFactory(prop as SdkCallable);
+        } else {
+          // Every other exported function is assumed to be a component
+          // constructor (Card, Dropin, GooglePay, …).
+          ns[key] = wrapComponentConstructor(prop as SdkCallable);
+        }
+      } catch {
+        /* ignore */
       }
     }
   }
@@ -399,26 +427,39 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
    * AdyenCheckout factory call.
    */
   const originalThen = Promise.prototype.then;
-  type ThenFn = (
-    onfulfilled?: ((value: unknown) => unknown) | null,
-    onrejected?: ((reason: unknown) => unknown) | null
-  ) => Promise<unknown>;
+  type ThenFn = <TResult1 = unknown, TResult2 = never>(
+    onfulfilled?: ((value: unknown) => TResult1 | PromiseLike<TResult1>) | null,
+    onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null
+  ) => Promise<TResult1 | TResult2>;
 
-  (Promise.prototype as unknown as { then: ThenFn }).then = function (
-    this: Promise<unknown>,
-    onFulfilled?: ((value: unknown) => unknown) | null,
-    onRejected?: ((reason: unknown) => unknown) | null
-  ): Promise<unknown> {
-    const wrappedOnFulfilled =
-      typeof onFulfilled === 'function'
-        ? function (value: unknown): unknown {
-            if (looksLikeCheckoutInstance(value)) {
-              captureInstanceConfig(value);
+  try {
+    (Promise.prototype as unknown as { then: ThenFn }).then = function <
+      TResult1 = unknown,
+      TResult2 = never,
+    >(
+      this: Promise<unknown>,
+      onFulfilled?: ((value: unknown) => TResult1 | PromiseLike<TResult1>) | null,
+      onRejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null
+    ): Promise<TResult1 | TResult2> {
+      const wrappedOnFulfilled =
+        typeof onFulfilled === 'function'
+          ? function (value: unknown): TResult1 | PromiseLike<TResult1> {
+              try {
+                if (looksLikeCheckoutInstance(value)) {
+                  captureInstanceConfig(value);
+                }
+              } catch {
+                /* ignore capture errors to ensure reliability */
+              }
+              return onFulfilled(value);
             }
-            return onFulfilled(value);
-          }
-        : onFulfilled;
+          : onFulfilled;
 
-    return originalThen.call(this, wrappedOnFulfilled, onRejected);
-  };
+      return originalThen.call(this, wrappedOnFulfilled, onRejected) as Promise<
+        TResult1 | TResult2
+      >;
+    };
+  } catch {
+    /* prototype may be non-writable in some environments */
+  }
 })();
