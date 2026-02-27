@@ -226,7 +226,7 @@ describe('config-interceptor', () => {
       };
 
       // Simulate a private factory that is NOT exposed on window
-      const privateFactory = async () => fakeCheckout;
+      const privateFactory = async (): Promise<unknown> => fakeCheckout;
 
       // Call it — the interceptor's Promise.prototype.then hook should catch the result
       await privateFactory().then((v) => v);
@@ -235,7 +235,6 @@ describe('config-interceptor', () => {
       expect(config).toBeDefined();
       expect(config?.['clientKey']).toBe('test_BUNDLED');
     });
-
   });
 
   describe('idempotency', () => {

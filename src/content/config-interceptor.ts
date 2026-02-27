@@ -399,14 +399,19 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
    * AdyenCheckout factory call.
    */
   const originalThen = Promise.prototype.then;
-  (Promise.prototype.then as any) = function (
+  type ThenFn = (
+    onfulfilled?: ((value: unknown) => unknown) | null,
+    onrejected?: ((reason: unknown) => unknown) | null
+  ) => Promise<unknown>;
+
+  (Promise.prototype as unknown as { then: ThenFn }).then = function (
     this: Promise<unknown>,
-    onFulfilled: any,
-    onRejected: any
-  ) {
+    onFulfilled?: ((value: unknown) => unknown) | null,
+    onRejected?: ((reason: unknown) => unknown) | null
+  ): Promise<unknown> {
     const wrappedOnFulfilled =
       typeof onFulfilled === 'function'
-        ? function (value: unknown) {
+        ? function (value: unknown): unknown {
             if (looksLikeCheckoutInstance(value)) {
               captureInstanceConfig(value);
             }
@@ -416,5 +421,4 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
 
     return originalThen.call(this, wrappedOnFulfilled, onRejected);
   };
-
 })();
