@@ -3,6 +3,7 @@ import gts from 'gts';
 import jsdoc from 'eslint-plugin-jsdoc';
 import regexp from 'eslint-plugin-regexp';
 import sonarjs from 'eslint-plugin-sonarjs';
+import unicorn from 'eslint-plugin-unicorn';
 
 export default defineConfig([
   { ignores: ['dist/', 'coverage/', '*.cjs'] },
@@ -14,11 +15,21 @@ export default defineConfig([
     },
   },
   {
+    files: ['scripts/**/*.mjs'],
+    languageOptions: {
+      globals: {
+        console: 'readonly',
+        process: 'readonly',
+      },
+    },
+  },
+  {
     files: ['**/*.ts', '**/*.tsx'],
     plugins: {
       jsdoc,
       regexp,
       sonarjs,
+      unicorn,
     },
     rules: {
       '@typescript-eslint/no-explicit-any': 'error',
@@ -51,10 +62,20 @@ export default defineConfig([
       '@typescript-eslint/no-non-null-asserted-optional-chain': 'error',
       '@typescript-eslint/no-unnecessary-type-assertion': 'error',
       '@typescript-eslint/prefer-literal-enum-member': 'error',
+      '@typescript-eslint/restrict-template-expressions': [
+        'error',
+        {
+          allowNumber: true,
+          allowBoolean: true,
+          allowNullish: true,
+        },
+      ],
       '@typescript-eslint/unified-signatures': 'error',
       'regexp/prefer-d': 'error',
       'sonarjs/cognitive-complexity': ['error', 15],
       'sonarjs/no-nested-functions': 'error',
+      'sonarjs/no-redundant-assignments': 'error',
+      'unicorn/consistent-function-scoping': 'error',
       'jsdoc/check-alignment': 'error',
       'jsdoc/check-param-names': 'error',
       'jsdoc/check-tag-names': 'error',

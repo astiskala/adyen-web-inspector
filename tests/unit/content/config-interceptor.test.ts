@@ -32,7 +32,7 @@ function installAdyenCheckoutFactory(factory: CheckoutFactory): void {
 function callAdyenCheckout(config: unknown): Promise<unknown> {
   const checkout = (globalThis as unknown as Record<string, unknown>)['AdyenCheckout'];
   if (typeof checkout !== 'function') {
-    throw new Error('AdyenCheckout factory was not installed');
+    throw new TypeError('AdyenCheckout factory was not installed');
   }
   return (checkout as CheckoutFactory)(config);
 }

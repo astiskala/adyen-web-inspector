@@ -17,9 +17,10 @@
     "store-assets:generate": "./scripts/generate-store-assets.sh",
     "package:chrome": "./scripts/package-chrome.sh",
     "typecheck": "tsc --noEmit",
-    "lint": "pnpm lint:code && pnpm lint:md",
+    "lint": "pnpm lint:code && pnpm lint:gha && pnpm lint:md",
     "lint:code": "eslint .",
     "lint:code:fix": "eslint . --fix",
+    "lint:gha": "node ./scripts/check-gha-pinned-actions.mjs",
     "lint:md": "markdownlint-cli2 \"**/*.md\" \"#node_modules\" \"#dist\" \"#coverage\" \"#playwright-report\" \"#test-results\"",
     "lint:md:fix": "markdownlint-cli2 --fix \"**/*.md\" \"#node_modules\" \"#dist\" \"#coverage\" \"#playwright-report\" \"#test-results\"",
     "lint:fix": "pnpm lint:code:fix && pnpm lint:md:fix",
@@ -49,6 +50,7 @@
     "eslint-plugin-jsdoc": "^62.7.1",
     "eslint-plugin-regexp": "^3.0.0",
     "eslint-plugin-sonarjs": "^4.0.0",
+    "eslint-plugin-unicorn": "^63.0.0",
     "gts": "^7.0.0",
     "husky": "^9.1.7",
     "jsdom": "^28.1.0",
@@ -71,6 +73,9 @@
     ],
     "*.{css,html,json,yaml,yml}": [
       "prettier --write"
+    ],
+    ".github/workflows/*.{yml,yaml}": [
+      "node ./scripts/check-gha-pinned-actions.mjs"
     ]
   },
   "pnpm": {

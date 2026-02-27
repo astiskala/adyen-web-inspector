@@ -216,19 +216,11 @@ function buildIssueTableForCategory(
 
     for (const issue of groupIssues) {
       const color = severityColor(issue.severity);
-      let detail = '';
-      if (issue.detail === null) {
-        detail = '';
-      } else {
-        detail = `<br><small>${escapeHtml(issue.detail)}</small>`;
-      }
-
-      let docsLink = '';
-      if (issue.docsUrl === null) {
-        docsLink = '';
-      } else {
-        docsLink = `<br><a class="docs-link" href="${escapeHtml(issue.docsUrl)}" target="_blank" rel="noopener noreferrer">Read documentation</a>`;
-      }
+      const detail = issue.detail === null ? '' : `<br><small>${escapeHtml(issue.detail)}</small>`;
+      const docsLink =
+        issue.docsUrl === null
+          ? ''
+          : `<br><a class="docs-link" href="${escapeHtml(issue.docsUrl)}" target="_blank" rel="noopener noreferrer">Read documentation</a>`;
       rows.push(`
       <tr>
         <td style="color:${color};font-weight:600;text-transform:uppercase;white-space:nowrap">${escapeHtml(issue.severity)}</td>

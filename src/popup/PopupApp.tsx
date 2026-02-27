@@ -34,6 +34,15 @@ function getActiveTabId(): Promise<number | undefined> {
   return chrome.tabs.query({ active: true, currentWindow: true }).then((tabs) => tabs[0]?.id);
 }
 
+function isScanLifecycleMessage(messageType: string): boolean {
+  return (
+    messageType === MSG_SCAN_STARTED ||
+    messageType === MSG_SCAN_COMPLETE ||
+    messageType === MSG_SCAN_ERROR ||
+    messageType === MSG_SCAN_RESET
+  );
+}
+
 /**
  * Popup root that loads scan state for the active tab and handles scan actions.
  */
@@ -93,15 +102,6 @@ export function Popup(): JSX.Element {
         setResult(null);
         setState('not-detected');
       });
-  }
-
-  function isScanLifecycleMessage(messageType: string): boolean {
-    return (
-      messageType === MSG_SCAN_STARTED ||
-      messageType === MSG_SCAN_COMPLETE ||
-      messageType === MSG_SCAN_ERROR ||
-      messageType === MSG_SCAN_RESET
-    );
   }
 
   async function handleRuntimeMessage(message: RuntimeMessage): Promise<void> {

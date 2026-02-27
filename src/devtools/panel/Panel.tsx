@@ -61,7 +61,19 @@ function getErrorMessage(error: unknown): string {
     }
     return Object.prototype.toString.call(error);
   }
-  return `${error}`;
+  if (error === undefined) {
+    return 'undefined';
+  }
+  if (typeof error === 'number' || typeof error === 'boolean' || typeof error === 'bigint') {
+    return `${error}`;
+  }
+  if (typeof error === 'symbol') {
+    return error.description ?? 'Symbol';
+  }
+  if (typeof error === 'function') {
+    return error.name === '' ? '[function]' : `[function ${error.name}]`;
+  }
+  return 'Unknown runtime error';
 }
 
 function isContextInvalidated(error: unknown): boolean {
