@@ -12,6 +12,10 @@
  *    `.then()` observer that inspects the resolved instance shape and
  *    extracts full configuration.
  *
+ * 3. **Fallback prototype traps** — for bundled SDKs where the factory is
+ *    not exposed globally, we hook into Promise.prototype.then to catch
+ *    the configuration as it resolves within private scopes.
+ *
  * The captured config is published on a well-known global for the
  * page-extractor to read.
  *
@@ -385,4 +389,28 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
   } catch {
     /* property may already be non-configurable */
   }
+
+  // ---------------------------------------------------------------------------
+  // Fallback Prototype Interception (for bundled/npm SDKs)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Trap Promise.prototype.then to intercept the result of the (private)
+   * AdyenCheckout factory call.
+   */
+  const originalThen = Promise.prototype.then;
+  Promise.prototype.then = function (this: Promise<unknown>, onFulfilled: any, onRejected: any) {
+    const wrappedOnFulfilled =
+      typeof onFulfilled === 'function'
+        ? function (value: unknown) {
+            if (looksLikeCheckoutInstance(value)) {
+              captureInstanceConfig(value);
+            }
+            return onFulfilled(value);
+          }
+        : onFulfilled;
+
+    return originalThen.call(this, wrappedOnFulfilled, onRejected);
+  };
+
 })();

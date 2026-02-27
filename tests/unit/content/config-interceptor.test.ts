@@ -215,6 +215,29 @@ describe('config-interceptor', () => {
     });
   });
 
+  describe('fallback prototype interception', () => {
+    it('captures config from a private factory resolution via Promise.prototype.then', async () => {
+      const fakeCheckout = {
+        create: (): void => {},
+        options: {
+          clientKey: 'test_BUNDLED',
+          environment: 'test',
+        },
+      };
+
+      // Simulate a private factory that is NOT exposed on window
+      const privateFactory = async () => fakeCheckout;
+
+      // Call it — the interceptor's Promise.prototype.then hook should catch the result
+      await privateFactory().then((v) => v);
+
+      const config = getCapturedConfig();
+      expect(config).toBeDefined();
+      expect(config?.['clientKey']).toBe('test_BUNDLED');
+    });
+
+  });
+
   describe('idempotency', () => {
     it('does not break when the interceptor is loaded twice', async () => {
       await import('../../../src/content/config-interceptor.js');
