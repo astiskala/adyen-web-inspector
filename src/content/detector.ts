@@ -23,6 +23,29 @@ const DETECTION_DEBOUNCE_MS = 200;
 let pendingTimer: ReturnType<typeof globalThis.setTimeout> | undefined;
 let lastSentState: string | null = null;
 
+/** Try to extract the SDK version from a CDN <script> tag (supplementary data). */
+function extractVersionFromScripts(): string | undefined {
+  // Modern CDN pattern: checkoutshopper-sdk/X.Y.Z
+  const cdnScript = document.querySelector<HTMLScriptElement>('script[src*="checkoutshopper-sdk"]');
+  if (cdnScript) {
+    const match = /checkoutshopper-sdk[./](\d+\.\d+\.\d+)/.exec(cdnScript.src);
+    const version = match?.[1];
+    if (version !== undefined && version !== '') return version;
+  }
+
+  // Legacy CDN pattern (v5 and earlier): /checkoutshopper/sdk/X.Y.Z/
+  const legacyScript = document.querySelector<HTMLScriptElement>(
+    'script[src*="/checkoutshopper/sdk/"]'
+  );
+  if (legacyScript) {
+    const match = /\/sdk\/(\d+\.\d+\.\d+)\//.exec(legacyScript.src);
+    const version = match?.[1];
+    if (version !== undefined && version !== '') return version;
+  }
+
+  return undefined;
+}
+
 function detectAdyen(): DetectionResult {
   // Only report "found" when a Drop-in or Component is actually mounted on the page.
   // SDK script tags alone (including datacollection.js / risk module) do NOT count.
@@ -46,29 +69,6 @@ function detectAdyen(): DetectionResult {
   }
 
   return { found: false };
-}
-
-/** Try to extract the SDK version from a CDN <script> tag (supplementary data). */
-function extractVersionFromScripts(): string | undefined {
-  // Modern CDN pattern: checkoutshopper-sdk/X.Y.Z
-  const cdnScript = document.querySelector<HTMLScriptElement>('script[src*="checkoutshopper-sdk"]');
-  if (cdnScript) {
-    const match = /checkoutshopper-sdk[./](\d+\.\d+\.\d+)/.exec(cdnScript.src);
-    const version = match?.[1];
-    if (version !== undefined && version !== '') return version;
-  }
-
-  // Legacy CDN pattern (v5 and earlier): /checkoutshopper/sdk/X.Y.Z/
-  const legacyScript = document.querySelector<HTMLScriptElement>(
-    'script[src*="/checkoutshopper/sdk/"]'
-  );
-  if (legacyScript) {
-    const match = /\/sdk\/(\d+\.\d+\.\d+)\//.exec(legacyScript.src);
-    const version = match?.[1];
-    if (version !== undefined && version !== '') return version;
-  }
-
-  return undefined;
 }
 
 function buildStateKey(result: DetectionResult): string {

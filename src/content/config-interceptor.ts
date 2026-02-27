@@ -433,17 +433,20 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
    * AdyenCheckout factory call.
    */
   const originalThen = Promise.prototype.then;
+  const originalThenCallable = originalThen as unknown as SdkCallable;
 
   if (!isWrapped(originalThen)) {
     try {
-      Object.defineProperty(Promise.prototype, 'then', {
+      void Object.defineProperty(Promise.prototype, 'then', {
         value: function <TResult1 = unknown, TResult2 = never>(
           this: Promise<unknown>,
           onFulfilled?: ((value: unknown) => TResult1 | PromiseLike<TResult1>) | null,
           onRejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null
         ): Promise<TResult1 | TResult2> {
           if (typeof onFulfilled !== 'function') {
-            return originalThen.call(this, onFulfilled, onRejected) as Promise<TResult1 | TResult2>;
+            return originalThenCallable.call(this, onFulfilled, onRejected) as Promise<
+              TResult1 | TResult2
+            >;
           }
 
           const originalOnFulfilled = onFulfilled;
@@ -458,7 +461,7 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
             return originalOnFulfilled(value);
           };
 
-          return originalThen.call(this, wrappedOnFulfilled, onRejected) as Promise<
+          return originalThenCallable.call(this, wrappedOnFulfilled, onRejected) as Promise<
             TResult1 | TResult2
           >;
         },
@@ -470,4 +473,7 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
       /* prototype may be non-configurable in some environments */
     }
   }
+
+  // Signal that the interceptor is fully initialized and ready to capture configurations.
+  (globalThis as PlainRecord)[CAPTURED_CONFIG_KEY + '__ready'] = true;
 })();
