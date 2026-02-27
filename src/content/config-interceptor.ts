@@ -399,7 +399,11 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
    * AdyenCheckout factory call.
    */
   const originalThen = Promise.prototype.then;
-  Promise.prototype.then = function (this: Promise<unknown>, onFulfilled: any, onRejected: any) {
+  (Promise.prototype.then as any) = function (
+    this: Promise<unknown>,
+    onFulfilled: any,
+    onRejected: any
+  ) {
     const wrappedOnFulfilled =
       typeof onFulfilled === 'function'
         ? function (value: unknown) {
