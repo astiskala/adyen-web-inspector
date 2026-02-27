@@ -34,17 +34,14 @@ const allowedDocHosts = [
   'owasp.org',
   'github.com',
   'developer.mozilla.org',
-  'w3.org'
+  'w3.org',
 ];
 
 function isAllowedHost(url: string): boolean {
   try {
     const { hostname } = new URL(url);
     return allowedDocHosts.some((allowedHost) => {
-      return (
-        hostname === allowedHost ||
-        hostname.endsWith(`.${allowedHost}`)
-      );
+      return hostname === allowedHost || hostname.endsWith(`.${allowedHost}`);
     });
   } catch {
     // Ignore invalid URLs
@@ -52,9 +49,7 @@ function isAllowedHost(url: string): boolean {
   }
 }
 
-const urlsToTest = Array.from(collectDocsUrls()).filter((url) =>
-  isAllowedHost(url)
-);
+const urlsToTest = Array.from(collectDocsUrls()).filter((url) => isAllowedHost(url));
 
 describe.skipIf(process.env['RUN_LINK_CHECKS'] === undefined)('Link Validation', () => {
   describe('Referenced Documentation Links', () => {
