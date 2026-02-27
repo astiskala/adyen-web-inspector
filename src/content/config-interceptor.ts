@@ -1,10 +1,19 @@
 /**
  * MAIN-world config interceptor — injected at document_start before any page
- * scripts run.  It installs lightweight property traps on `globalThis` so
- * that when the Adyen Web SDK (v6+) sets `window.AdyenCheckout` (UMD) or
- * `window.AdyenWeb` (ESM), the factory / component constructors are
- * transparently wrapped.  Every call captures the *resolved* runtime config
- * and publishes it on a well-known global for the page-extractor to read.
+ * scripts run.  It uses two complementary mechanisms to capture the Adyen Web
+ * SDK (v6+) runtime configuration regardless of how the SDK was loaded:
+ *
+ * 1. **Global property traps** — when the SDK is loaded via CDN and sets
+ *    `window.AdyenCheckout` (UMD) or `window.AdyenWeb` (ESM), the factory /
+ *    component constructors are transparently wrapped for early capture.
+ *
+ * 2. **Promise.prototype.then interception** — the AdyenCheckout() factory
+ *    always returns a Promise<Core>.  By wrapping `.then()` we detect the
+ *    resolved instance by its shape and extract the full configuration.
+ *    This works for both CDN and npm-bundled loads.
+ *
+ * The captured config is published on a well-known global for the
+ * page-extractor to read.
  *
  * Design constraints:
  * - Must be completely self-contained (no runtime imports).
@@ -162,24 +171,10 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
     if (isWrapped(original)) return original;
 
     const wrapped: SdkCallable = function (this: unknown, ...args: unknown[]): unknown {
+      // Capture the raw config eagerly — acts as a safety net if the SDK
+      // promise rejects before Promise.then interception can fire.
       captureConfig(args[0], 'checkout');
-
-      const result: unknown = original.apply(this, args);
-
-      // AdyenCheckout() returns a Promise in v6+.
-      if (
-        result !== null &&
-        result !== undefined &&
-        typeof (result as PlainRecord)['then'] === 'function'
-      ) {
-        (result as Promise<unknown>)
-          .then((instance: unknown) => {
-            captureInstanceConfig(instance);
-          })
-          .catch(() => {});
-      }
-
-      return result;
+      return original.apply(this, args);
     };
 
     markWrapped(wrapped);
@@ -294,5 +289,85 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
     });
   } catch {
     /* property may already be non-configurable */
+  }
+
+  // ---------------------------------------------------------------------------
+  // Promise.prototype.then interception — captures Adyen Core instances
+  // resolved from the AdyenCheckout() async factory.  The factory always
+  // returns a Promise<Core>, so by wrapping .then() we can detect the
+  // resolved instance by its shape and extract the full configuration.
+  // This is the primary capture mechanism and works for both CDN and npm.
+  // ---------------------------------------------------------------------------
+
+  try {
+    type PromiseThenFn = (
+      this: Promise<unknown>,
+      onFulfilled?: ((value: unknown) => unknown) | null,
+      onRejected?: ((reason: unknown) => unknown) | null
+    ) => Promise<unknown>;
+
+    const origThen = Promise.prototype.then as unknown as PromiseThenFn;
+
+    /**
+     * Returns true when `value` looks like an Adyen Web Core / Checkout
+     * instance produced by `await AdyenCheckout(config)`.
+     *
+     * Shape check — requires BOTH:
+     *  1. `.options.clientKey` or `._options.clientKey` is a string
+     *  2. At least one distinctive Core-instance property is present:
+     *     `modules`, `paymentMethodsResponse`, `loadingContext`,
+     *     `createFromAction`, or `create`.
+     */
+    function looksLikeCheckoutInstance(value: unknown): boolean {
+      if (value === null || typeof value !== 'object') return false;
+      const v = value as PlainRecord;
+
+      const opts = v['options'] ?? v['_options'];
+      if (
+        opts === null ||
+        opts === undefined ||
+        typeof opts !== 'object' ||
+        typeof (opts as PlainRecord)['clientKey'] !== 'string'
+      ) {
+        return false;
+      }
+
+      // Guard against matching plain config objects — require at least one
+      // property that only exists on an *instantiated* Core object.
+      return (
+        'modules' in v ||
+        'paymentMethodsResponse' in v ||
+        'loadingContext' in v ||
+        'createFromAction' in v ||
+        typeof v['create'] === 'function'
+      );
+    }
+
+    (Promise.prototype as unknown as PlainRecord)['then'] = function (
+      this: Promise<unknown>,
+      onFulfilled?: ((value: unknown) => unknown) | null,
+      onRejected?: ((reason: unknown) => unknown) | null
+    ): Promise<unknown> {
+      if (typeof onFulfilled !== 'function') {
+        return origThen.call(this, onFulfilled, onRejected);
+      }
+      const original = onFulfilled;
+      return origThen.call(
+        this,
+        (value: unknown): unknown => {
+          try {
+            if (looksLikeCheckoutInstance(value)) {
+              captureInstanceConfig(value);
+            }
+          } catch {
+            /* never break promise chains */
+          }
+          return original(value);
+        },
+        onRejected
+      );
+    };
+  } catch {
+    /* non-configurable */
   }
 })();
