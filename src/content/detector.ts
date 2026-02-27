@@ -16,7 +16,7 @@ const MSG_ADYEN_NOT_DETECTED: AdyenNotDetectedMessage['type'] = 'ADYEN_NOT_DETEC
 
 interface DetectionResult {
   found: boolean;
-  version?: string | undefined;
+  version?: string;
 }
 
 const DETECTION_DEBOUNCE_MS = 200;
@@ -32,7 +32,8 @@ function detectAdyen(): DetectionResult {
     '.adyen-checkout__dropin, .adyen-checkout, [class*="adyen-checkout"]'
   );
   if (dropinContainer) {
-    return { found: true, version: extractVersionFromScripts() };
+    const version = extractVersionFromScripts();
+    return { found: true, ...(version === undefined ? {} : { version }) };
   }
 
   // Check for Adyen checkout iframe (card component, 3DS)
@@ -40,7 +41,8 @@ function detectAdyen(): DetectionResult {
     'iframe[name^="adyen-"], iframe[title*="Adyen"], iframe[src*="adyenpayments.com"]'
   );
   if (adyenIframe) {
-    return { found: true, version: extractVersionFromScripts() };
+    const version = extractVersionFromScripts();
+    return { found: true, ...(version === undefined ? {} : { version }) };
   }
 
   return { found: false };

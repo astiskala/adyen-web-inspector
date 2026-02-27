@@ -1,0 +1,6 @@
+{
+  "sonarlint.connectedMode.project": {
+    "connectionId": "astiskala",
+    "projectKey": "astiskala_adyen-web-inspector"
+  }
+}

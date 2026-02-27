@@ -95,6 +95,54 @@ export function Popup(): JSX.Element {
       });
   }
 
+  function isScanLifecycleMessage(messageType: string): boolean {
+    return (
+      messageType === MSG_SCAN_STARTED ||
+      messageType === MSG_SCAN_COMPLETE ||
+      messageType === MSG_SCAN_ERROR ||
+      messageType === MSG_SCAN_RESET
+    );
+  }
+
+  async function handleRuntimeMessage(message: RuntimeMessage): Promise<void> {
+    if (!isScanLifecycleMessage(message.type)) {
+      return;
+    }
+
+    const tabId = await getActiveTabId();
+    if (tabId === undefined || message.tabId !== tabId) {
+      return;
+    }
+
+    if (message.type === MSG_SCAN_STARTED) {
+      setScanning(true);
+      return;
+    }
+
+    if (message.type === MSG_SCAN_RESET) {
+      setScanning(false);
+      setResult(null);
+      setErrorMsg('');
+      setOutdatedVersion('');
+      setState('loading');
+      globalThis.setTimeout(() => {
+        loadResult(tabId);
+      }, 400);
+      return;
+    }
+
+    if (message.type === MSG_SCAN_COMPLETE) {
+      setScanning(false);
+      setErrorMsg('');
+      loadResult(tabId);
+      return;
+    }
+
+    setScanning(false);
+    setState('error');
+    setErrorMsg(message.error ?? 'Scan failed. Try reloading the page.');
+  }
+
   useEffect(() => {
     getActiveTabId()
       .then((tabId) => {
@@ -109,50 +157,7 @@ export function Popup(): JSX.Element {
       });
 
     const listener = (message: RuntimeMessage): void => {
-      if (
-        message.type !== MSG_SCAN_STARTED &&
-        message.type !== MSG_SCAN_COMPLETE &&
-        message.type !== MSG_SCAN_ERROR &&
-        message.type !== MSG_SCAN_RESET
-      ) {
-        return;
-      }
-
-      getActiveTabId()
-        .then((tabId) => {
-          if (tabId === undefined || message.tabId !== tabId) {
-            return;
-          }
-
-          if (message.type === MSG_SCAN_STARTED) {
-            setScanning(true);
-            return;
-          }
-
-          if (message.type === MSG_SCAN_RESET) {
-            setScanning(false);
-            setResult(null);
-            setErrorMsg('');
-            setOutdatedVersion('');
-            setState('loading');
-            globalThis.setTimeout(() => {
-              loadResult(tabId);
-            }, 400);
-            return;
-          }
-
-          if (message.type === MSG_SCAN_COMPLETE) {
-            setScanning(false);
-            setErrorMsg('');
-            loadResult(tabId);
-            return;
-          }
-
-          setScanning(false);
-          setState('error');
-          setErrorMsg(message.error ?? 'Scan failed. Try reloading the page.');
-        })
-        .catch(() => {});
+      handleRuntimeMessage(message).catch(() => {});
     };
 
     chrome.runtime.onMessage.addListener(listener);

@@ -38,6 +38,12 @@ importers:
       eslint-plugin-jsdoc:
         specifier: ^62.7.1
         version: 62.7.1(eslint@10.0.2(jiti@2.6.1))
+      eslint-plugin-regexp:
+        specifier: ^3.0.0
+        version: 3.0.0(eslint@10.0.2(jiti@2.6.1))
+      eslint-plugin-sonarjs:
+        specifier: ^4.0.0
+        version: 4.0.0(eslint@10.0.2(jiti@2.6.1))
       gts:
         specifier: ^7.0.0
         version: 7.0.0(jiti@2.6.1)(typescript@5.9.3)
@@ -1837,6 +1843,20 @@ packages:
     engines: { node: ^6 || ^7 || ^8 || ^9 || ^10 || ^11 || ^12 || >=13.7 }
     hasBin: true
 
+  builtin-modules@3.3.0:
+    resolution:
+      {
+        integrity: sha512-zhaCDicdLuWN5UbN5IMnFqNMhNfo919sH85y2/ea+5Yg9TsTkeZxpL+JLbp6cgYFS4sRLp3YV4S6yDuqVWHYOw==,
+      }
+    engines: { node: '>=6' }
+
+  bytes@3.1.2:
+    resolution:
+      {
+        integrity: sha512-/Nf7TyzTx6S3yRJObOAV7956r8cr2+Oj8AC5dt8wSP3BQAoeX58NoHyCU8P8zGkNXStjTSi6fzO6F0pBdcYbEg==,
+      }
+    engines: { node: '>= 0.8' }
+
   callsites@3.1.0:
     resolution:
       {
@@ -2341,6 +2361,23 @@ packages:
       eslint-config-prettier:
         optional: true
 
+  eslint-plugin-regexp@3.0.0:
+    resolution:
+      {
+        integrity: sha512-iW7hgAV8NOG6E2dz+VeKpq67YLQ9jaajOKYpoOSic2/q8y9BMdXBKkSR9gcMtbqEhNQzdW41E3wWzvhp8ExYwQ==,
+      }
+    engines: { node: ^20.19.0 || ^22.13.0 || >=24 }
+    peerDependencies:
+      eslint: '>=9.38.0'
+
+  eslint-plugin-sonarjs@4.0.0:
+    resolution:
+      {
+        integrity: sha512-ihyH9HO52OeeWer/gWRndkW/ZhGqx9HDg+Iptu+ApSfiomT2LzhHgHCoyJrhh7DjCyKhjU3Hmmz1pzcXRf7B3g==,
+      }
+    peerDependencies:
+      eslint: ^8.0.0 || ^9.0.0 || ^10.0.0
+
   eslint-scope@8.4.0:
     resolution:
       {
@@ -2622,6 +2659,12 @@ packages:
         integrity: sha512-7XHNxH7qX9xG5mIwxkhumTox/MIRNcOgDrxWsMt2pAr23WHp6MrRlN7FBSFpCpr+oVO0F744iUgR82nJMfG2SA==,
       }
 
+  functional-red-black-tree@1.0.1:
+    resolution:
+      {
+        integrity: sha512-dsKNQNdj6xA3T+QlADDA7mOSlX0qiMINjn0cgr+eGHGsbSHzTabcIogz2+p/iqP1Xs6EP/sS2SbqH+brGTbq0g==,
+      }
+
   gensync@1.0.0-beta.2:
     resolution:
       {
@@ -2696,6 +2739,13 @@ packages:
     resolution:
       {
         integrity: sha512-7ACyT3wmyp3I61S4fG682L0VA2RGD9otkqGJIwNUMF1SWUombIIk+af1unuDYgMm082aHYwD+mzJvv9Iu8dsgg==,
+      }
+    engines: { node: '>=18' }
+
+  globals@17.3.0:
+    resolution:
+      {
+        integrity: sha512-yMqGUQVVCkD4tqjOJf3TnrvaaHDMYp4VlUSObbkIiuCPe/ofdMBFIAcBbCSRFWOnos6qRiTVStDwqPLUclaxIw==,
       }
     engines: { node: '>=18' }
 
@@ -3129,6 +3179,13 @@ packages:
       {
         integrity: sha512-HUgH65KyejrUFPvHFPbqOY0rsFip3Bo5wb4ngvdi1EpCYWUQDC5V+Y7mZws+DLkr4M//zQJoanu1SP+87Dv1oQ==,
       }
+
+  jsx-ast-utils-x@0.1.0:
+    resolution:
+      {
+        integrity: sha512-eQQBjBnsVtGacsG9uJNB8qOr3yA8rga4wAaGG1qRcBzSIvfhERLrWxMAM1hp5fcS6Abo8M4+bUBTekYR0qTPQw==,
+      }
+    engines: { node: ^18.18.0 || ^20.9.0 || >=21.1.0 }
 
   katex@0.16.33:
     resolution:
@@ -3584,6 +3641,13 @@ packages:
       }
     engines: { node: '>=4' }
 
+  minimatch@10.2.1:
+    resolution:
+      {
+        integrity: sha512-MClCe8IL5nRRmawL6ib/eT4oLyeKMGCghibcDWK+J0hh0Q8kqSdia6BvbRMVk6mPa6WqUa5uR2oxt6C5jd533A==,
+      }
+    engines: { node: 20 || >=22 }
+
   minimatch@10.2.4:
     resolution:
       {
@@ -3974,6 +4038,20 @@ packages:
       }
     engines: { node: '>=8' }
 
+  refa@0.12.1:
+    resolution:
+      {
+        integrity: sha512-J8rn6v4DBb2nnFqkqwy6/NnTYMcgLA+sLr0iIO41qpv0n+ngb7ksag2tMRl0inb1bbO/esUwzW1vbJi7K0sI0g==,
+      }
+    engines: { node: ^12.0.0 || ^14.0.0 || >=16.0.0 }
+
+  regexp-ast-analysis@0.7.1:
+    resolution:
+      {
+        integrity: sha512-sZuz1dYW/ZsfG17WSAG7eS85r5a0dDsvg+7BiiYR5o6lKCAtUrEwdmRmaGF6rwVj3LcmAeYkOWKEPlbPzN3Y3A==,
+      }
+    engines: { node: ^12.0.0 || ^14.0.0 || >=16.0.0 }
+
   regexp-tree@0.1.27:
     resolution:
       {
@@ -4103,6 +4181,13 @@ packages:
         integrity: sha512-xAg7SOnEhrm5zI3puOOKyy1OMcMlIJZYNJY7xLBwSze0UjhPLnWfj2GF2EpT0jmzaJKIWKHLsaSSajf35bcYnA==,
       }
     engines: { node: '>=v12.22.7' }
+
+  scslre@0.3.0:
+    resolution:
+      {
+        integrity: sha512-3A6sD0WYP7+QrjbfNA2FN3FsOaGGFoekCVgTyypy53gPxhbkCIjtO6YWgdrfM+n/8sI8JeXZOIxsHjMTNxQ4nQ==,
+      }
+    engines: { node: ^14.0.0 || >=16.0.0 }
 
   semver@5.7.2:
     resolution:
@@ -5889,6 +5974,10 @@ snapshots:
       node-releases: 2.0.27
       update-browserslist-db: 1.2.3(browserslist@4.28.1)
 
+  builtin-modules@3.3.0: {}
+
+  bytes@3.1.2: {}
+
   callsites@3.1.0: {}
 
   camelcase-keys@6.2.2:
@@ -6213,6 +6302,33 @@ snapshots:
     optionalDependencies:
       eslint-config-prettier: 10.1.8(eslint@10.0.2(jiti@2.6.1))
 
+  eslint-plugin-regexp@3.0.0(eslint@10.0.2(jiti@2.6.1)):
+    dependencies:
+      '@eslint-community/eslint-utils': 4.9.1(eslint@10.0.2(jiti@2.6.1))
+      '@eslint-community/regexpp': 4.12.2
+      comment-parser: 1.4.5
+      eslint: 10.0.2(jiti@2.6.1)
+      jsdoc-type-pratt-parser: 7.1.1
+      refa: 0.12.1
+      regexp-ast-analysis: 0.7.1
+      scslre: 0.3.0
+
+  eslint-plugin-sonarjs@4.0.0(eslint@10.0.2(jiti@2.6.1)):
+    dependencies:
+      '@eslint-community/regexpp': 4.12.2
+      builtin-modules: 3.3.0
+      bytes: 3.1.2
+      eslint: 10.0.2(jiti@2.6.1)
+      functional-red-black-tree: 1.0.1
+      globals: 17.3.0
+      jsx-ast-utils-x: 0.1.0
+      lodash.merge: 4.6.2
+      minimatch: 10.2.1
+      scslre: 0.3.0
+      semver: 7.7.4
+      ts-api-utils: 2.4.0(typescript@5.9.3)
+      typescript: 5.9.3
+
   eslint-scope@8.4.0:
     dependencies:
       esrecurse: 4.3.0
@@ -6432,6 +6548,8 @@ snapshots:
 
   function-bind@1.1.2: {}
 
+  functional-red-black-tree@1.0.1: {}
+
   gensync@1.0.0-beta.2: {}
 
   get-caller-file@2.0.5: {}
@@ -6465,6 +6583,8 @@ snapshots:
   globals@14.0.0: {}
 
   globals@15.15.0: {}
+
+  globals@17.3.0: {}
 
   globby@16.1.0:
     dependencies:
@@ -6703,6 +6823,8 @@ snapshots:
   json5@2.2.3: {}
 
   jsonc-parser@3.3.1: {}
+
+  jsx-ast-utils-x@0.1.0: {}
 
   katex@0.16.33:
     dependencies:
@@ -7074,6 +7196,10 @@ snapshots:
 
   min-indent@1.0.1: {}
 
+  minimatch@10.2.1:
+    dependencies:
+      brace-expansion: 5.0.3
+
   minimatch@10.2.4:
     dependencies:
       brace-expansion: 5.0.3
@@ -7301,6 +7427,15 @@ snapshots:
       indent-string: 4.0.0
       strip-indent: 3.0.0
 
+  refa@0.12.1:
+    dependencies:
+      '@eslint-community/regexpp': 4.12.2
+
+  regexp-ast-analysis@0.7.1:
+    dependencies:
+      '@eslint-community/regexpp': 4.12.2
+      refa: 0.12.1
+
   regexp-tree@0.1.27: {}
 
   require-directory@2.1.1: {}
@@ -7385,6 +7520,12 @@ snapshots:
   saxes@6.0.0:
     dependencies:
       xmlchars: 2.2.0
+
+  scslre@0.3.0:
+    dependencies:
+      '@eslint-community/regexpp': 4.12.2
+      refa: 0.12.1
+      regexp-ast-analysis: 0.7.1
 
   semver@5.7.2: {}
 

@@ -74,12 +74,12 @@ export const ENVIRONMENT_CHECKS = createRegistry(CATEGORY)
 
     const regionResolution = resolveRegion(payload);
     const region = regionResolution.region;
-    const detail =
-      regionResolution.source === 'config'
-        ? STRINGS.REGION_SOURCE_CONFIG_DETAIL
-        : regionResolution.source === 'unknown'
-          ? STRINGS.REGION_SOURCE_UNKNOWN_DETAIL
-          : STRINGS.REGION_SOURCE_NETWORK_DETAIL;
+    let detail: string = STRINGS.REGION_SOURCE_NETWORK_DETAIL;
+    if (regionResolution.source === 'config') {
+      detail = STRINGS.REGION_SOURCE_CONFIG_DETAIL;
+    } else if (regionResolution.source === 'unknown') {
+      detail = STRINGS.REGION_SOURCE_UNKNOWN_DETAIL;
+    }
 
     return info(`Region: ${region}.`, detail);
   })

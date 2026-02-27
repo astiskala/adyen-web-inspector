@@ -4,9 +4,7 @@ const CONFIG_KEY = '__adyenWebInspectorCapturedConfig';
 const INSTALLED_KEY = CONFIG_KEY + '__installed';
 
 type CapturedConfig = Record<string, unknown>;
-
-// Save pristine prototype before any interceptor loads.
-const pristineThen = Promise.prototype.then;
+type CheckoutFactory = (config: unknown) => Promise<unknown>;
 
 function getCapturedConfig(): CapturedConfig | undefined {
   return (globalThis as unknown as Record<string, unknown>)[CONFIG_KEY] as
@@ -22,32 +20,34 @@ function resetGlobals(): void {
   Reflect.deleteProperty(g, 'AdyenWeb');
 }
 
-function restorePrototypes(): void {
-  (Promise.prototype as unknown as Record<string, unknown>)['then'] = pristineThen;
-}
-
 async function loadInterceptor(): Promise<void> {
   vi.resetModules();
   await import('../../../src/content/config-interceptor.js');
 }
 
+function installAdyenCheckoutFactory(factory: CheckoutFactory): void {
+  (globalThis as unknown as Record<string, unknown>)['AdyenCheckout'] = factory;
+}
+
+function callAdyenCheckout(config: unknown): Promise<unknown> {
+  const checkout = (globalThis as unknown as Record<string, unknown>)['AdyenCheckout'];
+  if (typeof checkout !== 'function') {
+    throw new Error('AdyenCheckout factory was not installed');
+  }
+  return (checkout as CheckoutFactory)(config);
+}
+
 describe('config-interceptor', () => {
   beforeEach(async () => {
-    restorePrototypes();
     resetGlobals();
     await loadInterceptor();
   });
 
   afterAll(() => {
-    restorePrototypes();
     resetGlobals();
   });
 
-  // -------------------------------------------------------------------------
-  // Promise.prototype.then interception
-  // -------------------------------------------------------------------------
-
-  describe('Promise.prototype.then interception', () => {
+  describe('factory promise resolution hook', () => {
     it('captures full config from a resolved Adyen Core instance', async () => {
       const fakeCheckout = {
         create: (): void => {},
@@ -59,7 +59,8 @@ describe('config-interceptor', () => {
         },
       };
 
-      await Promise.resolve(fakeCheckout).then((v) => v);
+      installAdyenCheckoutFactory(async () => fakeCheckout);
+      await callAdyenCheckout({});
 
       const config = getCapturedConfig();
       expect(config).toBeDefined();
@@ -79,7 +80,8 @@ describe('config-interceptor', () => {
         },
       };
 
-      await Promise.resolve(fakeCheckout).then((v) => v);
+      installAdyenCheckoutFactory(async () => fakeCheckout);
+      await callAdyenCheckout({});
 
       const config = getCapturedConfig();
       expect(config).toBeDefined();
@@ -100,7 +102,8 @@ describe('config-interceptor', () => {
         },
       };
 
-      await Promise.resolve(fakeCheckout).then((v) => v);
+      installAdyenCheckoutFactory(async () => fakeCheckout);
+      await callAdyenCheckout({});
 
       const config = getCapturedConfig();
       expect(config).toBeDefined();
@@ -114,7 +117,6 @@ describe('config-interceptor', () => {
       await Promise.resolve(42).then((v) => v);
       await Promise.resolve('hello').then((v) => v);
       await Promise.resolve(null).then((v) => v);
-
       expect(getCapturedConfig()).toBeUndefined();
     });
 
@@ -132,7 +134,8 @@ describe('config-interceptor', () => {
         },
       };
 
-      await Promise.resolve(fakeCheckout).then((v) => v);
+      installAdyenCheckoutFactory(async () => fakeCheckout);
+      await callAdyenCheckout({});
 
       const config = getCapturedConfig();
       expect(config).toBeDefined();
@@ -143,33 +146,40 @@ describe('config-interceptor', () => {
     });
 
     it('does not capture plain config objects without instance markers', async () => {
-      await Promise.resolve({ options: { clientKey: 'test_NO' } }).then((v) => v);
+      installAdyenCheckoutFactory(async () => ({ options: { clientKey: 'test_NO' } }));
+      await callAdyenCheckout({});
       expect(getCapturedConfig()).toBeUndefined();
     });
 
     it('does not capture objects without clientKey', async () => {
-      await Promise.resolve({
+      installAdyenCheckoutFactory(async () => ({
         create: (): void => {},
         options: { environment: 'test' },
-      }).then((v) => v);
+      }));
+      await callAdyenCheckout({});
       expect(getCapturedConfig()).toBeUndefined();
     });
 
     it('preserves original then return values', async () => {
-      const result = await Promise.resolve(42).then((v) => v * 2);
+      installAdyenCheckoutFactory(async () => 42);
+      const result = await callAdyenCheckout({}).then((v) => (v as number) * 2);
       expect(result).toBe(84);
     });
 
     it('preserves chained promise behaviour', async () => {
-      const result = await Promise.resolve(1)
-        .then((v) => v + 1)
+      installAdyenCheckoutFactory(async () => 1);
+      const result = await callAdyenCheckout({})
+        .then((v) => (v as number) + 1)
         .then((v) => v * 3);
       expect(result).toBe(6);
     });
 
     it('preserves rejection handling', async () => {
+      installAdyenCheckoutFactory(async () => {
+        throw new Error('test');
+      });
       let caught = false;
-      await Promise.reject(new Error('test')).then(
+      await callAdyenCheckout({}).then(
         () => {},
         () => {
           caught = true;
@@ -184,10 +194,9 @@ describe('config-interceptor', () => {
         options: { clientKey: 'test_WRAP', environment: 'test' },
       };
 
-      await Promise.resolve(fakeCheckout).then((v) => v);
+      installAdyenCheckoutFactory(async () => fakeCheckout);
+      await callAdyenCheckout({});
 
-      // The interceptor should have wrapped .create() on the instance.
-      // Call it with component-level config.
       (fakeCheckout['create'] as (t: string, c: Record<string, unknown>) => unknown)('card', {
         countryCode: 'NL',
         locale: 'nl-NL',
@@ -200,26 +209,21 @@ describe('config-interceptor', () => {
     });
 
     it('passes through when onFulfilled is null', async () => {
-      const result = await Promise.resolve(42).then(null, null);
+      installAdyenCheckoutFactory(async () => 42);
+      const result = await callAdyenCheckout({}).then(null, null);
       expect(result).toBe(42);
     });
   });
 
-  // -------------------------------------------------------------------------
-  // Re-injection guard
-  // -------------------------------------------------------------------------
-
   describe('idempotency', () => {
     it('does not break when the interceptor is loaded twice', async () => {
-      // First load already happened in beforeEach. Load again without clearing the guard.
       await import('../../../src/content/config-interceptor.js');
-
-      const fakeCheckout = {
+      installAdyenCheckoutFactory(async () => ({
         create: (): void => {},
         options: { clientKey: 'test_IDEM', environment: 'test' },
-      };
+      }));
 
-      await Promise.resolve(fakeCheckout).then((v) => v);
+      await callAdyenCheckout({});
 
       const config = getCapturedConfig();
       expect(config).toBeDefined();

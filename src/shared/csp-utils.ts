@@ -33,7 +33,7 @@ function extractCspSourceHost(value: string): string | null {
     !normalized ||
     normalized === '*' ||
     normalized.endsWith(':') ||
-    normalized.charCodeAt(0) === 39
+    normalized.codePointAt(0) === 39
   ) {
     return null;
   }

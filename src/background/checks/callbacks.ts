@@ -75,7 +75,7 @@ function joinSignals(signals: readonly string[]): string {
     return signals[0] ?? 'no strong flow signals';
   }
   const head = signals.slice(0, -1).join(', ');
-  const tail = signals[signals.length - 1] ?? '';
+  const tail = signals.at(-1) ?? '';
   return `${head} and ${tail}`;
 }
 
@@ -329,6 +329,62 @@ function findStatementEnd(source: string, start: number): number {
   return source.length - 1;
 }
 
+interface ParsedSwitchStatement {
+  readonly malformed: boolean;
+  readonly nextSearchIndex: number;
+  readonly condition?: string;
+  readonly block?: string;
+}
+
+function parseSwitchStatement(source: string, switchStart: number): ParsedSwitchStatement {
+  const conditionStart = source.indexOf('(', switchStart);
+  if (conditionStart === -1) {
+    return {
+      malformed: false,
+      nextSearchIndex: switchStart + 1,
+    };
+  }
+
+  const conditionEnd = findMatchingDelimiter(source, conditionStart, '(', ')');
+  if (conditionEnd === -1) {
+    return {
+      malformed: true,
+      nextSearchIndex: source.length,
+    };
+  }
+
+  const condition = source.slice(conditionStart + 1, conditionEnd);
+  const blockStart = skipWhitespace(source, conditionEnd + 1);
+  if (source[blockStart] !== '{') {
+    return {
+      malformed: false,
+      nextSearchIndex: conditionEnd + 1,
+      condition,
+    };
+  }
+
+  const blockEnd = findMatchingDelimiter(source, blockStart, '{', '}');
+  if (blockEnd === -1) {
+    return {
+      malformed: true,
+      nextSearchIndex: source.length,
+    };
+  }
+
+  return {
+    malformed: false,
+    nextSearchIndex: blockEnd + 1,
+    condition,
+    block: source.slice(blockStart + 1, blockEnd),
+  };
+}
+
+function hasStringCasesWithoutDefault(switchBlock: string): boolean {
+  const hasStringCases = /\bcase\s*['"`][^'"`\n]+['"`]\s*:/.test(switchBlock);
+  const hasDefaultCase = /\bdefault\s*:/.test(switchBlock);
+  return hasStringCases && !hasDefaultCase;
+}
+
 function hasUnhandledSelectorIfStatement(source: string, selectorPattern: RegExp): boolean {
   const ifPattern = /\bif\s*\(/g;
   let match = ifPattern.exec(source);
@@ -373,40 +429,21 @@ function hasUnhandledSelectorSwitchStatement(source: string, selectorPattern: Re
   let match = switchPattern.exec(source);
 
   while (match !== null) {
-    const conditionStart = source.indexOf('(', match.index);
-    if (conditionStart === -1) {
-      match = switchPattern.exec(source);
-      continue;
-    }
-
-    const conditionEnd = findMatchingDelimiter(source, conditionStart, '(', ')');
-    if (conditionEnd === -1) {
+    const parsed = parseSwitchStatement(source, match.index);
+    if (parsed.malformed) {
       return false;
     }
 
-    const condition = source.slice(conditionStart + 1, conditionEnd);
-    if (selectorPattern.test(condition)) {
-      const blockStart = skipWhitespace(source, conditionEnd + 1);
-      if (source[blockStart] !== '{') {
-        match = switchPattern.exec(source);
-        continue;
-      }
-
-      const blockEnd = findMatchingDelimiter(source, blockStart, '{', '}');
-      if (blockEnd === -1) {
-        return false;
-      }
-
-      const switchBlock = source.slice(blockStart + 1, blockEnd);
-      const hasStringCases = /\bcase\s*['"`][^'"`\n]+['"`]\s*:/.test(switchBlock);
-      const hasDefaultCase = /\bdefault\s*:/.test(switchBlock);
-
-      if (hasStringCases && !hasDefaultCase) {
-        return true;
-      }
+    if (
+      parsed.condition !== undefined &&
+      parsed.block !== undefined &&
+      selectorPattern.test(parsed.condition) &&
+      hasStringCasesWithoutDefault(parsed.block)
+    ) {
+      return true;
     }
 
-    switchPattern.lastIndex = conditionEnd + 1;
+    switchPattern.lastIndex = parsed.nextSearchIndex;
     match = switchPattern.exec(source);
   }
 

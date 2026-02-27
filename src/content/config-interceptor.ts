@@ -7,10 +7,10 @@
  *    `window.AdyenCheckout` (UMD) or `window.AdyenWeb` (ESM), the factory /
  *    component constructors are transparently wrapped for early capture.
  *
- * 2. **Promise.prototype.then interception** — the AdyenCheckout() factory
- *    always returns a Promise<Core>.  By wrapping `.then()` we detect the
- *    resolved instance by its shape and extract the full configuration.
- *    This works for both CDN and npm-bundled loads.
+ * 2. **Factory promise resolution hook** — AdyenCheckout() returns a
+ *    Promise<Core>. Wrapped factory calls attach a non-intrusive
+ *    `.then()` observer that inspects the resolved instance shape and
+ *    extracts full configuration.
  *
  * The captured config is published on a well-known global for the
  * page-extractor to read.
@@ -40,6 +40,7 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
     'onError',
     'beforeSubmit',
   ] as const;
+  const STRING_CONFIG_KEYS = ['clientKey', 'environment', 'locale', 'countryCode'] as const;
 
   // Bail out if already injected (e.g. extension reinstall without full reload).
   if ((globalThis as PlainRecord)[CAPTURED_CONFIG_KEY + '__installed'] === true) {
@@ -55,42 +56,84 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
     return typeof value === 'boolean' ? value : typeof value === 'function';
   }
 
+  function copyStringConfigFields(source: PlainRecord, target: PlainRecord): void {
+    for (const key of STRING_CONFIG_KEYS) {
+      const value = source[key];
+      if (typeof value === 'string') {
+        target[key] = value;
+      }
+    }
+  }
+
+  function copyRiskEnabledField(source: PlainRecord, target: PlainRecord): void {
+    const riskEnabled = source['riskEnabled'];
+    if (typeof riskEnabled === 'boolean') {
+      target['riskEnabled'] = riskEnabled;
+      return;
+    }
+    if (typeof riskEnabled === 'function') {
+      target['riskEnabled'] = true;
+    }
+  }
+
+  function copyAnalyticsEnabledField(source: PlainRecord, target: PlainRecord): void {
+    const analytics = source['analytics'];
+    if (typeof analytics !== 'object' || analytics === null) {
+      return;
+    }
+
+    const enabled = (analytics as PlainRecord)['enabled'];
+    if (typeof enabled === 'boolean') {
+      target['analyticsEnabled'] = enabled;
+    }
+  }
+
+  function copySessionFlag(source: PlainRecord, target: PlainRecord): void {
+    if (
+      source['session'] !== null &&
+      source['session'] !== undefined &&
+      typeof source['session'] === 'object'
+    ) {
+      target['hasSession'] = true;
+    }
+  }
+
+  function copyCallbackSources(
+    sourceRecord: PlainRecord,
+    target: PlainRecord,
+    source: CallbackSource
+  ): void {
+    for (const key of CALLBACK_KEYS) {
+      if (hasCallback(sourceRecord[key])) {
+        target[key] = source;
+      }
+    }
+  }
+
+  function copyOnSubmitSource(source: PlainRecord, target: PlainRecord): void {
+    const onSubmit = source['onSubmit'];
+    if (typeof onSubmit !== 'function') {
+      return;
+    }
+
+    try {
+      target['onSubmitSource'] = (onSubmit as () => void).toString().slice(0, 1200);
+    } catch {
+      /* toString may throw on bound/proxy functions */
+    }
+  }
+
   function extractFields(raw: unknown, source: CallbackSource): Partial<CheckoutConfig> | null {
     if (raw === null || typeof raw !== 'object') return null;
     const r = raw as PlainRecord;
     const c: PlainRecord = {};
 
-    if (typeof r['clientKey'] === 'string') c['clientKey'] = r['clientKey'];
-    if (typeof r['environment'] === 'string') c['environment'] = r['environment'];
-    if (typeof r['locale'] === 'string') c['locale'] = r['locale'];
-    if (typeof r['countryCode'] === 'string') c['countryCode'] = r['countryCode'];
-
-    if (typeof r['riskEnabled'] === 'boolean') c['riskEnabled'] = r['riskEnabled'];
-    if (typeof r['riskEnabled'] === 'function') c['riskEnabled'] = true;
-
-    const analytics = r['analytics'];
-    if (typeof analytics === 'object' && analytics !== null) {
-      const enabled = (analytics as PlainRecord)['enabled'];
-      if (typeof enabled === 'boolean') c['analyticsEnabled'] = enabled;
-    }
-
-    if (r['session'] !== null && r['session'] !== undefined && typeof r['session'] === 'object') {
-      c['hasSession'] = true;
-    }
-
-    // Tag each callback with its source ('checkout' or 'component').
-    for (const key of CALLBACK_KEYS) {
-      if (hasCallback(r[key])) c[key] = source;
-    }
-
-    // Capture onSubmit function body for callback-pattern checks.
-    if (typeof r['onSubmit'] === 'function') {
-      try {
-        c['onSubmitSource'] = (r['onSubmit'] as () => void).toString().slice(0, 1200);
-      } catch {
-        /* toString may throw on bound/proxy functions */
-      }
-    }
+    copyStringConfigFields(r, c);
+    copyRiskEnabledField(r, c);
+    copyAnalyticsEnabledField(r, c);
+    copySessionFlag(r, c);
+    copyCallbackSources(r, c, source);
+    copyOnSubmitSource(r, c);
 
     return Object.keys(c).length > 0 ? (c as Partial<CheckoutConfig>) : null;
   }
@@ -172,9 +215,11 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
 
     const wrapped: SdkCallable = function (this: unknown, ...args: unknown[]): unknown {
       // Capture the raw config eagerly — acts as a safety net if the SDK
-      // promise rejects before Promise.then interception can fire.
+      // promise rejects before the resolution hook can fire.
       captureConfig(args[0], 'checkout');
-      return original.apply(this, args);
+      const result = original.apply(this, args);
+      observeCheckoutFactoryResult(result);
+      return result;
     };
 
     markWrapped(wrapped);
@@ -188,6 +233,55 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
       captureConfig(inst['options'] ?? inst['_options'], 'checkout');
       wrapInstanceCreate(inst);
     }
+  }
+
+  /**
+   * Returns true when `value` looks like an Adyen Web Core / Checkout
+   * instance produced by `await AdyenCheckout(config)`.
+   *
+   * Shape check — requires BOTH:
+   *  1. `.options.clientKey` or `._options.clientKey` is a string
+   *  2. At least one distinctive Core-instance property is present:
+   *     `modules`, `paymentMethodsResponse`, `loadingContext`,
+   *     `createFromAction`, or `create`.
+   */
+  function looksLikeCheckoutInstance(value: unknown): boolean {
+    if (value === null || typeof value !== 'object') return false;
+    const v = value as PlainRecord;
+
+    const opts = v['options'] ?? v['_options'];
+    if (
+      opts === null ||
+      opts === undefined ||
+      typeof opts !== 'object' ||
+      typeof (opts as PlainRecord)['clientKey'] !== 'string'
+    ) {
+      return false;
+    }
+
+    return (
+      'modules' in v ||
+      'paymentMethodsResponse' in v ||
+      'loadingContext' in v ||
+      'createFromAction' in v ||
+      typeof v['create'] === 'function'
+    );
+  }
+
+  function observeCheckoutFactoryResult(result: unknown): void {
+    if (!(result instanceof Promise)) {
+      return;
+    }
+
+    result
+      .then((value: unknown) => {
+        if (looksLikeCheckoutInstance(value)) {
+          captureInstanceConfig(value);
+        }
+      })
+      .catch(() => {
+        // Never break merchant promise chains if capture logic fails.
+      });
   }
 
   /** Wrap `checkout.create()` so component-level config is also captured. */
@@ -218,9 +312,10 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
       if (args.length > 1) captureConfig(args[1], 'component');
 
       // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- new.target is runtime-only; TS types it as always-undefined
-      return new.target !== undefined
-        ? (Reflect.construct(original, args, original) as unknown)
-        : original.apply(this, args);
+      if (new.target === undefined) {
+        return original.apply(this, args);
+      }
+      return Reflect.construct(original, args, original) as unknown;
     };
 
     markWrapped(wrapped);
@@ -289,85 +384,5 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
     });
   } catch {
     /* property may already be non-configurable */
-  }
-
-  // ---------------------------------------------------------------------------
-  // Promise.prototype.then interception — captures Adyen Core instances
-  // resolved from the AdyenCheckout() async factory.  The factory always
-  // returns a Promise<Core>, so by wrapping .then() we can detect the
-  // resolved instance by its shape and extract the full configuration.
-  // This is the primary capture mechanism and works for both CDN and npm.
-  // ---------------------------------------------------------------------------
-
-  try {
-    type PromiseThenFn = (
-      this: Promise<unknown>,
-      onFulfilled?: ((value: unknown) => unknown) | null,
-      onRejected?: ((reason: unknown) => unknown) | null
-    ) => Promise<unknown>;
-
-    const origThen = Promise.prototype.then as unknown as PromiseThenFn;
-
-    /**
-     * Returns true when `value` looks like an Adyen Web Core / Checkout
-     * instance produced by `await AdyenCheckout(config)`.
-     *
-     * Shape check — requires BOTH:
-     *  1. `.options.clientKey` or `._options.clientKey` is a string
-     *  2. At least one distinctive Core-instance property is present:
-     *     `modules`, `paymentMethodsResponse`, `loadingContext`,
-     *     `createFromAction`, or `create`.
-     */
-    function looksLikeCheckoutInstance(value: unknown): boolean {
-      if (value === null || typeof value !== 'object') return false;
-      const v = value as PlainRecord;
-
-      const opts = v['options'] ?? v['_options'];
-      if (
-        opts === null ||
-        opts === undefined ||
-        typeof opts !== 'object' ||
-        typeof (opts as PlainRecord)['clientKey'] !== 'string'
-      ) {
-        return false;
-      }
-
-      // Guard against matching plain config objects — require at least one
-      // property that only exists on an *instantiated* Core object.
-      return (
-        'modules' in v ||
-        'paymentMethodsResponse' in v ||
-        'loadingContext' in v ||
-        'createFromAction' in v ||
-        typeof v['create'] === 'function'
-      );
-    }
-
-    (Promise.prototype as unknown as PlainRecord)['then'] = function (
-      this: Promise<unknown>,
-      onFulfilled?: ((value: unknown) => unknown) | null,
-      onRejected?: ((reason: unknown) => unknown) | null
-    ): Promise<unknown> {
-      if (typeof onFulfilled !== 'function') {
-        return origThen.call(this, onFulfilled, onRejected);
-      }
-      const original = onFulfilled;
-      return origThen.call(
-        this,
-        (value: unknown): unknown => {
-          try {
-            if (looksLikeCheckoutInstance(value)) {
-              captureInstanceConfig(value);
-            }
-          } catch {
-            /* never break promise chains */
-          }
-          return original(value);
-        },
-        onRejected
-      );
-    };
-  } catch {
-    /* non-configurable */
   }
 })();

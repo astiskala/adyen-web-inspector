@@ -47,7 +47,21 @@ function getErrorMessage(error: unknown): string {
   if (error instanceof Error) {
     return error.message;
   }
-  return String(error);
+  if (typeof error === 'string') {
+    return error;
+  }
+  if (typeof error === 'object' && error !== null) {
+    try {
+      const serialized = JSON.stringify(error);
+      if (typeof serialized === 'string') {
+        return serialized;
+      }
+    } catch {
+      // Ignore serialization issues and fall back to object tag.
+    }
+    return Object.prototype.toString.call(error);
+  }
+  return `${error}`;
 }
 
 function isContextInvalidated(error: unknown): boolean {
@@ -97,7 +111,7 @@ export function Panel(): JSX.Element {
     }
 
     const request = sendRuntimeMessageSafe({ type: MSG_GET_RESULT, tabId });
-    if (!request) {
+    if (request === null) {
       return;
     }
 
@@ -173,7 +187,7 @@ export function Panel(): JSX.Element {
     }
 
     const request = sendRuntimeMessageSafe({ type: MSG_SCAN_REQUEST, tabId, source: 'devtools' });
-    if (!request) {
+    if (request === null) {
       return;
     }
 
@@ -234,6 +248,23 @@ export function Panel(): JSX.Element {
     scanButtonText = 'Re-run Scan';
   }
 
+  let bodyContent: JSX.Element;
+  if (result === null) {
+    bodyContent = (
+      <div class={s('emptyState')}>
+        {scanning ? 'Scanning…' : 'Click "Run Scan" to inspect this page.'}
+      </div>
+    );
+  } else if (sdkNotDetected) {
+    bodyContent = (
+      <div class={s('tabContent')}>
+        <div class={s('emptyState')}>{sdkNotDetectedMessage}</div>
+      </div>
+    );
+  } else {
+    bodyContent = renderTab() ?? <div class={s('tabContent')} />;
+  }
+
   return (
     <div class={s('panelRoot')}>
       <div class={s('toolbar')}>
@@ -282,19 +313,7 @@ export function Panel(): JSX.Element {
           })}
         </div>
       )}
-      {result ? (
-        sdkNotDetected ? (
-          <div class={s('tabContent')}>
-            <div class={s('emptyState')}>{sdkNotDetectedMessage}</div>
-          </div>
-        ) : (
-          renderTab()
-        )
-      ) : (
-        <div class={s('emptyState')}>
-          {scanning ? 'Scanning…' : 'Click "Run Scan" to inspect this page.'}
-        </div>
-      )}
+      {bodyContent}
     </div>
   );
 }

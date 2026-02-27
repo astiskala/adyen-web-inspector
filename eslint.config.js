@@ -1,6 +1,8 @@
 import { defineConfig } from 'eslint/config';
 import gts from 'gts';
 import jsdoc from 'eslint-plugin-jsdoc';
+import regexp from 'eslint-plugin-regexp';
+import sonarjs from 'eslint-plugin-sonarjs';
 
 export default defineConfig([
   { ignores: ['dist/', 'coverage/', '*.cjs'] },
@@ -15,6 +17,8 @@ export default defineConfig([
     files: ['**/*.ts', '**/*.tsx'],
     plugins: {
       jsdoc,
+      regexp,
+      sonarjs,
     },
     rules: {
       '@typescript-eslint/no-explicit-any': 'error',
@@ -34,6 +38,8 @@ export default defineConfig([
       '@typescript-eslint/no-unsafe-member-access': 'error',
       '@typescript-eslint/no-unsafe-return': 'error',
       '@typescript-eslint/no-unsafe-argument': 'error',
+      '@typescript-eslint/no-base-to-string': 'error',
+      '@typescript-eslint/no-redundant-type-constituents': 'error',
       '@typescript-eslint/consistent-type-definitions': ['error', 'interface'],
       '@typescript-eslint/no-floating-promises': 'error',
       '@typescript-eslint/no-misused-promises': 'error',
@@ -46,6 +52,9 @@ export default defineConfig([
       '@typescript-eslint/no-unnecessary-type-assertion': 'error',
       '@typescript-eslint/prefer-literal-enum-member': 'error',
       '@typescript-eslint/unified-signatures': 'error',
+      'regexp/prefer-d': 'error',
+      'sonarjs/cognitive-complexity': ['error', 15],
+      'sonarjs/no-nested-functions': 'error',
       'jsdoc/check-alignment': 'error',
       'jsdoc/check-param-names': 'error',
       'jsdoc/check-tag-names': 'error',
@@ -63,6 +72,18 @@ export default defineConfig([
       'jsdoc/tag-lines': 'error',
       eqeqeq: 'error',
       'no-console': 'error',
+      'no-nested-ternary': 'error',
+      'no-negated-condition': 'error',
+      'max-nested-callbacks': ['error', 4],
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            { name: 'fs', message: 'Use node:fs instead.' },
+            { name: 'path', message: 'Use node:path instead.' },
+          ],
+        },
+      ],
     },
   },
 ]);

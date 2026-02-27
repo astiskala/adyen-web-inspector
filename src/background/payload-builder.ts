@@ -122,9 +122,9 @@ async function fetchScriptText(url: string): Promise<string | null> {
 
 function extractVersionFromScriptText(scriptText: string): string | null {
   const patterns = [
-    /@adyen\/adyen-web[^0-9]{0,80}["'`]?(\d+\.\d+\.\d+)["'`]?/i,
-    /adyen-web[^0-9]{0,80}["'`]?(\d+\.\d+\.\d+)["'`]?/i,
-    /checkoutshopper[^0-9]{0,80}["'`]?(\d+\.\d+\.\d+)["'`]?/i,
+    /@adyen\/adyen-web\D{0,80}["'`]?(\d+\.\d+\.\d+)["'`]?/i,
+    /adyen-web\D{0,80}["'`]?(\d+\.\d+\.\d+)["'`]?/i,
+    /checkoutshopper\D{0,80}["'`]?(\d+\.\d+\.\d+)["'`]?/i,
   ];
 
   for (const pattern of patterns) {

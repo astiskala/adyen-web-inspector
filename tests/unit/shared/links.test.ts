@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync, readdirSync } from 'fs';
-import { resolve } from 'path';
+import { readFileSync, readdirSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 /**
  * Validate that all documentation links referenced in check source files are reachable.

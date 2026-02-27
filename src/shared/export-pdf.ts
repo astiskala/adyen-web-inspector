@@ -114,14 +114,16 @@ function buildAttributes(result: ScanResult): ImplementationAttribute[] {
   const attrs: ImplementationAttribute[] = [];
   const implementationAttributes = buildImplementationAttributes(result.payload);
 
-  attrs.push({ label: 'SDK Version', value: implementationAttributes.sdkVersion });
-  attrs.push({
-    label: 'Environment',
-    value:
-      implementationAttributes.environment === 'unknown'
-        ? 'Unknown'
-        : implementationAttributes.environment,
-  });
+  attrs.push(
+    { label: 'SDK Version', value: implementationAttributes.sdkVersion },
+    {
+      label: 'Environment',
+      value:
+        implementationAttributes.environment === 'unknown'
+          ? 'Unknown'
+          : implementationAttributes.environment,
+    }
+  );
 
   if (implementationAttributes.region !== null) {
     attrs.push({ label: 'Region', value: implementationAttributes.region });
@@ -161,8 +163,9 @@ function buildSkippedRows(result: ScanResult): string {
 
   const rows = skipped.map((check) => {
     const dashIndex = check.title.indexOf(' — ');
-    const checkName = dashIndex !== -1 ? check.title.slice(0, dashIndex).trim() : check.title;
-    const parsedReason = dashIndex !== -1 ? check.title.slice(dashIndex + 3).trim() : '';
+    const hasSeparator = dashIndex !== -1;
+    const checkName = hasSeparator ? check.title.slice(0, dashIndex).trim() : check.title;
+    const parsedReason = hasSeparator ? check.title.slice(dashIndex + 3).trim() : '';
     const skipReason = (check.detail ?? parsedReason).trim();
     const skipReasonCell = skipReason === '' ? '—' : skipReason;
     return `<tr>
@@ -213,11 +216,19 @@ function buildIssueTableForCategory(
 
     for (const issue of groupIssues) {
       const color = severityColor(issue.severity);
-      const detail = issue.detail !== null ? `<br><small>${escapeHtml(issue.detail)}</small>` : '';
-      const docsLink =
-        issue.docsUrl !== null
-          ? `<br><a class="docs-link" href="${escapeHtml(issue.docsUrl)}" target="_blank" rel="noopener noreferrer">Read documentation</a>`
-          : '';
+      let detail = '';
+      if (issue.detail === null) {
+        detail = '';
+      } else {
+        detail = `<br><small>${escapeHtml(issue.detail)}</small>`;
+      }
+
+      let docsLink = '';
+      if (issue.docsUrl === null) {
+        docsLink = '';
+      } else {
+        docsLink = `<br><a class="docs-link" href="${escapeHtml(issue.docsUrl)}" target="_blank" rel="noopener noreferrer">Read documentation</a>`;
+      }
       rows.push(`
       <tr>
         <td style="color:${color};font-weight:600;text-transform:uppercase;white-space:nowrap">${escapeHtml(issue.severity)}</td>

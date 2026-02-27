@@ -47,6 +47,8 @@
     "dependency-cruiser": "^17.3.8",
     "eslint": "^10.0.2",
     "eslint-plugin-jsdoc": "^62.7.1",
+    "eslint-plugin-regexp": "^3.0.0",
+    "eslint-plugin-sonarjs": "^4.0.0",
     "gts": "^7.0.0",
     "husky": "^9.1.7",
     "jsdom": "^28.1.0",
@@ -60,7 +62,7 @@
   },
   "lint-staged": {
     "*.{ts,tsx}": [
-      "eslint --fix",
+      "eslint --max-warnings=0 --fix",
       "prettier --write"
     ],
     "*.md": [
