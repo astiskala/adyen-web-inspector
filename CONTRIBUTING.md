@@ -6,7 +6,7 @@ Thank you for your interest in contributing! This guide will help you get set up
 
 ## Prerequisites
 
-- **Node.js** ≥ 20
+- **Node.js** ≥ 24
 - **pnpm** ≥ 9
 - **Chrome** (or Chromium) for manual testing and E2E tests
 

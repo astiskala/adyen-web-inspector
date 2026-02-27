@@ -7,23 +7,10 @@ Adyen Web Inspector is a Chrome Manifest V3 extension that inspects `adyen-web` 
 ## Features
 
 - Detects SDK version, flavor, environment, region, and import method.
-- Runs 40 pure checks across SDK setup, callbacks, auth, risk, security, and third-party scripts.
+- Runs checks across SDK setup, callbacks, auth, risk, security, and third-party scripts.
 - Provides actionable findings with remediation and documentation links.
 - Shows a health score with tiering (`excellent`, `good`, `issues`, `critical`).
 - Exports scan results as JSON and PDF.
-
-## Check Coverage
-
-| Category          | Checks |
-| ----------------- | ------ |
-| SDK Identity      | 5      |
-| Version Lifecycle | 2      |
-| Environment       | 3      |
-| Auth              | 3      |
-| Callbacks         | 8      |
-| Risk              | 2      |
-| Security          | 13     |
-| Third-party       | 4      |
 
 ## Getting Started
 
@@ -81,6 +68,7 @@ Contributor workflow and coding conventions: [CONTRIBUTING.md](CONTRIBUTING.md)
 - `src/background/worker.ts`: service worker message routing and badge state.
 - `src/background/scan-orchestrator.ts`: scan pipeline and payload assembly.
 - `src/background/checks/*`: pure check modules.
+- `src/content/config-interceptor.ts`: MAIN-world config capture (CDN and NPM).
 - `src/content/detector.ts`: passive page-level Adyen detection.
 - `src/content/page-extractor.ts`: on-demand page-world extraction.
 - `src/popup/*`: compact summary UI.

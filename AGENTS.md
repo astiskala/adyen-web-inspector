@@ -88,6 +88,7 @@ Allowed types: `feat`, `fix`, `chore`, `docs`, `style`, `refactor`, `test`, `ci`
 | Scan orchestrator         | `src/background/scan-orchestrator.ts`  | Coordinates the scan pipeline                 |
 | Header collector          | `src/background/header-collector.ts`   | Captures response headers during scans        |
 | Check modules             | `src/background/checks/`               | Pure `Check` implementations                  |
+| Config interceptor        | `src/content/config-interceptor.ts`    | MAIN-world SDK config capture (CDN + NPM)     |
 | Content script            | `src/content/detector.ts`              | Lightweight always-on Adyen detection         |
 | Page extractor            | `src/content/page-extractor.ts`        | MAIN-world extraction of page globals/config  |
 | Popup                     | `src/popup/Popup.tsx` → `PopupApp.tsx` | Quick health summary + scan trigger           |
@@ -140,7 +141,7 @@ Check-specific guidance:
 
 ### Unit Tests
 
-- Location: `tests/unit/checks/`
+- Location: `tests/unit/` (subdirectories: `checks/`, `content/`, `shared/`, `docs/`)
 - Framework: Vitest with jsdom
 - Fixtures: `tests/fixtures/makeScanPayload.ts` — use `makeScanPayload()`, `makeAdyenPayload()`, `makePageExtract()`, `makeCheckoutConfig()`, `makeAdyenMetadata()`, `makeRequest()`, `makeHeader()`.
 - Coverage threshold: **95% lines/functions/statements and 90% branches** on `src/background/checks/**`.

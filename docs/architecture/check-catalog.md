@@ -19,7 +19,7 @@ This catalog is the documentation source of truth for checks registered in:
 | `risk`              |           2 | `risk-module.ts`                 |
 | `security`          |          13 | `security.ts`, `security-csp.ts` |
 | `third-party`       |           4 | `third-party-scripts.ts`         |
-| **Total**           |      **41** | `ALL_CHECKS`                     |
+| **Total**           |      **42** | `ALL_CHECKS`                     |
 
 ## Severity Model
 

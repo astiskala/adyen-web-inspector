@@ -16,12 +16,6 @@ In addition to those extension-initiated requests, Adyen network traffic trigger
 
 No merchant payment payloads, credentials, or checkout data are intentionally transmitted to a maintainer-controlled service.
 
-## Supported Versions
-
-| Version | Supported |
-| ------- | --------- |
-| 0.1.x   | Yes       |
-
 ## Reporting a Vulnerability
 
 If you discover a security vulnerability in this project, please report it responsibly:
@@ -44,6 +38,7 @@ The extension requests `host_permissions: ["<all_urls>"]` because it needs to in
 
 ### Content Security
 
+- The config interceptor (`config-interceptor.ts`) runs as a MAIN-world content script at `document_start`. It installs lightweight property traps on `window.AdyenCheckout` / `window.AdyenWeb` and wraps `Promise.prototype.then` to detect SDK initialisation by object shape. It does not modify the DOM, inject scripts, or make network calls.
 - The page-world extractor (`page-extractor.ts`) runs via `chrome.scripting.executeScript` with `world: "MAIN"` — it reads globals but does not modify the page DOM or inject any scripts.
 - The passive detector (`detector.ts`) uses lightweight DOM selectors and route/mutation listeners to detect checkout mounts; it does not execute remote code or make network calls.
 - No `eval()`, `new Function()`, or `document.write()` is used anywhere in the codebase.
