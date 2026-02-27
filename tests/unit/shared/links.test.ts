@@ -29,14 +29,27 @@ function collectDocsUrls(): Set<string> {
   return allUrls;
 }
 
-const urlsToTest = Array.from(collectDocsUrls()).filter(
-  (url) =>
-    url.includes('docs.adyen.com') ||
-    url.includes('owasp.org') ||
-    url.includes('github.com') ||
-    url.includes('developer.mozilla.org') ||
-    url.includes('w3.org')
-);
+const allowedDocHosts = [
+  'docs.adyen.com',
+  'owasp.org',
+  'github.com',
+  'developer.mozilla.org',
+  'w3.org',
+];
+
+function isAllowedHost(url: string): boolean {
+  try {
+    const { hostname } = new URL(url);
+    return allowedDocHosts.some((allowedHost) => {
+      return hostname === allowedHost || hostname.endsWith(`.${allowedHost}`);
+    });
+  } catch {
+    // Ignore invalid URLs
+    return false;
+  }
+}
+
+const urlsToTest = Array.from(collectDocsUrls()).filter((url) => isAllowedHost(url));
 
 describe.skipIf(process.env['RUN_LINK_CHECKS'] === undefined)('Link Validation', () => {
   describe('Referenced Documentation Links', () => {
