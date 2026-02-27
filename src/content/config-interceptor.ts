@@ -167,9 +167,11 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
     }
 
     try {
-      (globalThis as PlainRecord)[CAPTURED_CONFIG_KEY] = structuredClone(captured);
+      (globalThis as PlainRecord)[CAPTURED_CONFIG_KEY] = JSON.parse(
+        JSON.stringify(captured)
+      ) as PlainRecord;
     } catch {
-      /* ignore cloning errors */
+      /* ignore serialization errors */
     }
   }
 
@@ -293,10 +295,14 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
       return;
     }
 
-    result
+    void result
       .then((value: unknown) => {
-        if (looksLikeCheckoutInstance(value)) {
-          captureInstanceConfig(value);
+        try {
+          if (looksLikeCheckoutInstance(value)) {
+            captureInstanceConfig(value);
+          }
+        } catch {
+          /* ignore */
         }
       })
       .catch(() => {
@@ -427,39 +433,41 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
    * AdyenCheckout factory call.
    */
   const originalThen = Promise.prototype.then;
-  type ThenFn = <TResult1 = unknown, TResult2 = never>(
-    onfulfilled?: ((value: unknown) => TResult1 | PromiseLike<TResult1>) | null,
-    onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null
-  ) => Promise<TResult1 | TResult2>;
 
-  try {
-    (Promise.prototype as unknown as { then: ThenFn }).then = function <
-      TResult1 = unknown,
-      TResult2 = never,
-    >(
-      this: Promise<unknown>,
-      onFulfilled?: ((value: unknown) => TResult1 | PromiseLike<TResult1>) | null,
-      onRejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null
-    ): Promise<TResult1 | TResult2> {
-      const wrappedOnFulfilled =
-        typeof onFulfilled === 'function'
-          ? function (value: unknown): TResult1 | PromiseLike<TResult1> {
-              try {
-                if (looksLikeCheckoutInstance(value)) {
-                  captureInstanceConfig(value);
-                }
-              } catch {
-                /* ignore capture errors to ensure reliability */
+  if (!isWrapped(originalThen)) {
+    try {
+      Object.defineProperty(Promise.prototype, 'then', {
+        value: function <TResult1 = unknown, TResult2 = never>(
+          this: Promise<unknown>,
+          onFulfilled?: ((value: unknown) => TResult1 | PromiseLike<TResult1>) | null,
+          onRejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null
+        ): Promise<TResult1 | TResult2> {
+          if (typeof onFulfilled !== 'function') {
+            return originalThen.call(this, onFulfilled, onRejected) as Promise<TResult1 | TResult2>;
+          }
+
+          const originalOnFulfilled = onFulfilled;
+          const wrappedOnFulfilled = function (value: unknown): TResult1 | PromiseLike<TResult1> {
+            try {
+              if (looksLikeCheckoutInstance(value)) {
+                captureInstanceConfig(value);
               }
-              return onFulfilled(value);
+            } catch {
+              /* ignore capture errors */
             }
-          : onFulfilled;
+            return originalOnFulfilled(value);
+          };
 
-      return originalThen.call(this, wrappedOnFulfilled, onRejected) as Promise<
-        TResult1 | TResult2
-      >;
-    };
-  } catch {
-    /* prototype may be non-writable in some environments */
+          return originalThen.call(this, wrappedOnFulfilled, onRejected) as Promise<
+            TResult1 | TResult2
+          >;
+        },
+        configurable: true,
+        writable: true,
+      });
+      markWrapped(Promise.prototype.then as unknown as SdkCallable);
+    } catch {
+      /* prototype may be non-configurable in some environments */
+    }
   }
 })();
