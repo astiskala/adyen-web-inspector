@@ -10,7 +10,8 @@ import { resolve } from 'path';
 function collectDocsUrls(): Set<string> {
   const checksDir = resolve(__dirname, '../../../src/background/checks');
   const allUrls = new Set<string>();
-  const urlPattern = /docsUrl:\s*['"`](https?:\/\/[^'"`]+)['"`]/g;
+  // Match URLs in docsUrl properties and string constant assignments.
+  const urlPattern = /['"`](https?:\/\/[^'"`\s]+)['"`]/g;
 
   for (const file of readdirSync(checksDir)) {
     if (!file.endsWith('.ts')) continue;
