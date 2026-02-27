@@ -129,8 +129,10 @@ function buildAttributes(result: ScanResult): ImplementationAttribute[] {
     attrs.push({ label: 'Region', value: implementationAttributes.region });
   }
 
-  attrs.push({ label: 'Integration Flavor', value: implementationAttributes.flavor });
-  attrs.push({ label: 'Import Method', value: implementationAttributes.importMethod });
+  attrs.push(
+    { label: 'Integration Flavor', value: implementationAttributes.flavor },
+    { label: 'Import Method', value: implementationAttributes.importMethod }
+  );
 
   const integrationFlow = implementationAttributes.flow;
   let flowLabel = 'Unknown';

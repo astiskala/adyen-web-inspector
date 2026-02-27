@@ -99,6 +99,8 @@ export function Panel(): JSX.Element {
   }
 
   function getInspectedTabIdSafe(): number | null {
+    // chrome.devtools.inspectedWindow.tabId is synchronous and throws only if context is invalidated
+    // Use a simple try/catch, but not for promises
     try {
       return chrome.devtools.inspectedWindow.tabId;
     } catch (error) {
@@ -108,12 +110,16 @@ export function Panel(): JSX.Element {
   }
 
   function sendRuntimeMessageSafe(message: object): Promise<unknown> | null {
+    // chrome.runtime.sendMessage returns a promise; errors should be handled via .catch()
+    // Only catch synchronous errors (e.g. context invalidated)
+    let sendMessageFn: typeof chrome.runtime.sendMessage | undefined;
     try {
-      return chrome.runtime.sendMessage(message);
+      sendMessageFn = chrome.runtime.sendMessage;
     } catch (error) {
       handleRuntimeError(error, RUNTIME_ERROR_UI_MESSAGE);
       return null;
     }
+    return sendMessageFn(message);
   }
 
   function loadResult(): void {
@@ -175,18 +181,10 @@ export function Panel(): JSX.Element {
       }
     };
 
-    try {
-      chrome.runtime.onMessage.addListener(listener);
-    } catch (error) {
-      handleRuntimeError(error, RUNTIME_ERROR_UI_MESSAGE);
-    }
+    chrome.runtime.onMessage.addListener(listener);
 
     return (): void => {
-      try {
-        chrome.runtime.onMessage.removeListener(listener);
-      } catch {
-        // Context can be invalidated while unmounting.
-      }
+      chrome.runtime.onMessage.removeListener(listener);
     };
   }, []);
 
