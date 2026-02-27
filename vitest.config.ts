@@ -12,12 +12,21 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov', 'html'],
-      include: ['src/background/checks/**'],
+      include: ['src/background/checks/**', 'src/shared/**'],
+      exclude: ['src/shared/export-pdf.ts', 'src/shared/types.ts', 'src/shared/base.css'],
       thresholds: {
-        lines: 95,
-        functions: 95,
-        branches: 90,
-        statements: 95,
+        'src/background/checks/**': {
+          lines: 95,
+          functions: 95,
+          branches: 90,
+          statements: 95,
+        },
+        'src/shared/**': {
+          lines: 80,
+          functions: 80,
+          branches: 70,
+          statements: 80,
+        },
       },
     },
   },

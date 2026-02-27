@@ -4,7 +4,9 @@ import { resolve } from 'path';
 
 /**
  * Validate that all documentation links referenced in check source files are reachable.
- * Note: These tests require internet access and may be slow.
+ *
+ * These tests make live HTTP requests and are skipped by default.
+ * Run with: RUN_LINK_CHECKS=1 pnpm test
  */
 
 function collectDocsUrls(): Set<string> {
@@ -36,7 +38,7 @@ const urlsToTest = Array.from(collectDocsUrls()).filter(
     url.includes('w3.org')
 );
 
-describe('Link Validation', () => {
+describe.skipIf(process.env['RUN_LINK_CHECKS'] === undefined)('Link Validation', () => {
   describe('Referenced Documentation Links', () => {
     urlsToTest.forEach((url) => {
       it.concurrent(
