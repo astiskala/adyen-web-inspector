@@ -50,7 +50,8 @@ const SUPPORTED_LOCALES = new Set<string>(
 
 export const AUTH_CHECKS = createRegistry(CATEGORY)
   .add('auth-client-key', (payload, { pass, skip, warn }) => {
-    const clientKey = payload.page.checkoutConfig?.clientKey;
+    const clientKey =
+      payload.page.checkoutConfig?.clientKey ?? payload.page.inferredConfig?.clientKey;
 
     if (clientKey === undefined || clientKey === '') {
       return skip(STRINGS.CLIENT_KEY_SKIP_TITLE, STRINGS.CLIENT_KEY_SKIP_REASON);
@@ -67,7 +68,7 @@ export const AUTH_CHECKS = createRegistry(CATEGORY)
 
     return pass(STRINGS.CLIENT_KEY_PASS_TITLE);
   })
-  .add('auth-country-code', (payload, { pass, fail, skip, warn, notice }) => {
+  .add('auth-country-code', (payload, { pass, fail, skip, warn }) => {
     const config = payload.page.checkoutConfig;
     const inferred = payload.page.inferredConfig;
 
@@ -80,15 +81,6 @@ export const AUTH_CHECKS = createRegistry(CATEGORY)
     }
 
     if (!config) {
-      if (inferred) {
-        return notice(
-          STRINGS.COUNTRY_CODE_PARTIAL_NOTICE_TITLE,
-          'The full checkout configuration could not be intercepted (only partial network signals were captured). Manual verification is required to ensure countryCode is set.',
-          undefined,
-          STRINGS.COUNTRY_CODE_FAIL_URL
-        );
-      }
-
       return skip(STRINGS.COUNTRY_CODE_SKIP_TITLE, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
     }
 
@@ -109,7 +101,7 @@ export const AUTH_CHECKS = createRegistry(CATEGORY)
       STRINGS.COUNTRY_CODE_FAIL_URL
     );
   })
-  .add('auth-locale', (payload, { pass, skip, warn, notice }) => {
+  .add('auth-locale', (payload, { pass, skip, warn }) => {
     const config = payload.page.checkoutConfig;
     const inferred = payload.page.inferredConfig;
 
@@ -128,15 +120,6 @@ export const AUTH_CHECKS = createRegistry(CATEGORY)
     }
 
     if (!config) {
-      if (inferred) {
-        return notice(
-          STRINGS.LOCALE_PARTIAL_NOTICE_TITLE,
-          'The full checkout configuration could not be intercepted (only partial network signals were captured). Manual verification is required to ensure locale is set.',
-          undefined,
-          STRINGS.LOCALE_MISSING_WARN_URL
-        );
-      }
-
       return skip(STRINGS.LOCALE_SKIP_TITLE, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
     }
 

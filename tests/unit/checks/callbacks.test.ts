@@ -153,14 +153,14 @@ describe('callback-on-additional-details', () => {
     expect(onAdditionalDetails.run(payload).severity).toBe('skip');
   });
 
-  it('notices when missing but inferred config exists', () => {
+  it('skips when missing and no full config', () => {
     const payload = makeScanPayload({
       page: makePageExtract({
         checkoutConfig: null,
         inferredConfig: makeCheckoutConfig({ onAdditionalDetails: undefined }),
       }),
     });
-    expect(onAdditionalDetails.run(payload).severity).toBe('notice');
+    expect(onAdditionalDetails.run(payload).severity).toBe('skip');
   });
 
   it('skips when sessions flow is detected', () => {
@@ -351,14 +351,14 @@ describe('callback-on-payment-completed', () => {
     expect(onPaymentCompleted.run(payload).severity).toBe('skip');
   });
 
-  it('notices when missing but inferred config exists', () => {
+  it('skips when missing and no full config', () => {
     const payload = makeScanPayload({
       page: makePageExtract({
         checkoutConfig: null,
         inferredConfig: makeCheckoutConfig({ onPaymentCompleted: undefined }),
       }),
     });
-    expect(onPaymentCompleted.run(payload).severity).toBe('notice');
+    expect(onPaymentCompleted.run(payload).severity).toBe('skip');
   });
 
   it('fails for sessions flow detected via hasSession (no network)', () => {
@@ -431,14 +431,14 @@ describe('callback-on-payment-failed', () => {
     expect(onPaymentFailed.run(payload).severity).toBe('skip');
   });
 
-  it('notices when missing but inferred config exists', () => {
+  it('skips when missing and no full config', () => {
     const payload = makeScanPayload({
       page: makePageExtract({
         checkoutConfig: null,
         inferredConfig: makeCheckoutConfig({ onPaymentFailed: undefined }),
       }),
     });
-    expect(onPaymentFailed.run(payload).severity).toBe('notice');
+    expect(onPaymentFailed.run(payload).severity).toBe('skip');
   });
 
   it('uses the Drop-in Sessions docs link when flavor is Drop-in', () => {
@@ -482,14 +482,14 @@ describe('callback-on-error', () => {
     expect(result.detail).toContain('technical checkout failures can fail silently');
   });
 
-  it('notices when missing but inferred config exists', () => {
+  it('skips when missing and no full config', () => {
     const payload = makeScanPayload({
       page: makePageExtract({
         checkoutConfig: null,
         inferredConfig: makeCheckoutConfig({ onError: undefined }),
       }),
     });
-    expect(onError.run(payload).severity).toBe('notice');
+    expect(onError.run(payload).severity).toBe('skip');
   });
 });
 

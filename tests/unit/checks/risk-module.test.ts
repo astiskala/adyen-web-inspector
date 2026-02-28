@@ -58,7 +58,7 @@ describe('risk-module-not-disabled', () => {
     expect(riskNotDisabled.run(payload).severity).toBe('warn');
   });
 
-  it('notices when riskEnabled is undefined but inferred config exists', () => {
+  it('skips when riskEnabled is undefined and no full config', () => {
     const payload = makeScanPayload({
       page: makePageExtract({
         checkoutConfig: null,
@@ -68,6 +68,6 @@ describe('risk-module-not-disabled', () => {
         },
       }),
     });
-    expect(riskNotDisabled.run(payload).severity).toBe('notice');
+    expect(riskNotDisabled.run(payload).severity).toBe('skip');
   });
 });

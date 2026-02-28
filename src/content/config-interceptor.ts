@@ -203,6 +203,16 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
       if (clientKey !== null && clientKey !== '') {
         mergeAndPublishInferred({ clientKey });
       }
+
+      const locale = u.searchParams.get('locale');
+      if (locale !== null && locale !== '') {
+        mergeAndPublishInferred({ locale });
+      }
+
+      const countryCode = u.searchParams.get('countryCode');
+      if (countryCode !== null && countryCode !== '') {
+        mergeAndPublishInferred({ countryCode });
+      }
     } catch {
       /* ignore */
     }
@@ -335,10 +345,12 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
       captureConfig(args[0], 'checkout');
       const result = original.apply(this, args);
       if (result instanceof Promise) {
-        void result.then((inst: unknown) => {
-          tryCaptureFromInstance(inst);
-          return inst;
-        });
+        void result
+          .then((inst: unknown) => {
+            tryCaptureFromInstance(inst);
+            return inst;
+          })
+          .catch(() => {});
       }
       return result;
     };
@@ -424,11 +436,18 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
 
   try {
     const originalThen = Promise.prototype.then;
-    /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call */
-    Promise.prototype.then = function (this: Promise<any>, onfulfilled: any, onrejected: any): any {
+
+    type OnFulfilled<T, R> = ((value: T) => R | PromiseLike<R>) | undefined | null;
+    type OnRejected<R> = ((reason: unknown) => R | PromiseLike<R>) | undefined | null;
+
+    Promise.prototype.then = function <T, TResult1 = T, TResult2 = never>(
+      this: Promise<T>,
+      onfulfilled?: OnFulfilled<T, TResult1>,
+      onrejected?: OnRejected<TResult2>
+    ): Promise<TResult1 | TResult2> {
       const wrappedOnFulfilled =
         typeof onfulfilled === 'function'
-          ? (value: any): any => {
+          ? (value: T): TResult1 | PromiseLike<TResult1> => {
               try {
                 tryCaptureFromInstance(value);
               } catch {
@@ -438,9 +457,10 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
             }
           : onfulfilled;
 
-      return originalThen.call(this, wrappedOnFulfilled, onrejected);
+      return originalThen.call(this, wrappedOnFulfilled, onrejected) as Promise<
+        TResult1 | TResult2
+      >;
     };
-    /* eslint-enable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call */
   } catch {
     /* ignore */
   }

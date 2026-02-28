@@ -191,20 +191,11 @@ interface AdvancedRequiredCallbackOptions {
 function runAdvancedRequiredCallbackCheck(
   payload: ScanPayload,
   options: AdvancedRequiredCallbackOptions,
-  { pass, fail, skip, warn, notice }: CheckContext
+  { pass, fail, skip, warn }: CheckContext
 ): CheckOutcome {
   const config = payload.page.checkoutConfig;
-  const inferred = payload.page.inferredConfig;
 
   if (!config) {
-    if (inferred) {
-      return notice(
-        `${options.label} presence cannot be verified.`,
-        `The full checkout configuration could not be intercepted (only partial network signals were captured). Manual verification is required to ensure ${options.label} is set.`,
-        undefined,
-        getFlowSensitiveCallbackDocsUrl(payload, 'advanced')
-      );
-    }
     return skip(`${options.label} check skipped.`, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
   }
 
@@ -245,21 +236,11 @@ interface FlowSensitiveOutcomeCallbackOptions {
 function runFlowSensitiveOutcomeCallbackCheck(
   payload: ScanPayload,
   options: FlowSensitiveOutcomeCallbackOptions,
-  { pass, fail, skip, warn, notice }: CheckContext
+  { pass, fail, skip, warn }: CheckContext
 ): CheckOutcome {
   const config = payload.page.checkoutConfig;
-  const inferred = payload.page.inferredConfig;
 
   if (!config) {
-    const flow = detectIntegrationFlow(payload);
-    if (inferred) {
-      return notice(
-        `${options.label} presence cannot be verified.`,
-        `The full checkout configuration could not be intercepted (only partial network signals were captured). Manual verification is required to ensure ${options.label} is set.`,
-        undefined,
-        getFlowSensitiveCallbackDocsUrl(payload, flow)
-      );
-    }
     return skip(`${options.label} check skipped.`, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
   }
 
@@ -586,19 +567,10 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
       context
     );
   })
-  .add('callback-on-error', (payload, { pass, fail, skip, warn, notice }) => {
+  .add('callback-on-error', (payload, { pass, fail, skip, warn }) => {
     const config = payload.page.checkoutConfig;
-    const inferred = payload.page.inferredConfig;
 
     if (!config) {
-      if (inferred) {
-        return notice(
-          'onError presence cannot be verified.',
-          'The full checkout configuration could not be intercepted (only partial network signals were captured). Manual verification is required to ensure onError is set.',
-          undefined,
-          getFlowSensitiveCallbackDocsUrl(payload, 'advanced')
-        );
-      }
       return skip(STRINGS.ON_ERROR_SKIP_TITLE, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
     }
 
