@@ -55,7 +55,8 @@ const STRINGS = {
     'Multiple initialisations can cause unexpected behavior, duplicate event listeners, and performance issues. This often occurs in React integrations due to StrictMode or improper hook usage.',
   MULTI_INIT_WARN_REMEDIATION:
     'Ensure AdyenCheckout is initialised only once. Use a ref or a custom hook that returns a stable instance and only mount components when ready. See: https://docs.adyen.com/online-payments/web-best-practices/#handle-web-framework-re-renders',
-  MULTI_INIT_WARN_URL: 'https://docs.adyen.com/online-payments/web-best-practices/#handle-web-framework-re-renders',
+  MULTI_INIT_WARN_URL:
+    'https://docs.adyen.com/online-payments/web-best-practices/#handle-web-framework-re-renders',
 } as const;
 
 const CATEGORY = 'sdk-identity' as const;
@@ -149,7 +150,10 @@ export const SDK_IDENTITY_CHECKS = createRegistry(CATEGORY)
   .add('sdk-multi-init', (payload, { pass, warn, skip }) => {
     const { checkoutInitCount } = payload.page;
     if (checkoutInitCount === undefined || checkoutInitCount === 0) {
-      return skip('Initialization count check skipped.', 'AdyenCheckout initialization not detected.');
+      return skip(
+        'Initialization count check skipped.',
+        'AdyenCheckout initialization not detected.'
+      );
     }
 
     if (checkoutInitCount > 1) {

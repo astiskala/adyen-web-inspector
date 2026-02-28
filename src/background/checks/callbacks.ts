@@ -184,15 +184,18 @@ const STRINGS = {
     'To prevent duplicate orders, you should disable your pay button as soon as a payment attempt is made.',
   MULTIPLE_SUBMISSIONS_REMEDIATION:
     'Inside your onSubmit or beforeSubmit handler, add logic to disable the pay button or set a loading state until the payment lifecycle completes.',
-  MULTIPLE_SUBMISSIONS_URL: 'https://docs.adyen.com/online-payments/web-best-practices/#prevent-multiple-submissions',
+  MULTIPLE_SUBMISSIONS_URL:
+    'https://docs.adyen.com/online-payments/web-best-practices/#prevent-multiple-submissions',
 
-  CUSTOM_PAY_BUTTON_COMPAT_PASS_TITLE: 'No unsupported payment methods detected for custom pay button.',
+  CUSTOM_PAY_BUTTON_COMPAT_PASS_TITLE:
+    'No unsupported payment methods detected for custom pay button.',
   CUSTOM_PAY_BUTTON_COMPAT_WARN_TITLE: 'Unsupported payment methods for custom pay button.',
   CUSTOM_PAY_BUTTON_COMPAT_WARN_DETAIL:
     'Custom pay buttons (signalled by beforeSubmit or selective onSubmit handling) are not supported for PayPal, Klarna, and Click to Pay.',
   CUSTOM_PAY_BUTTON_COMPAT_WARN_REMEDIATION:
     'For PayPal, Klarna, and Click to Pay, you must use the button provided by the Adyen Component rather than a custom pay button.',
-  CUSTOM_PAY_BUTTON_COMPAT_WARN_URL: 'https://docs.adyen.com/online-payments/web-best-practices/#unsupported-payment-methods',
+  CUSTOM_PAY_BUTTON_COMPAT_WARN_URL:
+    'https://docs.adyen.com/online-payments/web-best-practices/#unsupported-payment-methods',
 } as const;
 
 interface AdvancedRequiredCallbackOptions {
@@ -699,24 +702,39 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
   .add('callback-custom-pay-button-compatibility', (payload, { skip, pass, warn }) => {
     const config = payload.page.checkoutConfig;
     if (!config) {
-      return skip('Custom pay button compatibility check skipped.', SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
+      return skip(
+        'Custom pay button compatibility check skipped.',
+        SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED
+      );
     }
 
     const flow = detectIntegrationFlow(payload);
     const hasBeforeSubmit = isCallbackPresent(config.beforeSubmit);
     const onSubmitSource = config.onSubmitSource ?? '';
-    const hasSelectiveOnSubmit = flow === 'advanced' && detectUnhandledOnSubmitFilters(onSubmitSource).paymentMethod;
+    const hasSelectiveOnSubmit =
+      flow === 'advanced' && detectUnhandledOnSubmitFilters(onSubmitSource).paymentMethod;
 
     if (!hasBeforeSubmit && !hasSelectiveOnSubmit) {
-      return skip('Custom pay button compatibility check skipped.', 'No custom pay button indicators detected.');
+      return skip(
+        'Custom pay button compatibility check skipped.',
+        'No custom pay button indicators detected.'
+      );
     }
 
     // Heuristic: if these strings appear in any captured request or analytics, they might be present.
     const capturedVariants = payload.analyticsData?.variants ?? [];
-    const unsupported = ['paypal', 'klarna', 'paywithgoogle', 'googlepay', 'applepay', 'clicktopay'];
-    const detectedUnsupported = unsupported.filter(u =>
-      capturedVariants.some((v: string) => v.toLowerCase().includes(u)) ||
-      payload.capturedRequests.some(r => r.url.toLowerCase().includes(u))
+    const unsupported = [
+      'paypal',
+      'klarna',
+      'paywithgoogle',
+      'googlepay',
+      'applepay',
+      'clicktopay',
+    ];
+    const detectedUnsupported = unsupported.filter(
+      (u) =>
+        capturedVariants.some((v: string) => v.toLowerCase().includes(u)) ||
+        payload.capturedRequests.some((r) => r.url.toLowerCase().includes(u))
     );
 
     if (detectedUnsupported.length > 0) {
