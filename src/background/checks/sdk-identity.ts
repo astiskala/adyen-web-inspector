@@ -37,11 +37,6 @@ const STRINGS = {
   BUNDLE_TYPE_CDN_SKIP_REASON: 'Not applicable for CDN imports.',
   BUNDLE_TYPE_UNKNOWN_SKIP_TITLE: 'Could not determine bundle type.',
   BUNDLE_TYPE_UNKNOWN_SKIP_REASON: 'AdyenWebMetadata not available.',
-  BUNDLE_AUTO_WARN_TITLE: 'Using the auto bundle — consider switching to tree-shakable imports.',
-  // BUNDLE_AUTO_WARN_DETAIL stays inline (dynamic: uses bundleType)
-  BUNDLE_AUTO_WARN_REMEDIATION:
-    'Switch from the auto bundle to tree-shakable imports. Instead of importing the entire Adyen Web package, import only the specific payment method components your integration uses. This significantly reduces JavaScript bundle size and improves checkout page load time.',
-  BUNDLE_AUTO_WARN_URL: 'https://docs.adyen.com/online-payments/upgrade-your-integration/',
 
   ANALYTICS_SKIP_TITLE: 'Analytics check skipped.',
   ANALYTICS_SKIP_REASON: 'SDK not active on this page.',
@@ -108,7 +103,7 @@ export const SDK_IDENTITY_CHECKS = createRegistry(CATEGORY)
 
     return info(`Import method: ${method}.`, detail);
   })
-  .add('sdk-bundle-type', (payload, { skip, warn, pass }) => {
+  .add('sdk-bundle-type', (payload, { skip, pass }) => {
     const { adyenMetadata, scripts } = payload.page;
     const isCdn = scripts.some((s) => isCdnCheckoutScriptUrl(s.src));
 
@@ -120,15 +115,6 @@ export const SDK_IDENTITY_CHECKS = createRegistry(CATEGORY)
 
     if (adyenMetadata === null && payload.analyticsData?.buildType === undefined) {
       return skip(STRINGS.BUNDLE_TYPE_UNKNOWN_SKIP_TITLE, STRINGS.BUNDLE_TYPE_UNKNOWN_SKIP_REASON);
-    }
-
-    if (bundleType === 'auto') {
-      return warn(
-        STRINGS.BUNDLE_AUTO_WARN_TITLE,
-        `Bundle type is "${bundleType}". The auto bundle includes all payment methods, increasing bundle size.`,
-        STRINGS.BUNDLE_AUTO_WARN_REMEDIATION,
-        STRINGS.BUNDLE_AUTO_WARN_URL
-      );
     }
 
     return pass(`Bundle type "${bundleType}" is optimised.`);
