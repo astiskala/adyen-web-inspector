@@ -62,6 +62,26 @@ describe('auth-country-code', () => {
     });
     expect(authCountryCode.run(payload).severity).toBe('skip');
   });
+
+  it('notices when country code is missing but inferred config exists', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({
+        checkoutConfig: null,
+        inferredConfig: makeCheckoutConfig({ countryCode: undefined }),
+      }),
+    });
+    expect(authCountryCode.run(payload).severity).toBe('notice');
+  });
+
+  it('passes when country code is set in inferred config', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({
+        checkoutConfig: null,
+        inferredConfig: makeCheckoutConfig({ countryCode: 'IN' }),
+      }),
+    });
+    expect(authCountryCode.run(payload).severity).toBe('pass');
+  });
 });
 
 describe('auth-locale', () => {
@@ -94,5 +114,25 @@ describe('auth-locale', () => {
       page: makePageExtract({ checkoutConfig: null }),
     });
     expect(authLocale.run(payload).severity).toBe('skip');
+  });
+
+  it('notices when locale is missing but inferred config exists', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({
+        checkoutConfig: null,
+        inferredConfig: makeCheckoutConfig({ locale: undefined }),
+      }),
+    });
+    expect(authLocale.run(payload).severity).toBe('notice');
+  });
+
+  it('passes when locale is set in inferred config', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({
+        checkoutConfig: null,
+        inferredConfig: makeCheckoutConfig({ locale: 'en-US' }),
+      }),
+    });
+    expect(authLocale.run(payload).severity).toBe('pass');
   });
 });

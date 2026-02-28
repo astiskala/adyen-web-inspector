@@ -15,6 +15,7 @@ const STRINGS = {
     'https://docs.adyen.com/development-resources/client-side-authentication/migrate-from-origin-key-to-client-key/',
 
   COUNTRY_CODE_SKIP_TITLE: 'Country code check skipped.',
+  COUNTRY_CODE_PARTIAL_NOTICE_TITLE: 'countryCode presence cannot be verified.',
   COUNTRY_CODE_PASS_TITLE: 'countryCode is set correctly.',
   COUNTRY_CODE_FAIL_TITLE: 'countryCode is not set in the checkout configuration.',
   COUNTRY_CODE_FAIL_DETAIL:
@@ -24,6 +25,7 @@ const STRINGS = {
   COUNTRY_CODE_FAIL_URL: 'https://docs.adyen.com/development-resources/testing/',
 
   LOCALE_SKIP_TITLE: 'Locale check skipped.',
+  LOCALE_PARTIAL_NOTICE_TITLE: 'locale presence cannot be verified.',
   LOCALE_PASS_TITLE: 'locale is set correctly.',
   LOCALE_MISSING_WARN_TITLE:
     'locale is not explicitly set — language will be determined automatically.',
@@ -65,14 +67,29 @@ export const AUTH_CHECKS = createRegistry(CATEGORY)
 
     return pass(STRINGS.CLIENT_KEY_PASS_TITLE);
   })
-  .add('auth-country-code', (payload, { pass, fail, skip, warn }) => {
+  .add('auth-country-code', (payload, { pass, fail, skip, warn, notice }) => {
     const config = payload.page.checkoutConfig;
-    if (!config) {
-      return skip(STRINGS.COUNTRY_CODE_SKIP_TITLE, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
+    const inferred = payload.page.inferredConfig;
+
+    if (config?.countryCode !== undefined && config.countryCode !== '') {
+      return pass(STRINGS.COUNTRY_CODE_PASS_TITLE);
     }
 
-    if (config.countryCode !== undefined && config.countryCode !== '') {
+    if (inferred?.countryCode !== undefined && inferred.countryCode !== '') {
       return pass(STRINGS.COUNTRY_CODE_PASS_TITLE);
+    }
+
+    if (!config) {
+      if (inferred) {
+        return notice(
+          STRINGS.COUNTRY_CODE_PARTIAL_NOTICE_TITLE,
+          'The full checkout configuration could not be intercepted (only partial network signals were captured). Manual verification is required to ensure countryCode is set.',
+          undefined,
+          STRINGS.COUNTRY_CODE_FAIL_URL
+        );
+      }
+
+      return skip(STRINGS.COUNTRY_CODE_SKIP_TITLE, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
     }
 
     const flow = detectIntegrationFlow(payload);
@@ -92,30 +109,42 @@ export const AUTH_CHECKS = createRegistry(CATEGORY)
       STRINGS.COUNTRY_CODE_FAIL_URL
     );
   })
-  .add('auth-locale', (payload, { pass, skip, warn }) => {
+  .add('auth-locale', (payload, { pass, skip, warn, notice }) => {
     const config = payload.page.checkoutConfig;
+    const inferred = payload.page.inferredConfig;
+
+    const locale = config?.locale ?? inferred?.locale;
+
+    if (locale !== undefined && locale !== '') {
+      if (!SUPPORTED_LOCALES.has(locale.toLowerCase())) {
+        return warn(
+          `locale "${locale}" is not in the supported Adyen Web translations list.`,
+          STRINGS.LOCALE_UNSUPPORTED_WARN_DETAIL,
+          STRINGS.LOCALE_UNSUPPORTED_WARN_REMEDIATION,
+          STRINGS.LOCALE_UNSUPPORTED_WARN_URL
+        );
+      }
+      return pass(STRINGS.LOCALE_PASS_TITLE);
+    }
+
     if (!config) {
+      if (inferred) {
+        return notice(
+          STRINGS.LOCALE_PARTIAL_NOTICE_TITLE,
+          'The full checkout configuration could not be intercepted (only partial network signals were captured). Manual verification is required to ensure locale is set.',
+          undefined,
+          STRINGS.LOCALE_MISSING_WARN_URL
+        );
+      }
+
       return skip(STRINGS.LOCALE_SKIP_TITLE, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
     }
 
-    if (config.locale === undefined || config.locale === '') {
-      return warn(
-        STRINGS.LOCALE_MISSING_WARN_TITLE,
-        STRINGS.LOCALE_MISSING_WARN_DETAIL,
-        STRINGS.LOCALE_MISSING_WARN_REMEDIATION,
-        STRINGS.LOCALE_MISSING_WARN_URL
-      );
-    }
-
-    if (!SUPPORTED_LOCALES.has(config.locale.toLowerCase())) {
-      return warn(
-        `locale "${config.locale}" is not in the supported Adyen Web translations list.`,
-        STRINGS.LOCALE_UNSUPPORTED_WARN_DETAIL,
-        STRINGS.LOCALE_UNSUPPORTED_WARN_REMEDIATION,
-        STRINGS.LOCALE_UNSUPPORTED_WARN_URL
-      );
-    }
-
-    return pass(STRINGS.LOCALE_PASS_TITLE);
+    return warn(
+      STRINGS.LOCALE_MISSING_WARN_TITLE,
+      STRINGS.LOCALE_MISSING_WARN_DETAIL,
+      STRINGS.LOCALE_MISSING_WARN_REMEDIATION,
+      STRINGS.LOCALE_MISSING_WARN_URL
+    );
   })
   .getChecks();

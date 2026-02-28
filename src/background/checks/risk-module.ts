@@ -47,9 +47,19 @@ export const RISK_CHECKS = createRegistry(CATEGORY)
       STRINGS.DF_IFRAME_WARN_URL
     );
   })
-  .add('risk-module-not-disabled', (payload, { skip, warn, pass }) => {
+  .add('risk-module-not-disabled', (payload, { skip, warn, pass, notice }) => {
     const config = payload.page.checkoutConfig;
+    const inferred = payload.page.inferredConfig;
+
     if (!config) {
+      if (inferred) {
+        return notice(
+          'Risk module setting cannot be verified.',
+          'The full checkout configuration could not be intercepted (only partial network signals were captured). Manual verification is required to ensure risk module is not disabled.',
+          undefined,
+          STRINGS.MODULE_WARN_URL
+        );
+      }
       return skip(STRINGS.MODULE_SKIP_TITLE, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
     }
 

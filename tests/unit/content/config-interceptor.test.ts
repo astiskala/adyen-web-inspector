@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 
 const CONFIG_KEY = '__adyenWebInspectorCapturedConfig';
+const INFERRED_CONFIG_KEY = '__adyenWebInspectorCapturedInferredConfig';
 const INSTALLED_KEY = `${CONFIG_KEY}__installed`;
 
 type CapturedConfig = Record<string, unknown>;
@@ -12,9 +13,16 @@ function getCapturedConfig(): CapturedConfig | undefined {
     | undefined;
 }
 
+function getCapturedInferredConfig(): CapturedConfig | undefined {
+  return (globalThis as unknown as Record<string, unknown>)[INFERRED_CONFIG_KEY] as
+    | CapturedConfig
+    | undefined;
+}
+
 function resetGlobals(): void {
   const g = globalThis as unknown as Record<string, unknown>;
   Reflect.deleteProperty(g, CONFIG_KEY);
+  Reflect.deleteProperty(g, INFERRED_CONFIG_KEY);
   Reflect.deleteProperty(g, INSTALLED_KEY);
   Reflect.deleteProperty(g, 'AdyenCheckout');
   Reflect.deleteProperty(g, 'AdyenWeb');
@@ -143,6 +151,24 @@ describe('config-interceptor', () => {
       expect(config?.['countryCode']).toBe('NL');
       expect(config?.['locale']).toBe('nl-NL');
     });
+
+    it('captures config via global Promise.prototype.then interception', async () => {
+      const fakeCheckout = {
+        create: (): void => {},
+        options: {
+          clientKey: 'test_AGGRESSIVE',
+          environment: 'test',
+        },
+      };
+
+      // Simulate a promise resolving to an Adyen instance, e.g. from a bundled SDK
+      const p = Promise.resolve(fakeCheckout);
+      await p.then((val) => val);
+
+      const config = getCapturedConfig();
+      expect(config).toBeDefined();
+      expect(config?.['clientKey']).toBe('test_AGGRESSIVE');
+    });
   });
 
   describe('Network interception', () => {
@@ -150,7 +176,7 @@ describe('config-interceptor', () => {
       await globalThis.fetch(
         'https://checkoutshopper-live.adyen.com/checkoutshopper/v1/sdk-identity'
       );
-      const config = getCapturedConfig();
+      const config = getCapturedInferredConfig();
       expect(config?.['environment']).toBe('live');
     });
 
@@ -158,15 +184,21 @@ describe('config-interceptor', () => {
       await globalThis.fetch(
         'https://checkoutshopper-test.adyen.com/checkoutshopper/v1/sdk-identity'
       );
-      const config = getCapturedConfig();
+      const config = getCapturedInferredConfig();
       expect(config?.['environment']).toBe('test');
+    });
+
+    it('captures environment from adyenpayments.com URL (live-in)', async () => {
+      await globalThis.fetch('https://checkout-live-in.adyenpayments.com/checkout/v1/sdk-identity');
+      const config = getCapturedInferredConfig();
+      expect(config?.['environment']).toBe('live');
     });
 
     it('captures clientKey from fetch query parameters', async () => {
       await globalThis.fetch(
         'https://checkoutshopper-test.adyen.com/checkoutshopper/v1/sdk-identity?clientKey=test_NET123'
       );
-      const config = getCapturedConfig();
+      const config = getCapturedInferredConfig();
       expect(config?.['clientKey']).toBe('test_NET123');
     });
 
@@ -176,7 +208,7 @@ describe('config-interceptor', () => {
         'GET',
         'https://checkoutshopper-live.adyen.com/checkoutshopper/v1/sdk-identity?clientKey=live_XHR456'
       );
-      const config = getCapturedConfig();
+      const config = getCapturedInferredConfig();
       expect(config?.['environment']).toBe('live');
       expect(config?.['clientKey']).toBe('live_XHR456');
     });

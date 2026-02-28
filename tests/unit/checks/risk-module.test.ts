@@ -57,4 +57,17 @@ describe('risk-module-not-disabled', () => {
     });
     expect(riskNotDisabled.run(payload).severity).toBe('warn');
   });
+
+  it('notices when riskEnabled is undefined but inferred config exists', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({
+        checkoutConfig: null,
+        inferredConfig: {
+          clientKey: 'test_X',
+          environment: 'test',
+        },
+      }),
+    });
+    expect(riskNotDisabled.run(payload).severity).toBe('notice');
+  });
 });

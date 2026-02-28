@@ -21,6 +21,7 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
 
 (function configInterceptor(): void {
   const CAPTURED_CONFIG_KEY = '__adyenWebInspectorCapturedConfig';
+  const CAPTURED_INFERRED_CONFIG_KEY = '__adyenWebInspectorCapturedInferredConfig';
   const WRAPPED = '__awInspectorWrapped';
 
   type PlainRecord = Record<string, unknown>;
@@ -35,6 +36,7 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
     'beforeSubmit',
   ] as const;
   const STRING_CONFIG_KEYS = ['clientKey', 'environment', 'locale', 'countryCode'] as const;
+  const ADYEN_INSTANCE_MARKER = '__adyenInstance';
 
   if ((globalThis as PlainRecord)[CAPTURED_CONFIG_KEY + '__installed'] === true) {
     return;
@@ -119,6 +121,7 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
   // ---------------------------------------------------------------------------
 
   let captured: Partial<CheckoutConfig> | null = null;
+  let inferred: Partial<CheckoutConfig> | null = null;
 
   function mergeAndPublish(incoming: Partial<CheckoutConfig> | null): void {
     if (incoming === null) {
@@ -146,6 +149,26 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
     }
   }
 
+  function mergeAndPublishInferred(incoming: Partial<CheckoutConfig> | null): void {
+    if (incoming === null) {
+      return;
+    }
+
+    if (inferred === null) {
+      inferred = incoming;
+    } else {
+      inferred = { ...inferred, ...incoming };
+    }
+
+    try {
+      (globalThis as PlainRecord)[CAPTURED_INFERRED_CONFIG_KEY] = structuredClone(
+        inferred
+      ) as PlainRecord;
+    } catch {
+      /* ignore */
+    }
+  }
+
   function captureConfig(raw: unknown, source: CallbackSource): void {
     try {
       mergeAndPublish(extractFields(raw, source));
@@ -161,26 +184,24 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
   function tryCaptureFromUrl(url: string): void {
     try {
       const u = new URL(url, globalThis.location.href);
-      const isAdyenDomain = u.hostname === 'adyen.com' || u.hostname.endsWith('.adyen.com');
+      const isAdyenDomain =
+        u.hostname === 'adyen.com' ||
+        u.hostname.endsWith('.adyen.com') ||
+        u.hostname === 'adyenpayments.com' ||
+        u.hostname.endsWith('.adyenpayments.com');
       if (!isAdyenDomain) {
         return;
       }
 
-      const environmentMap: Record<string, string> = {
-        'live.adyen.com': 'live',
-        'test.adyen.com': 'test',
-      };
-
-      for (const [domain, env] of Object.entries(environmentMap)) {
-        if (u.hostname.endsWith(domain)) {
-          mergeAndPublish({ environment: env });
-          break;
-        }
+      if (u.hostname.includes('-live') || u.hostname.includes('.live.')) {
+        mergeAndPublishInferred({ environment: 'live' });
+      } else if (u.hostname.includes('-test') || u.hostname.includes('.test.')) {
+        mergeAndPublishInferred({ environment: 'test' });
       }
 
       const clientKey = u.searchParams.get('clientKey');
       if (clientKey !== null && clientKey !== '') {
-        mergeAndPublish({ clientKey });
+        mergeAndPublishInferred({ clientKey });
       }
     } catch {
       /* ignore */
@@ -277,6 +298,35 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
     }
   }
 
+  function tryCaptureFromInstance(inst: unknown): boolean {
+    if (inst === null || typeof inst !== 'object') {
+      return false;
+    }
+
+    const i = inst as PlainRecord;
+    // Heuristic: looks like an Adyen Checkout instance
+    const hasCreate = typeof i['create'] === 'function';
+    const opts = i['options'] ?? i['_options'];
+    const hasOptions = opts !== undefined && opts !== null && typeof opts === 'object';
+
+    if (hasCreate && hasOptions) {
+      if (i[ADYEN_INSTANCE_MARKER] === true) {
+        return true;
+      }
+      try {
+        i[ADYEN_INSTANCE_MARKER] = true;
+      } catch {
+        /* ignore */
+      }
+
+      captureConfig(opts, 'checkout');
+      wrapInstanceCreate(i);
+      return true;
+    }
+
+    return false;
+  }
+
   function wrapCheckoutFactory(original: SdkCallable): SdkCallable {
     if (isWrapped(original)) {
       return original;
@@ -286,14 +336,7 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
       const result = original.apply(this, args);
       if (result instanceof Promise) {
         void result.then((inst: unknown) => {
-          if (inst !== null && typeof inst === 'object') {
-            const i = inst as PlainRecord;
-            const opts = i['options'] ?? i['_options'];
-            if (opts !== undefined && opts !== null) {
-              captureConfig(opts, 'checkout');
-            }
-            wrapInstanceCreate(i);
-          }
+          tryCaptureFromInstance(inst);
           return inst;
         });
       }
@@ -371,6 +414,33 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
       configurable: true,
       enumerable: true,
     });
+  } catch {
+    /* ignore */
+  }
+
+  // ---------------------------------------------------------------------------
+  // Promise.prototype.then Interception (Aggressive Discovery)
+  // ---------------------------------------------------------------------------
+
+  try {
+    const originalThen = Promise.prototype.then;
+    /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call */
+    Promise.prototype.then = function (this: Promise<any>, onfulfilled: any, onrejected: any): any {
+      const wrappedOnFulfilled =
+        typeof onfulfilled === 'function'
+          ? (value: any): any => {
+              try {
+                tryCaptureFromInstance(value);
+              } catch {
+                /* ignore */
+              }
+              return onfulfilled(value);
+            }
+          : onfulfilled;
+
+      return originalThen.call(this, wrappedOnFulfilled, onrejected);
+    };
+    /* eslint-enable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call */
   } catch {
     /* ignore */
   }

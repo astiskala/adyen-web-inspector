@@ -156,6 +156,8 @@ export interface PageExtractResult {
   readonly adyenMetadata: AdyenWebMetadata | null;
   /** Serialised checkout config object (best-effort, may be null) */
   readonly checkoutConfig: CheckoutConfig | null;
+  /** Configuration inferred from partial sources like network signals. */
+  readonly inferredConfig: CheckoutConfig | null;
   readonly scripts: ScriptTag[];
   readonly links: LinkTag[];
   readonly iframes: IframeInfo[];

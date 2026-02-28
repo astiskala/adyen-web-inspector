@@ -235,7 +235,14 @@ export function resolveEnvironment(payload: ScanPayload): EnvironmentResolution 
     return { env: envFromConfig, source: 'config' };
   }
 
-  const envFromKey = detectEnvironmentFromClientKey(payload.page.checkoutConfig?.clientKey);
+  const envFromInferred = detectEnvironmentFromConfig(payload.page.inferredConfig?.environment);
+  if (envFromInferred !== null) {
+    return { env: envFromInferred, source: 'config' };
+  }
+
+  const envFromKey =
+    detectEnvironmentFromClientKey(payload.page.checkoutConfig?.clientKey) ??
+    detectEnvironmentFromClientKey(payload.page.inferredConfig?.clientKey);
   if (envFromKey !== null) {
     return { env: envFromKey, source: 'client-key' };
   }
@@ -252,7 +259,11 @@ export function resolveEnvironment(payload: ScanPayload): EnvironmentResolution 
  * Resolves region from checkout config first, then captured request hosts.
  */
 export function resolveRegion(payload: ScanPayload): RegionResolution {
-  const regionFromConfig = detectRegionFromConfig(payload.page.checkoutConfig?.environment);
+  let regionFromConfig = detectRegionFromConfig(payload.page.checkoutConfig?.environment);
+  if (regionFromConfig === 'unknown') {
+    regionFromConfig = detectRegionFromConfig(payload.page.inferredConfig?.environment);
+  }
+
   if (regionFromConfig !== 'unknown') {
     return { region: regionFromConfig, source: 'config' };
   }
@@ -310,7 +321,7 @@ export function detectImportMethod(scripts: ScanPayload['page']['scripts']): Imp
 export function hasCheckoutActivity(payload: ScanPayload): boolean {
   const { page, capturedRequests, analyticsData } = payload;
 
-  if (page.checkoutConfig) return true;
+  if (page.checkoutConfig || page.inferredConfig) return true;
   if (analyticsData !== null) return true;
 
   if (
@@ -338,7 +349,9 @@ export function collectIntegrationFlowSignals(payload: ScanPayload): Integration
     hasSessionsRequest: payload.capturedRequests.some((request) =>
       SESSIONS_API_PATTERN.test(request.url)
     ),
-    hasSessionConfig: Boolean(payload.page.checkoutConfig?.hasSession),
+    hasSessionConfig:
+      Boolean(payload.page.checkoutConfig?.hasSession) ||
+      Boolean(payload.page.inferredConfig?.hasSession),
     hasAnalyticsSessionId: Boolean(payload.analyticsData?.sessionId),
     hasCheckoutConfig: payload.page.checkoutConfig !== null,
     hasAnalyticsData: payload.analyticsData !== null,
@@ -384,7 +397,7 @@ export function resolveIntegrationFlavor(payload: ScanPayload): IntegrationFlavo
     };
   }
 
-  if (payload.page.checkoutConfig) {
+  if (payload.page.checkoutConfig || payload.page.inferredConfig) {
     return {
       flavor: 'Components',
       source: 'checkout-config',
