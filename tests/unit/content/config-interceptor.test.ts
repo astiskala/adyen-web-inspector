@@ -191,7 +191,13 @@ describe('config-interceptor', () => {
     it('captures environment from adyenpayments.com URL (live-in)', async () => {
       await globalThis.fetch('https://checkout-live-in.adyenpayments.com/checkout/v1/sdk-identity');
       const config = getCapturedInferredConfig();
-      expect(config?.['environment']).toBe('live');
+      expect(config?.['environment']).toBe('live-in');
+    });
+
+    it('captures environment from regional live URL (live-us)', async () => {
+      await globalThis.fetch('https://checkout-live-us.adyen.com/checkout/v1/sdk-identity');
+      const config = getCapturedInferredConfig();
+      expect(config?.['environment']).toBe('live-us');
     });
 
     it('captures clientKey from fetch query parameters', async () => {

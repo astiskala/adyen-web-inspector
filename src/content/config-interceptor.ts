@@ -193,9 +193,12 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
         return;
       }
 
-      if (u.hostname.includes('-live') || u.hostname.includes('.live.')) {
-        mergeAndPublishInferred({ environment: 'live' });
-      } else if (u.hostname.includes('-test') || u.hostname.includes('.test.')) {
+      const liveMatch = u.hostname.match(/(?:^|\.|-)(live(?:-[a-z]{2,4})?)(?:\.|$)/);
+      const testMatch = u.hostname.match(/(?:^|\.|-)(test)(?:\.|$)/);
+
+      if (liveMatch !== null) {
+        mergeAndPublishInferred({ environment: liveMatch[1] as string });
+      } else if (testMatch !== null) {
         mergeAndPublishInferred({ environment: 'test' });
       }
 
