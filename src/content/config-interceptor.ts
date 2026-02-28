@@ -27,6 +27,8 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
   type PlainRecord = Record<string, unknown>;
   type SdkCallable = (this: unknown, ...args: unknown[]) => unknown;
 
+  const NativePromise = Promise;
+
   const CALLBACK_KEYS = [
     'onSubmit',
     'onAdditionalDetails',
@@ -193,11 +195,14 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
         return;
       }
 
-      const liveMatch = u.hostname.match(/(?:^|\.|-)(live(?:-[a-z]{2,4})?)(?:\.|$)/);
-      const testMatch = u.hostname.match(/(?:^|\.|-)(test)(?:\.|$)/);
+      const liveMatch = /(?:^|\.|-)(live(?:-[a-z]{2,4})?)(?:\.|$)/.exec(u.hostname);
+      const testMatch = /(?:^|\.|-)(test)(?:\.|$)/.exec(u.hostname);
 
       if (liveMatch !== null) {
-        mergeAndPublishInferred({ environment: liveMatch[1] as string });
+        const env = liveMatch[1];
+        if (env !== undefined) {
+          mergeAndPublishInferred({ environment: env });
+        }
       } else if (testMatch !== null) {
         mergeAndPublishInferred({ environment: 'test' });
       }
@@ -347,7 +352,7 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
     const wrapped: SdkCallable = function (this: unknown, ...args: unknown[]): unknown {
       captureConfig(args[0], 'checkout');
       const result = original.apply(this, args);
-      if (result instanceof Promise) {
+      if (result instanceof NativePromise) {
         void result
           .then((inst: unknown) => {
             tryCaptureFromInstance(inst);
@@ -366,24 +371,22 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
     if (isWrapped(original)) {
       return original;
     }
-    const wrapped: SdkCallable = function (this: unknown, ...args: unknown[]): unknown {
-      if (args.length > 1) {
-        captureConfig(args[1], 'component');
-      }
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-      if (new.target === undefined) {
-        return original.apply(this, args);
-      }
-      return Reflect.construct(original, args, original) as unknown;
+    const handler: ProxyHandler<SdkCallable> = {
+      apply(target, thisArg, args) {
+        if (args.length > 1) {
+          captureConfig(args[1], 'component');
+        }
+        return Reflect.apply(target, thisArg, args);
+      },
+      construct(target, args) {
+        if (args.length > 1) {
+          captureConfig(args[1], 'component');
+        }
+        return Reflect.construct(target, args) as object;
+      },
     };
+    const wrapped = new Proxy(original, handler);
     markWrapped(wrapped);
-    try {
-      const orig = original as unknown as { prototype: unknown };
-      const wrap = wrapped as unknown as { prototype: unknown };
-      wrap.prototype = orig.prototype;
-    } catch {
-      /* ignore */
-    }
     copyStatics(original, wrapped);
     return wrapped;
   }
@@ -429,41 +432,6 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
       configurable: true,
       enumerable: true,
     });
-  } catch {
-    /* ignore */
-  }
-
-  // ---------------------------------------------------------------------------
-  // Promise.prototype.then Interception (Aggressive Discovery)
-  // ---------------------------------------------------------------------------
-
-  try {
-    const originalThen = Promise.prototype.then;
-
-    type OnFulfilled<T, R> = ((value: T) => R | PromiseLike<R>) | undefined | null;
-    type OnRejected<R> = ((reason: unknown) => R | PromiseLike<R>) | undefined | null;
-
-    Promise.prototype.then = function <T, TResult1 = T, TResult2 = never>(
-      this: Promise<T>,
-      onfulfilled?: OnFulfilled<T, TResult1>,
-      onrejected?: OnRejected<TResult2>
-    ): Promise<TResult1 | TResult2> {
-      const wrappedOnFulfilled =
-        typeof onfulfilled === 'function'
-          ? (value: T): TResult1 | PromiseLike<TResult1> => {
-              try {
-                tryCaptureFromInstance(value);
-              } catch {
-                /* ignore */
-              }
-              return onfulfilled(value);
-            }
-          : onfulfilled;
-
-      return originalThen.call(this, wrappedOnFulfilled, onrejected) as Promise<
-        TResult1 | TResult2
-      >;
-    };
   } catch {
     /* ignore */
   }
