@@ -15,6 +15,7 @@ const sdkFlavor = requireCheck(SDK_IDENTITY_CHECKS, 'sdk-flavor');
 const sdkImportMethod = requireCheck(SDK_IDENTITY_CHECKS, 'sdk-import-method');
 const sdkBundleType = requireCheck(SDK_IDENTITY_CHECKS, 'sdk-bundle-type');
 const sdkAnalytics = requireCheck(SDK_IDENTITY_CHECKS, 'sdk-analytics');
+const sdkMultiInit = requireCheck(SDK_IDENTITY_CHECKS, 'sdk-multi-init');
 
 describe('sdk-detected', () => {
   it('returns info when AdyenWebMetadata is present', () => {
@@ -337,5 +338,32 @@ describe('sdk-analytics', () => {
     });
     const result = sdkAnalytics.run(payload);
     expect(result.severity).toBe('skip');
+  });
+});
+
+describe('sdk-multi-init', () => {
+  it('skips when init count is missing', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({ checkoutInitCount: undefined }),
+    });
+    const result = sdkMultiInit.run(payload);
+    expect(result.severity).toBe('skip');
+  });
+
+  it('passes when initialised once', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({ checkoutInitCount: 1 }),
+    });
+    const result = sdkMultiInit.run(payload);
+    expect(result.severity).toBe('pass');
+  });
+
+  it('warns when initialised multiple times', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({ checkoutInitCount: 2 }),
+    });
+    const result = sdkMultiInit.run(payload);
+    expect(result.severity).toBe('warn');
+    expect(result.title).toContain('(count: 2)');
   });
 });

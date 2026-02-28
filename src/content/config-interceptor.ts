@@ -356,9 +356,9 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
 
   function incrementInitCount(): void {
     try {
-      const count =
-        ((globalThis as PlainRecord)[CAPTURED_INIT_COUNT_KEY] as number | undefined) ?? 0;
-      (globalThis as PlainRecord)[CAPTURED_INIT_COUNT_KEY] = count + 1;
+      const count = (globalThis as PlainRecord)[CAPTURED_INIT_COUNT_KEY];
+      const nextCount = typeof count === 'number' ? count + 1 : 1;
+      (globalThis as PlainRecord)[CAPTURED_INIT_COUNT_KEY] = nextCount;
     } catch {
       /* ignore */
     }

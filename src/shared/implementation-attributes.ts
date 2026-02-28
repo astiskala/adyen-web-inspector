@@ -150,6 +150,10 @@ function detectRegionFromRequests(payload: ScanPayload): AdyenRegion {
     }
     const host = requestHost.toLowerCase();
 
+    if (!isAdyenApiRequest(req.url) && !isAdyenAnalyticsHost(host)) {
+      continue;
+    }
+
     const region = ENVIRONMENT_REGION_MAP[host];
     if (region !== undefined) {
       return region;

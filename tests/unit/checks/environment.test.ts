@@ -12,6 +12,7 @@ const envRegion = requireCheck(ENVIRONMENT_CHECKS, 'env-region');
 const envCdnMismatch = requireCheck(ENVIRONMENT_CHECKS, 'env-cdn-mismatch');
 const envKeyMismatch = requireCheck(ENVIRONMENT_CHECKS, 'env-key-mismatch');
 const envNotIframe = requireCheck(ENVIRONMENT_CHECKS, 'env-not-iframe');
+const envRegionMismatch = requireCheck(ENVIRONMENT_CHECKS, 'env-region-mismatch');
 
 describe('env-region', () => {
   it('skips region check in test environment', () => {
@@ -184,5 +185,45 @@ describe('env-not-iframe', () => {
       page: makePageExtract({ isInsideIframe: true }),
     });
     expect(envNotIframe.run(payload).severity).toBe('warn');
+  });
+});
+
+describe('env-region-mismatch', () => {
+  it('skips when no regional CDN requests', () => {
+    const payload = makeAdyenPayload(
+      {},
+      { environment: 'live-us' },
+      { capturedRequests: [makeRequest('https://checkoutshopper-live.cdn.adyen.com/sdk.js')] }
+    );
+    expect(envRegionMismatch.run(payload).severity).toBe('skip');
+  });
+
+  it('passes when CDN region matches configured region', () => {
+    const payload = makeAdyenPayload(
+      {},
+      { environment: 'live-us' },
+      { capturedRequests: [makeRequest('https://checkoutshopper-live-us.cdn.adyen.com/sdk.js')] }
+    );
+    expect(envRegionMismatch.run(payload).severity).toBe('pass');
+  });
+
+  it('warns when CDN region mismatches configured region', () => {
+    const payload = makeAdyenPayload(
+      {},
+      { environment: 'live-apse' },
+      { capturedRequests: [makeRequest('https://checkoutshopper-live-us.cdn.adyen.com/sdk.js')] }
+    );
+    const result = envRegionMismatch.run(payload);
+    expect(result.severity).toBe('warn');
+    expect(result.title).toContain('US vs APSE');
+  });
+
+  it('skips when configured region is unknown', () => {
+    const payload = makeAdyenPayload(
+      {},
+      { environment: 'live' },
+      { capturedRequests: [makeRequest('https://checkoutshopper-live-us.cdn.adyen.com/sdk.js')] }
+    );
+    expect(envRegionMismatch.run(payload).severity).toBe('skip');
   });
 });
