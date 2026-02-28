@@ -20,6 +20,8 @@ type GlobalWithAdyen = typeof globalThis & {
   __adyenWebInspectorCapturedConfig?: CheckoutConfig;
   /** Published by config-interceptor.ts (MAIN-world, document_start). */
   __adyenWebInspectorCapturedInferredConfig?: CheckoutConfig;
+  /** Published by config-interceptor.ts (MAIN-world, document_start). */
+  __adyenWebInspectorCheckoutInitCount?: number;
 };
 
 function extractMetadata(g: GlobalWithAdyen): AdyenWebMetadata | null {
@@ -119,6 +121,7 @@ function extract(): PageExtractResult {
     links: extractLinks(),
     iframes: extractIframes(),
     observedRequests: extractObservedRequests(),
+    checkoutInitCount: g.__adyenWebInspectorCheckoutInitCount,
     isInsideIframe: globalThis.self !== globalThis.top,
     pageUrl: globalThis.location.href,
     pageProtocol: globalThis.location.protocol,

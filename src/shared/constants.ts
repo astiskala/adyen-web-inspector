@@ -68,7 +68,7 @@ export const ORIGIN_KEY_PREFIX = 'pub.v2.';
 
 // ─── Environment URLs ─────────────────────────────────────────────────────────
 
-export type AdyenEnvironment = 'test' | 'live';
+export type AdyenEnvironment = 'test' | 'live' | 'live-in';
 export type AdyenRegion = 'APSE' | 'AU' | 'IN' | 'EU' | 'NEA' | 'US' | 'unknown';
 
 export const ENVIRONMENT_REGION_MAP: Record<string, AdyenRegion> = {

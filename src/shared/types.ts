@@ -28,12 +28,14 @@ export type CheckId =
   | 'sdk-import-method'
   | 'sdk-bundle-type'
   | 'sdk-analytics'
+  | 'sdk-multi-init'
   // Version & Lifecycle
   | 'version-detected'
   | 'version-latest'
   // Environment & Region
   | 'env-region'
   | 'env-cdn-mismatch'
+  | 'env-region-mismatch'
   | 'env-key-mismatch'
   | 'env-not-iframe'
   // Auth
@@ -50,6 +52,8 @@ export type CheckId =
   | 'callback-on-error'
   | 'callback-before-submit'
   | 'callback-actions-pattern'
+  | 'callback-multiple-submissions'
+  | 'callback-custom-pay-button-compatibility'
   // Risk
   | 'risk-df-iframe'
   | 'risk-module-not-disabled'
@@ -124,6 +128,8 @@ export interface AnalyticsData {
   readonly locale?: string;
   /** Session ID — presence indicates Sessions integration flow. */
   readonly sessionId?: string;
+  /** Payment method variants detected in analytics. */
+  readonly variants?: string[];
 }
 
 // ─── Page Extraction Result ───────────────────────────────────────────────────
@@ -163,6 +169,8 @@ export interface PageExtractResult {
   readonly iframes: IframeInfo[];
   /** Resource timing entries observed in the current document. */
   readonly observedRequests?: ObservedRequest[];
+  /** Number of times AdyenCheckout has been initialised. */
+  readonly checkoutInitCount?: number | undefined;
   readonly isInsideIframe: boolean;
   readonly pageUrl: string;
   readonly pageProtocol: string;
@@ -193,6 +201,8 @@ export interface CheckoutConfig {
   readonly beforeSubmit?: CallbackSource;
   /** Captured source of onSubmit as string for static analysis */
   readonly onSubmitSource?: string;
+  /** Captured source of beforeSubmit as string for static analysis */
+  readonly beforeSubmitSource?: string;
   /** True when a session object was detected in the checkout configuration (Sessions flow indicator). */
   readonly hasSession?: boolean;
 }

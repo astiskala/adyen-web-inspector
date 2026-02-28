@@ -106,8 +106,15 @@ function parseConfigEnvironment(environment: string | undefined): {
     return { env: null, region: 'unknown' };
   }
 
-  const env = match[1] as AdyenEnvironment;
-  const region = mapRegionToken(match[2]);
+  const envRaw = match[1];
+  const regionToken = match[2];
+
+  if (envRaw === 'live' && regionToken === 'in') {
+    return { env: 'live-in', region: 'IN' };
+  }
+
+  const env = envRaw as AdyenEnvironment;
+  const region = mapRegionToken(regionToken);
   return { env, region };
 }
 
@@ -157,7 +164,9 @@ function startsWithCheckoutLiveHostPrefix(host: string, prefix: string): boolean
 
 function detectEnvFromHost(host: string): AdyenEnvironment | null {
   if (KNOWN_ADYEN_ENV_HOSTS.has(host)) {
-    return host.includes('-test.') ? 'test' : 'live';
+    if (host.includes('-test.')) return 'test';
+    if (host.includes('-live-in.')) return 'live-in';
+    return 'live';
   }
   if (
     host.startsWith(CHECKOUTSHOPPER_TEST_HOST_PREFIX) ||
@@ -168,6 +177,7 @@ function detectEnvFromHost(host: string): AdyenEnvironment | null {
     startsWithCheckoutLiveHostPrefix(host, CHECKOUTSHOPPER_LIVE_HOST_PREFIX) ||
     startsWithCheckoutLiveHostPrefix(host, CHECKOUT_API_LIVE_HOST_PREFIX)
   ) {
+    if (host.includes('-in.') || host.includes('-in-')) return 'live-in';
     return 'live';
   }
   if (isAdyenHost(host)) {
@@ -368,6 +378,24 @@ export function detectIntegrationFlow(payload: ScanPayload): IntegrationFlow {
   }
   if (signals.hasCheckoutConfig) {
     return 'advanced';
+  }
+  return 'unknown';
+}
+
+/**
+ * Infers region from CDN requests (e.g. checkoutshopper-live-us.cdn.adyen.com).
+ */
+export function detectRegionFromCdnRequests(payload: ScanPayload): AdyenRegion {
+  for (const req of payload.capturedRequests) {
+    const host = extractHostname(req.url)?.toLowerCase() ?? '';
+    if (!isCheckoutshopperHost(host)) {
+      continue;
+    }
+
+    const match = /checkoutshopper-live-([a-z0-9]+)\./.exec(host);
+    if (match) {
+      return mapRegionToken(match[1]);
+    }
   }
   return 'unknown';
 }

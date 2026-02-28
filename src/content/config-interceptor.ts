@@ -22,6 +22,7 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
 (function configInterceptor(): void {
   const CAPTURED_CONFIG_KEY = '__adyenWebInspectorCapturedConfig';
   const CAPTURED_INFERRED_CONFIG_KEY = '__adyenWebInspectorCapturedInferredConfig';
+  const CAPTURED_INIT_COUNT_KEY = '__adyenWebInspectorCheckoutInitCount';
   const WRAPPED = '__awInspectorWrapped';
 
   type PlainRecord = Record<string, unknown>;
@@ -110,6 +111,14 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
     if (typeof r['onSubmit'] === 'function') {
       try {
         c['onSubmitSource'] = (r['onSubmit'] as () => void).toString().slice(0, 1200);
+      } catch {
+        /* ignore */
+      }
+    }
+
+    if (typeof r['beforeSubmit'] === 'function') {
+      try {
+        c['beforeSubmitSource'] = (r['beforeSubmit'] as () => void).toString().slice(0, 1200);
       } catch {
         /* ignore */
       }
@@ -345,11 +354,21 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
     return false;
   }
 
+  function incrementInitCount(): void {
+    try {
+      const count = ((globalThis as PlainRecord)[CAPTURED_INIT_COUNT_KEY] as number) ?? 0;
+      (globalThis as PlainRecord)[CAPTURED_INIT_COUNT_KEY] = count + 1;
+    } catch {
+      /* ignore */
+    }
+  }
+
   function wrapCheckoutFactory(original: SdkCallable): SdkCallable {
     if (isWrapped(original)) {
       return original;
     }
     const wrapped: SdkCallable = function (this: unknown, ...args: unknown[]): unknown {
+      incrementInitCount();
       captureConfig(args[0], 'checkout');
       const result = original.apply(this, args);
       if (result instanceof NativePromise) {

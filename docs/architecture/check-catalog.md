@@ -11,15 +11,15 @@ This catalog is the documentation source of truth for checks registered in:
 
 | Category            | Check count | Source modules                   |
 | ------------------- | ----------: | -------------------------------- |
-| `sdk-identity`      |           5 | `sdk-identity.ts`                |
+| `sdk-identity`      |           6 | `sdk-identity.ts`                |
 | `version-lifecycle` |           2 | `sdk-version.ts`                 |
-| `environment`       |           4 | `environment.ts`                 |
+| `environment`       |           5 | `environment.ts`                 |
 | `auth`              |           3 | `auth.ts`                        |
-| `callbacks`         |           9 | `callbacks.ts`                   |
+| `callbacks`         |          11 | `callbacks.ts`                   |
 | `risk`              |           2 | `risk-module.ts`                 |
 | `security`          |          13 | `security.ts`, `security-csp.ts` |
 | `third-party`       |           4 | `third-party-scripts.ts`         |
-| **Total**           |      **42** | `ALL_CHECKS`                     |
+| **Total**           |      **46** | `ALL_CHECKS`                     |
 
 ## Severity Model
 
@@ -39,9 +39,11 @@ This catalog is the documentation source of truth for checks registered in:
 | `sdk-identity`      | `sdk-import-method`              | Classify SDK loading method (`CDN`, `Adyen`, `NPM`).                                               | `info`                           |
 | `sdk-identity`      | `sdk-bundle-type`                | Assess bundle type (`auto` vs optimised/tree-shakable) for non-CDN integrations.                   | `pass`, `warn`, `skip`           |
 | `sdk-identity`      | `sdk-analytics`                  | Verify checkout analytics is not explicitly disabled (`analytics.enabled !== false`).              | `pass`, `warn`, `skip`           |
+| `sdk-identity`      | `sdk-multi-init`                 | Warn if `AdyenCheckout` is initialised multiple times.                                              | `pass`, `warn`, `skip`           |
 | `version-lifecycle` | `version-detected`               | Verify the inspector can determine the running `adyen-web` version.                                | `info`, `warn`                   |
 | `version-lifecycle` | `version-latest`                 | Compare detected version with latest npm version and classify version drift.                       | `pass`, `notice`, `warn`, `skip` |
 | `environment`       | `env-cdn-mismatch`               | Ensure CDN asset environment matches configured environment.                                       | `pass`, `fail`, `skip`           |
+| `environment`       | `env-region-mismatch`            | Ensure CDN asset region matches configured region.                                                 | `pass`, `warn`, `skip`           |
 | `environment`       | `env-region`                     | Determine region from config/network evidence (or unknown/test skip).                              | `info`, `skip`                   |
 | `environment`       | `env-key-mismatch`               | Ensure client key prefix environment aligns with observed API environment.                         | `pass`, `fail`, `skip`           |
 | `environment`       | `env-not-iframe`                 | Warn if checkout is embedded inside an iframe.                                                     | `pass`, `warn`                   |
@@ -57,6 +59,8 @@ This catalog is the documentation source of truth for checks registered in:
 | `callbacks`         | `callback-on-error`              | Verify technical error handler is present.                                                         | `pass`, `fail`, `skip`           |
 | `callbacks`         | `callback-before-submit`         | Detect optional `beforeSubmit` callback presence for custom pay-button setups.                     | `pass`, `info`, `skip`           |
 | `callbacks`         | `callback-actions-pattern`       | Detect v6 `actions.resolve/reject` vs legacy v5 callback style in `onSubmit`.                      | `pass`, `warn`, `info`, `skip`   |
+| `callbacks`         | `callback-multiple-submissions`  | Verify that `onSubmit` or `beforeSubmit` handling appears to prevent multiple submissions.         | `pass`, `notice`, `skip`         |
+| `callbacks`         | `callback-custom-pay-button-compatibility` | Detect custom pay button indicators with unsupported payment methods (PayPal, Klarna).   | `pass`, `warn`, `skip`           |
 | `risk`              | `risk-df-iframe`                 | Detect Adyen risk device-fingerprint iframe/activity.                                              | `pass`, `warn`                   |
 | `risk`              | `risk-module-not-disabled`       | Ensure `riskEnabled` is not explicitly set to `false`.                                             | `pass`, `warn`, `skip`           |
 | `security`          | `security-https`                 | Enforce HTTPS on live environments.                                                                | `pass`, `fail`, `skip`           |
