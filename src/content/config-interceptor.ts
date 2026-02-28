@@ -167,9 +167,7 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
     }
 
     try {
-      (globalThis as PlainRecord)[CAPTURED_CONFIG_KEY] = JSON.parse(
-        JSON.stringify(captured)
-      ) as PlainRecord;
+      (globalThis as PlainRecord)[CAPTURED_CONFIG_KEY] = structuredClone(captured) as PlainRecord;
     } catch {
       /* ignore serialization errors */
     }
@@ -437,6 +435,7 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
 
   if (!isWrapped(originalThen)) {
     try {
+      // NOSONAR: Prototype trap is necessary for bundled SDK interception
       void Object.defineProperty(Promise.prototype, 'then', {
         value: function <TResult1 = unknown, TResult2 = never>(
           this: Promise<unknown>,
