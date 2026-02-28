@@ -226,7 +226,7 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
         mergeAndPublishInferred({ countryCode });
       }
 
-      const translationMatch = u.pathname.match(/\/translations\/([^/]+)\.json$/);
+      const translationMatch = /\/translations\/([^/]+)\.json$/.exec(u.pathname);
       const localeFromUrl = translationMatch?.[1];
       if (typeof localeFromUrl === 'string' && localeFromUrl !== '') {
         mergeAndPublishInferred({ locale: localeFromUrl });
