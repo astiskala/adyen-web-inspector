@@ -161,7 +161,8 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
   function tryCaptureFromUrl(url: string): void {
     try {
       const u = new URL(url, globalThis.location.href);
-      if (!u.hostname.includes('adyen.com')) {
+      const isAdyenDomain = u.hostname === 'adyen.com' || u.hostname.endsWith('.adyen.com');
+      if (!isAdyenDomain) {
         return;
       }
 
