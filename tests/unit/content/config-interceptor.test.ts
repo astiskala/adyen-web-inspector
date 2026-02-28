@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 
 const CONFIG_KEY = '__adyenWebInspectorCapturedConfig';
-const INSTALLED_KEY = CONFIG_KEY + '__installed';
+const INSTALLED_KEY = `${CONFIG_KEY}__installed`;
 
 type CapturedConfig = Record<string, unknown>;
 type CheckoutFactory = (config: unknown) => Promise<unknown>;
@@ -18,10 +18,22 @@ function resetGlobals(): void {
   Reflect.deleteProperty(g, INSTALLED_KEY);
   Reflect.deleteProperty(g, 'AdyenCheckout');
   Reflect.deleteProperty(g, 'AdyenWeb');
+  // @ts-expect-error - testing environment cleanup
+  globalThis.fetch = undefined;
+  // @ts-expect-error - testing environment cleanup
+  globalThis.XMLHttpRequest = undefined;
 }
 
 async function loadInterceptor(): Promise<void> {
   vi.resetModules();
+  globalThis.fetch = vi.fn().mockResolvedValue({} as Response);
+
+  // Create a proper XHR mock
+  const openMock = vi.fn();
+  // @ts-expect-error - mock XHR
+  globalThis.XMLHttpRequest = function (): void {};
+  globalThis.XMLHttpRequest.prototype.open = openMock;
+
   await import('../../../src/content/config-interceptor.js');
 }
 
@@ -47,7 +59,7 @@ describe('config-interceptor', () => {
     resetGlobals();
   });
 
-  describe('factory promise resolution hook', () => {
+  describe('Global property traps', () => {
     it('captures full config from a resolved Adyen Core instance', async () => {
       const fakeCheckout = {
         create: (): void => {},
@@ -112,82 +124,6 @@ describe('config-interceptor', () => {
       expect(config?.['onError']).toBe('checkout');
     });
 
-    it('does not capture non-Adyen promise resolutions', async () => {
-      await Promise.resolve({ foo: 'bar' }).then((v) => v);
-      await Promise.resolve(42).then((v) => v);
-      await Promise.resolve('hello').then((v) => v);
-      await Promise.resolve(null).then((v) => v);
-      expect(getCapturedConfig()).toBeUndefined();
-    });
-
-    it('captures config from v6.31+ ESM instances (no create, has modules)', async () => {
-      const fakeCheckout = {
-        modules: {},
-        paymentMethodsResponse: {},
-        loadingContext: 'https://checkoutshopper-test.adyen.com/',
-        options: {
-          clientKey: 'test_ESM631',
-          environment: 'test',
-          countryCode: 'SG',
-          onPaymentCompleted: (): void => {},
-          onError: (): void => {},
-        },
-      };
-
-      installAdyenCheckoutFactory(async () => fakeCheckout);
-      await callAdyenCheckout({});
-
-      const config = getCapturedConfig();
-      expect(config).toBeDefined();
-      expect(config?.['clientKey']).toBe('test_ESM631');
-      expect(config?.['environment']).toBe('test');
-      expect(config?.['countryCode']).toBe('SG');
-      expect(config?.['onPaymentCompleted']).toBe('checkout');
-    });
-
-    it('does not capture plain config objects without instance markers', async () => {
-      installAdyenCheckoutFactory(async () => ({ options: { clientKey: 'test_NO' } }));
-      await callAdyenCheckout({});
-      expect(getCapturedConfig()).toBeUndefined();
-    });
-
-    it('does not capture objects without clientKey', async () => {
-      installAdyenCheckoutFactory(async () => ({
-        create: (): void => {},
-        options: { environment: 'test' },
-      }));
-      await callAdyenCheckout({});
-      expect(getCapturedConfig()).toBeUndefined();
-    });
-
-    it('preserves original then return values', async () => {
-      installAdyenCheckoutFactory(async () => 42);
-      const result = await callAdyenCheckout({}).then((v) => (v as number) * 2);
-      expect(result).toBe(84);
-    });
-
-    it('preserves chained promise behaviour', async () => {
-      installAdyenCheckoutFactory(async () => 1);
-      const result = await callAdyenCheckout({})
-        .then((v) => (v as number) + 1)
-        .then((v) => v * 3);
-      expect(result).toBe(6);
-    });
-
-    it('preserves rejection handling', async () => {
-      installAdyenCheckoutFactory(async () => {
-        throw new Error('test');
-      });
-      let caught = false;
-      await callAdyenCheckout({}).then(
-        () => {},
-        () => {
-          caught = true;
-        }
-      );
-      expect(caught).toBe(true);
-    });
-
     it('wraps create on the captured instance for component config', async () => {
       const fakeCheckout: Record<string, unknown> = {
         create: (_type: unknown, _cfg?: unknown) => ({}),
@@ -207,11 +143,57 @@ describe('config-interceptor', () => {
       expect(config?.['countryCode']).toBe('NL');
       expect(config?.['locale']).toBe('nl-NL');
     });
+  });
 
-    it('passes through when onFulfilled is null', async () => {
-      installAdyenCheckoutFactory(async () => 42);
-      const result = await callAdyenCheckout({}).then(null, null);
-      expect(result).toBe(42);
+  describe('Network interception', () => {
+    it('captures environment from fetch URL (live)', async () => {
+      await globalThis.fetch(
+        'https://checkoutshopper-live.adyen.com/checkoutshopper/v1/sdk-identity'
+      );
+      const config = getCapturedConfig();
+      expect(config?.['environment']).toBe('live');
+    });
+
+    it('captures environment from fetch URL (test)', async () => {
+      await globalThis.fetch(
+        'https://checkoutshopper-test.adyen.com/checkoutshopper/v1/sdk-identity'
+      );
+      const config = getCapturedConfig();
+      expect(config?.['environment']).toBe('test');
+    });
+
+    it('captures clientKey from fetch query parameters', async () => {
+      await globalThis.fetch(
+        'https://checkoutshopper-test.adyen.com/checkoutshopper/v1/sdk-identity?clientKey=test_NET123'
+      );
+      const config = getCapturedConfig();
+      expect(config?.['clientKey']).toBe('test_NET123');
+    });
+
+    it('captures from XMLHttpRequest.open', () => {
+      const xhr = new XMLHttpRequest();
+      xhr.open(
+        'GET',
+        'https://checkoutshopper-live.adyen.com/checkoutshopper/v1/sdk-identity?clientKey=live_XHR456'
+      );
+      const config = getCapturedConfig();
+      expect(config?.['environment']).toBe('live');
+      expect(config?.['clientKey']).toBe('live_XHR456');
+    });
+  });
+
+  describe('JSON.parse interception', () => {
+    it('captures config from a large bootstrap object', () => {
+      const raw = JSON.stringify({
+        clientKey: 'test_JSON789',
+        environment: 'test',
+        locale: 'en-GB',
+      });
+      JSON.parse(raw);
+      const config = getCapturedConfig();
+      expect(config?.['clientKey']).toBe('test_JSON789');
+      expect(config?.['environment']).toBe('test');
+      expect(config?.['locale']).toBe('en-GB');
     });
   });
 

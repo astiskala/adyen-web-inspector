@@ -1,24 +1,20 @@
 /**
  * MAIN-world config interceptor — injected at document_start before any page
- * scripts run.  It uses two complementary mechanisms to capture the Adyen Web
- * SDK (v6+) runtime configuration regardless of how the SDK was loaded:
+ * scripts run. It uses several complementary mechanisms to capture the Adyen Web
+ * SDK runtime configuration:
  *
- * 1. **Global property traps** — when the SDK is loaded via CDN and sets
- *    `window.AdyenCheckout` (UMD) or `window.AdyenWeb` (ESM), the factory /
- *    component constructors are transparently wrapped for early capture.
+ * 1. **Global property traps** — for UMD/ESM CDN loads that expose
+ *    `AdyenCheckout` or `AdyenWeb`.
  *
- * 2. **Factory promise resolution hook** — AdyenCheckout() returns a
- *    Promise<Core>. Wrapped factory calls attach a non-intrusive
- *    `.then()` observer that inspects the resolved instance shape and
- *    extracts full configuration.
+ * 2. **Network interception (fetch/XHR)** — for all integrations (including
+ *    bundled/NPM), we intercept SDK initialization requests to extract
+ *    configuration fields like clientKey and environment.
+ *
+ * 3. **JSON bootstrapping** — we intercept JSON.parse to find large objects
+ *    that look like Adyen configurations.
  *
  * The captured config is published on a well-known global for the
  * page-extractor to read.
- *
- * Design constraints:
- * - Must be completely self-contained (no runtime imports).
- * - Must not break the SDK or any merchant code.
- * - Must be idempotent — multiple injections are harmless.
  */
 
 import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
@@ -28,8 +24,6 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
   const WRAPPED = '__awInspectorWrapped';
 
   type PlainRecord = Record<string, unknown>;
-
-  /** Broad callable — we wrap arbitrary SDK exports whose shape is unknown. */
   type SdkCallable = (this: unknown, ...args: unknown[]) => unknown;
 
   const CALLBACK_KEYS = [
@@ -42,53 +36,46 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
   ] as const;
   const STRING_CONFIG_KEYS = ['clientKey', 'environment', 'locale', 'countryCode'] as const;
 
-  // Bail out if already injected (e.g. extension reinstall without full reload).
   if ((globalThis as PlainRecord)[CAPTURED_CONFIG_KEY + '__installed'] === true) {
     return;
   }
   (globalThis as PlainRecord)[CAPTURED_CONFIG_KEY + '__installed'] = true;
 
   // ---------------------------------------------------------------------------
-  // Lightweight config normalisation
+  // Configuration extraction
   // ---------------------------------------------------------------------------
 
   function hasCallback(value: unknown): boolean {
     return typeof value === 'boolean' ? value : typeof value === 'function';
   }
 
-  function copyStringConfigFields(source: PlainRecord, target: PlainRecord): void {
+  function copyStringFields(source: PlainRecord, target: PlainRecord): void {
     for (const key of STRING_CONFIG_KEYS) {
-      const value = source[key];
-      if (typeof value === 'string') {
-        target[key] = value;
+      if (typeof source[key] === 'string') {
+        target[key] = source[key];
       }
     }
   }
 
-  function copyRiskEnabledField(source: PlainRecord, target: PlainRecord): void {
-    const riskEnabled = source['riskEnabled'];
-    if (typeof riskEnabled === 'boolean') {
-      target['riskEnabled'] = riskEnabled;
-      return;
-    }
-    if (typeof riskEnabled === 'function') {
+  function copyRiskFields(source: PlainRecord, target: PlainRecord): void {
+    const risk = source['riskEnabled'];
+    if (typeof risk === 'boolean') {
+      target['riskEnabled'] = risk;
+    } else if (typeof risk === 'function') {
       target['riskEnabled'] = true;
     }
   }
 
-  function copyAnalyticsEnabledField(source: PlainRecord, target: PlainRecord): void {
-    const analytics = source['analytics'];
-    if (typeof analytics !== 'object' || analytics === null) {
-      return;
-    }
-
-    const enabled = (analytics as PlainRecord)['enabled'];
-    if (typeof enabled === 'boolean') {
-      target['analyticsEnabled'] = enabled;
+  function copyAnalyticsFields(source: PlainRecord, target: PlainRecord): void {
+    if (typeof source['analytics'] === 'object' && source['analytics'] !== null) {
+      const enabled = (source['analytics'] as PlainRecord)['enabled'];
+      if (typeof enabled === 'boolean') {
+        target['analyticsEnabled'] = enabled;
+      }
     }
   }
 
-  function copySessionFlag(source: PlainRecord, target: PlainRecord): void {
+  function copySessionFields(source: PlainRecord, target: PlainRecord): void {
     if (
       source['session'] !== null &&
       source['session'] !== undefined &&
@@ -98,57 +85,49 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
     }
   }
 
-  function copyCallbackSources(
-    sourceRecord: PlainRecord,
-    target: PlainRecord,
-    source: CallbackSource
-  ): void {
-    for (const key of CALLBACK_KEYS) {
-      if (hasCallback(sourceRecord[key])) {
-        target[key] = source;
-      }
-    }
-  }
-
-  function copyOnSubmitSource(source: PlainRecord, target: PlainRecord): void {
-    const onSubmit = source['onSubmit'];
-    if (typeof onSubmit !== 'function') {
-      return;
-    }
-
-    try {
-      target['onSubmitSource'] = (onSubmit as () => void).toString().slice(0, 1200);
-    } catch {
-      /* toString may throw on bound/proxy functions */
-    }
-  }
-
   function extractFields(raw: unknown, source: CallbackSource): Partial<CheckoutConfig> | null {
-    if (raw === null || typeof raw !== 'object') return null;
+    if (raw === null || typeof raw !== 'object') {
+      return null;
+    }
     const r = raw as PlainRecord;
     const c: PlainRecord = {};
 
-    copyStringConfigFields(r, c);
-    copyRiskEnabledField(r, c);
-    copyAnalyticsEnabledField(r, c);
-    copySessionFlag(r, c);
-    copyCallbackSources(r, c, source);
-    copyOnSubmitSource(r, c);
+    copyStringFields(r, c);
+    copyRiskFields(r, c);
+    copyAnalyticsFields(r, c);
+    copySessionFields(r, c);
+
+    for (const key of CALLBACK_KEYS) {
+      if (hasCallback(r[key])) {
+        c[key] = source;
+      }
+    }
+
+    if (typeof r['onSubmit'] === 'function') {
+      try {
+        c['onSubmitSource'] = (r['onSubmit'] as () => void).toString().slice(0, 1200);
+      } catch {
+        /* ignore */
+      }
+    }
 
     return Object.keys(c).length > 0 ? (c as Partial<CheckoutConfig>) : null;
   }
 
   // ---------------------------------------------------------------------------
-  // Merge & publish
+  // Merging & Publishing
   // ---------------------------------------------------------------------------
 
   let captured: Partial<CheckoutConfig> | null = null;
 
   function mergeAndPublish(incoming: Partial<CheckoutConfig> | null): void {
-    if (!incoming) return;
+    if (incoming === null) {
+      return;
+    }
 
-    if (captured) {
-      // Never downgrade a callback from 'checkout' to 'component'.
+    if (captured === null) {
+      captured = incoming;
+    } else {
       const safe = Object.fromEntries(
         Object.entries(incoming).filter(([k]) => {
           const isProtected =
@@ -158,19 +137,101 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
         })
       ) as Partial<CheckoutConfig>;
       captured = { ...captured, ...safe };
-    } else {
-      captured = incoming;
     }
 
-    (globalThis as PlainRecord)[CAPTURED_CONFIG_KEY] = structuredClone(captured);
+    try {
+      (globalThis as PlainRecord)[CAPTURED_CONFIG_KEY] = structuredClone(captured) as PlainRecord;
+    } catch {
+      /* ignore */
+    }
   }
 
   function captureConfig(raw: unknown, source: CallbackSource): void {
-    mergeAndPublish(extractFields(raw, source));
+    try {
+      mergeAndPublish(extractFields(raw, source));
+    } catch {
+      /* ignore */
+    }
   }
 
   // ---------------------------------------------------------------------------
-  // Wrapping helpers
+  // Discovery via Network & JSON
+  // ---------------------------------------------------------------------------
+
+  function tryCaptureFromUrl(url: string): void {
+    try {
+      const u = new URL(url, globalThis.location.href);
+      const isAdyenDomain = u.hostname === 'adyen.com' || u.hostname.endsWith('.adyen.com');
+      if (!isAdyenDomain) {
+        return;
+      }
+
+      const environmentMap: Record<string, string> = {
+        'live.adyen.com': 'live',
+        'test.adyen.com': 'test',
+      };
+
+      for (const [domain, env] of Object.entries(environmentMap)) {
+        if (u.hostname.endsWith(domain)) {
+          mergeAndPublish({ environment: env });
+          break;
+        }
+      }
+
+      const clientKey = u.searchParams.get('clientKey');
+      if (clientKey !== null && clientKey !== '') {
+        mergeAndPublish({ clientKey });
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const originalParse = JSON.parse;
+  JSON.parse = function (
+    text: string,
+    reviver?: (this: unknown, key: string, value: unknown) => unknown
+  ): unknown {
+    const result = originalParse.call(JSON, text, reviver) as unknown;
+    if (result !== null && typeof result === 'object') {
+      captureConfig(result, 'checkout');
+    }
+    return result;
+  };
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = function (input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+    if (typeof input === 'string') {
+      tryCaptureFromUrl(input);
+    } else if (input instanceof URL) {
+      tryCaptureFromUrl(input.toString());
+    } else if (input instanceof Request) {
+      tryCaptureFromUrl(input.url);
+    }
+
+    return originalFetch.call(globalThis, input, init);
+  };
+
+  const originalOpen = XMLHttpRequest.prototype.open;
+  XMLHttpRequest.prototype.open = function (
+    this: XMLHttpRequest,
+    method: string,
+    url: string | URL,
+    ...args: unknown[]
+  ): void {
+    const u = typeof url === 'string' ? url : url.toString();
+    tryCaptureFromUrl(u);
+
+    try {
+      const openArgs = [method, url, ...args] as [string, string | URL, boolean, string?, string?];
+      return originalOpen.apply(this, openArgs);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  // ---------------------------------------------------------------------------
+  // Global Property Traps (UMD/ESM)
   // ---------------------------------------------------------------------------
 
   function isWrapped(fn: unknown): boolean {
@@ -181,208 +242,138 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
     try {
       (fn as unknown as PlainRecord)[WRAPPED] = true;
     } catch {
-      /* frozen or non-extensible */
+      /* ignore */
     }
   }
 
-  /** Copy static own properties (except built-ins) from original → wrapped. */
   function copyStatics(original: SdkCallable, wrapped: SdkCallable): void {
     for (const key of Object.getOwnPropertyNames(original)) {
-      if (
-        key === 'prototype' ||
-        key === 'length' ||
-        key === 'name' ||
-        key === 'arguments' ||
-        key === 'caller'
-      ) {
+      if (['prototype', 'length', 'name', 'arguments', 'caller'].includes(key)) {
         continue;
       }
       try {
         const desc = Object.getOwnPropertyDescriptor(original, key);
-        if (desc) Object.defineProperty(wrapped, key, desc);
+        if (desc !== undefined) {
+          Object.defineProperty(wrapped, key, desc);
+        }
       } catch {
-        /* non-configurable */
+        /* ignore */
       }
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // Wrap the AdyenCheckout async factory (v6+)
-  // ---------------------------------------------------------------------------
+  function wrapInstanceCreate(i: PlainRecord): void {
+    const create = i['create'];
+    if (typeof create === 'function' && !isWrapped(create)) {
+      const origCreate = create as SdkCallable;
+      const wrappedCreate = function (this: unknown, ...cArgs: unknown[]): unknown {
+        if (cArgs.length > 1) {
+          captureConfig(cArgs[1], 'component');
+        }
+        return origCreate.apply(this, cArgs);
+      };
+      markWrapped(wrappedCreate);
+      i['create'] = wrappedCreate;
+    }
+  }
 
   function wrapCheckoutFactory(original: SdkCallable): SdkCallable {
-    if (isWrapped(original)) return original;
-
+    if (isWrapped(original)) {
+      return original;
+    }
     const wrapped: SdkCallable = function (this: unknown, ...args: unknown[]): unknown {
-      // Capture the raw config eagerly — acts as a safety net if the SDK
-      // promise rejects before the resolution hook can fire.
       captureConfig(args[0], 'checkout');
       const result = original.apply(this, args);
-      observeCheckoutFactoryResult(result);
+      if (result instanceof Promise) {
+        void result.then((inst: unknown) => {
+          if (inst !== null && typeof inst === 'object') {
+            const i = inst as PlainRecord;
+            const opts = i['options'] ?? i['_options'];
+            if (opts !== undefined && opts !== null) {
+              captureConfig(opts, 'checkout');
+            }
+            wrapInstanceCreate(i);
+          }
+          return inst;
+        });
+      }
       return result;
     };
-
     markWrapped(wrapped);
     copyStatics(original, wrapped);
     return wrapped;
   }
 
-  function captureInstanceConfig(instance: unknown): void {
-    if (instance !== null && instance !== undefined && typeof instance === 'object') {
-      const inst = instance as PlainRecord;
-      captureConfig(inst['options'] ?? inst['_options'], 'checkout');
-      wrapInstanceCreate(inst);
-    }
-  }
-
-  /**
-   * Returns true when `value` looks like an Adyen Web Core / Checkout
-   * instance produced by `await AdyenCheckout(config)`.
-   *
-   * Shape check — requires BOTH:
-   *  1. `.options.clientKey` or `._options.clientKey` is a string
-   *  2. At least one distinctive Core-instance property is present:
-   *     `modules`, `paymentMethodsResponse`, `loadingContext`,
-   *     `createFromAction`, or `create`.
-   */
-  function looksLikeCheckoutInstance(value: unknown): boolean {
-    if (value === null || typeof value !== 'object') return false;
-    const v = value as PlainRecord;
-
-    const opts = v['options'] ?? v['_options'];
-    if (
-      opts === null ||
-      opts === undefined ||
-      typeof opts !== 'object' ||
-      typeof (opts as PlainRecord)['clientKey'] !== 'string'
-    ) {
-      return false;
-    }
-
-    return (
-      'modules' in v ||
-      'paymentMethodsResponse' in v ||
-      'loadingContext' in v ||
-      'createFromAction' in v ||
-      typeof v['create'] === 'function'
-    );
-  }
-
-  function observeCheckoutFactoryResult(result: unknown): void {
-    if (!(result instanceof Promise)) {
-      return;
-    }
-
-    result
-      .then((value: unknown) => {
-        if (looksLikeCheckoutInstance(value)) {
-          captureInstanceConfig(value);
-        }
-      })
-      .catch(() => {
-        // Never break merchant promise chains if capture logic fails.
-      });
-  }
-
-  /** Wrap `checkout.create()` so component-level config is also captured. */
-  function wrapInstanceCreate(inst: PlainRecord | null): void {
-    if (!inst) return;
-    const originalCreate = inst['create'];
-    if (typeof originalCreate !== 'function' || isWrapped(originalCreate)) return;
-
-    const wrappedCreate = function (this: unknown, ...args: unknown[]): unknown {
-      // checkout.create('card', componentConfig)
-      if (args.length > 1) captureConfig(args[1], 'component');
-      return originalCreate.apply(this, args);
-    };
-
-    markWrapped(wrappedCreate);
-    inst['create'] = wrappedCreate;
-  }
-
-  // ---------------------------------------------------------------------------
-  // Wrap component constructors (Card, Dropin, etc.)
-  // ---------------------------------------------------------------------------
-
   function wrapComponentConstructor(original: SdkCallable): SdkCallable {
-    if (isWrapped(original)) return original;
-
+    if (isWrapped(original)) {
+      return original;
+    }
     const wrapped: SdkCallable = function (this: unknown, ...args: unknown[]): unknown {
-      // Component pattern: new Component(checkout, config)
-      if (args.length > 1) captureConfig(args[1], 'component');
-
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- new.target is runtime-only; TS types it as always-undefined
+      if (args.length > 1) {
+        captureConfig(args[1], 'component');
+      }
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
       if (new.target === undefined) {
         return original.apply(this, args);
       }
       return Reflect.construct(original, args, original) as unknown;
     };
-
     markWrapped(wrapped);
-    (wrapped as unknown as PlainRecord)['prototype'] = (original as unknown as PlainRecord)[
-      'prototype'
-    ];
+    try {
+      const orig = original as unknown as { prototype: unknown };
+      const wrap = wrapped as unknown as { prototype: unknown };
+      wrap.prototype = orig.prototype;
+    } catch {
+      /* ignore */
+    }
     copyStatics(original, wrapped);
     return wrapped;
   }
 
-  /** Walk all exports on the AdyenWeb namespace and wrap known patterns. */
-  function instrumentAdyenWeb(ns: PlainRecord): void {
-    for (const key of Object.keys(ns)) {
-      const prop = ns[key];
-      if (typeof prop !== 'function' || isWrapped(prop)) continue;
-
-      if (key === 'AdyenCheckout') {
-        ns[key] = wrapCheckoutFactory(prop as SdkCallable);
-      } else {
-        // Every other exported function is assumed to be a component
-        // constructor (Card, Dropin, GooglePay, …).
-        ns[key] = wrapComponentConstructor(prop as SdkCallable);
-      }
-    }
-  }
-
-  // ---------------------------------------------------------------------------
-  // Install global property intercepts
-  // ---------------------------------------------------------------------------
-
-  // --- window.AdyenCheckout (SDK v6+ UMD) ---
   let storedAdyenCheckout: unknown;
   try {
     Object.defineProperty(globalThis, 'AdyenCheckout', {
       get() {
         return storedAdyenCheckout;
       },
-      set(value: unknown) {
+      set(v: unknown) {
         storedAdyenCheckout =
-          typeof value === 'function' && !isWrapped(value)
-            ? wrapCheckoutFactory(value as SdkCallable)
-            : value;
+          typeof v === 'function' && !isWrapped(v) ? wrapCheckoutFactory(v as SdkCallable) : v;
       },
       configurable: true,
       enumerable: true,
     });
   } catch {
-    /* property may already be non-configurable */
+    /* ignore */
   }
 
-  // --- window.AdyenWeb (SDK v6+ ESM) ---
   let storedAdyenWeb: unknown;
   try {
     Object.defineProperty(globalThis, 'AdyenWeb', {
       get() {
         return storedAdyenWeb;
       },
-      set(value: unknown) {
-        if (value !== null && value !== undefined && typeof value === 'object') {
-          instrumentAdyenWeb(value as PlainRecord);
+      set(v: unknown) {
+        if (v !== null && typeof v === 'object') {
+          const ns = v as PlainRecord;
+          for (const key of Object.keys(ns)) {
+            const val = ns[key];
+            if (typeof val === 'function' && !isWrapped(val)) {
+              ns[key] =
+                key === 'AdyenCheckout'
+                  ? wrapCheckoutFactory(val as SdkCallable)
+                  : wrapComponentConstructor(val as SdkCallable);
+            }
+          }
         }
-        storedAdyenWeb = value;
+        storedAdyenWeb = v;
       },
       configurable: true,
       enumerable: true,
     });
   } catch {
-    /* property may already be non-configurable */
+    /* ignore */
   }
+
+  (globalThis as PlainRecord)[CAPTURED_CONFIG_KEY + '__ready'] = true;
 })();
