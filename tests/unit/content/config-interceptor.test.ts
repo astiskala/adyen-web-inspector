@@ -151,6 +151,24 @@ describe('config-interceptor', () => {
       expect(config?.['countryCode']).toBe('NL');
       expect(config?.['locale']).toBe('nl-NL');
     });
+
+    it('captures config via global Promise.prototype.then interception', async () => {
+      const fakeCheckout = {
+        create: (): void => {},
+        options: {
+          clientKey: 'test_AGGRESSIVE',
+          environment: 'test',
+        },
+      };
+
+      // Simulate a promise resolving to an Adyen instance, e.g. from a bundled SDK
+      const p = Promise.resolve(fakeCheckout);
+      await p.then((val) => val);
+
+      const config = getCapturedConfig();
+      expect(config).toBeDefined();
+      expect(config?.['clientKey']).toBe('test_AGGRESSIVE');
+    });
   });
 
   describe('Network interception', () => {
@@ -188,6 +206,14 @@ describe('config-interceptor', () => {
       );
       const config = getCapturedInferredConfig();
       expect(config?.['clientKey']).toBe('test_NET123');
+    });
+
+    it('captures locale from translation file URL', async () => {
+      await globalThis.fetch(
+        'https://checkoutshopper-live-in.cdn.adyen.com/checkoutshopper/sdk/6.30.0/translations/en-US.json'
+      );
+      const config = getCapturedInferredConfig();
+      expect(config?.['locale']).toBe('en-US');
     });
 
     it('captures from XMLHttpRequest.open', () => {

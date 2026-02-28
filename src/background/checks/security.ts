@@ -97,8 +97,7 @@ function hasMissingSriAttributes(resource: SriAttributableResource): boolean {
 
 export const SECURITY_CHECKS = createRegistry(CATEGORY)
   .add('security-https', (payload, { pass, fail, skip }) => {
-    const env = resolveEnvironment(payload).env;
-    const isLive = env === 'live' || env === 'live-in';
+    const isLive = resolveEnvironment(payload).env === 'live';
     if (!isLive) {
       return skip(STRINGS.HTTPS_SKIP_TITLE, STRINGS.HTTPS_SKIP_REASON);
     }

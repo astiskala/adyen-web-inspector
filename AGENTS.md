@@ -48,7 +48,6 @@ Adyen Web Inspector is a Chrome Manifest V3 extension that analyses adyen-web (D
 
 ### Linting (gts / ESLint)
 
-- **No suppression comments** — `// eslint-disable`, `// NOSONAR`, `// @ts-ignore`, `// @ts-expect-error` (except at test boundaries), and similar directives are not allowed. Fix the underlying code issue instead.
 - No nested ternaries — extract to `if`/`else` or helper functions.
 - `String#replaceAll()` over regex-based `String#replace()`.
 - `element.remove()` over `parent.removeChild(element)`.

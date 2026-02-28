@@ -121,7 +121,9 @@ function extract(): PageExtractResult {
     links: extractLinks(),
     iframes: extractIframes(),
     observedRequests: extractObservedRequests(),
-    checkoutInitCount: g.__adyenWebInspectorCheckoutInitCount,
+    ...(typeof g.__adyenWebInspectorCheckoutInitCount === 'number'
+      ? { checkoutInitCount: g.__adyenWebInspectorCheckoutInitCount }
+      : {}),
     isInsideIframe: globalThis.self !== globalThis.top,
     pageUrl: globalThis.location.href,
     pageProtocol: globalThis.location.protocol,

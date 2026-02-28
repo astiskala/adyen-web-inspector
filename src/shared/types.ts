@@ -170,7 +170,7 @@ export interface PageExtractResult {
   /** Resource timing entries observed in the current document. */
   readonly observedRequests?: ObservedRequest[];
   /** Number of times AdyenCheckout has been initialised. */
-  readonly checkoutInitCount?: number | undefined;
+  readonly checkoutInitCount?: number;
   readonly isInsideIframe: boolean;
   readonly pageUrl: string;
   readonly pageProtocol: string;

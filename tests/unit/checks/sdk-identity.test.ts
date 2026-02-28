@@ -76,6 +76,16 @@ describe('sdk-bundle-type', () => {
     expect(result.severity).toBe('skip');
   });
 
+  it('returns warn for auto bundle', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({
+        adyenMetadata: makeAdyenMetadata({ bundleType: 'auto' }),
+      }),
+    });
+    const result = sdkBundleType.run(payload);
+    expect(result.severity).toBe('warn');
+  });
+
   it('returns pass for esm bundle', () => {
     const payload = makeScanPayload({
       page: makePageExtract({
@@ -93,6 +103,14 @@ describe('sdk-bundle-type', () => {
     const result = sdkBundleType.run(payload);
     expect(result.severity).toBe('pass');
     expect(result.title).toContain('eslegacy');
+  });
+
+  it('returns warn when analytics reports auto buildType (no metadata)', () => {
+    const payload = makeScanPayload({
+      analyticsData: makeAnalyticsData({ buildType: 'auto' }),
+    });
+    const result = sdkBundleType.run(payload);
+    expect(result.severity).toBe('warn');
   });
 
   it('prefers metadata bundleType over analytics buildType', () => {
@@ -344,7 +362,7 @@ describe('sdk-analytics', () => {
 describe('sdk-multi-init', () => {
   it('skips when init count is missing', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({ checkoutInitCount: undefined }),
+      page: makePageExtract(), // checkoutInitCount is omitted
     });
     const result = sdkMultiInit.run(payload);
     expect(result.severity).toBe('skip');

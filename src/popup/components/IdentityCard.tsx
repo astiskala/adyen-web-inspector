@@ -14,7 +14,7 @@ const s = (key: string): string => styles[key] ?? '';
 
 function envBadgeClass(env: string): string {
   if (env === 'test') return s('badgeTest');
-  if (env === 'live' || env === 'live-in') return s('badgeLive');
+  if (env === 'live') return s('badgeLive');
   return s('badgeUnknown');
 }
 
