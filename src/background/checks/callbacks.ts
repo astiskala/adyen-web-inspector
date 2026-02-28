@@ -194,6 +194,7 @@ function runAdvancedRequiredCallbackCheck(
   { pass, fail, skip, warn }: CheckContext
 ): CheckOutcome {
   const config = payload.page.checkoutConfig;
+
   if (!config) {
     return skip(`${options.label} check skipped.`, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
   }
@@ -238,6 +239,7 @@ function runFlowSensitiveOutcomeCallbackCheck(
   { pass, fail, skip, warn }: CheckContext
 ): CheckOutcome {
   const config = payload.page.checkoutConfig;
+
   if (!config) {
     return skip(`${options.label} check skipped.`, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
   }
@@ -567,6 +569,7 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
   })
   .add('callback-on-error', (payload, { pass, fail, skip, warn }) => {
     const config = payload.page.checkoutConfig;
+
     if (!config) {
       return skip(STRINGS.ON_ERROR_SKIP_TITLE, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
     }

@@ -326,15 +326,28 @@ function buildNetworkHtml(result: ScanResult): string {
 
 function buildRawConfigHtml(result: ScanResult): string {
   const config = result.payload.page.checkoutConfig;
+  const inferred = result.payload.page.inferredConfig;
   const metadata = result.payload.page.adyenMetadata;
+
   const configText = config ? JSON.stringify(config, null, 2) : 'No config captured.';
+  const inferredText = inferred
+    ? JSON.stringify(inferred, null, 2)
+    : 'No inferred config captured.';
   const metaText = JSON.stringify(metadata ?? null, null, 2);
 
   return `
     <h3 style="font-size:12px;margin:12px 0 6px">Raw Checkout Config</h3>
-    <pre style="font-family:monospace;font-size:11px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:4px;padding:10px;white-space:pre-wrap;word-break:break-all;overflow:auto;max-height:400px">${escapeHtml(configText)}</pre>
+    <pre style="font-family:monospace;font-size:11px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:4px;padding:10px;white-space:pre-wrap;word-break:break-all;overflow:auto;max-height:400px">${escapeHtml(
+      configText
+    )}</pre>
+    <h3 style="font-size:12px;margin:12px 0 6px">Inferred Checkout Config (Network)</h3>
+    <pre style="font-family:monospace;font-size:11px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:4px;padding:10px;white-space:pre-wrap;word-break:break-all;overflow:auto;max-height:400px">${escapeHtml(
+      inferredText
+    )}</pre>
     <h3 style="font-size:12px;margin:12px 0 6px">SDK Metadata</h3>
-    <pre style="font-family:monospace;font-size:11px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:4px;padding:10px;white-space:pre-wrap;word-break:break-all;overflow:auto;max-height:400px">${escapeHtml(metaText)}</pre>
+    <pre style="font-family:monospace;font-size:11px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:4px;padding:10px;white-space:pre-wrap;word-break:break-all;overflow:auto;max-height:400px">${escapeHtml(
+      metaText
+    )}</pre>
   `;
 }
 

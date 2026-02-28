@@ -21,6 +21,7 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
 
 (function configInterceptor(): void {
   const CAPTURED_CONFIG_KEY = '__adyenWebInspectorCapturedConfig';
+  const CAPTURED_INFERRED_CONFIG_KEY = '__adyenWebInspectorCapturedInferredConfig';
   const WRAPPED = '__awInspectorWrapped';
 
   type PlainRecord = Record<string, unknown>;
@@ -35,6 +36,7 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
     'beforeSubmit',
   ] as const;
   const STRING_CONFIG_KEYS = ['clientKey', 'environment', 'locale', 'countryCode'] as const;
+  const ADYEN_INSTANCE_MARKER = '__adyenInstance';
 
   if ((globalThis as PlainRecord)[CAPTURED_CONFIG_KEY + '__installed'] === true) {
     return;
@@ -119,6 +121,7 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
   // ---------------------------------------------------------------------------
 
   let captured: Partial<CheckoutConfig> | null = null;
+  let inferred: Partial<CheckoutConfig> | null = null;
 
   function mergeAndPublish(incoming: Partial<CheckoutConfig> | null): void {
     if (incoming === null) {
@@ -146,6 +149,26 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
     }
   }
 
+  function mergeAndPublishInferred(incoming: Partial<CheckoutConfig> | null): void {
+    if (incoming === null) {
+      return;
+    }
+
+    if (inferred === null) {
+      inferred = incoming;
+    } else {
+      inferred = { ...inferred, ...incoming };
+    }
+
+    try {
+      (globalThis as PlainRecord)[CAPTURED_INFERRED_CONFIG_KEY] = structuredClone(
+        inferred
+      ) as PlainRecord;
+    } catch {
+      /* ignore */
+    }
+  }
+
   function captureConfig(raw: unknown, source: CallbackSource): void {
     try {
       mergeAndPublish(extractFields(raw, source));
@@ -161,26 +184,37 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
   function tryCaptureFromUrl(url: string): void {
     try {
       const u = new URL(url, globalThis.location.href);
-      const isAdyenDomain = u.hostname === 'adyen.com' || u.hostname.endsWith('.adyen.com');
+      const isAdyenDomain =
+        u.hostname === 'adyen.com' ||
+        u.hostname.endsWith('.adyen.com') ||
+        u.hostname === 'adyenpayments.com' ||
+        u.hostname.endsWith('.adyenpayments.com');
       if (!isAdyenDomain) {
         return;
       }
 
-      const environmentMap: Record<string, string> = {
-        'live.adyen.com': 'live',
-        'test.adyen.com': 'test',
-      };
+      const liveMatch = u.hostname.match(/(?:^|\.|-)(live(?:-[a-z]{2,4})?)(?:\.|$)/);
+      const testMatch = u.hostname.match(/(?:^|\.|-)(test)(?:\.|$)/);
 
-      for (const [domain, env] of Object.entries(environmentMap)) {
-        if (u.hostname.endsWith(domain)) {
-          mergeAndPublish({ environment: env });
-          break;
-        }
+      if (liveMatch !== null) {
+        mergeAndPublishInferred({ environment: liveMatch[1] as string });
+      } else if (testMatch !== null) {
+        mergeAndPublishInferred({ environment: 'test' });
       }
 
       const clientKey = u.searchParams.get('clientKey');
       if (clientKey !== null && clientKey !== '') {
-        mergeAndPublish({ clientKey });
+        mergeAndPublishInferred({ clientKey });
+      }
+
+      const locale = u.searchParams.get('locale');
+      if (locale !== null && locale !== '') {
+        mergeAndPublishInferred({ locale });
+      }
+
+      const countryCode = u.searchParams.get('countryCode');
+      if (countryCode !== null && countryCode !== '') {
+        mergeAndPublishInferred({ countryCode });
       }
     } catch {
       /* ignore */
@@ -277,6 +311,35 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
     }
   }
 
+  function tryCaptureFromInstance(inst: unknown): boolean {
+    if (inst === null || typeof inst !== 'object') {
+      return false;
+    }
+
+    const i = inst as PlainRecord;
+    // Heuristic: looks like an Adyen Checkout instance
+    const hasCreate = typeof i['create'] === 'function';
+    const opts = i['options'] ?? i['_options'];
+    const hasOptions = opts !== undefined && opts !== null && typeof opts === 'object';
+
+    if (hasCreate && hasOptions) {
+      if (i[ADYEN_INSTANCE_MARKER] === true) {
+        return true;
+      }
+      try {
+        i[ADYEN_INSTANCE_MARKER] = true;
+      } catch {
+        /* ignore */
+      }
+
+      captureConfig(opts, 'checkout');
+      wrapInstanceCreate(i);
+      return true;
+    }
+
+    return false;
+  }
+
   function wrapCheckoutFactory(original: SdkCallable): SdkCallable {
     if (isWrapped(original)) {
       return original;
@@ -285,17 +348,12 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
       captureConfig(args[0], 'checkout');
       const result = original.apply(this, args);
       if (result instanceof Promise) {
-        void result.then((inst: unknown) => {
-          if (inst !== null && typeof inst === 'object') {
-            const i = inst as PlainRecord;
-            const opts = i['options'] ?? i['_options'];
-            if (opts !== undefined && opts !== null) {
-              captureConfig(opts, 'checkout');
-            }
-            wrapInstanceCreate(i);
-          }
-          return inst;
-        });
+        void result
+          .then((inst: unknown) => {
+            tryCaptureFromInstance(inst);
+            return inst;
+          })
+          .catch(() => {});
       }
       return result;
     };
@@ -371,6 +429,41 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
       configurable: true,
       enumerable: true,
     });
+  } catch {
+    /* ignore */
+  }
+
+  // ---------------------------------------------------------------------------
+  // Promise.prototype.then Interception (Aggressive Discovery)
+  // ---------------------------------------------------------------------------
+
+  try {
+    const originalThen = Promise.prototype.then;
+
+    type OnFulfilled<T, R> = ((value: T) => R | PromiseLike<R>) | undefined | null;
+    type OnRejected<R> = ((reason: unknown) => R | PromiseLike<R>) | undefined | null;
+
+    Promise.prototype.then = function <T, TResult1 = T, TResult2 = never>(
+      this: Promise<T>,
+      onfulfilled?: OnFulfilled<T, TResult1>,
+      onrejected?: OnRejected<TResult2>
+    ): Promise<TResult1 | TResult2> {
+      const wrappedOnFulfilled =
+        typeof onfulfilled === 'function'
+          ? (value: T): TResult1 | PromiseLike<TResult1> => {
+              try {
+                tryCaptureFromInstance(value);
+              } catch {
+                /* ignore */
+              }
+              return onfulfilled(value);
+            }
+          : onfulfilled;
+
+      return originalThen.call(this, wrappedOnFulfilled, onrejected) as Promise<
+        TResult1 | TResult2
+      >;
+    };
   } catch {
     /* ignore */
   }

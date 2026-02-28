@@ -14,6 +14,7 @@ export function makePageExtract(overrides: Partial<PageExtractResult> = {}): Pag
   return {
     adyenMetadata: null,
     checkoutConfig: null,
+    inferredConfig: null,
     scripts: [],
     links: [],
     iframes: [],

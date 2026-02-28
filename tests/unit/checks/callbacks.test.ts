@@ -153,6 +153,16 @@ describe('callback-on-additional-details', () => {
     expect(onAdditionalDetails.run(payload).severity).toBe('skip');
   });
 
+  it('skips when missing and no full config', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({
+        checkoutConfig: null,
+        inferredConfig: makeCheckoutConfig({ onAdditionalDetails: undefined }),
+      }),
+    });
+    expect(onAdditionalDetails.run(payload).severity).toBe('skip');
+  });
+
   it('skips when sessions flow is detected', () => {
     const payload = makeAdyenPayload({}, {}, { capturedRequests: sessionsRequests });
     expect(onAdditionalDetails.run(payload).severity).toBe('skip');
@@ -341,6 +351,16 @@ describe('callback-on-payment-completed', () => {
     expect(onPaymentCompleted.run(payload).severity).toBe('skip');
   });
 
+  it('skips when missing and no full config', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({
+        checkoutConfig: null,
+        inferredConfig: makeCheckoutConfig({ onPaymentCompleted: undefined }),
+      }),
+    });
+    expect(onPaymentCompleted.run(payload).severity).toBe('skip');
+  });
+
   it('fails for sessions flow detected via hasSession (no network)', () => {
     const payload = makeScanPayload({
       page: makePageExtract({
@@ -411,6 +431,16 @@ describe('callback-on-payment-failed', () => {
     expect(onPaymentFailed.run(payload).severity).toBe('skip');
   });
 
+  it('skips when missing and no full config', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({
+        checkoutConfig: null,
+        inferredConfig: makeCheckoutConfig({ onPaymentFailed: undefined }),
+      }),
+    });
+    expect(onPaymentFailed.run(payload).severity).toBe('skip');
+  });
+
   it('uses the Drop-in Sessions docs link when flavor is Drop-in', () => {
     const payload = makeAdyenPayload(
       {},
@@ -450,6 +480,16 @@ describe('callback-on-error', () => {
     expect(result.severity).toBe('fail');
     expect(result.title).toBe('onError callback is missing.');
     expect(result.detail).toContain('technical checkout failures can fail silently');
+  });
+
+  it('skips when missing and no full config', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({
+        checkoutConfig: null,
+        inferredConfig: makeCheckoutConfig({ onError: undefined }),
+      }),
+    });
+    expect(onError.run(payload).severity).toBe('skip');
   });
 });
 

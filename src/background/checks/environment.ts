@@ -84,7 +84,8 @@ export const ENVIRONMENT_CHECKS = createRegistry(CATEGORY)
     return info(`Region: ${region}.`, detail);
   })
   .add('env-key-mismatch', (payload, { skip, fail, pass }) => {
-    const clientKey = payload.page.checkoutConfig?.clientKey;
+    const clientKey =
+      payload.page.checkoutConfig?.clientKey ?? payload.page.inferredConfig?.clientKey;
     if (clientKey === undefined || clientKey === '') {
       return skip(STRINGS.KEY_SKIP_TITLE, STRINGS.KEY_NO_KEY_SKIP_REASON);
     }

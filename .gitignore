@@ -8,3 +8,5 @@ coverage/
 .env.local
 .claude/
 .playwright-cli/
+playwright-report/
+test-results/
