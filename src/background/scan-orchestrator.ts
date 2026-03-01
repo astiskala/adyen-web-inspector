@@ -10,7 +10,7 @@ import type {
   ScanResult,
 } from '../shared/types.js';
 import { STORAGE_SCAN_RESULT_PREFIX } from '../shared/constants.js';
-import { calculateHealthScore } from '../shared/utils.js';
+import { calculateHealthScore, extractLocaleFromUrl } from '../shared/utils.js';
 import { HeaderCollector } from './header-collector.js';
 import { getLatestAdyenWebVersion } from './npm-registry.js';
 import { ALL_CHECKS } from './checks/index.js';
@@ -65,10 +65,30 @@ export async function runScan(tabId: number): Promise<ScanResult> {
       bundleVersion ??
       null;
 
+    // Enforce locale inference from captured requests if not already present
+    const currentLocale = pageData.checkoutConfig?.locale ?? pageData.inferredConfig?.locale ?? '';
+    let enrichedInferredConfig = pageData.inferredConfig;
+
+    if (currentLocale === '') {
+      for (const req of capturedRequests) {
+        const localeFromUrl = extractLocaleFromUrl(req.url);
+        if (localeFromUrl !== null) {
+          enrichedInferredConfig = {
+            ...(enrichedInferredConfig ?? {}),
+            locale: localeFromUrl,
+          };
+          break;
+        }
+      }
+    }
+
     const payload: ScanPayload = {
       tabId,
       pageUrl: pageData.pageUrl,
-      page: pageData,
+      page: {
+        ...pageData,
+        inferredConfig: enrichedInferredConfig,
+      },
       mainDocumentHeaders,
       capturedRequests,
       versionInfo: {

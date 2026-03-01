@@ -57,3 +57,10 @@ export function getAllHeaders(payload: ScanPayload, name: string): string[] {
     .filter((h: CapturedHeader) => h.name.toLowerCase() === lower)
     .map((h) => h.value);
 }
+
+/** Extracts a locale string from an Adyen translation file URL. */
+export function extractLocaleFromUrl(url: string): string | null {
+  const match = /\/translations\/([^/]+)\.json$/.exec(url);
+  const locale = match?.[1];
+  return typeof locale === 'string' && locale !== '' ? locale : null;
+}

@@ -55,6 +55,15 @@ const PAYMENT_METHOD_SELECTOR_PATTERN =
 const ACTION_CODE_SELECTOR_PATTERN =
   /\bresultCode\b|\baction(?:\?\.)?\.type\b|\baction\s*\[\s*['"]type['"]\s*\]/;
 
+const UNSUPPORTED_CUSTOM_BUTTON_METHODS = [
+  'paypal',
+  'klarna',
+  'paywithgoogle',
+  'googlepay',
+  'applepay',
+  'clicktopay',
+];
+
 function flowLabel(flow: IntegrationFlow): string {
   if (flow === 'sessions') return 'Sessions flow';
   if (flow === 'advanced') return 'Advanced flow';
@@ -177,6 +186,25 @@ const STRINGS = {
   ACTIONS_PATTERN_WARN_REMEDIATION:
     'Migrate your onSubmit handler from the v5-style component callbacks to the v6 actions pattern.',
   ACTIONS_PATTERN_INFO_TITLE: 'Could not determine onSubmit callback pattern from static analysis.',
+
+  MULTIPLE_SUBMISSIONS_PASS_TITLE: 'Submission handling appears to prevent multiple clicks.',
+  MULTIPLE_SUBMISSIONS_NOTICE_TITLE: 'Ensure your checkout prevents multiple submissions.',
+  MULTIPLE_SUBMISSIONS_DETAIL:
+    'To prevent duplicate orders, you should disable your pay button as soon as a payment attempt is made.',
+  MULTIPLE_SUBMISSIONS_REMEDIATION:
+    'Inside your onSubmit or beforeSubmit handler, add logic to disable the pay button or set a loading state until the payment lifecycle completes.',
+  MULTIPLE_SUBMISSIONS_URL:
+    'https://docs.adyen.com/online-payments/web-best-practices/#prevent-multiple-submissions',
+
+  CUSTOM_PAY_BUTTON_COMPAT_PASS_TITLE:
+    'No unsupported payment methods detected for custom pay button.',
+  CUSTOM_PAY_BUTTON_COMPAT_WARN_TITLE: 'Unsupported payment methods for custom pay button.',
+  CUSTOM_PAY_BUTTON_COMPAT_WARN_DETAIL:
+    'Custom pay buttons (signalled by beforeSubmit or selective onSubmit handling) are not supported for PayPal, Klarna, and Click to Pay.',
+  CUSTOM_PAY_BUTTON_COMPAT_WARN_REMEDIATION:
+    'For PayPal, Klarna, and Click to Pay, you must use the button provided by the Adyen Component rather than a custom pay button.',
+  CUSTOM_PAY_BUTTON_COMPAT_WARN_URL:
+    'https://docs.adyen.com/online-payments/web-best-practices/#unsupported-payment-methods',
 } as const;
 
 interface AdvancedRequiredCallbackOptions {
@@ -466,6 +494,18 @@ function detectUnhandledOnSubmitFilters(source: string): UnhandledOnSubmitFilter
   };
 }
 
+function detectsMultipleSubmissions(source: string): boolean {
+  // Looks for common patterns like .disabled = true, setLoading(true), .setAttribute('disabled', ...), etc.
+  const patterns = [
+    /\.disabled\s*=\s*(?:true|1)/,
+    /setLoading\s*\(\s*(?:true|1)\s*\)/,
+    /\.setAttribute\s*\(\s*['"]disabled['"]/,
+    /\.classList\.add\s*\(\s*['"](?:is-)?loading['"]/,
+    /this\.isSubmitting\s*=\s*true/,
+  ];
+  return patterns.some((p) => p.test(source));
+}
+
 export const CALLBACK_CHECKS = createRegistry(CATEGORY)
   .add('flow-type', (payload, { info }) => {
     const flow = detectIntegrationFlow(payload);
@@ -642,5 +682,71 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
     }
 
     return info(STRINGS.ACTIONS_PATTERN_INFO_TITLE);
+  })
+  .add('callback-multiple-submissions', (payload, { skip, pass, notice }) => {
+    const config = payload.page.checkoutConfig;
+    if (!config) {
+      return skip('Multiple submissions check skipped.', SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
+    }
+
+    const onSubmitSource = config.onSubmitSource ?? '';
+    const beforeSubmitSource = config.beforeSubmitSource ?? '';
+    const combinedSource = `${onSubmitSource}\n${beforeSubmitSource}`;
+
+    if (combinedSource.trim() === '') {
+      return skip('Multiple submissions check skipped.', 'Callback source not available.');
+    }
+
+    if (detectsMultipleSubmissions(combinedSource)) {
+      return pass(STRINGS.MULTIPLE_SUBMISSIONS_PASS_TITLE);
+    }
+
+    return notice(
+      STRINGS.MULTIPLE_SUBMISSIONS_NOTICE_TITLE,
+      STRINGS.MULTIPLE_SUBMISSIONS_DETAIL,
+      STRINGS.MULTIPLE_SUBMISSIONS_REMEDIATION,
+      STRINGS.MULTIPLE_SUBMISSIONS_URL
+    );
+  })
+  .add('callback-custom-pay-button-compatibility', (payload, { skip, pass, warn }) => {
+    const config = payload.page.checkoutConfig;
+    if (!config) {
+      return skip(
+        'Custom pay button compatibility check skipped.',
+        SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED
+      );
+    }
+
+    const flow = detectIntegrationFlow(payload);
+    const hasBeforeSubmit = isCallbackPresent(config.beforeSubmit);
+    const onSubmitSource = config.onSubmitSource ?? '';
+    const hasSelectiveOnSubmit =
+      flow === 'advanced' && detectUnhandledOnSubmitFilters(onSubmitSource).paymentMethod;
+
+    if (!hasBeforeSubmit && !hasSelectiveOnSubmit) {
+      return skip(
+        'Custom pay button compatibility check skipped.',
+        'No custom pay button indicators detected.'
+      );
+    }
+
+    // Heuristic: if these strings appear in any captured request or analytics, they might be present.
+    const capturedVariants = payload.analyticsData?.variants ?? [];
+    const detectedUnsupported = UNSUPPORTED_CUSTOM_BUTTON_METHODS.filter(
+      (u) =>
+        capturedVariants.some((v: string) => v.toLowerCase().includes(u)) ||
+        payload.capturedRequests.some((r) => r.url.toLowerCase().includes(u))
+    );
+
+    if (detectedUnsupported.length > 0) {
+      return warn(
+        `${STRINGS.CUSTOM_PAY_BUTTON_COMPAT_WARN_TITLE} (${detectedUnsupported.join(', ')})`,
+        STRINGS.CUSTOM_PAY_BUTTON_COMPAT_WARN_DETAIL,
+        STRINGS.CUSTOM_PAY_BUTTON_COMPAT_WARN_REMEDIATION,
+        STRINGS.CUSTOM_PAY_BUTTON_COMPAT_WARN_URL
+      );
+    }
+
+    return pass(STRINGS.CUSTOM_PAY_BUTTON_COMPAT_PASS_TITLE);
   })
   .getChecks();

@@ -15,6 +15,7 @@ const sdkFlavor = requireCheck(SDK_IDENTITY_CHECKS, 'sdk-flavor');
 const sdkImportMethod = requireCheck(SDK_IDENTITY_CHECKS, 'sdk-import-method');
 const sdkBundleType = requireCheck(SDK_IDENTITY_CHECKS, 'sdk-bundle-type');
 const sdkAnalytics = requireCheck(SDK_IDENTITY_CHECKS, 'sdk-analytics');
+const sdkMultiInit = requireCheck(SDK_IDENTITY_CHECKS, 'sdk-multi-init');
 
 describe('sdk-detected', () => {
   it('returns info when AdyenWebMetadata is present', () => {
@@ -75,6 +76,16 @@ describe('sdk-bundle-type', () => {
     expect(result.severity).toBe('skip');
   });
 
+  it('returns warn for auto bundle', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({
+        adyenMetadata: makeAdyenMetadata({ bundleType: 'auto' }),
+      }),
+    });
+    const result = sdkBundleType.run(payload);
+    expect(result.severity).toBe('warn');
+  });
+
   it('returns pass for esm bundle', () => {
     const payload = makeScanPayload({
       page: makePageExtract({
@@ -92,6 +103,14 @@ describe('sdk-bundle-type', () => {
     const result = sdkBundleType.run(payload);
     expect(result.severity).toBe('pass');
     expect(result.title).toContain('eslegacy');
+  });
+
+  it('returns warn when analytics reports auto buildType (no metadata)', () => {
+    const payload = makeScanPayload({
+      analyticsData: makeAnalyticsData({ buildType: 'auto' }),
+    });
+    const result = sdkBundleType.run(payload);
+    expect(result.severity).toBe('warn');
   });
 
   it('prefers metadata bundleType over analytics buildType', () => {
@@ -337,5 +356,32 @@ describe('sdk-analytics', () => {
     });
     const result = sdkAnalytics.run(payload);
     expect(result.severity).toBe('skip');
+  });
+});
+
+describe('sdk-multi-init', () => {
+  it('skips when init count is missing', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract(), // checkoutInitCount is omitted
+    });
+    const result = sdkMultiInit.run(payload);
+    expect(result.severity).toBe('skip');
+  });
+
+  it('passes when initialised once', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({ checkoutInitCount: 1 }),
+    });
+    const result = sdkMultiInit.run(payload);
+    expect(result.severity).toBe('pass');
+  });
+
+  it('warns when initialised multiple times', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({ checkoutInitCount: 2 }),
+    });
+    const result = sdkMultiInit.run(payload);
+    expect(result.severity).toBe('warn');
+    expect(result.title).toContain('(count: 2)');
   });
 });

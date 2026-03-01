@@ -33,6 +33,15 @@ describe('buildImplementationAttributes', () => {
     expect(attrs.region).toBe('US');
   });
 
+  it('uses live-in environment for India live', () => {
+    const payload = makeAdyenPayload({}, { environment: 'live-in' });
+
+    const attrs = buildImplementationAttributes(payload);
+
+    expect(attrs.environment).toBe('live-in');
+    expect(attrs.region).toBe('IN');
+  });
+
   it('falls back to client key when environment config is missing', () => {
     const payload = makeAdyenPayload({}, { environment: undefined, clientKey: 'live_XXXX' });
 

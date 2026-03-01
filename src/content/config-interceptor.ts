@@ -18,16 +18,16 @@
  */
 
 import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
+import { extractLocaleFromUrl } from '../shared/utils.js';
 
 (function configInterceptor(): void {
   const CAPTURED_CONFIG_KEY = '__adyenWebInspectorCapturedConfig';
   const CAPTURED_INFERRED_CONFIG_KEY = '__adyenWebInspectorCapturedInferredConfig';
+  const CAPTURED_INIT_COUNT_KEY = '__adyenWebInspectorCheckoutInitCount';
   const WRAPPED = '__awInspectorWrapped';
 
   type PlainRecord = Record<string, unknown>;
   type SdkCallable = (this: unknown, ...args: unknown[]) => unknown;
-
-  const NativePromise = Promise;
 
   const CALLBACK_KEYS = [
     'onSubmit',
@@ -115,6 +115,14 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
       }
     }
 
+    if (typeof r['beforeSubmit'] === 'function') {
+      try {
+        c['beforeSubmitSource'] = (r['beforeSubmit'] as () => void).toString().slice(0, 1200);
+      } catch {
+        /* ignore */
+      }
+    }
+
     return Object.keys(c).length > 0 ? (c as Partial<CheckoutConfig>) : null;
   }
 
@@ -195,14 +203,11 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
         return;
       }
 
-      const liveMatch = /(?:^|\.|-)(live(?:-[a-z]{2,4})?)(?:\.|$)/.exec(u.hostname);
-      const testMatch = /(?:^|\.|-)(test)(?:\.|$)/.exec(u.hostname);
+      const liveMatch = u.hostname.match(/(?:^|\.|-)(live(?:-[a-z]{2,4})?)(?:\.|$)/);
+      const testMatch = u.hostname.match(/(?:^|\.|-)(test)(?:\.|$)/);
 
       if (liveMatch !== null) {
-        const env = liveMatch[1];
-        if (env !== undefined) {
-          mergeAndPublishInferred({ environment: env });
-        }
+        mergeAndPublishInferred({ environment: liveMatch[1] as string });
       } else if (testMatch !== null) {
         mergeAndPublishInferred({ environment: 'test' });
       }
@@ -212,14 +217,19 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
         mergeAndPublishInferred({ clientKey });
       }
 
-      const locale = u.searchParams.get('locale');
-      if (locale !== null && locale !== '') {
-        mergeAndPublishInferred({ locale });
+      const localeFromParams = u.searchParams.get('locale');
+      if (localeFromParams !== null && localeFromParams !== '') {
+        mergeAndPublishInferred({ locale: localeFromParams });
       }
 
       const countryCode = u.searchParams.get('countryCode');
       if (countryCode !== null && countryCode !== '') {
         mergeAndPublishInferred({ countryCode });
+      }
+
+      const localeFromUrl = extractLocaleFromUrl(u.pathname);
+      if (localeFromUrl !== null) {
+        mergeAndPublishInferred({ locale: localeFromUrl });
       }
     } catch {
       /* ignore */
@@ -345,14 +355,25 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
     return false;
   }
 
+  function incrementInitCount(): void {
+    try {
+      const count = (globalThis as PlainRecord)[CAPTURED_INIT_COUNT_KEY];
+      const nextCount = typeof count === 'number' ? count + 1 : 1;
+      (globalThis as PlainRecord)[CAPTURED_INIT_COUNT_KEY] = nextCount;
+    } catch {
+      /* ignore */
+    }
+  }
+
   function wrapCheckoutFactory(original: SdkCallable): SdkCallable {
     if (isWrapped(original)) {
       return original;
     }
     const wrapped: SdkCallable = function (this: unknown, ...args: unknown[]): unknown {
+      incrementInitCount();
       captureConfig(args[0], 'checkout');
       const result = original.apply(this, args);
-      if (result instanceof NativePromise) {
+      if (result instanceof Promise) {
         void result
           .then((inst: unknown) => {
             tryCaptureFromInstance(inst);
@@ -371,22 +392,24 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
     if (isWrapped(original)) {
       return original;
     }
-    const handler: ProxyHandler<SdkCallable> = {
-      apply(target, thisArg, args) {
-        if (args.length > 1) {
-          captureConfig(args[1], 'component');
-        }
-        return Reflect.apply(target, thisArg, args);
-      },
-      construct(target, args) {
-        if (args.length > 1) {
-          captureConfig(args[1], 'component');
-        }
-        return Reflect.construct(target, args) as object;
-      },
+    const wrapped: SdkCallable = function (this: unknown, ...args: unknown[]): unknown {
+      if (args.length > 1) {
+        captureConfig(args[1], 'component');
+      }
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+      if (new.target === undefined) {
+        return original.apply(this, args);
+      }
+      return Reflect.construct(original, args, original) as unknown;
     };
-    const wrapped = new Proxy(original, handler);
     markWrapped(wrapped);
+    try {
+      const orig = original as unknown as { prototype: unknown };
+      const wrap = wrapped as unknown as { prototype: unknown };
+      wrap.prototype = orig.prototype;
+    } catch {
+      /* ignore */
+    }
     copyStatics(original, wrapped);
     return wrapped;
   }
@@ -432,6 +455,41 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
       configurable: true,
       enumerable: true,
     });
+  } catch {
+    /* ignore */
+  }
+
+  // ---------------------------------------------------------------------------
+  // Promise.prototype.then Interception (Aggressive Discovery)
+  // ---------------------------------------------------------------------------
+
+  try {
+    const originalThen = Promise.prototype.then;
+
+    type OnFulfilled<T, R> = ((value: T) => R | PromiseLike<R>) | undefined | null;
+    type OnRejected<R> = ((reason: unknown) => R | PromiseLike<R>) | undefined | null;
+
+    Promise.prototype.then = function <T, TResult1 = T, TResult2 = never>(
+      this: Promise<T>,
+      onfulfilled?: OnFulfilled<T, TResult1>,
+      onrejected?: OnRejected<TResult2>
+    ): Promise<TResult1 | TResult2> {
+      const wrappedOnFulfilled =
+        typeof onfulfilled === 'function'
+          ? (value: T): TResult1 | PromiseLike<TResult1> => {
+              try {
+                tryCaptureFromInstance(value);
+              } catch {
+                /* ignore */
+              }
+              return onfulfilled(value);
+            }
+          : onfulfilled;
+
+      return originalThen.call(this, wrappedOnFulfilled, onrejected) as Promise<
+        TResult1 | TResult2
+      >;
+    };
   } catch {
     /* ignore */
   }

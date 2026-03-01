@@ -19,6 +19,11 @@ const onPaymentFailed = requireCheck(CALLBACK_CHECKS, 'callback-on-payment-faile
 const onError = requireCheck(CALLBACK_CHECKS, 'callback-on-error');
 const beforeSubmit = requireCheck(CALLBACK_CHECKS, 'callback-before-submit');
 const actionsPattern = requireCheck(CALLBACK_CHECKS, 'callback-actions-pattern');
+const multipleSubmissions = requireCheck(CALLBACK_CHECKS, 'callback-multiple-submissions');
+const customPayButtonCompat = requireCheck(
+  CALLBACK_CHECKS,
+  'callback-custom-pay-button-compatibility'
+);
 
 const sessionsRequests = [makeRequest('https://checkout-test.adyen.com/v71/sessions')];
 const checkoutShopperSessionsRequests = [
@@ -560,5 +565,101 @@ describe('callback-actions-pattern', () => {
       { capturedRequests: sessionsRequests }
     );
     expect(actionsPattern.run(payload).severity).toBe('skip');
+  });
+});
+
+describe('callback-multiple-submissions', () => {
+  it('skips when no checkout config present', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({ checkoutConfig: null }),
+    });
+    expect(multipleSubmissions.run(payload).severity).toBe('skip');
+  });
+
+  it('passes when onSubmit appears to prevent multiple submissions', () => {
+    const payload = makeAdyenPayload(
+      {},
+      {
+        onSubmitSource: 'onSubmit: (state, component, actions) => { btn.disabled = true; }',
+      }
+    );
+    expect(multipleSubmissions.run(payload).severity).toBe('pass');
+  });
+
+  it('passes when beforeSubmit appears to prevent multiple submissions', () => {
+    const payload = makeAdyenPayload(
+      {},
+      {
+        beforeSubmitSource: 'beforeSubmit: (state, component, actions) => { setLoading(true); }',
+      }
+    );
+    expect(multipleSubmissions.run(payload).severity).toBe('pass');
+  });
+
+  it('returns notice when no prevention pattern detected', () => {
+    const payload = makeAdyenPayload(
+      {},
+      {
+        onSubmitSource: 'onSubmit: (state, component, actions) => { console.log("clicked"); }',
+      }
+    );
+    expect(multipleSubmissions.run(payload).severity).toBe('notice');
+  });
+});
+
+describe('callback-custom-pay-button-compatibility', () => {
+  it('skips when no indicators of custom pay button', () => {
+    const payload = makeAdyenPayload(
+      {},
+      { beforeSubmit: undefined, onSubmitSource: 'actions.resolve()' }
+    );
+    expect(customPayButtonCompat.run(payload).severity).toBe('skip');
+  });
+
+  it('passes when custom button indicators present but no unsupported methods', () => {
+    const payload = makeAdyenPayload(
+      {},
+      { beforeSubmit: 'checkout' },
+      { analyticsData: makeAnalyticsData({ variants: ['scheme', 'ideal'] }) }
+    );
+    expect(customPayButtonCompat.run(payload).severity).toBe('pass');
+  });
+
+  it('warns when custom button used with Klarna detected in analytics', () => {
+    const payload = makeAdyenPayload(
+      {},
+      { beforeSubmit: 'checkout' },
+      { analyticsData: makeAnalyticsData({ variants: ['klarna', 'scheme'] }) }
+    );
+    const result = customPayButtonCompat.run(payload);
+    expect(result.severity).toBe('warn');
+    expect(result.title).toContain('klarna');
+  });
+
+  it('warns when custom button used with PayPal detected in requests', () => {
+    const payload = makeAdyenPayload(
+      {},
+      { beforeSubmit: 'checkout' },
+      { capturedRequests: [makeRequest('https://checkout-test.adyen.com/v71/payments/paypal')] }
+    );
+    const result = customPayButtonCompat.run(payload);
+    expect(result.severity).toBe('warn');
+    expect(result.title).toContain('paypal');
+  });
+
+  it('warns when custom button used with Apple Pay detected in analytics', () => {
+    const payload = makeAdyenPayload(
+      {},
+      { beforeSubmit: 'checkout' },
+      { analyticsData: makeAnalyticsData({ variants: ['applepay'] }) }
+    );
+    const result = customPayButtonCompat.run(payload);
+    expect(result.severity).toBe('warn');
+    expect(result.title).toContain('applepay');
+  });
+
+  it('skips when combined source is empty', () => {
+    const payload = makeAdyenPayload({}, { onSubmitSource: '', beforeSubmitSource: '' });
+    expect(multipleSubmissions.run(payload).severity).toBe('skip');
   });
 });

@@ -6,6 +6,7 @@ import {
   detectEnvironmentFromCdnRequests,
   detectEnvironmentFromClientKey,
   detectEnvironmentFromRequests,
+  detectRegionFromCdnRequests,
   resolveEnvironment,
   resolveRegion,
 } from '../../shared/implementation-attributes.js';
@@ -39,6 +40,12 @@ const STRINGS = {
     'Render Drop-in or Components directly in the top-level page document rather than inside a parent iframe. Embedding checkout in an iframe breaks 3DS redirect flows, causes cookie restrictions in cross-origin contexts, and complicates CSP configuration.',
   IFRAME_WARN_URL: 'https://docs.adyen.com/online-payments/web-best-practices/#iframe',
   IFRAME_PASS_TITLE: 'Checkout is not embedded inside an iframe.',
+
+  REGION_MISMATCH_WARN_TITLE: 'CDN region does not match configured region.',
+  REGION_MISMATCH_WARN_DETAIL:
+    'Loading assets from a different region than your API endpoints can cause latency issues and potentially result in inconsistent payment method availability or localised content.',
+  REGION_MISMATCH_WARN_REMEDIATION:
+    'Ensure your script and stylesheet URLs use the CDN origin that matches your configured region. For example, if your environment is live-us, load assets from checkoutshopper-live-us.cdn.adyen.com.',
 } as const;
 
 const CATEGORY = 'environment' as const;
@@ -65,6 +72,28 @@ export const ENVIRONMENT_CHECKS = createRegistry(CATEGORY)
     }
 
     return pass(`CDN environment matches configured environment (${configuredEnv}).`);
+  })
+  .add('env-region-mismatch', (payload, { skip, pass, warn }) => {
+    const cdnRegion = detectRegionFromCdnRequests(payload);
+    if (cdnRegion === 'unknown') {
+      return skip('CDN region check skipped.', 'No regional Adyen CDN requests detected.');
+    }
+
+    const configuredRegion = resolveRegion(payload).region;
+    if (configuredRegion === 'unknown') {
+      return skip('CDN region check skipped.', 'Configured region unknown.');
+    }
+
+    if (cdnRegion !== configuredRegion) {
+      return warn(
+        `${STRINGS.REGION_MISMATCH_WARN_TITLE} (${cdnRegion} vs ${configuredRegion})`,
+        STRINGS.REGION_MISMATCH_WARN_DETAIL,
+        STRINGS.REGION_MISMATCH_WARN_REMEDIATION,
+        STRINGS.CDN_MISMATCH_FAIL_URL
+      );
+    }
+
+    return pass(`CDN region matches configured region (${configuredRegion}).`);
   })
   .add('env-region', (payload, { skip, info }) => {
     const env = resolveEnvironment(payload).env;

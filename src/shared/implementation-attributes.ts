@@ -106,8 +106,15 @@ function parseConfigEnvironment(environment: string | undefined): {
     return { env: null, region: 'unknown' };
   }
 
-  const env = match[1] as AdyenEnvironment;
-  const region = mapRegionToken(match[2]);
+  const envRaw = match[1];
+  const regionToken = match[2];
+
+  if (envRaw === 'live' && regionToken === 'in') {
+    return { env: 'live-in', region: 'IN' };
+  }
+
+  const env = envRaw as AdyenEnvironment;
+  const region = mapRegionToken(regionToken);
   return { env, region };
 }
 
@@ -137,15 +144,10 @@ function isAdyenApiRequest(url: string): boolean {
 
 function detectRegionFromRequests(payload: ScanPayload): AdyenRegion {
   for (const req of payload.capturedRequests) {
-    const requestHost = extractHostname(req.url);
-    if (requestHost === null) {
-      continue;
-    }
-    const host = requestHost.toLowerCase();
-
-    const region = ENVIRONMENT_REGION_MAP[host];
-    if (region !== undefined) {
-      return region;
+    const host = extractHostname(req.url)?.toLowerCase() ?? '';
+    if (isConfigRelatedHost(req.url, host)) {
+      const region = ENVIRONMENT_REGION_MAP[host];
+      if (region !== undefined) return region;
     }
   }
   return 'unknown';
@@ -157,7 +159,9 @@ function startsWithCheckoutLiveHostPrefix(host: string, prefix: string): boolean
 
 function detectEnvFromHost(host: string): AdyenEnvironment | null {
   if (KNOWN_ADYEN_ENV_HOSTS.has(host)) {
-    return host.includes('-test.') ? 'test' : 'live';
+    if (host.includes('-test.')) return 'test';
+    if (host.includes('-live-in.')) return 'live-in';
+    return 'live';
   }
   if (
     host.startsWith(CHECKOUTSHOPPER_TEST_HOST_PREFIX) ||
@@ -168,6 +172,7 @@ function detectEnvFromHost(host: string): AdyenEnvironment | null {
     startsWithCheckoutLiveHostPrefix(host, CHECKOUTSHOPPER_LIVE_HOST_PREFIX) ||
     startsWithCheckoutLiveHostPrefix(host, CHECKOUT_API_LIVE_HOST_PREFIX)
   ) {
+    if (host.includes('-in.') || host.includes('-in-')) return 'live-in';
     return 'live';
   }
   if (isAdyenHost(host)) {
@@ -185,6 +190,14 @@ function isCheckoutshopperHost(host: string): boolean {
   return host.startsWith('checkoutshopper-');
 }
 
+function isAdyenAnalyticsHost(host: string): boolean {
+  return host.startsWith('checkoutanalytics');
+}
+
+function isConfigRelatedHost(url: string, host: string): boolean {
+  return isAdyenApiRequest(url) || isAdyenAnalyticsHost(host);
+}
+
 /**
  * Infers environment from CDN / checkoutshopper asset requests only.
  * Used to validate CDN environment consistency independently of the configured environment.
@@ -192,19 +205,12 @@ function isCheckoutshopperHost(host: string): boolean {
 export function detectEnvironmentFromCdnRequests(payload: ScanPayload): AdyenEnvironment | null {
   for (const req of payload.capturedRequests) {
     const host = extractHostname(req.url)?.toLowerCase() ?? '';
-    if (!isCheckoutshopperHost(host)) {
-      continue;
-    }
-    const env = detectEnvFromHost(host);
-    if (env !== null) {
-      return env;
+    if (isCheckoutshopperHost(host)) {
+      const env = detectEnvFromHost(host);
+      if (env !== null) return env;
     }
   }
   return null;
-}
-
-function isAdyenAnalyticsHost(host: string): boolean {
-  return host.startsWith('checkoutanalytics');
 }
 
 /**
@@ -214,12 +220,9 @@ function isAdyenAnalyticsHost(host: string): boolean {
 export function detectEnvironmentFromRequests(payload: ScanPayload): AdyenEnvironment | null {
   for (const req of payload.capturedRequests) {
     const host = extractHostname(req.url)?.toLowerCase() ?? '';
-    if (!isAdyenApiRequest(req.url) && !isAdyenAnalyticsHost(host)) {
-      continue;
-    }
-    const env = detectEnvFromHost(host);
-    if (env !== null) {
-      return env;
+    if (isConfigRelatedHost(req.url, host)) {
+      const env = detectEnvFromHost(host);
+      if (env !== null) return env;
     }
   }
   return null;
@@ -368,6 +371,20 @@ export function detectIntegrationFlow(payload: ScanPayload): IntegrationFlow {
   }
   if (signals.hasCheckoutConfig) {
     return 'advanced';
+  }
+  return 'unknown';
+}
+
+/**
+ * Infers region from CDN requests (e.g. checkoutshopper-live-us.cdn.adyen.com).
+ */
+export function detectRegionFromCdnRequests(payload: ScanPayload): AdyenRegion {
+  for (const req of payload.capturedRequests) {
+    const host = extractHostname(req.url)?.toLowerCase() ?? '';
+    if (isCheckoutshopperHost(host)) {
+      const match = /checkoutshopper-live-([a-z0-9]+)\./.exec(host);
+      if (match) return mapRegionToken(match[1]);
+    }
   }
   return 'unknown';
 }
