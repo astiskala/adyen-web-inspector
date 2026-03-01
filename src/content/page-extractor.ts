@@ -83,6 +83,10 @@ function extractLinks(): LinkTag[] {
   });
 }
 
+function hasDropinDOM(): boolean {
+  return document.querySelector('.adyen-checkout__dropin') !== null;
+}
+
 function extractIframes(): IframeInfo[] {
   return Array.from(document.querySelectorAll<HTMLIFrameElement>('iframe')).map((f) => {
     const info: { name?: string; src?: string; referrerpolicy?: string } = {};
@@ -281,6 +285,7 @@ function extract(): PageExtractResult {
       ? { checkoutInitCount: g.__adyenWebInspectorCheckoutInitCount }
       : {}),
     ...(mountCount > 0 ? { componentMountCount: mountCount } : {}),
+    ...(hasDropinDOM() ? { hasDropinDOM: true } : {}),
     isInsideIframe: globalThis.self !== globalThis.top,
     pageUrl: globalThis.location.href,
     pageProtocol: globalThis.location.protocol,

@@ -38,6 +38,7 @@ type ImplementationFlavor = 'Drop-in' | 'Components' | 'Custom' | 'Unknown';
 type IntegrationFlavorSource =
   | 'analytics'
   | 'dropin-pattern'
+  | 'dropin-dom'
   | 'checkout-config'
   | 'sdk-loaded-no-checkout'
   | 'unknown';
@@ -424,6 +425,13 @@ export function resolveIntegrationFlavor(payload: ScanPayload): IntegrationFlavo
     return {
       flavor: 'Drop-in',
       source: 'dropin-pattern',
+    };
+  }
+
+  if (payload.page.hasDropinDOM === true) {
+    return {
+      flavor: 'Drop-in',
+      source: 'dropin-dom',
     };
   }
 

@@ -168,6 +168,8 @@ export interface PageExtractResult {
   readonly componentConfig: CheckoutConfig | null;
   /** Count of distinct mounted Adyen component trees found in the DOM. */
   readonly componentMountCount?: number;
+  /** True when a `.adyen-checkout__dropin` element is present in the DOM. */
+  readonly hasDropinDOM?: boolean;
   readonly scripts: ScriptTag[];
   readonly links: LinkTag[];
   readonly iframes: IframeInfo[];

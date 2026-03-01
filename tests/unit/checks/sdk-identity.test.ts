@@ -187,6 +187,20 @@ describe('sdk-flavor', () => {
     expect(result.title).toContain('Components');
   });
 
+  it('reports Drop-in when hasDropinDOM is true (NPM integration without analytics)', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({
+        adyenMetadata: makeAdyenMetadata(),
+        checkoutConfig: makeCheckoutConfig(),
+        hasDropinDOM: true,
+      }),
+    });
+    const result = sdkFlavor.run(payload);
+    expect(result.severity).toBe('info');
+    expect(result.title).toContain('Drop-in');
+    expect(result.detail).toContain('DOM');
+  });
+
   it('reports not mounted when SDK is loaded but no checkout activity', () => {
     const payload = makeScanPayload({
       page: makePageExtract({

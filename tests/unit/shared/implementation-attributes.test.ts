@@ -220,4 +220,34 @@ describe('flavor resolution helpers', () => {
       source: 'sdk-loaded-no-checkout',
     });
   });
+
+  it('detects Drop-in from DOM element when no analytics or URL pattern', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({
+        checkoutConfig: { clientKey: 'test_ABC', environment: 'test' },
+        hasDropinDOM: true,
+      }),
+      analyticsData: null,
+    });
+
+    expect(resolveIntegrationFlavor(payload)).toEqual({
+      flavor: 'Drop-in',
+      source: 'dropin-dom',
+    });
+  });
+
+  it('prefers analytics flavor over hasDropinDOM', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({
+        checkoutConfig: { clientKey: 'test_ABC', environment: 'test' },
+        hasDropinDOM: true,
+      }),
+      analyticsData: makeAnalyticsData({ flavor: 'components' }),
+    });
+
+    expect(resolveIntegrationFlavor(payload)).toEqual({
+      flavor: 'Components',
+      source: 'analytics',
+    });
+  });
 });

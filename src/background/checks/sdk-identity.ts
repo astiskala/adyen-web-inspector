@@ -21,6 +21,7 @@ const STRINGS = {
 
   FLAVOR_ANALYTICS_DETAIL: 'Detected from Adyen checkout analytics data.',
   FLAVOR_DROPIN_DETAIL: 'Detected based on CDN resource URL patterns.',
+  FLAVOR_DROPIN_DOM_DETAIL: 'Detected based on Drop-in DOM element present on the page.',
   FLAVOR_CONFIG_DETAIL:
     'Detected based on checkout config presence (analytics disabled or unavailable).',
   FLAVOR_NO_CHECKOUT_TITLE: 'No Adyen Web checkout was mounted on this page.',
@@ -92,6 +93,13 @@ export const SDK_IDENTITY_CHECKS = createRegistry(CATEGORY)
 
     if (flavorResolution.source === 'dropin-pattern') {
       return info(`Integration flavor: ${flavorResolution.flavor}.`, STRINGS.FLAVOR_DROPIN_DETAIL);
+    }
+
+    if (flavorResolution.source === 'dropin-dom') {
+      return info(
+        `Integration flavor: ${flavorResolution.flavor}.`,
+        STRINGS.FLAVOR_DROPIN_DOM_DETAIL
+      );
     }
 
     if (flavorResolution.source === 'checkout-config') {
