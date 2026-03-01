@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Adyen Web Inspector",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Inspect Adyen Web integrations for configuration issues, risky patterns, and clear remediation steps.",
   "icons": {
     "16": "assets/icon-16.png",
