@@ -191,9 +191,9 @@ const STRINGS = {
     'No unsupported payment methods detected for custom pay button.',
   CUSTOM_PAY_BUTTON_COMPAT_WARN_TITLE: 'Unsupported payment methods for custom pay button.',
   CUSTOM_PAY_BUTTON_COMPAT_WARN_DETAIL:
-    'Custom pay buttons (signalled by beforeSubmit or selective onSubmit handling) are not supported for PayPal, Klarna, and Click to Pay.',
+    'Custom pay buttons (signalled by beforeSubmit or selective onSubmit handling) are not supported for PayPal, Klarna, Click to Pay, Apple Pay, and Google Pay.',
   CUSTOM_PAY_BUTTON_COMPAT_WARN_REMEDIATION:
-    'For PayPal, Klarna, and Click to Pay, you must use the button provided by the Adyen Component rather than a custom pay button.',
+    'For PayPal, Klarna, Click to Pay, Apple Pay, and Google Pay, you must use the button provided by the Adyen Component rather than a custom pay button.',
   CUSTOM_PAY_BUTTON_COMPAT_WARN_URL:
     'https://docs.adyen.com/online-payments/web-best-practices/#unsupported-payment-methods',
 } as const;
