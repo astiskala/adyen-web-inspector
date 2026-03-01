@@ -13,9 +13,8 @@ const SRI_URL =
   'https://docs.adyen.com/online-payments/web-best-practices/#implement-subresource-integrity-hashes';
 
 const STRINGS = {
-  NOT_REQUIRED_FOR_TEST: 'Not required for test environment.',
-
   HTTPS_SKIP_TITLE: 'HTTPS check skipped.',
+  HTTPS_SKIP_REASON: 'Not required for test environment.',
   HTTPS_PASS_TITLE: 'Live environment served over HTTPS.',
   HTTPS_FAIL_TITLE: 'Live environment must be served over HTTPS.',
   // HTTPS_FAIL_DETAIL stays inline (dynamic: uses pageProtocol)
@@ -65,6 +64,7 @@ const STRINGS = {
   XSS_NOTICE_URL: 'https://owasp.org/www-project-secure-headers/#x-xss-protection',
 
   HSTS_SKIP_TITLE: 'HSTS check skipped.',
+  HSTS_SKIP_REASON: 'Not a live environment.',
   HSTS_PASS_TITLE: 'HSTS header is present.',
   HSTS_NOTICE_TITLE: 'HSTS header is missing on a live environment.',
   HSTS_NOTICE_DETAIL:
@@ -97,10 +97,9 @@ function hasMissingSriAttributes(resource: SriAttributableResource): boolean {
 
 export const SECURITY_CHECKS = createRegistry(CATEGORY)
   .add('security-https', (payload, { pass, fail, skip }) => {
-    const currentEnv = resolveEnvironment(payload).env;
-    const isLive = currentEnv === 'live' || currentEnv === 'live-in';
+    const isLive = resolveEnvironment(payload).env === 'live';
     if (!isLive) {
-      return skip(STRINGS.HTTPS_SKIP_TITLE, STRINGS.NOT_REQUIRED_FOR_TEST);
+      return skip(STRINGS.HTTPS_SKIP_TITLE, STRINGS.HTTPS_SKIP_REASON);
     }
 
     const { pageProtocol } = payload.page;
@@ -200,12 +199,9 @@ export const SECURITY_CHECKS = createRegistry(CATEGORY)
     );
   })
   .add('security-hsts', (payload, { pass, notice, skip }) => {
-    const currentEnv = resolveEnvironment(payload).env;
-    const isLive = currentEnv === 'live' || currentEnv === 'live-in';
-    if (!isLive) {
-      return skip(STRINGS.HSTS_SKIP_TITLE, STRINGS.NOT_REQUIRED_FOR_TEST);
+    if (resolveEnvironment(payload).env !== 'live') {
+      return skip(STRINGS.HSTS_SKIP_TITLE, STRINGS.HSTS_SKIP_REASON);
     }
-
     const value = getHeader(payload, 'Strict-Transport-Security');
     if (value !== null && value !== '') return pass(STRINGS.HSTS_PASS_TITLE);
     return notice(

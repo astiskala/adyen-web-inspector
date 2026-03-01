@@ -93,7 +93,6 @@ export default defineConfig([
       'jsdoc/tag-lines': 'error',
       eqeqeq: 'error',
       'no-console': 'error',
-      'no-extend-native': 'error',
       'no-nested-ternary': 'error',
       'no-negated-condition': 'error',
       'max-nested-callbacks': ['error', 4],

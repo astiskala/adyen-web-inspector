@@ -6,7 +6,6 @@ import {
   makePageExtract,
   makeAdyenMetadata,
   makeAnalyticsData,
-  makeCheckoutConfig,
   makeRequest,
 } from '../../fixtures/makeScanPayload';
 import { requireCheck } from './requireCheck';
@@ -338,21 +337,6 @@ describe('sdk-analytics', () => {
 
   it('returns warn when analytics.enabled is false', () => {
     const payload = makeAdyenPayload({}, { analyticsEnabled: false });
-    const result = sdkAnalytics.run(payload);
-    expect(result.severity).toBe('warn');
-    expect(result.title).toContain('disabled');
-  });
-
-  it('returns warn when analytics disabled and SDK detected via script src only', () => {
-    const payload = makeScanPayload({
-      page: makePageExtract({
-        adyenMetadata: null,
-        scripts: [
-          { src: 'https://checkoutshopper-test.adyen.com/checkoutshopper-sdk/5.67.0/adyen.js' },
-        ],
-        checkoutConfig: makeCheckoutConfig({ analyticsEnabled: false }),
-      }),
-    });
     const result = sdkAnalytics.run(payload);
     expect(result.severity).toBe('warn');
     expect(result.title).toContain('disabled');

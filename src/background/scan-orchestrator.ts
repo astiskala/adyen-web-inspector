@@ -10,7 +10,7 @@ import type {
   ScanResult,
 } from '../shared/types.js';
 import { STORAGE_SCAN_RESULT_PREFIX } from '../shared/constants.js';
-import { calculateHealthScore } from '../shared/utils.js';
+import { calculateHealthScore, extractLocaleFromUrl } from '../shared/utils.js';
 import { HeaderCollector } from './header-collector.js';
 import { getLatestAdyenWebVersion } from './npm-registry.js';
 import { ALL_CHECKS } from './checks/index.js';
@@ -21,7 +21,7 @@ import {
   probeMainDocumentHeaders,
 } from './payload-builder.js';
 
-const TAB_READY_TIMEOUT_MS = 20_000;
+const TAB_READY_TIMEOUT_MS = 15_000;
 const SPA_SETTLE_MS = 2_000;
 const PAGE_EXTRACT_RETRY_INTERVAL_MS = 500;
 const PAGE_EXTRACT_RETRY_TIMEOUT_MS = 4_000;
@@ -71,11 +71,10 @@ export async function runScan(tabId: number): Promise<ScanResult> {
 
     if (currentLocale === '') {
       for (const req of capturedRequests) {
-        const match = /\/translations\/([^/]+)\.json$/.exec(req.url);
-        const localeFromUrl = match?.[1];
-        if (typeof localeFromUrl === 'string' && localeFromUrl !== '') {
+        const localeFromUrl = extractLocaleFromUrl(req.url);
+        if (localeFromUrl !== null) {
           enrichedInferredConfig = {
-            ...enrichedInferredConfig,
+            ...(enrichedInferredConfig ?? {}),
             locale: localeFromUrl,
           };
           break;

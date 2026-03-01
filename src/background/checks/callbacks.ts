@@ -55,6 +55,15 @@ const PAYMENT_METHOD_SELECTOR_PATTERN =
 const ACTION_CODE_SELECTOR_PATTERN =
   /\bresultCode\b|\baction(?:\?\.)?\.type\b|\baction\s*\[\s*['"]type['"]\s*\]/;
 
+const UNSUPPORTED_CUSTOM_BUTTON_METHODS = [
+  'paypal',
+  'klarna',
+  'paywithgoogle',
+  'googlepay',
+  'applepay',
+  'clicktopay',
+];
+
 function flowLabel(flow: IntegrationFlow): string {
   if (flow === 'sessions') return 'Sessions flow';
   if (flow === 'advanced') return 'Advanced flow';
@@ -191,9 +200,9 @@ const STRINGS = {
     'No unsupported payment methods detected for custom pay button.',
   CUSTOM_PAY_BUTTON_COMPAT_WARN_TITLE: 'Unsupported payment methods for custom pay button.',
   CUSTOM_PAY_BUTTON_COMPAT_WARN_DETAIL:
-    'Custom pay buttons (signalled by beforeSubmit or selective onSubmit handling) are not supported for PayPal, Klarna, Click to Pay, Apple Pay, and Google Pay.',
+    'Custom pay buttons (signalled by beforeSubmit or selective onSubmit handling) are not supported for PayPal, Klarna, and Click to Pay.',
   CUSTOM_PAY_BUTTON_COMPAT_WARN_REMEDIATION:
-    'For PayPal, Klarna, Click to Pay, Apple Pay, and Google Pay, you must use the button provided by the Adyen Component rather than a custom pay button.',
+    'For PayPal, Klarna, and Click to Pay, you must use the button provided by the Adyen Component rather than a custom pay button.',
   CUSTOM_PAY_BUTTON_COMPAT_WARN_URL:
     'https://docs.adyen.com/online-payments/web-best-practices/#unsupported-payment-methods',
 } as const;
@@ -721,17 +730,9 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
       );
     }
 
-    // Heuristic: if these strings appear in page metadata or any captured request URL, they might be present.
-    const capturedVariants = payload.page.adyenMetadata?.variants ?? [];
-    const unsupported = [
-      'paypal',
-      'klarna',
-      'paywithgoogle',
-      'googlepay',
-      'applepay',
-      'clicktopay',
-    ];
-    const detectedUnsupported = unsupported.filter(
+    // Heuristic: if these strings appear in any captured request or analytics, they might be present.
+    const capturedVariants = payload.analyticsData?.variants ?? [];
+    const detectedUnsupported = UNSUPPORTED_CUSTOM_BUTTON_METHODS.filter(
       (u) =>
         capturedVariants.some((v: string) => v.toLowerCase().includes(u)) ||
         payload.capturedRequests.some((r) => r.url.toLowerCase().includes(u))

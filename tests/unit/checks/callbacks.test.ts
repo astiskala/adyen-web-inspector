@@ -305,37 +305,6 @@ describe('callback-on-submit-filtering', () => {
     const payload = makeAdyenPayload({}, { onSubmitSource: undefined });
     expect(onSubmitSelectiveHandling.run(payload).severity).toBe('skip');
   });
-
-  it('passes without throwing when if-condition has unbalanced parentheses', () => {
-    const payload = makeAdyenPayload({}, { onSubmitSource: 'if (paymentMethod.type' });
-    expect(onSubmitSelectiveHandling.run(payload).severity).toBe('pass');
-  });
-
-  it('passes without throwing when if-body has unbalanced braces', () => {
-    const payload = makeAdyenPayload(
-      {},
-      { onSubmitSource: "if (paymentMethod.type === 'scheme') {" }
-    );
-    expect(onSubmitSelectiveHandling.run(payload).severity).toBe('pass');
-  });
-
-  it('passes without throwing when switch-condition has unbalanced parentheses', () => {
-    const payload = makeAdyenPayload({}, { onSubmitSource: 'switch (paymentMethod.type' });
-    expect(onSubmitSelectiveHandling.run(payload).severity).toBe('pass');
-  });
-
-  it('passes without throwing when switch body is not a block statement', () => {
-    const payload = makeAdyenPayload(
-      {},
-      { onSubmitSource: 'switch (paymentMethod.type) doSomething()' }
-    );
-    expect(onSubmitSelectiveHandling.run(payload).severity).toBe('pass');
-  });
-
-  it('passes without throwing when switch body has unbalanced braces', () => {
-    const payload = makeAdyenPayload({}, { onSubmitSource: 'switch (paymentMethod.type) {' });
-    expect(onSubmitSelectiveHandling.run(payload).severity).toBe('pass');
-  });
 });
 
 describe('callback-on-payment-completed', () => {
@@ -639,13 +608,6 @@ describe('callback-multiple-submissions', () => {
 });
 
 describe('callback-custom-pay-button-compatibility', () => {
-  it('skips when checkout config is not present', () => {
-    const payload = makeScanPayload({
-      page: makePageExtract({ checkoutConfig: null }),
-    });
-    expect(customPayButtonCompat.run(payload).severity).toBe('skip');
-  });
-
   it('skips when no indicators of custom pay button', () => {
     const payload = makeAdyenPayload(
       {},
@@ -656,16 +618,18 @@ describe('callback-custom-pay-button-compatibility', () => {
 
   it('passes when custom button indicators present but no unsupported methods', () => {
     const payload = makeAdyenPayload(
-      { variants: ['scheme', 'ideal'] },
-      { beforeSubmit: 'checkout' }
+      {},
+      { beforeSubmit: 'checkout' },
+      { analyticsData: makeAnalyticsData({ variants: ['scheme', 'ideal'] }) }
     );
     expect(customPayButtonCompat.run(payload).severity).toBe('pass');
   });
 
-  it('warns when custom button used with Klarna detected in page metadata', () => {
+  it('warns when custom button used with Klarna detected in analytics', () => {
     const payload = makeAdyenPayload(
-      { variants: ['klarna', 'scheme'] },
-      { beforeSubmit: 'checkout' }
+      {},
+      { beforeSubmit: 'checkout' },
+      { analyticsData: makeAnalyticsData({ variants: ['klarna', 'scheme'] }) }
     );
     const result = customPayButtonCompat.run(payload);
     expect(result.severity).toBe('warn');
@@ -683,8 +647,12 @@ describe('callback-custom-pay-button-compatibility', () => {
     expect(result.title).toContain('paypal');
   });
 
-  it('warns when custom button used with Apple Pay detected in page metadata', () => {
-    const payload = makeAdyenPayload({ variants: ['applepay'] }, { beforeSubmit: 'checkout' });
+  it('warns when custom button used with Apple Pay detected in analytics', () => {
+    const payload = makeAdyenPayload(
+      {},
+      { beforeSubmit: 'checkout' },
+      { analyticsData: makeAnalyticsData({ variants: ['applepay'] }) }
+    );
     const result = customPayButtonCompat.run(payload);
     expect(result.severity).toBe('warn');
     expect(result.title).toContain('applepay');

@@ -121,19 +121,15 @@ export const ENVIRONMENT_CHECKS = createRegistry(CATEGORY)
 
     const envFromKey = detectEnvironmentFromClientKey(clientKey);
     const envFromRequests = detectEnvironmentFromRequests(payload);
-    let expectedEnv = envFromRequests;
-    if (envFromRequests === 'live-in') {
-      expectedEnv = 'live';
-    }
 
-    if (envFromKey === null || expectedEnv === null) {
+    if (envFromKey === null || envFromRequests === null) {
       return skip(STRINGS.KEY_SKIP_TITLE, STRINGS.KEY_NO_ENV_SKIP_REASON);
     }
 
-    if (envFromKey !== expectedEnv) {
+    if (envFromKey !== envFromRequests) {
       return fail(
-        `Client key prefix (${envFromKey}) does not match API endpoint environment (${expectedEnv}).`,
-        `Using a ${envFromKey} client key against a ${expectedEnv} endpoint will cause authentication errors.`,
+        `Client key prefix (${envFromKey}) does not match API endpoint environment (${envFromRequests}).`,
+        `Using a ${envFromKey} client key against a ${envFromRequests} endpoint will cause authentication errors.`,
         STRINGS.KEY_MISMATCH_FAIL_REMEDIATION,
         STRINGS.KEY_MISMATCH_FAIL_URL
       );

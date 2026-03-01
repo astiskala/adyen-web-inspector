@@ -77,12 +77,11 @@ interface IntegrationFlowSignals {
 function mapRegionToken(token: string | undefined): AdyenRegion {
   if (token === undefined || token === '') return 'unknown';
 
-  if (token === 'apse') return 'APSE';
-  if (token === 'au') return 'AU';
   if (token === 'eu') return 'EU';
-  if (token === 'in') return 'IN';
-  if (token === 'nea') return 'NEA';
   if (token === 'us') return 'US';
+  if (token === 'au') return 'AU';
+  if (token === 'apse') return 'APSE';
+  if (token === 'in') return 'IN';
   return 'unknown';
 }
 
@@ -145,19 +144,10 @@ function isAdyenApiRequest(url: string): boolean {
 
 function detectRegionFromRequests(payload: ScanPayload): AdyenRegion {
   for (const req of payload.capturedRequests) {
-    const requestHost = extractHostname(req.url);
-    if (requestHost === null) {
-      continue;
-    }
-    const host = requestHost.toLowerCase();
-
-    if (!isAdyenApiRequest(req.url) && !isAdyenAnalyticsHost(host)) {
-      continue;
-    }
-
-    const region = ENVIRONMENT_REGION_MAP[host];
-    if (region !== undefined) {
-      return region;
+    const host = extractHostname(req.url)?.toLowerCase() ?? '';
+    if (isConfigRelatedHost(req.url, host)) {
+      const region = ENVIRONMENT_REGION_MAP[host];
+      if (region !== undefined) return region;
     }
   }
   return 'unknown';
@@ -200,6 +190,14 @@ function isCheckoutshopperHost(host: string): boolean {
   return host.startsWith('checkoutshopper-');
 }
 
+function isAdyenAnalyticsHost(host: string): boolean {
+  return host.startsWith('checkoutanalytics');
+}
+
+function isConfigRelatedHost(url: string, host: string): boolean {
+  return isAdyenApiRequest(url) || isAdyenAnalyticsHost(host);
+}
+
 /**
  * Infers environment from CDN / checkoutshopper asset requests only.
  * Used to validate CDN environment consistency independently of the configured environment.
@@ -207,19 +205,12 @@ function isCheckoutshopperHost(host: string): boolean {
 export function detectEnvironmentFromCdnRequests(payload: ScanPayload): AdyenEnvironment | null {
   for (const req of payload.capturedRequests) {
     const host = extractHostname(req.url)?.toLowerCase() ?? '';
-    if (!isCheckoutshopperHost(host)) {
-      continue;
-    }
-    const env = detectEnvFromHost(host);
-    if (env !== null) {
-      return env;
+    if (isCheckoutshopperHost(host)) {
+      const env = detectEnvFromHost(host);
+      if (env !== null) return env;
     }
   }
   return null;
-}
-
-function isAdyenAnalyticsHost(host: string): boolean {
-  return host.startsWith('checkoutanalytics');
 }
 
 /**
@@ -229,12 +220,9 @@ function isAdyenAnalyticsHost(host: string): boolean {
 export function detectEnvironmentFromRequests(payload: ScanPayload): AdyenEnvironment | null {
   for (const req of payload.capturedRequests) {
     const host = extractHostname(req.url)?.toLowerCase() ?? '';
-    if (!isAdyenApiRequest(req.url) && !isAdyenAnalyticsHost(host)) {
-      continue;
-    }
-    const env = detectEnvFromHost(host);
-    if (env !== null) {
-      return env;
+    if (isConfigRelatedHost(req.url, host)) {
+      const env = detectEnvFromHost(host);
+      if (env !== null) return env;
     }
   }
   return null;
@@ -393,13 +381,9 @@ export function detectIntegrationFlow(payload: ScanPayload): IntegrationFlow {
 export function detectRegionFromCdnRequests(payload: ScanPayload): AdyenRegion {
   for (const req of payload.capturedRequests) {
     const host = extractHostname(req.url)?.toLowerCase() ?? '';
-    if (!isCheckoutshopperHost(host)) {
-      continue;
-    }
-
-    const match = /checkoutshopper-live-([a-z0-9]+)\./.exec(host);
-    if (match) {
-      return mapRegionToken(match[1]);
+    if (isCheckoutshopperHost(host)) {
+      const match = /checkoutshopper-live-([a-z0-9]+)\./.exec(host);
+      if (match) return mapRegionToken(match[1]);
     }
   }
   return 'unknown';

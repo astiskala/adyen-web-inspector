@@ -18,6 +18,7 @@
  */
 
 import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
+import { extractLocaleFromUrl } from '../shared/utils.js';
 
 (function configInterceptor(): void {
   const CAPTURED_CONFIG_KEY = '__adyenWebInspectorCapturedConfig';
@@ -202,14 +203,11 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
         return;
       }
 
-      const liveMatch = new RegExp(/(?:^|\.|-)(live(?:-[a-z]{2,4})?)(?:\.|$)/).exec(u.hostname);
-      const testMatch = new RegExp(/(?:^|\.|-)(test)(?:\.|$)/).exec(u.hostname);
+      const liveMatch = u.hostname.match(/(?:^|\.|-)(live(?:-[a-z]{2,4})?)(?:\.|$)/);
+      const testMatch = u.hostname.match(/(?:^|\.|-)(test)(?:\.|$)/);
 
       if (liveMatch !== null) {
-        const liveEnv = liveMatch[1];
-        if (liveEnv !== undefined) {
-          mergeAndPublishInferred({ environment: liveEnv });
-        }
+        mergeAndPublishInferred({ environment: liveMatch[1] as string });
       } else if (testMatch !== null) {
         mergeAndPublishInferred({ environment: 'test' });
       }
@@ -229,9 +227,8 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
         mergeAndPublishInferred({ countryCode });
       }
 
-      const translationMatch = /\/translations\/([^/]+)\.json$/.exec(u.pathname);
-      const localeFromUrl = translationMatch?.[1];
-      if (typeof localeFromUrl === 'string' && localeFromUrl !== '') {
+      const localeFromUrl = extractLocaleFromUrl(u.pathname);
+      if (localeFromUrl !== null) {
         mergeAndPublishInferred({ locale: localeFromUrl });
       }
     } catch {
@@ -458,6 +455,41 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
       configurable: true,
       enumerable: true,
     });
+  } catch {
+    /* ignore */
+  }
+
+  // ---------------------------------------------------------------------------
+  // Promise.prototype.then Interception (Aggressive Discovery)
+  // ---------------------------------------------------------------------------
+
+  try {
+    const originalThen = Promise.prototype.then;
+
+    type OnFulfilled<T, R> = ((value: T) => R | PromiseLike<R>) | undefined | null;
+    type OnRejected<R> = ((reason: unknown) => R | PromiseLike<R>) | undefined | null;
+
+    Promise.prototype.then = function <T, TResult1 = T, TResult2 = never>(
+      this: Promise<T>,
+      onfulfilled?: OnFulfilled<T, TResult1>,
+      onrejected?: OnRejected<TResult2>
+    ): Promise<TResult1 | TResult2> {
+      const wrappedOnFulfilled =
+        typeof onfulfilled === 'function'
+          ? (value: T): TResult1 | PromiseLike<TResult1> => {
+              try {
+                tryCaptureFromInstance(value);
+              } catch {
+                /* ignore */
+              }
+              return onfulfilled(value);
+            }
+          : onfulfilled;
+
+      return originalThen.call(this, wrappedOnFulfilled, onrejected) as Promise<
+        TResult1 | TResult2
+      >;
+    };
   } catch {
     /* ignore */
   }

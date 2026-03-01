@@ -128,6 +128,8 @@ export interface AnalyticsData {
   readonly locale?: string;
   /** Session ID — presence indicates Sessions integration flow. */
   readonly sessionId?: string;
+  /** Payment method variants detected in analytics. */
+  readonly variants?: string[];
 }
 
 // ─── Page Extraction Result ───────────────────────────────────────────────────
