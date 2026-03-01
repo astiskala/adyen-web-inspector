@@ -150,7 +150,7 @@ export const SDK_IDENTITY_CHECKS = createRegistry(CATEGORY)
       return skip(STRINGS.ANALYTICS_SKIP_TITLE, STRINGS.ANALYTICS_SKIP_REASON);
     }
 
-    if (payload.page.checkoutConfig?.analyticsEnabled === false) {
+    if ((payload.page.checkoutConfig ?? payload.page.componentConfig)?.analyticsEnabled === false) {
       return warn(
         STRINGS.ANALYTICS_WARN_TITLE,
         STRINGS.ANALYTICS_WARN_DETAIL,
@@ -162,17 +162,17 @@ export const SDK_IDENTITY_CHECKS = createRegistry(CATEGORY)
     return pass(STRINGS.ANALYTICS_PASS_TITLE, STRINGS.ANALYTICS_PASS_DETAIL);
   })
   .add('sdk-multi-init', (payload, { pass, warn, skip }) => {
-    const { checkoutInitCount } = payload.page;
-    if (checkoutInitCount === undefined || checkoutInitCount === 0) {
+    const initCount = payload.page.checkoutInitCount ?? payload.page.componentMountCount;
+    if (initCount === undefined || initCount === 0) {
       return skip(
         'Initialization count check skipped.',
         'AdyenCheckout initialization not detected.'
       );
     }
 
-    if (checkoutInitCount > 1) {
+    if (initCount > 1) {
       return warn(
-        `${STRINGS.MULTI_INIT_WARN_TITLE} (count: ${checkoutInitCount})`,
+        `${STRINGS.MULTI_INIT_WARN_TITLE} (count: ${initCount})`,
         STRINGS.MULTI_INIT_WARN_DETAIL,
         STRINGS.MULTI_INIT_WARN_REMEDIATION,
         STRINGS.MULTI_INIT_WARN_URL

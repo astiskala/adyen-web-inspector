@@ -7,6 +7,7 @@ import {
   makeAdyenMetadata,
   makeAnalyticsData,
   makeRequest,
+  makeCheckoutConfig,
 } from '../../fixtures/makeScanPayload';
 import { requireCheck } from './requireCheck';
 
@@ -383,5 +384,38 @@ describe('sdk-multi-init', () => {
     const result = sdkMultiInit.run(payload);
     expect(result.severity).toBe('warn');
     expect(result.title).toContain('(count: 2)');
+  });
+});
+
+describe('componentConfig fallback', () => {
+  it('sdk-analytics detects disabled analytics from componentConfig', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({
+        adyenMetadata: makeAdyenMetadata(),
+        componentConfig: makeCheckoutConfig({ analyticsEnabled: false }),
+      }),
+    });
+    expect(sdkAnalytics.run(payload).severity).toBe('warn');
+  });
+
+  it('sdk-multi-init uses componentMountCount when checkoutInitCount is absent', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({
+        adyenMetadata: makeAdyenMetadata(),
+        componentMountCount: 2,
+      }),
+    });
+    const result = sdkMultiInit.run(payload);
+    expect(result.severity).toBe('warn');
+  });
+
+  it('sdk-multi-init passes with componentMountCount of 1', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({
+        adyenMetadata: makeAdyenMetadata(),
+        componentMountCount: 1,
+      }),
+    });
+    expect(sdkMultiInit.run(payload).severity).toBe('pass');
   });
 });

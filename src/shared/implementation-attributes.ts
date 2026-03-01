@@ -333,7 +333,7 @@ export function detectImportMethod(scripts: ScanPayload['page']['scripts']): Imp
 export function hasCheckoutActivity(payload: ScanPayload): boolean {
   const { page, capturedRequests, analyticsData } = payload;
 
-  if (page.checkoutConfig || page.inferredConfig) return true;
+  if (page.checkoutConfig || page.componentConfig || page.inferredConfig) return true;
   if (analyticsData !== null) return true;
 
   if (

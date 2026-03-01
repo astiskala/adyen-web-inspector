@@ -136,3 +136,32 @@ describe('auth-locale', () => {
     expect(authLocale.run(payload).severity).toBe('pass');
   });
 });
+
+describe('componentConfig fallback', () => {
+  it('auth-client-key resolves from componentConfig', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({
+        componentConfig: makeCheckoutConfig({ clientKey: 'test_COMPONENT' }),
+      }),
+    });
+    expect(authClientKey.run(payload).severity).toBe('pass');
+  });
+
+  it('auth-country-code resolves from componentConfig', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({
+        componentConfig: makeCheckoutConfig({ countryCode: 'NL' }),
+      }),
+    });
+    expect(authCountryCode.run(payload).severity).toBe('pass');
+  });
+
+  it('auth-locale resolves from componentConfig', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({
+        componentConfig: makeCheckoutConfig({ locale: 'nl-NL' }),
+      }),
+    });
+    expect(authLocale.run(payload).severity).toBe('pass');
+  });
+});
