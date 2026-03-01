@@ -77,11 +77,12 @@ interface IntegrationFlowSignals {
 function mapRegionToken(token: string | undefined): AdyenRegion {
   if (token === undefined || token === '') return 'unknown';
 
-  if (token === 'eu') return 'EU';
-  if (token === 'us') return 'US';
-  if (token === 'au') return 'AU';
   if (token === 'apse') return 'APSE';
+  if (token === 'au') return 'AU';
+  if (token === 'eu') return 'EU';
   if (token === 'in') return 'IN';
+  if (token === 'nea') return 'NEA';
+  if (token === 'us') return 'US';
   return 'unknown';
 }
 
