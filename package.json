@@ -68,8 +68,10 @@
       "prettier --write"
     ],
     "*.md": [
-      "markdownlint-cli2 --fix",
       "prettier --write"
+    ],
+    "!(docs/plans)/**/*.md": [
+      "markdownlint-cli2 --fix"
     ],
     "*.{css,html,json,yaml,yml}": [
       "prettier --write"

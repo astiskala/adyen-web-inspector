@@ -3,5 +3,5 @@
     "default": true,
     "MD013": false,
   },
-  "ignores": ["node_modules", "dist", "coverage", "playwright-report", "test-results"],
+  "ignores": ["node_modules", "dist", "coverage", "playwright-report", "test-results", "docs/plans"],
 }
