@@ -326,28 +326,32 @@ function buildNetworkHtml(result: ScanResult): string {
 
 function buildRawConfigHtml(result: ScanResult): string {
   const config = result.payload.page.checkoutConfig;
+  const component = result.payload.page.componentConfig;
   const inferred = result.payload.page.inferredConfig;
   const metadata = result.payload.page.adyenMetadata;
 
   const configText = config ? JSON.stringify(config, null, 2) : 'No config captured.';
+  const componentText = component
+    ? JSON.stringify(component, null, 2)
+    : 'No component config captured.';
   const inferredText = inferred
     ? JSON.stringify(inferred, null, 2)
     : 'No inferred config captured.';
   const metaText = JSON.stringify(metadata ?? null, null, 2);
 
+  const preStyle =
+    'font-family:monospace;font-size:11px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:4px;padding:10px;white-space:pre-wrap;word-break:break-all;overflow:auto;max-height:400px';
+  const h3Style = 'font-size:12px;margin:12px 0 6px';
+
   return `
-    <h3 style="font-size:12px;margin:12px 0 6px">Raw Checkout Config</h3>
-    <pre style="font-family:monospace;font-size:11px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:4px;padding:10px;white-space:pre-wrap;word-break:break-all;overflow:auto;max-height:400px">${escapeHtml(
-      configText
-    )}</pre>
-    <h3 style="font-size:12px;margin:12px 0 6px">Inferred Checkout Config (Network)</h3>
-    <pre style="font-family:monospace;font-size:11px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:4px;padding:10px;white-space:pre-wrap;word-break:break-all;overflow:auto;max-height:400px">${escapeHtml(
-      inferredText
-    )}</pre>
-    <h3 style="font-size:12px;margin:12px 0 6px">SDK Metadata</h3>
-    <pre style="font-family:monospace;font-size:11px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:4px;padding:10px;white-space:pre-wrap;word-break:break-all;overflow:auto;max-height:400px">${escapeHtml(
-      metaText
-    )}</pre>
+    <h3 style="${h3Style}">Raw Checkout Config</h3>
+    <pre style="${preStyle}">${escapeHtml(configText)}</pre>
+    <h3 style="${h3Style}">Component Config (NPM)</h3>
+    <pre style="${preStyle}">${escapeHtml(componentText)}</pre>
+    <h3 style="${h3Style}">Inferred Checkout Config (Network)</h3>
+    <pre style="${preStyle}">${escapeHtml(inferredText)}</pre>
+    <h3 style="${h3Style}">SDK Metadata</h3>
+    <pre style="${preStyle}">${escapeHtml(metaText)}</pre>
   `;
 }
 
