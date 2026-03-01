@@ -18,7 +18,6 @@
  */
 
 import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
-import { extractLocaleFromUrl } from '../shared/utils.js';
 
 (function configInterceptor(): void {
   const CAPTURED_CONFIG_KEY = '__adyenWebInspectorCapturedConfig';
@@ -39,6 +38,14 @@ import { extractLocaleFromUrl } from '../shared/utils.js';
   ] as const;
   const STRING_CONFIG_KEYS = ['clientKey', 'environment', 'locale', 'countryCode'] as const;
   const ADYEN_INSTANCE_MARKER = '__adyenInstance';
+  const LOCALE_FROM_URL_PATTERN = /\/translations\/([^/]+)\.json$/;
+
+  /** Inlined from shared/utils — config-interceptor must be dependency-free. */
+  function extractLocaleFromUrl(url: string): string | null {
+    const match = LOCALE_FROM_URL_PATTERN.exec(url);
+    const locale = match?.[1];
+    return typeof locale === 'string' && locale !== '' ? locale : null;
+  }
 
   if ((globalThis as PlainRecord)[CAPTURED_CONFIG_KEY + '__installed'] === true) {
     return;

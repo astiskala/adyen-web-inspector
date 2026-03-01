@@ -63,7 +63,7 @@ describe('auth-country-code', () => {
     expect(authCountryCode.run(payload).severity).toBe('skip');
   });
 
-  it('skips when country code is missing and no full config', () => {
+  it('skips when country code is missing and only inferred config is present', () => {
     const payload = makeScanPayload({
       page: makePageExtract({
         checkoutConfig: null,
@@ -116,14 +116,14 @@ describe('auth-locale', () => {
     expect(authLocale.run(payload).severity).toBe('skip');
   });
 
-  it('skips when locale is missing and no full config', () => {
+  it('warns when locale is missing but inferred config is present', () => {
     const payload = makeScanPayload({
       page: makePageExtract({
         checkoutConfig: null,
         inferredConfig: makeCheckoutConfig({ locale: undefined }),
       }),
     });
-    expect(authLocale.run(payload).severity).toBe('skip');
+    expect(authLocale.run(payload).severity).toBe('warn');
   });
 
   it('passes when locale is set in inferred config', () => {

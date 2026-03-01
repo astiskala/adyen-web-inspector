@@ -127,7 +127,7 @@ export const AUTH_CHECKS = createRegistry(CATEGORY)
       return pass(STRINGS.LOCALE_PASS_TITLE);
     }
 
-    if (!config && !component) {
+    if (!config && !component && !inferred) {
       return skip(STRINGS.LOCALE_SKIP_TITLE, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
     }
 

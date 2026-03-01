@@ -210,17 +210,35 @@ async function extractPageData(tabId: number): Promise<PageExtractResult> {
 }
 
 async function executeExtract(tabId: number): Promise<PageExtractResult> {
-  const results = await chrome.scripting.executeScript<[], PageExtractResult>({
-    target: { tabId },
-    files: ['page-extractor.js'],
-    world: 'MAIN',
-  });
-
-  if (!results[0]?.result) {
-    throw new Error('Page extraction returned no results');
+  let results: chrome.scripting.InjectionResult<PageExtractResult>[];
+  try {
+    results = await chrome.scripting.executeScript<[], PageExtractResult>({
+      target: { tabId },
+      files: ['page-extractor.js'],
+      world: 'MAIN',
+    });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    throw new Error(`Page extraction script injection failed for tab ${String(tabId)}: ${message}`);
   }
 
-  return results[0].result;
+  const frame = results[0];
+  if (!frame) {
+    throw new Error(
+      `Page extraction returned no frames for tab ${String(tabId)}. ` +
+        `Results length: ${String(results.length)}`
+    );
+  }
+
+  if (!frame.result) {
+    throw new Error(
+      `Page extraction returned no results for tab ${String(tabId)}. ` +
+        `Frame documentId: ${String(frame.documentId)}, ` +
+        `frameId: ${String(frame.frameId)}`
+    );
+  }
+
+  return frame.result;
 }
 
 /**

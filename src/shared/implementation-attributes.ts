@@ -367,7 +367,9 @@ export function collectIntegrationFlowSignals(payload: ScanPayload): Integration
       Boolean(payload.page.inferredConfig?.hasSession),
     hasAnalyticsSessionId: Boolean(payload.analyticsData?.sessionId),
     hasCheckoutConfig:
-      payload.page.checkoutConfig !== null || payload.page.componentConfig !== null,
+      payload.page.checkoutConfig !== null ||
+      payload.page.componentConfig !== null ||
+      payload.page.inferredConfig !== null,
     hasAnalyticsData: payload.analyticsData !== null,
   };
 }

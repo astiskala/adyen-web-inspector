@@ -121,44 +121,152 @@ interface ComponentExtraction {
   mountCount: number;
 }
 
-function extractComponentConfig(): ComponentExtraction {
-  const adyenElements = document.querySelectorAll('[class*="adyen-checkout"]');
-  const mountPoints = new Set<Element>();
+/* eslint-disable
+   @typescript-eslint/no-explicit-any,
+   @typescript-eslint/no-unsafe-member-access
+*/
 
-  for (const el of adyenElements) {
+/**
+ * Finds the nearest ancestor element (including the element itself) with `__k`.
+ * Walks up to `maxLevels` parent levels.
+ */
+function findVnodeAncestor(el: Element, maxLevels: number): Element | null {
+  let current: Element | null = el;
+  for (let i = 0; i <= maxLevels; i++) {
+    if (current === null) return null;
+    if ((current as any).__k !== undefined) return current;
+    current = current.parentElement;
+  }
+  return null;
+}
+
+/**
+ * Finds ALL Preact vnode root mount points on the page, including inside
+ * Shadow DOMs. A root is a DOM element with `__k` whose parent does NOT
+ * have `__k`.
+ */
+function findAllVnodeRoots(): Element[] {
+  const roots: Element[] = [];
+  let scanned = 0;
+
+  function isVnodeRoot(el: Element): boolean {
+    if ((el as any).__k === undefined) return false;
     const parent = el.parentElement;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access
-    if (parent !== null && (parent as any).__k !== undefined) {
-      mountPoints.add(parent);
+    return parent === null || (parent as any).__k === undefined;
+  }
+
+  function walkNode(el: Element): void {
+    if (scanned > 10000 || roots.length >= 20) return;
+    scanned++;
+
+    if (isVnodeRoot(el)) {
+      roots.push(el);
+    }
+
+    if (el.shadowRoot !== null) {
+      for (const child of Array.from(el.shadowRoot.children)) {
+        walkNode(child);
+      }
+    }
+
+    for (const child of Array.from(el.children)) {
+      walkNode(child);
     }
   }
 
-  if (mountPoints.size === 0) {
-    return { config: null, mountCount: 0 };
+  walkNode(document.body);
+  return roots;
+}
+
+/**
+ * Finds Adyen checkout elements including inside Shadow DOMs.
+ */
+function findAdyenElements(): Element[] {
+  const results = Array.from(document.querySelectorAll('[class*="adyen-checkout"]'));
+
+  function findShadowHosts(el: Element, depth: number): void {
+    if (depth > 6) return;
+    if (el.shadowRoot !== null) {
+      const adyenInShadow = Array.from(el.shadowRoot.querySelectorAll('[class*="adyen-checkout"]'));
+      results.push(...adyenInShadow);
+    }
+    for (const child of Array.from(el.children)) {
+      findShadowHosts(child, depth + 1);
+    }
   }
 
+  findShadowHosts(document.body, 0);
+  return results;
+}
+
+function collectMountPoints(adyenElements: Element[]): Set<Element> {
+  const mountPoints = new Set<Element>();
+
+  for (const el of adyenElements) {
+    const ancestor = findVnodeAncestor(el.parentElement ?? el, 10);
+    if (ancestor !== null) {
+      mountPoints.add(ancestor);
+    }
+  }
+
+  const allRoots = findAllVnodeRoots();
+  for (const root of allRoots) {
+    mountPoints.add(root);
+  }
+
+  return mountPoints;
+}
+
+function processMountPoints(mountPoints: Set<Element>): {
+  merged: CheckoutConfig | null;
+  findCount: number;
+} {
   let merged: CheckoutConfig | null = null;
+  let findCount = 0;
 
   for (const mount of mountPoints) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access
     const vnode: unknown = (mount as any).__k;
     const options = findCoreOptions(vnode, 0);
     if (options !== null && options !== undefined) {
+      findCount++;
       const extracted = extractFieldsFromOptions(options);
       merged = merged === null ? extracted : mergeConfigs(merged, extracted);
     }
   }
 
+  return { merged, findCount };
+}
+
+function extractComponentConfig(): ComponentExtraction {
+  const adyenElements = findAdyenElements();
+
+  const mountPoints = collectMountPoints(adyenElements);
+
+  if (mountPoints.size === 0) {
+    return { config: null, mountCount: 0 };
+  }
+
+  const { merged } = processMountPoints(mountPoints);
   return { config: merged, mountCount: mountPoints.size };
 }
 
+/* eslint-enable
+   @typescript-eslint/no-explicit-any,
+   @typescript-eslint/no-unsafe-member-access
+*/
+
 function extract(): PageExtractResult {
   const g = globalThis as GlobalWithAdyen;
+
+  const metadata = extractMetadata(g);
   const { config: componentConfig, mountCount } = extractComponentConfig();
+  const checkoutConfig = extractCheckoutConfig(g);
+  const inferredConfig = extractInferredConfig(g);
+
   return {
-    adyenMetadata: extractMetadata(g),
-    checkoutConfig: extractCheckoutConfig(g),
-    inferredConfig: extractInferredConfig(g),
+    adyenMetadata: metadata,
+    checkoutConfig,
+    inferredConfig,
     componentConfig,
     scripts: extractScripts(),
     links: extractLinks(),
