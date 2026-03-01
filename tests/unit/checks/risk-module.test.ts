@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { RISK_CHECKS } from '../../../src/background/checks/risk-module';
-import { makeScanPayload, makePageExtract } from '../../fixtures/makeScanPayload';
+import {
+  makeScanPayload,
+  makePageExtract,
+  makeCheckoutConfig,
+} from '../../fixtures/makeScanPayload';
 import { DF_IFRAME_NAME } from '../../../src/shared/constants';
 import { requireCheck } from './requireCheck';
 
@@ -69,5 +73,25 @@ describe('risk-module-not-disabled', () => {
       }),
     });
     expect(riskNotDisabled.run(payload).severity).toBe('skip');
+  });
+});
+
+describe('componentConfig fallback', () => {
+  it('risk-module-not-disabled uses componentConfig when checkoutConfig is null', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({
+        componentConfig: makeCheckoutConfig({ riskEnabled: false }),
+      }),
+    });
+    expect(riskNotDisabled.run(payload).severity).toBe('warn');
+  });
+
+  it('risk-module-not-disabled passes when riskEnabled is true via componentConfig', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({
+        componentConfig: makeCheckoutConfig({ riskEnabled: true }),
+      }),
+    });
+    expect(riskNotDisabled.run(payload).severity).toBe('pass');
   });
 });

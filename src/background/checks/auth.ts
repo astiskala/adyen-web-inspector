@@ -51,7 +51,9 @@ const SUPPORTED_LOCALES = new Set<string>(
 export const AUTH_CHECKS = createRegistry(CATEGORY)
   .add('auth-client-key', (payload, { pass, skip, warn }) => {
     const clientKey =
-      payload.page.checkoutConfig?.clientKey ?? payload.page.inferredConfig?.clientKey;
+      payload.page.checkoutConfig?.clientKey ??
+      payload.page.componentConfig?.clientKey ??
+      payload.page.inferredConfig?.clientKey;
 
     if (clientKey === undefined || clientKey === '') {
       return skip(STRINGS.CLIENT_KEY_SKIP_TITLE, STRINGS.CLIENT_KEY_SKIP_REASON);
@@ -70,9 +72,14 @@ export const AUTH_CHECKS = createRegistry(CATEGORY)
   })
   .add('auth-country-code', (payload, { pass, fail, skip, warn }) => {
     const config = payload.page.checkoutConfig;
+    const component = payload.page.componentConfig;
     const inferred = payload.page.inferredConfig;
 
     if (config?.countryCode !== undefined && config.countryCode !== '') {
+      return pass(STRINGS.COUNTRY_CODE_PASS_TITLE);
+    }
+
+    if (component?.countryCode !== undefined && component.countryCode !== '') {
       return pass(STRINGS.COUNTRY_CODE_PASS_TITLE);
     }
 
@@ -80,7 +87,7 @@ export const AUTH_CHECKS = createRegistry(CATEGORY)
       return pass(STRINGS.COUNTRY_CODE_PASS_TITLE);
     }
 
-    if (!config) {
+    if (!config && !component) {
       return skip(STRINGS.COUNTRY_CODE_SKIP_TITLE, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
     }
 
@@ -103,9 +110,10 @@ export const AUTH_CHECKS = createRegistry(CATEGORY)
   })
   .add('auth-locale', (payload, { pass, skip, warn }) => {
     const config = payload.page.checkoutConfig;
+    const component = payload.page.componentConfig;
     const inferred = payload.page.inferredConfig;
 
-    const locale = config?.locale ?? inferred?.locale;
+    const locale = config?.locale ?? component?.locale ?? inferred?.locale;
 
     if (locale !== undefined && locale !== '') {
       if (!SUPPORTED_LOCALES.has(locale.toLowerCase())) {
@@ -119,7 +127,7 @@ export const AUTH_CHECKS = createRegistry(CATEGORY)
       return pass(STRINGS.LOCALE_PASS_TITLE);
     }
 
-    if (!config) {
+    if (!config && !component && !inferred) {
       return skip(STRINGS.LOCALE_SKIP_TITLE, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
     }
 

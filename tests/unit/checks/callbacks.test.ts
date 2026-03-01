@@ -663,3 +663,48 @@ describe('callback-custom-pay-button-compatibility', () => {
     expect(multipleSubmissions.run(payload).severity).toBe('skip');
   });
 });
+
+describe('componentConfig fallback', () => {
+  it('callback-on-error uses componentConfig when checkoutConfig is null', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({
+        componentConfig: makeCheckoutConfig({ onError: 'checkout' }),
+      }),
+      capturedRequests: sessionsRequests,
+    });
+    const result = onError.run(payload);
+    expect(result.severity).toBe('pass');
+  });
+
+  it('callback-on-payment-completed uses componentConfig when checkoutConfig is null', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({
+        componentConfig: makeCheckoutConfig({ onPaymentCompleted: 'checkout' }),
+      }),
+      capturedRequests: sessionsRequests,
+    });
+    const result = onPaymentCompleted.run(payload);
+    expect(result.severity).toBe('pass');
+  });
+
+  it('callback-on-submit uses componentConfig in advanced flow', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({
+        componentConfig: makeCheckoutConfig({ onSubmit: 'checkout' }),
+      }),
+    });
+    const result = onSubmit.run(payload);
+    expect(result.severity).toBe('pass');
+  });
+
+  it('callback-before-submit uses componentConfig', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({
+        componentConfig: makeCheckoutConfig({ beforeSubmit: 'checkout' }),
+      }),
+      capturedRequests: sessionsRequests,
+    });
+    const result = beforeSubmit.run(payload);
+    expect(result.severity).not.toBe('skip');
+  });
+});

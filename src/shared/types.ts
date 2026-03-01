@@ -164,6 +164,12 @@ export interface PageExtractResult {
   readonly checkoutConfig: CheckoutConfig | null;
   /** Configuration inferred from partial sources like network signals. */
   readonly inferredConfig: CheckoutConfig | null;
+  /** Config extracted from mounted Adyen component Preact trees (works for NPM bundles). */
+  readonly componentConfig: CheckoutConfig | null;
+  /** Count of distinct mounted Adyen component trees found in the DOM. */
+  readonly componentMountCount?: number;
+  /** True when a `.adyen-checkout__dropin` element is present in the DOM. */
+  readonly hasDropinDOM?: boolean;
   readonly scripts: ScriptTag[];
   readonly links: LinkTag[];
   readonly iframes: IframeInfo[];

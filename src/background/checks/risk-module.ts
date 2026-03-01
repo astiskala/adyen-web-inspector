@@ -48,7 +48,7 @@ export const RISK_CHECKS = createRegistry(CATEGORY)
     );
   })
   .add('risk-module-not-disabled', (payload, { skip, warn, pass }) => {
-    const config = payload.page.checkoutConfig;
+    const config = payload.page.checkoutConfig ?? payload.page.componentConfig;
 
     if (!config) {
       return skip(STRINGS.MODULE_SKIP_TITLE, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);

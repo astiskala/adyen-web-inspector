@@ -190,7 +190,7 @@ function buildFallbackRequests(pageData: PageExtractResult): CapturedRequest[] {
 
 async function extractPageData(tabId: number): Promise<PageExtractResult> {
   const first = await executeExtract(tabId);
-  if (first.checkoutConfig) return first;
+  if (first.checkoutConfig || first.componentConfig) return first;
 
   const hasSdk =
     first.adyenMetadata !== null ||
@@ -203,24 +203,48 @@ async function extractPageData(tabId: number): Promise<PageExtractResult> {
   while (Date.now() < deadline) {
     await new Promise((r) => setTimeout(r, PAGE_EXTRACT_RETRY_INTERVAL_MS));
     latest = await executeExtract(tabId);
-    if (latest.checkoutConfig) return latest;
+    if (latest.checkoutConfig || latest.componentConfig) return latest;
   }
 
   return latest;
 }
 
 async function executeExtract(tabId: number): Promise<PageExtractResult> {
-  const results = await chrome.scripting.executeScript<[], PageExtractResult>({
-    target: { tabId },
-    files: ['page-extractor.js'],
-    world: 'MAIN',
-  });
-
-  if (!results[0]?.result) {
-    throw new Error('Page extraction returned no results');
+  let results: chrome.scripting.InjectionResult<PageExtractResult>[];
+  try {
+    results = await chrome.scripting.executeScript<[], PageExtractResult>({
+      target: { tabId },
+      files: ['page-extractor.js'],
+      world: 'MAIN',
+    });
+  } catch (err: unknown) {
+    let message: string;
+    if (err instanceof Error) {
+      message = err.message;
+    } else {
+      const typeStr =
+        typeof err === 'object' && err !== null ? Object.prototype.toString.call(err) : typeof err;
+      message = `[${typeStr}]`;
+    }
+    throw new Error(`Page extraction script injection failed for tab ${tabId}: ${message}`);
   }
 
-  return results[0].result;
+  const frame = results[0];
+  if (!frame) {
+    throw new Error(
+      `Page extraction returned no frames for tab ${tabId}. ` + `Results length: ${results.length}`
+    );
+  }
+
+  if (!frame.result) {
+    throw new Error(
+      `Page extraction returned no results for tab ${tabId}. ` +
+        `Frame documentId: ${frame.documentId}, ` +
+        `frameId: ${frame.frameId}`
+    );
+  }
+
+  return frame.result;
 }
 
 /**

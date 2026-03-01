@@ -5,6 +5,7 @@ import {
   makeAdyenPayload,
   makePageExtract,
   makeRequest,
+  makeCheckoutConfig,
 } from '../../fixtures/makeScanPayload';
 import { requireCheck } from './requireCheck';
 
@@ -225,5 +226,17 @@ describe('env-region-mismatch', () => {
       { capturedRequests: [makeRequest('https://checkoutshopper-live-us.cdn.adyen.com/sdk.js')] }
     );
     expect(envRegionMismatch.run(payload).severity).toBe('skip');
+  });
+});
+
+describe('componentConfig fallback', () => {
+  it('env-key-mismatch resolves clientKey from componentConfig', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({
+        componentConfig: makeCheckoutConfig({ clientKey: 'test_COMPONENT' }),
+      }),
+      capturedRequests: [makeRequest('https://checkout-test.adyen.com/v71/sessions')],
+    });
+    expect(envKeyMismatch.run(payload).severity).toBe('pass');
   });
 });

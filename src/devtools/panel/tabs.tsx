@@ -350,10 +350,14 @@ export function NetworkTab({ result }: Props): JSX.Element {
  */
 export function RawConfigTab({ result }: Props): JSX.Element {
   const config = result.payload.page.checkoutConfig;
+  const component = result.payload.page.componentConfig;
   const inferred = result.payload.page.inferredConfig;
   const metadata = result.payload.page.adyenMetadata;
 
   const configText = config ? JSON.stringify(config, null, 2) : 'No config captured.';
+  const componentText = component
+    ? JSON.stringify(component, null, 2)
+    : 'No component config captured.';
   const inferredText = inferred
     ? JSON.stringify(inferred, null, 2)
     : 'No inferred config captured.';
@@ -364,6 +368,10 @@ export function RawConfigTab({ result }: Props): JSX.Element {
       <div class={s('section')}>
         <h3 class={s('sectionTitle')}>Raw Checkout Config</h3>
         <pre class={s('codeBlock')}>{configText}</pre>
+      </div>
+      <div class={s('section')}>
+        <h3 class={s('sectionTitle')}>Component Config (NPM)</h3>
+        <pre class={s('codeBlock')}>{componentText}</pre>
       </div>
       <div class={s('section')}>
         <h3 class={s('sectionTitle')}>Inferred Checkout Config (Network)</h3>

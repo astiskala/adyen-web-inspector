@@ -7,6 +7,7 @@ import {
   makeAdyenMetadata,
   makeAnalyticsData,
   makeRequest,
+  makeCheckoutConfig,
 } from '../../fixtures/makeScanPayload';
 import { requireCheck } from './requireCheck';
 
@@ -184,6 +185,20 @@ describe('sdk-flavor', () => {
     const result = sdkFlavor.run(payload);
     expect(result.severity).toBe('info');
     expect(result.title).toContain('Components');
+  });
+
+  it('reports Drop-in when hasDropinDOM is true (NPM integration without analytics)', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({
+        adyenMetadata: makeAdyenMetadata(),
+        checkoutConfig: makeCheckoutConfig(),
+        hasDropinDOM: true,
+      }),
+    });
+    const result = sdkFlavor.run(payload);
+    expect(result.severity).toBe('info');
+    expect(result.title).toContain('Drop-in');
+    expect(result.detail).toContain('DOM');
   });
 
   it('reports not mounted when SDK is loaded but no checkout activity', () => {
@@ -383,5 +398,38 @@ describe('sdk-multi-init', () => {
     const result = sdkMultiInit.run(payload);
     expect(result.severity).toBe('warn');
     expect(result.title).toContain('(count: 2)');
+  });
+});
+
+describe('componentConfig fallback', () => {
+  it('sdk-analytics detects disabled analytics from componentConfig', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({
+        adyenMetadata: makeAdyenMetadata(),
+        componentConfig: makeCheckoutConfig({ analyticsEnabled: false }),
+      }),
+    });
+    expect(sdkAnalytics.run(payload).severity).toBe('warn');
+  });
+
+  it('sdk-multi-init uses componentMountCount when checkoutInitCount is absent', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({
+        adyenMetadata: makeAdyenMetadata(),
+        componentMountCount: 2,
+      }),
+    });
+    const result = sdkMultiInit.run(payload);
+    expect(result.severity).toBe('warn');
+  });
+
+  it('sdk-multi-init passes with componentMountCount of 1', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({
+        adyenMetadata: makeAdyenMetadata(),
+        componentMountCount: 1,
+      }),
+    });
+    expect(sdkMultiInit.run(payload).severity).toBe('pass');
   });
 });

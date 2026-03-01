@@ -9,6 +9,32 @@ const root = import.meta.dirname;
  * file paths match what manifest.json expects (e.g. popup/index.html).
  * Also adjusts relative asset references to account for the new depth.
  */
+/**
+ * Wraps MAIN-world scripts in a block scope so that re-injection via
+ * chrome.scripting.executeScript doesn't cause "Identifier already declared"
+ * errors from top-level const/let declarations.
+ *
+ * Uses a bare block `{ … }` rather than an IIFE because executeScript
+ * captures the script's *completion value*. A block preserves that (the
+ * value of the last expression statement), whereas an IIFE without an
+ * explicit `return` would yield `undefined`.
+ */
+function wrapMainWorldScriptsInBlock(): Plugin {
+  const targetFiles = new Set(['page-extractor.js']);
+  return {
+    name: 'wrap-main-world-block-scope',
+    enforce: 'post',
+    generateBundle(_options, bundle): void {
+      for (const [fileName, chunk] of Object.entries(bundle)) {
+        if (!targetFiles.has(fileName)) continue;
+        if (chunk.type === 'chunk' && typeof chunk.code === 'string') {
+          chunk.code = `{\n${chunk.code}\n}\n`;
+        }
+      }
+    },
+  };
+}
+
 function chromeExtensionHtmlFlatten(): Plugin {
   return {
     name: 'chrome-extension-html-flatten',
@@ -33,17 +59,17 @@ function chromeExtensionHtmlFlatten(): Plugin {
         }
 
         chunk.fileName = newPath;
-        // Eslint: avoid dynamic delete by reassigning
         bundle[newPath] = chunk;
-        // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
-        delete bundle[fileName];
+        if (Object.hasOwn(bundle, fileName) && fileName !== newPath) {
+          Reflect.deleteProperty(bundle, fileName);
+        }
       }
     },
   };
 }
 
 export default defineConfig({
-  plugins: [preact(), chromeExtensionHtmlFlatten()],
+  plugins: [preact(), wrapMainWorldScriptsInBlock(), chromeExtensionHtmlFlatten()],
   base: '',
   build: {
     outDir: 'dist',

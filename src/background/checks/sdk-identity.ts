@@ -21,6 +21,7 @@ const STRINGS = {
 
   FLAVOR_ANALYTICS_DETAIL: 'Detected from Adyen checkout analytics data.',
   FLAVOR_DROPIN_DETAIL: 'Detected based on CDN resource URL patterns.',
+  FLAVOR_DROPIN_DOM_DETAIL: 'Detected based on Drop-in DOM element present on the page.',
   FLAVOR_CONFIG_DETAIL:
     'Detected based on checkout config presence (analytics disabled or unavailable).',
   FLAVOR_NO_CHECKOUT_TITLE: 'No Adyen Web checkout was mounted on this page.',
@@ -59,7 +60,7 @@ const STRINGS = {
   MULTI_INIT_WARN_DETAIL:
     'Multiple initialisations can cause unexpected behavior, duplicate event listeners, and performance issues. This often occurs in React integrations due to StrictMode or improper hook usage.',
   MULTI_INIT_WARN_REMEDIATION:
-    'Ensure AdyenCheckout is initialised only once. Use a ref or a custom hook that returns a stable instance and only mount components when ready. See: https://docs.adyen.com/online-payments/web-best-practices/#handle-web-framework-re-renders',
+    'Ensure AdyenCheckout is initialised only once. Use a ref or a custom hook that returns a stable instance and only mount components when ready.',
   MULTI_INIT_WARN_URL:
     'https://docs.adyen.com/online-payments/web-best-practices/#handle-web-framework-re-renders',
 } as const;
@@ -92,6 +93,13 @@ export const SDK_IDENTITY_CHECKS = createRegistry(CATEGORY)
 
     if (flavorResolution.source === 'dropin-pattern') {
       return info(`Integration flavor: ${flavorResolution.flavor}.`, STRINGS.FLAVOR_DROPIN_DETAIL);
+    }
+
+    if (flavorResolution.source === 'dropin-dom') {
+      return info(
+        `Integration flavor: ${flavorResolution.flavor}.`,
+        STRINGS.FLAVOR_DROPIN_DOM_DETAIL
+      );
     }
 
     if (flavorResolution.source === 'checkout-config') {
@@ -150,7 +158,7 @@ export const SDK_IDENTITY_CHECKS = createRegistry(CATEGORY)
       return skip(STRINGS.ANALYTICS_SKIP_TITLE, STRINGS.ANALYTICS_SKIP_REASON);
     }
 
-    if (payload.page.checkoutConfig?.analyticsEnabled === false) {
+    if ((payload.page.checkoutConfig ?? payload.page.componentConfig)?.analyticsEnabled === false) {
       return warn(
         STRINGS.ANALYTICS_WARN_TITLE,
         STRINGS.ANALYTICS_WARN_DETAIL,
@@ -162,17 +170,17 @@ export const SDK_IDENTITY_CHECKS = createRegistry(CATEGORY)
     return pass(STRINGS.ANALYTICS_PASS_TITLE, STRINGS.ANALYTICS_PASS_DETAIL);
   })
   .add('sdk-multi-init', (payload, { pass, warn, skip }) => {
-    const { checkoutInitCount } = payload.page;
-    if (checkoutInitCount === undefined || checkoutInitCount === 0) {
+    const initCount = payload.page.checkoutInitCount ?? payload.page.componentMountCount;
+    if (initCount === undefined || initCount === 0) {
       return skip(
         'Initialization count check skipped.',
         'AdyenCheckout initialization not detected.'
       );
     }
 
-    if (checkoutInitCount > 1) {
+    if (initCount > 1) {
       return warn(
-        `${STRINGS.MULTI_INIT_WARN_TITLE} (count: ${checkoutInitCount})`,
+        `${STRINGS.MULTI_INIT_WARN_TITLE} (count: ${initCount})`,
         STRINGS.MULTI_INIT_WARN_DETAIL,
         STRINGS.MULTI_INIT_WARN_REMEDIATION,
         STRINGS.MULTI_INIT_WARN_URL

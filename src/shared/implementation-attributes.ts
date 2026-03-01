@@ -38,6 +38,7 @@ type ImplementationFlavor = 'Drop-in' | 'Components' | 'Custom' | 'Unknown';
 type IntegrationFlavorSource =
   | 'analytics'
   | 'dropin-pattern'
+  | 'dropin-dom'
   | 'checkout-config'
   | 'sdk-loaded-no-checkout'
   | 'unknown';
@@ -243,8 +244,14 @@ export function resolveEnvironment(payload: ScanPayload): EnvironmentResolution 
     return { env: envFromInferred, source: 'config' };
   }
 
+  const envFromComponent = detectEnvironmentFromConfig(payload.page.componentConfig?.environment);
+  if (envFromComponent !== null) {
+    return { env: envFromComponent, source: 'config' };
+  }
+
   const envFromKey =
     detectEnvironmentFromClientKey(payload.page.checkoutConfig?.clientKey) ??
+    detectEnvironmentFromClientKey(payload.page.componentConfig?.clientKey) ??
     detectEnvironmentFromClientKey(payload.page.inferredConfig?.clientKey);
   if (envFromKey !== null) {
     return { env: envFromKey, source: 'client-key' };
@@ -265,6 +272,9 @@ export function resolveRegion(payload: ScanPayload): RegionResolution {
   let regionFromConfig = detectRegionFromConfig(payload.page.checkoutConfig?.environment);
   if (regionFromConfig === 'unknown') {
     regionFromConfig = detectRegionFromConfig(payload.page.inferredConfig?.environment);
+  }
+  if (regionFromConfig === 'unknown') {
+    regionFromConfig = detectRegionFromConfig(payload.page.componentConfig?.environment);
   }
 
   if (regionFromConfig !== 'unknown') {
@@ -324,7 +334,7 @@ export function detectImportMethod(scripts: ScanPayload['page']['scripts']): Imp
 export function hasCheckoutActivity(payload: ScanPayload): boolean {
   const { page, capturedRequests, analyticsData } = payload;
 
-  if (page.checkoutConfig || page.inferredConfig) return true;
+  if (page.checkoutConfig || page.componentConfig || page.inferredConfig) return true;
   if (analyticsData !== null) return true;
 
   if (
@@ -354,9 +364,13 @@ export function collectIntegrationFlowSignals(payload: ScanPayload): Integration
     ),
     hasSessionConfig:
       Boolean(payload.page.checkoutConfig?.hasSession) ||
+      Boolean(payload.page.componentConfig?.hasSession) ||
       Boolean(payload.page.inferredConfig?.hasSession),
     hasAnalyticsSessionId: Boolean(payload.analyticsData?.sessionId),
-    hasCheckoutConfig: payload.page.checkoutConfig !== null,
+    hasCheckoutConfig:
+      payload.page.checkoutConfig !== null ||
+      payload.page.componentConfig !== null ||
+      payload.page.inferredConfig !== null,
     hasAnalyticsData: payload.analyticsData !== null,
   };
 }
@@ -411,6 +425,13 @@ export function resolveIntegrationFlavor(payload: ScanPayload): IntegrationFlavo
     return {
       flavor: 'Drop-in',
       source: 'dropin-pattern',
+    };
+  }
+
+  if (payload.page.hasDropinDOM === true) {
+    return {
+      flavor: 'Drop-in',
+      source: 'dropin-dom',
     };
   }
 
