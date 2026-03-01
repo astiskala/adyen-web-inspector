@@ -403,11 +403,11 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
       if (args.length > 1) {
         captureConfig(args[1], 'component');
       }
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-      if (new.target === undefined) {
-        return original.apply(this, args);
+      const target = new.target as unknown;
+      if (target !== undefined) {
+        return Reflect.construct(original, args, original) as unknown;
       }
-      return Reflect.construct(original, args, original) as unknown;
+      return original.apply(this, args);
     };
     markWrapped(wrapped);
     try {

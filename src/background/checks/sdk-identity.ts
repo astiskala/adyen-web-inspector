@@ -59,7 +59,7 @@ const STRINGS = {
   MULTI_INIT_WARN_DETAIL:
     'Multiple initialisations can cause unexpected behavior, duplicate event listeners, and performance issues. This often occurs in React integrations due to StrictMode or improper hook usage.',
   MULTI_INIT_WARN_REMEDIATION:
-    'Ensure AdyenCheckout is initialised only once. Use a ref or a custom hook that returns a stable instance and only mount components when ready. See: https://docs.adyen.com/online-payments/web-best-practices/#handle-web-framework-re-renders',
+    'Ensure AdyenCheckout is initialised only once. Use a ref or a custom hook that returns a stable instance and only mount components when ready.',
   MULTI_INIT_WARN_URL:
     'https://docs.adyen.com/online-payments/web-best-practices/#handle-web-framework-re-renders',
 } as const;

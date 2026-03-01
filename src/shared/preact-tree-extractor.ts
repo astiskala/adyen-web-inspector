@@ -2,11 +2,28 @@ import type { CheckoutConfig } from './types.js';
 
 const MAX_SOURCE_LENGTH = 1200;
 
-/* eslint-disable
-   @typescript-eslint/no-explicit-any,
-   @typescript-eslint/no-unsafe-member-access,
-   @typescript-eslint/no-unsafe-assignment
-*/
+interface PreactVNode {
+  __c?: {
+    props?: {
+      core?: {
+        options?: unknown;
+      };
+    };
+  };
+  __k?: unknown;
+}
+
+function hasPreactComponent(node: unknown): node is PreactVNode {
+  return node !== null && typeof node === 'object';
+}
+
+function getCoreOptions(vnode: PreactVNode): unknown {
+  const options = vnode.__c?.props?.['core']?.['options'];
+  if (options !== undefined) {
+    return options;
+  }
+  return null;
+}
 
 /**
  * Recursively walks a Preact VNode tree to find `props.core.options`.
@@ -15,16 +32,12 @@ const MAX_SOURCE_LENGTH = 1200;
 export function findCoreOptions(node: unknown, depth: number): unknown {
   if (node === null || node === undefined || depth > 15) return null;
 
-  const n = node as any;
+  if (!hasPreactComponent(node)) return null;
 
-  if (n.__c !== null && n.__c !== undefined) {
-    const props = n.__c.props;
-    if (props?.core?.options !== undefined && props.core.options !== null) {
-      return props.core.options as unknown;
-    }
-  }
+  const options = getCoreOptions(node);
+  if (options !== null) return options;
 
-  const children: unknown = n.__k;
+  const children: unknown = node.__k;
   if (Array.isArray(children)) {
     for (const child of children) {
       const result = findCoreOptions(child, depth + 1);
@@ -37,11 +50,27 @@ export function findCoreOptions(node: unknown, depth: number): unknown {
   return null;
 }
 
+interface OptionsObject {
+  clientKey?: string;
+  environment?: string;
+  locale?: string;
+  countryCode?: string;
+  risk?: { enabled?: boolean };
+  analytics?: { enabled?: boolean };
+  session?: unknown;
+  onSubmit?: () => unknown;
+  onAdditionalDetails?: () => unknown;
+  onPaymentCompleted?: () => unknown;
+  onPaymentFailed?: () => unknown;
+  onError?: () => unknown;
+  beforeSubmit?: () => unknown;
+}
+
 /**
  * Extracts CheckoutConfig fields from a core.options object.
  */
 export function extractFieldsFromOptions(options: unknown): CheckoutConfig {
-  const o = options as any;
+  const o = options as OptionsObject;
   const config: Record<string, unknown> = {};
 
   if (typeof o.clientKey === 'string') config['clientKey'] = o.clientKey;
@@ -50,10 +79,10 @@ export function extractFieldsFromOptions(options: unknown): CheckoutConfig {
   if (typeof o.countryCode === 'string') config['countryCode'] = o.countryCode;
 
   if (o.risk !== undefined) {
-    config['riskEnabled'] = o.risk?.enabled !== false;
+    config['riskEnabled'] = o.risk.enabled !== false;
   }
   if (o.analytics !== undefined) {
-    config['analyticsEnabled'] = o.analytics?.enabled !== false;
+    config['analyticsEnabled'] = o.analytics.enabled !== false;
   }
 
   if (o.session !== undefined && o.session !== null) {
@@ -66,7 +95,7 @@ export function extractFieldsFromOptions(options: unknown): CheckoutConfig {
   return config as CheckoutConfig;
 }
 
-function extractCallbacks(o: any, config: Record<string, unknown>): void {
+function extractCallbacks(o: OptionsObject, config: Record<string, unknown>): void {
   const callbackNames = [
     'onSubmit',
     'onAdditionalDetails',
@@ -83,21 +112,17 @@ function extractCallbacks(o: any, config: Record<string, unknown>): void {
   }
 }
 
-function extractSources(o: any, config: Record<string, unknown>): void {
+function extractSources(o: OptionsObject, config: Record<string, unknown>): void {
   if (typeof o.onSubmit === 'function') {
     try {
-      config['onSubmitSource'] = (o.onSubmit as () => unknown)
-        .toString()
-        .substring(0, MAX_SOURCE_LENGTH);
+      config['onSubmitSource'] = o.onSubmit.toString().substring(0, MAX_SOURCE_LENGTH);
     } catch {
       /* source unavailable */
     }
   }
   if (typeof o.beforeSubmit === 'function') {
     try {
-      config['beforeSubmitSource'] = (o.beforeSubmit as () => unknown)
-        .toString()
-        .substring(0, MAX_SOURCE_LENGTH);
+      config['beforeSubmitSource'] = o.beforeSubmit.toString().substring(0, MAX_SOURCE_LENGTH);
     } catch {
       /* source unavailable */
     }
@@ -117,9 +142,3 @@ export function mergeConfigs(base: CheckoutConfig, extra: CheckoutConfig): Check
   }
   return merged as CheckoutConfig;
 }
-
-/* eslint-enable
-   @typescript-eslint/no-explicit-any,
-   @typescript-eslint/no-unsafe-member-access,
-   @typescript-eslint/no-unsafe-assignment
-*/

@@ -29,6 +29,10 @@ type GlobalWithAdyen = typeof globalThis & {
   __adyenWebInspectorCheckoutInitCount?: number;
 };
 
+interface ElementWithVnode extends Element {
+  __k?: unknown;
+}
+
 function extractMetadata(g: GlobalWithAdyen): AdyenWebMetadata | null {
   return g.AdyenWebMetadata ?? null;
 }
@@ -121,20 +125,20 @@ interface ComponentExtraction {
   mountCount: number;
 }
 
-/* eslint-disable
-   @typescript-eslint/no-explicit-any,
-   @typescript-eslint/no-unsafe-member-access
-*/
+interface ElementWithVnode extends Element {
+  __k?: unknown;
+}
 
 /**
  * Finds the nearest ancestor element (including the element itself) with `__k`.
  * Walks up to `maxLevels` parent levels.
  */
-function findVnodeAncestor(el: Element, maxLevels: number): Element | null {
+function findVnodeAncestor(el: Element, maxLevels: number): ElementWithVnode | null {
   let current: Element | null = el;
   for (let i = 0; i <= maxLevels; i++) {
     if (current === null) return null;
-    if ((current as any).__k !== undefined) return current;
+    const vnodeEl = current as ElementWithVnode;
+    if (vnodeEl.__k !== undefined) return vnodeEl;
     current = current.parentElement;
   }
   return null;
@@ -145,14 +149,17 @@ function findVnodeAncestor(el: Element, maxLevels: number): Element | null {
  * Shadow DOMs. A root is a DOM element with `__k` whose parent does NOT
  * have `__k`.
  */
-function findAllVnodeRoots(): Element[] {
-  const roots: Element[] = [];
+function findAllVnodeRoots(): ElementWithVnode[] {
+  const roots: ElementWithVnode[] = [];
   let scanned = 0;
 
   function isVnodeRoot(el: Element): boolean {
-    if ((el as any).__k === undefined) return false;
+    const vnodeEl = el as ElementWithVnode;
+    if (vnodeEl.__k === undefined) return false;
     const parent = el.parentElement;
-    return parent === null || (parent as any).__k === undefined;
+    if (parent === null) return true;
+    const parentVnodeEl = parent as ElementWithVnode;
+    return parentVnodeEl.__k === undefined;
   }
 
   function walkNode(el: Element): void {
@@ -160,7 +167,7 @@ function findAllVnodeRoots(): Element[] {
     scanned++;
 
     if (isVnodeRoot(el)) {
-      roots.push(el);
+      roots.push(el as ElementWithVnode);
     }
 
     if (el.shadowRoot !== null) {
@@ -199,11 +206,12 @@ function findAdyenElements(): Element[] {
   return results;
 }
 
-function collectMountPoints(adyenElements: Element[]): Set<Element> {
-  const mountPoints = new Set<Element>();
+function collectMountPoints(adyenElements: Element[]): Set<ElementWithVnode> {
+  const mountPoints = new Set<ElementWithVnode>();
 
   for (const el of adyenElements) {
-    const ancestor = findVnodeAncestor(el.parentElement ?? el, 10);
+    const parentEl = el.parentElement ?? el;
+    const ancestor = findVnodeAncestor(parentEl, 10);
     if (ancestor !== null) {
       mountPoints.add(ancestor);
     }
@@ -217,7 +225,7 @@ function collectMountPoints(adyenElements: Element[]): Set<Element> {
   return mountPoints;
 }
 
-function processMountPoints(mountPoints: Set<Element>): {
+function processMountPoints(mountPoints: Set<ElementWithVnode>): {
   merged: CheckoutConfig | null;
   findCount: number;
 } {
@@ -225,7 +233,7 @@ function processMountPoints(mountPoints: Set<Element>): {
   let findCount = 0;
 
   for (const mount of mountPoints) {
-    const vnode: unknown = (mount as any).__k;
+    const vnode: unknown = mount.__k;
     const options = findCoreOptions(vnode, 0);
     if (options !== null && options !== undefined) {
       findCount++;
@@ -249,11 +257,6 @@ function extractComponentConfig(): ComponentExtraction {
   const { merged } = processMountPoints(mountPoints);
   return { config: merged, mountCount: mountPoints.size };
 }
-
-/* eslint-enable
-   @typescript-eslint/no-explicit-any,
-   @typescript-eslint/no-unsafe-member-access
-*/
 
 function extract(): PageExtractResult {
   const g = globalThis as GlobalWithAdyen;

@@ -59,10 +59,11 @@ function chromeExtensionHtmlFlatten(): Plugin {
         }
 
         chunk.fileName = newPath;
-        // Eslint: avoid dynamic delete by reassigning
         bundle[newPath] = chunk;
-        // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
-        delete bundle[fileName];
+        const oldFileStillPresent = Object.prototype.hasOwnProperty.call(bundle, fileName);
+        if (oldFileStillPresent && fileName !== newPath) {
+          Reflect.deleteProperty(bundle, fileName);
+        }
       }
     },
   };
