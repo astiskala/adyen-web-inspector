@@ -14,7 +14,8 @@ interface ExtensionFixtures {
 }
 
 export const test = base.extend<ExtensionFixtures>({
-  context: async (_fixtures, use) => {
+  // eslint-disable-next-line no-empty-pattern
+  context: async ({}, use) => {
     const context = await chromium.launchPersistentContext('', {
       headless: false,
       args: [
