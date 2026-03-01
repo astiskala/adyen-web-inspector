@@ -65,10 +65,31 @@ export async function runScan(tabId: number): Promise<ScanResult> {
       bundleVersion ??
       null;
 
+    // Enforce locale inference from captured requests if not already present
+    const currentLocale = pageData.checkoutConfig?.locale ?? pageData.inferredConfig?.locale ?? '';
+    let enrichedInferredConfig = pageData.inferredConfig;
+
+    if (currentLocale === '') {
+      for (const req of capturedRequests) {
+        const match = /\/translations\/([^/]+)\.json$/.exec(req.url);
+        const localeFromUrl = match?.[1];
+        if (typeof localeFromUrl === 'string' && localeFromUrl !== '') {
+          enrichedInferredConfig = {
+            ...(enrichedInferredConfig ?? {}),
+            locale: localeFromUrl,
+          };
+          break;
+        }
+      }
+    }
+
     const payload: ScanPayload = {
       tabId,
       pageUrl: pageData.pageUrl,
-      page: pageData,
+      page: {
+        ...pageData,
+        inferredConfig: enrichedInferredConfig,
+      },
       mainDocumentHeaders,
       capturedRequests,
       versionInfo: {
