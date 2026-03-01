@@ -721,8 +721,8 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
       );
     }
 
-    // Heuristic: if these strings appear in any captured request or analytics, they might be present.
-    const capturedVariants = payload.analyticsData?.variants ?? [];
+    // Heuristic: if these strings appear in page metadata or any captured request URL, they might be present.
+    const capturedVariants = payload.page.adyenMetadata?.variants ?? [];
     const unsupported = [
       'paypal',
       'klarna',

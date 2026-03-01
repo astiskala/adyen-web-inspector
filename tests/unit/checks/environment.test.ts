@@ -40,6 +40,13 @@ describe('env-region', () => {
     expect(result.title).toContain('Region: US.');
     expect(result.detail).toContain('checkoutConfig.environment');
   });
+
+  it('uses unknown detail when region cannot be determined', () => {
+    const payload = makeAdyenPayload({}, { environment: 'live' });
+    const result = envRegion.run(payload);
+    expect(result.severity).toBe('info');
+    expect(result.title).toContain('Region:');
+  });
 });
 
 describe('env-cdn-mismatch', () => {
@@ -169,6 +176,15 @@ describe('env-key-mismatch', () => {
   it('skips when no captured requests', () => {
     const payload = makeAdyenPayload({}, { clientKey: 'test_XXXX' });
     expect(envKeyMismatch.run(payload).severity).toBe('skip');
+  });
+
+  it('passes when live key matches live-in request (normalised to live)', () => {
+    const payload = makeAdyenPayload(
+      {},
+      { clientKey: 'live_XXXX' },
+      { capturedRequests: [makeRequest('https://checkout-live-in.adyen.com/v71/sessions')] }
+    );
+    expect(envKeyMismatch.run(payload).severity).toBe('pass');
   });
 });
 

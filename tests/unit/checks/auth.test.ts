@@ -4,6 +4,7 @@ import {
   makeScanPayload,
   makeAdyenPayload,
   makePageExtract,
+  makeAdyenMetadata,
   makeCheckoutConfig,
 } from '../../fixtures/makeScanPayload';
 import { requireCheck } from './requireCheck';
@@ -81,6 +82,18 @@ describe('auth-country-code', () => {
       }),
     });
     expect(authCountryCode.run(payload).severity).toBe('pass');
+  });
+
+  it('warns (not fails) when country code is missing in sessions flow', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({
+        adyenMetadata: makeAdyenMetadata(),
+        checkoutConfig: makeCheckoutConfig({ countryCode: undefined, hasSession: true }),
+      }),
+    });
+    const result = authCountryCode.run(payload);
+    expect(result.severity).toBe('warn');
+    expect(result.title).toContain('countryCode');
   });
 });
 

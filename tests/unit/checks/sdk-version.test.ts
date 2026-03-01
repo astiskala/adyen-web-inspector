@@ -62,4 +62,20 @@ describe('version-latest', () => {
     });
     expect(versionLatest.run(payload).severity).toBe('skip');
   });
+
+  it('returns skip when detected version cannot be parsed', () => {
+    const payload = makeScanPayload({
+      versionInfo: makeVersionInfo({ detected: 'not-semver', latest: '5.68.0' }),
+    });
+    expect(versionLatest.run(payload).severity).toBe('skip');
+  });
+
+  it('returns warn when behind on major version', () => {
+    const payload = makeScanPayload({
+      versionInfo: makeVersionInfo({ detected: '4.0.0', latest: '5.68.0' }),
+    });
+    const result = versionLatest.run(payload);
+    expect(result.severity).toBe('warn');
+    expect(result.title).toContain('major');
+  });
 });

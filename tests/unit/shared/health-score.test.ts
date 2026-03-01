@@ -65,4 +65,15 @@ describe('calculateHealthScore', () => {
 
     expect(health.tier).toBe('critical');
   });
+
+  it('returns score 100 when all checks are skipped or info (no scoreable checks)', () => {
+    const health = calculateHealthScore([
+      makeCheck('sdk-detected', 'skip'),
+      makeCheck('sdk-flavor', 'info'),
+    ]);
+
+    expect(health.score).toBe(100);
+    expect(health.total).toBe(0);
+    expect(health.tier).toBe('excellent');
+  });
 });

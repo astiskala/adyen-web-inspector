@@ -206,7 +206,10 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
       const testMatch = new RegExp(/(?:^|\.|-)(test)(?:\.|$)/).exec(u.hostname);
 
       if (liveMatch !== null) {
-        mergeAndPublishInferred({ environment: liveMatch[1] as string });
+        const liveEnv = liveMatch[1];
+        if (liveEnv !== undefined) {
+          mergeAndPublishInferred({ environment: liveEnv });
+        }
       } else if (testMatch !== null) {
         mergeAndPublishInferred({ environment: 'test' });
       }
@@ -455,41 +458,6 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
       configurable: true,
       enumerable: true,
     });
-  } catch {
-    /* ignore */
-  }
-
-  // ---------------------------------------------------------------------------
-  // Promise.prototype.then Interception (Aggressive Discovery)
-  // ---------------------------------------------------------------------------
-
-  try {
-    const originalThen = Promise.prototype.then;
-
-    type OnFulfilled<T, R> = ((value: T) => R | PromiseLike<R>) | undefined | null;
-    type OnRejected<R> = ((reason: unknown) => R | PromiseLike<R>) | undefined | null;
-
-    Promise.prototype.then = function <T, TResult1 = T, TResult2 = never>(
-      this: Promise<T>,
-      onfulfilled?: OnFulfilled<T, TResult1>,
-      onrejected?: OnRejected<TResult2>
-    ): Promise<TResult1 | TResult2> {
-      const wrappedOnFulfilled =
-        typeof onfulfilled === 'function'
-          ? (value: T): TResult1 | PromiseLike<TResult1> => {
-              try {
-                tryCaptureFromInstance(value);
-              } catch {
-                /* ignore */
-              }
-              return onfulfilled(value);
-            }
-          : onfulfilled;
-
-      return originalThen.call(this, wrappedOnFulfilled, onrejected) as Promise<
-        TResult1 | TResult2
-      >;
-    };
   } catch {
     /* ignore */
   }

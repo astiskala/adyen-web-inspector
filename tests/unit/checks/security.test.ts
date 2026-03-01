@@ -160,6 +160,13 @@ describe('Security Checks', () => {
       });
       expect(referrerPolicy.run(payload).severity).toBe('pass');
     });
+
+    it('passes when no-referrer is set', () => {
+      const payload = makeScanPayload({
+        mainDocumentHeaders: [makeHeader('Referrer-Policy', 'no-referrer')],
+      });
+      expect(referrerPolicy.run(payload).severity).toBe('pass');
+    });
   });
 
   describe('X-Content-Type-Options', () => {

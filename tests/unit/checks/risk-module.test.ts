@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { RISK_CHECKS } from '../../../src/background/checks/risk-module';
-import { makeScanPayload, makePageExtract } from '../../fixtures/makeScanPayload';
+import { makeScanPayload, makePageExtract, makeRequest } from '../../fixtures/makeScanPayload';
 import { DF_IFRAME_NAME } from '../../../src/shared/constants';
 import { requireCheck } from './requireCheck';
 
@@ -13,6 +13,14 @@ describe('risk-df-iframe', () => {
       page: makePageExtract({
         iframes: [{ name: DF_IFRAME_NAME, src: 'https://live.adyen.com/dfIframe' }],
       }),
+    });
+    expect(riskIframe.run(payload).severity).toBe('pass');
+  });
+
+  it('passes when dfIframe URL is detected in captured requests', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({ iframes: [] }),
+      capturedRequests: [makeRequest('https://live.adyen.com/pm/dfp.adyen.com.html')],
     });
     expect(riskIframe.run(payload).severity).toBe('pass');
   });

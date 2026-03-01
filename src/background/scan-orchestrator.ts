@@ -21,7 +21,7 @@ import {
   probeMainDocumentHeaders,
 } from './payload-builder.js';
 
-const TAB_READY_TIMEOUT_MS = 15_000;
+const TAB_READY_TIMEOUT_MS = 20_000;
 const SPA_SETTLE_MS = 2_000;
 const PAGE_EXTRACT_RETRY_INTERVAL_MS = 500;
 const PAGE_EXTRACT_RETRY_TIMEOUT_MS = 4_000;
