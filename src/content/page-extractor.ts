@@ -213,9 +213,13 @@ function collectMountPoints(adyenElements: Element[]): Set<ElementWithVnode> {
     }
   }
 
-  const allRoots = findAllVnodeRoots();
-  for (const root of allRoots) {
-    mountPoints.add(root);
+  // Only scan for additional vnode roots when Adyen elements are present on
+  // the page. This avoids counting unrelated Preact apps as Adyen mounts.
+  if (adyenElements.length > 0) {
+    const allRoots = findAllVnodeRoots();
+    for (const root of allRoots) {
+      mountPoints.add(root);
+    }
   }
 
   return mountPoints;
@@ -250,8 +254,10 @@ function extractComponentConfig(): ComponentExtraction {
     return { config: null, mountCount: 0 };
   }
 
-  const { merged } = processMountPoints(mountPoints);
-  return { config: merged, mountCount: mountPoints.size };
+  const { merged, findCount } = processMountPoints(mountPoints);
+  // Use findCount (mounts where findCoreOptions found Adyen core options)
+  // rather than mountPoints.size, to avoid counting unrelated Preact trees.
+  return { config: merged, mountCount: findCount };
 }
 
 function extract(): PageExtractResult {
