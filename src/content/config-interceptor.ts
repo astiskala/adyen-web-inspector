@@ -202,8 +202,8 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
         return;
       }
 
-      const liveMatch = u.hostname.match(/(?:^|\.|-)(live(?:-[a-z]{2,4})?)(?:\.|$)/);
-      const testMatch = u.hostname.match(/(?:^|\.|-)(test)(?:\.|$)/);
+      const liveMatch = new RegExp(/(?:^|\.|-)(live(?:-[a-z]{2,4})?)(?:\.|$)/).exec(u.hostname);
+      const testMatch = new RegExp(/(?:^|\.|-)(test)(?:\.|$)/).exec(u.hostname);
 
       if (liveMatch !== null) {
         mergeAndPublishInferred({ environment: liveMatch[1] as string });

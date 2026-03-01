@@ -75,7 +75,7 @@ export async function runScan(tabId: number): Promise<ScanResult> {
         const localeFromUrl = match?.[1];
         if (typeof localeFromUrl === 'string' && localeFromUrl !== '') {
           enrichedInferredConfig = {
-            ...(enrichedInferredConfig ?? {}),
+            ...enrichedInferredConfig,
             locale: localeFromUrl,
           };
           break;
