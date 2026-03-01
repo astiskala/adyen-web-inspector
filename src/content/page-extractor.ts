@@ -4,6 +4,11 @@
  * Must return a plain serialisable object (no class instances, no functions).
  */
 
+import {
+  findCoreOptions,
+  extractFieldsFromOptions,
+  mergeConfigs,
+} from '../shared/preact-tree-extractor.js';
 import type {
   AdyenWebMetadata,
   CheckoutConfig,
@@ -111,12 +116,50 @@ function extractObservedRequests(): ObservedRequest[] {
   return requests;
 }
 
+interface ComponentExtraction {
+  config: CheckoutConfig | null;
+  mountCount: number;
+}
+
+function extractComponentConfig(): ComponentExtraction {
+  const adyenElements = document.querySelectorAll('[class*="adyen-checkout"]');
+  const mountPoints = new Set<Element>();
+
+  for (const el of adyenElements) {
+    const parent = el.parentElement;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access
+    if (parent !== null && (parent as any).__k !== undefined) {
+      mountPoints.add(parent);
+    }
+  }
+
+  if (mountPoints.size === 0) {
+    return { config: null, mountCount: 0 };
+  }
+
+  let merged: CheckoutConfig | null = null;
+
+  for (const mount of mountPoints) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access
+    const vnode: unknown = (mount as any).__k;
+    const options = findCoreOptions(vnode, 0);
+    if (options !== null && options !== undefined) {
+      const extracted = extractFieldsFromOptions(options);
+      merged = merged === null ? extracted : mergeConfigs(merged, extracted);
+    }
+  }
+
+  return { config: merged, mountCount: mountPoints.size };
+}
+
 function extract(): PageExtractResult {
   const g = globalThis as GlobalWithAdyen;
+  const { config: componentConfig, mountCount } = extractComponentConfig();
   return {
     adyenMetadata: extractMetadata(g),
     checkoutConfig: extractCheckoutConfig(g),
     inferredConfig: extractInferredConfig(g),
+    componentConfig,
     scripts: extractScripts(),
     links: extractLinks(),
     iframes: extractIframes(),
@@ -124,6 +167,7 @@ function extract(): PageExtractResult {
     ...(typeof g.__adyenWebInspectorCheckoutInitCount === 'number'
       ? { checkoutInitCount: g.__adyenWebInspectorCheckoutInitCount }
       : {}),
+    ...(mountCount > 0 ? { componentMountCount: mountCount } : {}),
     isInsideIframe: globalThis.self !== globalThis.top,
     pageUrl: globalThis.location.href,
     pageProtocol: globalThis.location.protocol,
