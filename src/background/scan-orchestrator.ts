@@ -190,7 +190,7 @@ function buildFallbackRequests(pageData: PageExtractResult): CapturedRequest[] {
 
 async function extractPageData(tabId: number): Promise<PageExtractResult> {
   const first = await executeExtract(tabId);
-  if (first.checkoutConfig) return first;
+  if (first.checkoutConfig || first.componentConfig) return first;
 
   const hasSdk =
     first.adyenMetadata !== null ||
@@ -203,7 +203,7 @@ async function extractPageData(tabId: number): Promise<PageExtractResult> {
   while (Date.now() < deadline) {
     await new Promise((r) => setTimeout(r, PAGE_EXTRACT_RETRY_INTERVAL_MS));
     latest = await executeExtract(tabId);
-    if (latest.checkoutConfig) return latest;
+    if (latest.checkoutConfig || latest.componentConfig) return latest;
   }
 
   return latest;
