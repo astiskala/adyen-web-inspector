@@ -60,8 +60,7 @@ function chromeExtensionHtmlFlatten(): Plugin {
 
         chunk.fileName = newPath;
         bundle[newPath] = chunk;
-        const oldFileStillPresent = Object.prototype.hasOwnProperty.call(bundle, fileName);
-        if (oldFileStillPresent && fileName !== newPath) {
+        if (Object.hasOwn(bundle, fileName) && fileName !== newPath) {
           Reflect.deleteProperty(bundle, fileName);
         }
       }

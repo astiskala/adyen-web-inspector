@@ -218,7 +218,14 @@ async function executeExtract(tabId: number): Promise<PageExtractResult> {
       world: 'MAIN',
     });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
+    let message: string;
+    if (err instanceof Error) {
+      message = err.message;
+    } else if (typeof err === 'object' && err !== null) {
+      message = `[${String(Object.prototype.toString.call(err))}]`;
+    } else {
+      message = String(err);
+    }
     throw new Error(`Page extraction script injection failed for tab ${String(tabId)}: ${message}`);
   }
 
