@@ -221,27 +221,26 @@ async function executeExtract(tabId: number): Promise<PageExtractResult> {
     let message: string;
     if (err instanceof Error) {
       message = err.message;
-    } else if (typeof err === 'object' && err !== null) {
-      message = `[${String(Object.prototype.toString.call(err))}]`;
     } else {
-      message = String(err);
+      const typeStr =
+        typeof err === 'object' && err !== null ? Object.prototype.toString.call(err) : typeof err;
+      message = `[${typeStr}]`;
     }
-    throw new Error(`Page extraction script injection failed for tab ${String(tabId)}: ${message}`);
+    throw new Error(`Page extraction script injection failed for tab ${tabId}: ${message}`);
   }
 
   const frame = results[0];
   if (!frame) {
     throw new Error(
-      `Page extraction returned no frames for tab ${String(tabId)}. ` +
-        `Results length: ${String(results.length)}`
+      `Page extraction returned no frames for tab ${tabId}. ` + `Results length: ${results.length}`
     );
   }
 
   if (!frame.result) {
     throw new Error(
-      `Page extraction returned no results for tab ${String(tabId)}. ` +
-        `Frame documentId: ${String(frame.documentId)}, ` +
-        `frameId: ${String(frame.frameId)}`
+      `Page extraction returned no results for tab ${tabId}. ` +
+        `Frame documentId: ${frame.documentId}, ` +
+        `frameId: ${frame.frameId}`
     );
   }
 

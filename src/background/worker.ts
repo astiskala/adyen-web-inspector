@@ -39,7 +39,7 @@ function healthBadgeColor(tier: HealthScore['tier']): string {
 }
 
 function setBadgeHealth(tabId: number, health: HealthScore): void {
-  chrome.action.setBadgeText({ tabId, text: String(health.score) }).catch(() => {});
+  chrome.action.setBadgeText({ tabId, text: `${health.score}` }).catch(() => {});
   chrome.action
     .setBadgeBackgroundColor({ tabId, color: healthBadgeColor(health.tier) })
     .catch(() => {});
@@ -112,8 +112,15 @@ async function handleScanRequest(senderTabId: number): Promise<void> {
     };
     sendUiMessage(response);
     setBadgeHealth(senderTabId, result.health);
-  } catch (err) {
-    const errorMsg = err instanceof Error ? err.message : String(err);
+  } catch (err: unknown) {
+    let errorMsg: string;
+    if (err instanceof Error) {
+      errorMsg = err.message;
+    } else {
+      const typeStr =
+        typeof err === 'object' && err !== null ? Object.prototype.toString.call(err) : typeof err;
+      errorMsg = `[${typeStr}]`;
+    }
     const response: BswToUiMessage = {
       type: MSG_SCAN_ERROR,
       tabId: senderTabId,

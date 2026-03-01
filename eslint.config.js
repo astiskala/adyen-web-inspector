@@ -96,6 +96,14 @@ export default defineConfig([
       'no-nested-ternary': 'error',
       'no-negated-condition': 'error',
       'max-nested-callbacks': ['error', 4],
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'CallExpression[callee.name="String"]',
+          message:
+            'Avoid String() constructor. Use template literals for coercion, or explicit type guards for errors.',
+        },
+      ],
       'no-restricted-imports': [
         'error',
         {
