@@ -125,10 +125,6 @@ interface ComponentExtraction {
   mountCount: number;
 }
 
-interface ElementWithVnode extends Element {
-  __k?: unknown;
-}
-
 /**
  * Finds the nearest ancestor element (including the element itself) with `__k`.
  * Walks up to `maxLevels` parent levels.
