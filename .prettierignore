@@ -4,3 +4,4 @@ node_modules
 playwright-report
 release
 test-results
+pnpm-lock.yaml
