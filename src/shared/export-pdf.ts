@@ -3,72 +3,66 @@ import type { ExportIssueRow } from './utils';
 import { buildIssueExportRows, extractHostname, isAdyenHost } from './utils';
 import { buildImplementationAttributes } from './implementation-attributes';
 
-/**
- * Generates a self-contained printable HTML report and opens the browser
- * print dialog via a hidden iframe.  No server required.
- */
-export function exportPdf(result: ScanResult): void {
-  const html = buildPrintableHtml(result);
-  if (openPrintableWindow(html)) {
+const PDF_REPORT_STORAGE_PREFIX = 'pdf-report:' as const;
+const PDF_REPORT_PAGE_PATH = 'report/report.html' as const;
+export const PDF_REPORT_TOKEN_PARAM = 'token' as const;
+
+function getChromeApi(): typeof chrome | null {
+  if (typeof chrome === 'undefined') {
+    return null;
+  }
+  return chrome;
+}
+
+/** Returns the session-storage key used for a pending PDF export handoff. */
+export function getPdfReportStorageKey(token: string): string {
+  return `${PDF_REPORT_STORAGE_PREFIX}${token}`;
+}
+
+/** Builds the extension report page URL for the given export token. */
+export function buildPdfReportUrl(token: string): string {
+  const chromeApi = getChromeApi();
+  if (chromeApi === null) {
+    throw new Error('PDF export requires the extension runtime');
+  }
+
+  const url = new URL(chromeApi.runtime.getURL(PDF_REPORT_PAGE_PATH));
+  url.searchParams.set(PDF_REPORT_TOKEN_PARAM, token);
+  return url.toString();
+}
+
+async function openPdfReportTab(url: string): Promise<void> {
+  const chromeApi = getChromeApi();
+  if (chromeApi !== null) {
+    await chromeApi.tabs.create({ url });
     return;
   }
 
-  const iframe = document.createElement('iframe');
-  iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:0;height:0;border:none;';
-  document.body.appendChild(iframe);
-
-  // Use srcdoc instead of doc.write to avoid the deprecated API.
-  iframe.addEventListener(
-    'load',
-    () => {
-      iframe.contentWindow?.focus();
-      iframe.contentWindow?.print();
-      globalThis.setTimeout(() => {
-        iframe.remove();
-      }, 2000);
-    },
-    { once: true }
-  );
-  iframe.srcdoc = html;
+  const popup = globalThis.open(url, '_blank');
+  if (popup === null) {
+    throw new Error('Unable to open PDF report tab');
+  }
 }
 
-function openPrintableWindow(html: string): boolean {
+/**
+ * Stores the current scan result and opens a dedicated report page that can
+ * render and print independently of the popup or DevTools lifecycle.
+ */
+export async function exportPdf(result: ScanResult): Promise<void> {
+  const chromeApi = getChromeApi();
+  if (chromeApi === null) {
+    throw new Error('PDF export requires chrome.storage.session');
+  }
+
+  const token = globalThis.crypto.randomUUID();
+  const storageKey = getPdfReportStorageKey(token);
+  await chromeApi.storage.session.set({ [storageKey]: result });
+
   try {
-    const blob = new Blob([html], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const popup = globalThis.open(url, '_blank');
-    if (!popup) {
-      URL.revokeObjectURL(url);
-      return false;
-    }
-
-    let printed = false;
-    const doPrint = (): void => {
-      if (printed) return;
-      printed = true;
-      try {
-        popup.focus();
-        popup.print();
-      } catch {
-        // Window may have been closed or become inaccessible.
-      }
-      globalThis.setTimeout(() => URL.revokeObjectURL(url), 15_000);
-    };
-
-    // Primary: listen for the load event.
-    try {
-      popup.addEventListener('load', doPrint, { once: true });
-    } catch {
-      // Cross-origin blob URL — event listener may fail.
-    }
-
-    // Fallback: fire after a delay if the load event does not reach us
-    // (e.g. MV3 extension popup losing context after window.open).
-    globalThis.setTimeout(doPrint, 1500);
-
-    return true;
-  } catch {
-    return false;
+    await openPdfReportTab(buildPdfReportUrl(token));
+  } catch (error) {
+    await chromeApi.storage.session.remove(storageKey).catch(() => {});
+    throw error;
   }
 }
 
@@ -355,7 +349,8 @@ function buildRawConfigHtml(result: ScanResult): string {
   `;
 }
 
-function buildPrintableHtml(result: ScanResult): string {
+/** Builds the self-contained HTML document used by the printable export tab. */
+export function buildPrintableHtml(result: ScanResult): string {
   const domain = ((): string => {
     try {
       return new URL(result.pageUrl).hostname;

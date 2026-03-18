@@ -231,7 +231,7 @@ export function Panel(): JSX.Element {
 
   function handleExportPdf(): void {
     if (!result) return;
-    exportPdf(result);
+    exportPdf(result).catch(() => {});
   }
 
   function renderTab(): JSX.Element | null {

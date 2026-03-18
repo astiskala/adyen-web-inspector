@@ -186,7 +186,7 @@ export function Popup(): JSX.Element {
 
   function handleExportPdf(): void {
     if (!result) return;
-    exportPdf(result);
+    exportPdf(result).catch(() => {});
   }
 
   const isDetected = state === 'detected' && result !== null;

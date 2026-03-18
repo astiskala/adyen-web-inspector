@@ -85,6 +85,7 @@ export default defineConfig({
         popup: resolve(root, 'src/popup/index.html'),
         devtools: resolve(root, 'src/devtools/devtools.html'),
         panel: resolve(root, 'src/devtools/panel/panel.html'),
+        report: resolve(root, 'src/report/report.html'),
       },
       output: {
         entryFileNames: '[name].js',
