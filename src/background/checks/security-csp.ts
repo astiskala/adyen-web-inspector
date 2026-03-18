@@ -53,7 +53,7 @@ const STRINGS = {
     'Add a frame-ancestors directive to your Content-Security-Policy or set an X-Frame-Options: SAMEORIGIN header.',
   FRAME_ANCESTORS_WARN_URL: ADYEN_PCI_DSS_SCRIPT_SECURITY_DOC,
 
-  REPORTING_SKIP_INFO_TITLE: 'CSP reporting check skipped — no CSP header present.',
+  REPORTING_SKIP_INFO_TITLE: 'CSP reporting check skipped. No CSP header present.',
   REPORTING_PASS_TITLE: 'CSP reporting is configured with report-to and Reporting-Endpoints.',
   REPORTING_NO_ENDPOINTS_WARN_TITLE:
     'CSP has report-to, but Reporting-Endpoints header is missing.',

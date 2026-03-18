@@ -7,7 +7,7 @@ const STRINGS = {
   CLIENT_KEY_SKIP_TITLE: 'Client key check skipped.',
   CLIENT_KEY_SKIP_REASON: 'Client key not detected.',
   CLIENT_KEY_PASS_TITLE: 'Client key (not an origin key) is in use.',
-  CLIENT_KEY_WARN_TITLE: 'Origin key detected — migrate to a client key.',
+  CLIENT_KEY_WARN_TITLE: 'Origin key detected. Migrate to a client key.',
   // CLIENT_KEY_WARN_DETAIL stays inline (dynamic: uses clientKey.slice(0, 12))
   CLIENT_KEY_WARN_REMEDIATION:
     'Generate a client key in the Adyen Customer Area (Developers → API credentials → Client-side integration) and replace the origin key in your checkout configuration. Origin keys are deprecated and will eventually stop working.',
@@ -28,7 +28,7 @@ const STRINGS = {
   LOCALE_PARTIAL_NOTICE_TITLE: 'locale presence cannot be verified.',
   LOCALE_PASS_TITLE: 'locale is set correctly.',
   LOCALE_MISSING_WARN_TITLE:
-    'locale is not explicitly set — language will be determined automatically.',
+    'locale is not explicitly set. Language will be determined automatically.',
   LOCALE_MISSING_WARN_DETAIL:
     'Without locale, checkout UI language and number formatting may be incorrect for the shopper, degrading conversion.',
   LOCALE_MISSING_WARN_REMEDIATION:

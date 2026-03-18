@@ -33,7 +33,7 @@ const STRINGS = {
   MAJOR_BEHIND_WARN_DETAIL:
     'Consider upgrading to access the latest supported major version and improvements.',
   MAJOR_BEHIND_WARN_REMEDIATION:
-    'Update your adyen-web package to the latest major version. Major releases may include breaking changes — review the release notes and migration guide before upgrading in a staging environment.',
+    'Update your adyen-web package to the latest major version. Major releases may include breaking changes. Review the release notes and migration guide before upgrading in a staging environment.',
   MAJOR_BEHIND_WARN_URL: RELEASE_NOTES_URL,
 } as const;
 

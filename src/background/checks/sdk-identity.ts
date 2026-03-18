@@ -42,7 +42,7 @@ const STRINGS = {
   BUNDLE_TYPE_UNKNOWN_SKIP_TITLE: 'Could not determine bundle type.',
   BUNDLE_TYPE_UNKNOWN_SKIP_REASON: 'AdyenWebMetadata not available.',
 
-  BUNDLE_AUTO_NOTICE_TITLE: 'Using the auto bundle — consider switching to tree-shakable imports.',
+  BUNDLE_AUTO_NOTICE_TITLE: 'Using the auto bundle. Consider switching to tree-shakable imports.',
   BUNDLE_AUTO_NOTICE_REMEDIATION:
     'Switch from the auto bundle to tree-shakable imports. Instead of importing the entire Adyen Web package, import only the specific payment method components your integration uses. This significantly reduces JavaScript bundle size and improves checkout page load time.',
 

@@ -57,7 +57,7 @@ const STRINGS = {
   XCTO_NOTICE_URL: 'https://owasp.org/www-project-secure-headers/#x-content-type-options',
 
   XSS_PASS_TITLE: 'X-XSS-Protection is absent or disabled (correct).',
-  XSS_NOTICE_TITLE: 'X-XSS-Protection is set — this is not recommended for modern browsers.',
+  XSS_NOTICE_TITLE: 'X-XSS-Protection is set. This is not recommended for modern browsers.',
   XSS_NOTICE_DETAIL:
     'Legacy X-XSS-Protection behavior is inconsistent and should not be relied on for XSS defense.',
   XSS_NOTICE_REMEDIATION: 'Remove the X-XSS-Protection header entirely, or set it to 0.',
@@ -167,7 +167,7 @@ export const SECURITY_CHECKS = createRegistry(CATEGORY)
     }
     return notice(
       value !== null && value !== ''
-        ? `Referrer-Policy is "${value}" — consider recommended value.`
+        ? `Referrer-Policy is "${value}". Consider using the recommended value.`
         : STRINGS.REFERRER_POLICY_NOT_SET_NOTICE_TITLE,
       STRINGS.REFERRER_POLICY_NOTICE_DETAIL,
       STRINGS.REFERRER_POLICY_NOTICE_REMEDIATION,

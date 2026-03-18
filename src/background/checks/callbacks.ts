@@ -181,7 +181,7 @@ const STRINGS = {
   ACTIONS_PATTERN_SKIP_TITLE: 'Actions pattern check skipped.',
   ACTIONS_PATTERN_PASS_TITLE: 'onSubmit uses the v6 actions.resolve() / actions.reject() pattern.',
   ACTIONS_PATTERN_WARN_TITLE:
-    'onSubmit appears to use v5-style component callbacks — update to v6 actions pattern.',
+    'onSubmit appears to use v5-style component callbacks. Update to v6 actions pattern.',
   ACTIONS_PATTERN_WARN_DETAIL: 'v6 adopts actions.resolve() / actions.reject() inside onSubmit.',
   ACTIONS_PATTERN_WARN_REMEDIATION:
     'Migrate your onSubmit handler from the v5-style component callbacks to the v6 actions pattern.',
