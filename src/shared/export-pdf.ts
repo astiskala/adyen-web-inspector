@@ -7,6 +7,11 @@ const PDF_REPORT_STORAGE_PREFIX = 'pdf-report:' as const;
 const PDF_REPORT_PAGE_PATH = 'report/report.html' as const;
 export const PDF_REPORT_TOKEN_PARAM = 'token' as const;
 
+export interface PrintableReportMetadata {
+  readonly extensionVersion: string;
+  readonly browser: string;
+}
+
 function getChromeApi(): typeof chrome | null {
   if (typeof chrome === 'undefined') {
     return null;
@@ -273,17 +278,32 @@ function buildSuccessfulChecksTableForCategory(
   </table>`;
 }
 
-function buildCategorySectionHtml(
+function buildReportMetadataHtml(
   result: ScanResult,
-  categoryFilter: ReadonlySet<CheckCategory>,
-  issueEmptyMessage: string,
-  successEmptyMessage: string
+  metadata: PrintableReportMetadata,
+  scannedAt: string
 ): string {
   return `
-    <h3 style="font-size:12px;margin:8px 0 6px">Issues</h3>
-    ${buildIssueTableForCategory(result, categoryFilter, issueEmptyMessage)}
-    <h3 style="font-size:12px;margin:12px 0 6px">Successful Checks</h3>
-    ${buildSuccessfulChecksTableForCategory(result, categoryFilter, successEmptyMessage)}
+    <table class="meta-table">
+      <tbody>
+        <tr>
+          <td class="meta-label">Inspected URL</td>
+          <td class="meta-value">${escapeHtml(result.pageUrl)}</td>
+        </tr>
+        <tr>
+          <td class="meta-label">Scanned At</td>
+          <td class="meta-value">${escapeHtml(scannedAt)}</td>
+        </tr>
+        <tr>
+          <td class="meta-label">Extension Version</td>
+          <td class="meta-value">${escapeHtml(metadata.extensionVersion)}</td>
+        </tr>
+        <tr>
+          <td class="meta-label">Browser</td>
+          <td class="meta-value">${escapeHtml(metadata.browser)}</td>
+        </tr>
+      </tbody>
+    </table>
   `;
 }
 
@@ -342,7 +362,7 @@ function buildRawConfigHtml(result: ScanResult): string {
     <pre style="${preStyle}">${escapeHtml(configText)}</pre>
     <h3 style="${h3Style}">Component Config (NPM)</h3>
     <pre style="${preStyle}">${escapeHtml(componentText)}</pre>
-    <h3 style="${h3Style}">Inferred Checkout Config (Network)</h3>
+    <h3 style="${h3Style}">Inferred Checkout Config</h3>
     <pre style="${preStyle}">${escapeHtml(inferredText)}</pre>
     <h3 style="${h3Style}">SDK Metadata</h3>
     <pre style="${preStyle}">${escapeHtml(metaText)}</pre>
@@ -350,14 +370,13 @@ function buildRawConfigHtml(result: ScanResult): string {
 }
 
 /** Builds the self-contained HTML document used by the printable export tab. */
-export function buildPrintableHtml(result: ScanResult): string {
-  const domain = ((): string => {
-    try {
-      return new URL(result.pageUrl).hostname;
-    } catch {
-      return result.pageUrl;
-    }
-  })();
+export function buildPrintableHtml(
+  result: ScanResult,
+  metadata: PrintableReportMetadata = {
+    extensionVersion: 'Unknown',
+    browser: 'Unknown',
+  }
+): string {
   const date = new Date(result.scannedAt).toLocaleString();
   const { score, passing, total, tier } = result.health;
   const tierColor = scoreColor(tier);
@@ -366,17 +385,20 @@ export function buildPrintableHtml(result: ScanResult): string {
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Adyen Web Inspector — ${escapeHtml(domain)}</title>
+  <title>Adyen Web Inspector — ${escapeHtml(result.pageUrl)}</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: system-ui, sans-serif; font-size: 12px; color: #111; padding: 24px; }
-    h1 { font-size: 18px; margin-bottom: 4px; }
-    .subtitle { color: #6b7280; font-size: 11px; margin-bottom: 20px; }
+    h1 { font-size: 18px; margin-bottom: 20px; }
     .score-block { display: flex; gap: 24px; align-items: center; border: 1px solid #e5e7eb; border-radius: 6px; padding: 12px 16px; margin-bottom: 20px; }
     .score-num { font-size: 36px; font-weight: 700; color: ${tierColor}; }
     .score-meta { font-size: 12px; color: #374151; }
     .score-meta strong { font-size: 14px; text-transform: capitalize; }
     h2 { font-size: 13px; margin: 16px 0 8px; text-transform: uppercase; letter-spacing: 0.4px; color: #374151; }
+    .meta-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+    .meta-table td { padding: 5px 8px; border: 1px solid #e5e7eb; font-size: 12px; vertical-align: top; }
+    .meta-label { font-weight: 600; width: 160px; background: #f9fafb; }
+    .meta-value { word-break: break-all; }
     table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
     .attr-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
     .attr-table td { padding: 5px 8px; border: 1px solid #e5e7eb; font-size: 12px; }
@@ -394,10 +416,8 @@ export function buildPrintableHtml(result: ScanResult): string {
 </head>
 <body>
   <h1>Adyen Web Inspector</h1>
-  <p class="subtitle">${escapeHtml(domain)} &mdash; ${escapeHtml(date)}</p>
 
-  <h2>Implementation Attributes</h2>
-  ${buildAttributesHtml(result)}
+  ${buildReportMetadataHtml(result, metadata, date)}
 
   <div class="score-block">
     <div class="score-num">${score}</div>
@@ -407,19 +427,30 @@ export function buildPrintableHtml(result: ScanResult): string {
     </div>
   </div>
 
+  <h2>Implementation Attributes</h2>
+  ${buildAttributesHtml(result)}
+
   <h2>Best Practices</h2>
-  ${buildCategorySectionHtml(
+  ${buildIssueTableForCategory(
     result,
     BEST_PRACTICE_CATEGORIES,
-    'No best-practice issues identified.',
-    'No successful best-practice checks recorded.'
+    'No best-practice issues identified.'
   )}
 
   <h2>Security</h2>
-  ${buildCategorySectionHtml(
+  ${buildIssueTableForCategory(result, SECURITY_CATEGORIES, 'No security issues identified.')}
+
+  <h2>Successful Checks</h2>
+  <h3 style="font-size:12px;margin:8px 0 6px">Best Practices</h3>
+  ${buildSuccessfulChecksTableForCategory(
+    result,
+    BEST_PRACTICE_CATEGORIES,
+    'No successful best-practice checks recorded.'
+  )}
+  <h3 style="font-size:12px;margin:8px 0 6px">Security</h3>
+  ${buildSuccessfulChecksTableForCategory(
     result,
     SECURITY_CATEGORIES,
-    'No security issues identified.',
     'No successful security checks recorded.'
   )}
 
@@ -442,7 +473,11 @@ export function buildPrintableHtml(result: ScanResult): string {
   <h2>Raw Config</h2>
   ${buildRawConfigHtml(result)}
 
-  <div class="footer">Generated by Adyen Web Inspector &mdash; ${escapeHtml(date)}</div>
+  <div class="footer">
+    Generated by Adyen Web Inspector v${escapeHtml(metadata.extensionVersion)} &mdash; ${escapeHtml(
+      date
+    )}
+  </div>
 </body>
 </html>`;
 }

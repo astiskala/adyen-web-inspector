@@ -2,6 +2,7 @@ import {
   buildPrintableHtml,
   getPdfReportStorageKey,
   PDF_REPORT_TOKEN_PARAM,
+  type PrintableReportMetadata,
 } from '~shared/export-pdf';
 import type { ScanResult } from '~shared/types';
 
@@ -73,6 +74,116 @@ function triggerPrint(): void {
   });
 }
 
+interface NavigatorBrand {
+  readonly brand: string;
+  readonly version: string;
+}
+
+interface NavigatorUserAgentDataLike {
+  readonly brands?: readonly NavigatorBrand[];
+  readonly platform?: string;
+}
+
+function getUserAgentData(): NavigatorUserAgentDataLike | null {
+  const navigatorWithUserAgentData = navigator as Navigator & {
+    userAgentData?: NavigatorUserAgentDataLike;
+  };
+  return navigatorWithUserAgentData.userAgentData ?? null;
+}
+
+function detectBrowserFromBrands(brands: readonly NavigatorBrand[]): NavigatorBrand | null {
+  const preferredBrandNames = [
+    'Microsoft Edge',
+    'Google Chrome',
+    'Chromium',
+    'Opera',
+    'Safari',
+    'Firefox',
+  ];
+
+  for (const preferredBrandName of preferredBrandNames) {
+    const matchedBrand = brands.find((brand) => brand.brand === preferredBrandName);
+    if (matchedBrand !== undefined) {
+      return matchedBrand;
+    }
+  }
+
+  return brands.find((brand) => !brand.brand.startsWith('Not')) ?? null;
+}
+
+function detectBrowserFromUserAgent(userAgent: string): NavigatorBrand {
+  const browserPatterns = [
+    { brand: 'Microsoft Edge', pattern: /Edg\/([0-9.]+)/ },
+    { brand: 'Opera', pattern: /OPR\/([0-9.]+)/ },
+    { brand: 'Google Chrome', pattern: /Chrome\/([0-9.]+)/ },
+    { brand: 'Safari', pattern: /Version\/([0-9.]+).*Safari\// },
+    { brand: 'Firefox', pattern: /Firefox\/([0-9.]+)/ },
+  ];
+
+  for (const browserPattern of browserPatterns) {
+    const match = browserPattern.pattern.exec(userAgent);
+    if (match?.[1] !== undefined) {
+      return { brand: browserPattern.brand, version: match[1] };
+    }
+  }
+
+  return { brand: 'Unknown Browser', version: '' };
+}
+
+function normalizePlatform(platform: string): string {
+  if (platform === '') {
+    return 'Unknown platform';
+  }
+
+  if (platform.includes('mac') || platform.includes('Mac')) {
+    return 'macOS';
+  }
+  if (platform.includes('win') || platform.includes('Win')) {
+    return 'Windows';
+  }
+  if (platform.includes('android') || platform.includes('Android')) {
+    return 'Android';
+  }
+  if (platform.includes('iphone') || platform.includes('iPhone')) {
+    return 'iOS';
+  }
+  if (platform.includes('ipad') || platform.includes('iPad')) {
+    return 'iPadOS';
+  }
+  if (platform.includes('linux') || platform.includes('Linux')) {
+    return 'Linux';
+  }
+
+  return platform;
+}
+
+function buildBrowserLabel(): string {
+  const userAgent = navigator.userAgent;
+  const userAgentData = getUserAgentData();
+  const platform = normalizePlatform(userAgentData?.platform ?? navigator.platform);
+  const browserInfo =
+    userAgentData?.brands === undefined || userAgentData.brands.length === 0
+      ? detectBrowserFromUserAgent(userAgent)
+      : (detectBrowserFromBrands(userAgentData.brands) ?? detectBrowserFromUserAgent(userAgent));
+  const versionSuffix = browserInfo.version === '' ? '' : ` ${browserInfo.version}`;
+  return `${browserInfo.brand}${versionSuffix} on ${platform}`;
+}
+
+function getExtensionVersion(): string {
+  try {
+    return chrome.runtime.getManifest().version;
+  } catch {
+    return 'Unknown';
+  }
+}
+
+function buildPrintableReportMetadata(): PrintableReportMetadata {
+  return {
+    extensionVersion: getExtensionVersion(),
+    browser: buildBrowserLabel(),
+  };
+}
+
 async function main(): Promise<void> {
   const url = new URL(globalThis.location.href);
   const token = url.searchParams.get(PDF_REPORT_TOKEN_PARAM);
@@ -88,7 +199,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  renderReportHtml(buildPrintableHtml(result));
+  renderReportHtml(buildPrintableHtml(result, buildPrintableReportMetadata()));
   triggerPrint();
 }
 
