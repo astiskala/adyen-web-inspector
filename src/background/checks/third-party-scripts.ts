@@ -14,7 +14,7 @@ import { createRegistry, type CheckContext } from './registry.js';
 
 const CATEGORY = 'third-party' as const;
 const ADYEN_PCI_SCRIPT_SECURITY_DOC =
-  'https://docs.adyen.com/development-resources/pci-dss-compliance-guide/script-security';
+  'https://docs.adyen.com/development-resources/pci-dss-compliance-guide/script-security#scripts-integrity';
 const THIRD_PARTY_SCRIPT_PATTERNS = [
   ...TAG_MANAGER_PATTERNS,
   ...ANALYTICS_PATTERNS,
@@ -88,9 +88,10 @@ export const THIRD_PARTY_CHECKS = createRegistry(CATEGORY)
         patterns: TAG_MANAGER_PATTERNS,
         detectedTitlePrefix: 'Tag manager(s) detected',
         detectionSeverity: 'notice',
-        detail: `Tag managers can dynamically load unreviewed scripts on the payment page, bypassing the script inventory and authorization required by PCI DSS requirement 6.4.3. ${COMMON_DETAILS.PCI_COMPLIANCE_NOTICE}`,
+        detail:
+          'Tag managers can dynamically load unreviewed scripts on the payment page, bypassing the script inventory and authorization required by PCI DSS requirement 6.4.3.',
         remediation:
-          'Audit all tags loaded via tag managers on payment pages. Ensure every script loaded through the tag manager is included in your PCI DSS requirement 6.4.3 script inventory with a written justification.',
+          'Audit all tags loaded via tag managers on payment pages. Ensure every script loaded through the tag manager is included in your script inventory with a written justification.',
         docsUrl: ADYEN_PCI_SCRIPT_SECURITY_DOC,
         passTitle: 'No known tag managers detected.',
       },
@@ -104,9 +105,10 @@ export const THIRD_PARTY_CHECKS = createRegistry(CATEGORY)
         patterns: SESSION_REPLAY_PATTERNS,
         detectedTitlePrefix: 'Session replay tool detected',
         detectionSeverity: 'fail',
-        detail: `Session replay tools record DOM state including payment form fields, risking exposure of sensitive payment data. All scripts on the payment page must be inventoried and authorized per PCI DSS requirement 6.4.3. ${COMMON_DETAILS.PCI_COMPLIANCE_NOTICE}`,
+        detail:
+          'Session replay tools record DOM state including payment form fields, risking exposure of sensitive payment data. All scripts on the payment page must be inventoried and authorized per PCI DSS requirement 6.4.3.',
         remediation:
-          'Remove session replay and screen recording tools from payment pages. If retention is justified, ensure the tool is included in your PCI DSS requirement 6.4.3 script inventory, integrity-checked with SRI, and configured to exclude payment form fields.',
+          'Remove session replay and screen recording tools from payment pages. If retention is justified, ensure the tool is included in your script inventory, integrity-checked with SRI, and configured to exclude payment form fields.',
         docsUrl: ADYEN_PCI_SCRIPT_SECURITY_DOC,
         passTitle: 'No known session replay tools detected.',
       },
@@ -120,9 +122,10 @@ export const THIRD_PARTY_CHECKS = createRegistry(CATEGORY)
         patterns: AD_PIXEL_PATTERNS,
         detectedTitlePrefix: 'Ad pixel(s) detected',
         detectionSeverity: 'warn',
-        detail: `Ad pixels on payment pages add scripts that must be inventoried and authorized per PCI DSS requirement 6.4.3. They can expose payment journey metadata to third-party advertising networks. ${COMMON_DETAILS.PCI_COMPLIANCE_NOTICE}`,
+        detail:
+          'Ad pixels on payment pages add scripts that must be inventoried and authorized per PCI DSS requirement 6.4.3. They can expose payment journey metadata to third-party advertising networks.',
         remediation:
-          'Move advertising and conversion tracking pixels to the post-payment order confirmation page. If they must remain on the payment page, ensure each pixel is included in your PCI DSS requirement 6.4.3 script inventory with a written justification.',
+          'Move advertising and conversion tracking pixels to the post-payment order confirmation page. If they must remain on the payment page, ensure each pixel is included in your script inventory with a written justification.',
         docsUrl: ADYEN_PCI_SCRIPT_SECURITY_DOC,
         passTitle: 'No known ad pixels detected.',
       },
@@ -150,7 +153,7 @@ export const THIRD_PARTY_CHECKS = createRegistry(CATEGORY)
     return notice(
       `${withoutSri.length} third-party script(s) loaded without SRI.`,
       `Without Subresource Integrity (SRI), third-party scripts can be altered by upstream compromises without browser detection. PCI DSS requirement 6.4.3 requires a method to assure the integrity of each script on the payment page. ${COMMON_DETAILS.PCI_COMPLIANCE_NOTICE}`,
-      'Add integrity and crossorigin attributes to each third-party script tag on the payment page to comply with PCI DSS requirement 6.4.3 script integrity requirements.',
+      'Add integrity and crossorigin attributes to each third-party script tag on the payment page.',
       ADYEN_PCI_SCRIPT_SECURITY_DOC
     );
   })
