@@ -2,7 +2,7 @@ import type { PrintableReportMetadata } from './export-pdf.js';
 import { buildReportExportData, type ReportExportData } from './export-report.js';
 import type { ScanResult } from './types.js';
 
-export interface JsonExportData extends ReportExportData {
+interface JsonExportData extends ReportExportData {
   readonly exportedAt: string;
   readonly reportMetadata: {
     readonly inspectedUrl: string;

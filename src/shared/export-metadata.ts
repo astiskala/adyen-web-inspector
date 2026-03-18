@@ -63,10 +63,6 @@ function detectBrowserFromUserAgent(userAgent: string): NavigatorBrand {
 }
 
 function normalizePlatform(platform: string): string {
-  if (platform === '') {
-    return 'Unknown platform';
-  }
-
   const normalizedPlatform = platform.toLowerCase();
 
   if (normalizedPlatform.includes('mac')) {
@@ -94,20 +90,20 @@ function normalizePlatform(platform: string): string {
 function detectPlatformFromUserAgent(userAgent: string): string {
   const normalizedUserAgent = userAgent.toLowerCase();
 
-  if (normalizedUserAgent.includes('macintosh') || normalizedUserAgent.includes('mac os')) {
-    return 'macOS';
-  }
-  if (normalizedUserAgent.includes('windows')) {
-    return 'Windows';
-  }
-  if (normalizedUserAgent.includes('android')) {
-    return 'Android';
-  }
   if (normalizedUserAgent.includes('iphone')) {
     return 'iOS';
   }
   if (normalizedUserAgent.includes('ipad')) {
     return 'iPadOS';
+  }
+  if (normalizedUserAgent.includes('android')) {
+    return 'Android';
+  }
+  if (normalizedUserAgent.includes('windows')) {
+    return 'Windows';
+  }
+  if (normalizedUserAgent.includes('macintosh') || normalizedUserAgent.includes('mac os')) {
+    return 'macOS';
   }
   if (normalizedUserAgent.includes('linux')) {
     return 'Linux';
