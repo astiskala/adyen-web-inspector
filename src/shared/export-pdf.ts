@@ -1,7 +1,6 @@
-import type { ScanResult, CapturedRequest, CheckCategory } from './types';
+import type { ScanResult } from './types';
 import type { ExportIssueRow } from './utils';
-import { buildIssueExportRows, extractHostname, isAdyenHost } from './utils';
-import { buildImplementationAttributes } from './implementation-attributes';
+import { buildReportExportData, type ExportCategorySection } from './export-report';
 
 const PDF_REPORT_STORAGE_PREFIX = 'pdf-report:' as const;
 const PDF_REPORT_PAGE_PATH = 'report/report.html' as const;
@@ -109,11 +108,17 @@ interface ImplementationAttribute {
   value: string;
 }
 
-function buildAttributes(result: ScanResult): ImplementationAttribute[] {
-  const attrs: ImplementationAttribute[] = [];
-  const implementationAttributes = buildImplementationAttributes(result.payload);
+function buildAttributes(
+  implementationAttributes: ReturnType<typeof buildReportExportData>['implementationAttributes']
+): ImplementationAttribute[] {
+  let flowLabel = 'Unknown';
+  if (implementationAttributes.flow === 'sessions') {
+    flowLabel = 'Sessions';
+  } else if (implementationAttributes.flow === 'advanced') {
+    flowLabel = 'Advanced';
+  }
 
-  attrs.push(
+  return [
     { label: 'SDK Version', value: implementationAttributes.sdkVersion },
     {
       label: 'Environment',
@@ -121,32 +126,20 @@ function buildAttributes(result: ScanResult): ImplementationAttribute[] {
         implementationAttributes.environment === 'unknown'
           ? 'Unknown'
           : implementationAttributes.environment,
-    }
-  );
-
-  if (implementationAttributes.region !== null) {
-    attrs.push({ label: 'Region', value: implementationAttributes.region });
-  }
-
-  attrs.push(
+    },
+    ...(implementationAttributes.region === null
+      ? []
+      : [{ label: 'Region', value: implementationAttributes.region }]),
     { label: 'Integration Flavor', value: implementationAttributes.flavor },
-    { label: 'Import Method', value: implementationAttributes.importMethod }
-  );
-
-  const integrationFlow = implementationAttributes.flow;
-  let flowLabel = 'Unknown';
-  if (integrationFlow === 'sessions') {
-    flowLabel = 'Sessions';
-  } else if (integrationFlow === 'advanced') {
-    flowLabel = 'Advanced';
-  }
-  attrs.push({ label: 'Integration Flow', value: flowLabel });
-
-  return attrs;
+    { label: 'Import Method', value: implementationAttributes.importMethod },
+    { label: 'Integration Flow', value: flowLabel },
+  ];
 }
 
-function buildAttributesHtml(result: ScanResult): string {
-  const attrs = buildAttributes(result);
+function buildAttributesHtml(
+  implementationAttributes: ReturnType<typeof buildReportExportData>['implementationAttributes']
+): string {
+  const attrs = buildAttributes(implementationAttributes);
   const rows = attrs
     .map(
       (a) =>
@@ -156,48 +149,25 @@ function buildAttributesHtml(result: ScanResult): string {
   return `<table class="attr-table"><tbody>${rows}</tbody></table>`;
 }
 
-function buildSkippedRows(result: ScanResult): string {
-  const skipped = result.checks.filter((c) => c.severity === 'skip');
-  if (skipped.length === 0) {
+function buildSkippedRows(
+  skippedChecks: ReturnType<typeof buildReportExportData>['skippedChecks']
+): string {
+  if (skippedChecks.length === 0) {
     return '<tr><td colspan="2">No checks were skipped.</td></tr>';
   }
 
-  const rows = skipped.map((check) => {
-    const dashIndex = check.title.indexOf(' — ');
-    const hasSeparator = dashIndex !== -1;
-    const checkName = hasSeparator ? check.title.slice(0, dashIndex).trim() : check.title;
-    const parsedReason = hasSeparator ? check.title.slice(dashIndex + 3).trim() : '';
-    const skipReason = (check.detail ?? parsedReason).trim();
-    const skipReasonCell = skipReason === '' ? '—' : skipReason;
-    return `<tr>
-      <td>${escapeHtml(checkName)}</td>
-      <td style="color:#6b7280">${escapeHtml(skipReasonCell)}</td>
-    </tr>`;
-  });
-  return rows.join('');
+  return skippedChecks
+    .map(
+      (check) => `<tr>
+      <td>${escapeHtml(check.title)}</td>
+      <td style="color:#6b7280">${escapeHtml(check.reason)}</td>
+    </tr>`
+    )
+    .join('');
 }
 
-const BEST_PRACTICE_CATEGORIES: ReadonlySet<CheckCategory> = new Set([
-  'sdk-identity',
-  'version-lifecycle',
-  'environment',
-  'auth',
-  'callbacks',
-  'risk',
-]);
-const SECURITY_CATEGORIES: ReadonlySet<CheckCategory> = new Set(['security', 'third-party']);
-
-function buildIssueTableForCategory(
-  result: ScanResult,
-  categoryFilter: ReadonlySet<CheckCategory>,
-  emptyMessage: string
-): string {
-  const issues = buildIssueExportRows(result.checks, {
-    sortByImpact: true,
-    friendlyRemediation: true,
-    preferAdyenDocs: true,
-  }).filter((issue) => categoryFilter.has(issue.category));
-
+function buildIssueTableForSection(section: ExportCategorySection, emptyMessage: string): string {
+  const issues = section.issues;
   if (issues.length === 0) {
     return `<p style="color:#6b7280">${escapeHtml(emptyMessage)}</p>`;
   }
@@ -246,14 +216,10 @@ function buildIssueTableForCategory(
 }
 
 function buildSuccessfulChecksTableForCategory(
-  result: ScanResult,
-  categoryFilter: ReadonlySet<CheckCategory>,
+  section: ExportCategorySection,
   emptyMessage: string
 ): string {
-  const checks = result.checks
-    .filter((check) => categoryFilter.has(check.category) && check.severity === 'pass')
-    .sort((a, b) => a.title.localeCompare(b.title));
-
+  const checks = section.successfulChecks;
   if (checks.length === 0) {
     return `<p style="color:#6b7280">${escapeHtml(emptyMessage)}</p>`;
   }
@@ -307,15 +273,8 @@ function buildReportMetadataHtml(
   `;
 }
 
-function buildNetworkHtml(result: ScanResult): string {
-  const reqs: readonly CapturedRequest[] = result.payload.capturedRequests.filter((req) => {
-    if (req.type !== 'other') {
-      return true;
-    }
-
-    const host = extractHostname(req.url);
-    return host !== null && isAdyenHost(host);
-  });
+function buildNetworkHtml(network: ReturnType<typeof buildReportExportData>['network']): string {
+  const reqs = network.capturedRequests;
   const parts: string[] = [];
 
   parts.push('<h3 style="font-size:12px;margin:12px 0 6px">Captured Requests</h3>');
@@ -338,11 +297,13 @@ function buildNetworkHtml(result: ScanResult): string {
   return parts.join('');
 }
 
-function buildRawConfigHtml(result: ScanResult): string {
-  const config = result.payload.page.checkoutConfig;
-  const component = result.payload.page.componentConfig;
-  const inferred = result.payload.page.inferredConfig;
-  const metadata = result.payload.page.adyenMetadata;
+function buildRawConfigHtml(
+  rawConfig: ReturnType<typeof buildReportExportData>['rawConfig']
+): string {
+  const config = rawConfig.checkoutConfig;
+  const component = rawConfig.componentConfig;
+  const inferred = rawConfig.inferredCheckoutConfig;
+  const metadata = rawConfig.sdkMetadata;
 
   const configText = config ? JSON.stringify(config, null, 2) : 'No config captured.';
   const componentText = component
@@ -380,6 +341,7 @@ export function buildPrintableHtml(
   const date = new Date(result.scannedAt).toLocaleString();
   const { score, passing, total, tier } = result.health;
   const tierColor = scoreColor(tier);
+  const reportData = buildReportExportData(result);
 
   return `<!doctype html>
 <html lang="en">
@@ -428,31 +390,22 @@ export function buildPrintableHtml(
   </div>
 
   <h2>Implementation Attributes</h2>
-  ${buildAttributesHtml(result)}
+  ${buildAttributesHtml(reportData.implementationAttributes)}
 
   <h2>Best Practices</h2>
-  ${buildIssueTableForCategory(
-    result,
-    BEST_PRACTICE_CATEGORIES,
-    'No best-practice issues identified.'
-  )}
+  ${buildIssueTableForSection(reportData.bestPractices, 'No best-practice issues identified.')}
 
   <h2>Security</h2>
-  ${buildIssueTableForCategory(result, SECURITY_CATEGORIES, 'No security issues identified.')}
+  ${buildIssueTableForSection(reportData.security, 'No security issues identified.')}
 
   <h2>Successful Checks</h2>
   <h3 style="font-size:12px;margin:8px 0 6px">Best Practices</h3>
   ${buildSuccessfulChecksTableForCategory(
-    result,
-    BEST_PRACTICE_CATEGORIES,
+    reportData.bestPractices,
     'No successful best-practice checks recorded.'
   )}
   <h3 style="font-size:12px;margin:8px 0 6px">Security</h3>
-  ${buildSuccessfulChecksTableForCategory(
-    result,
-    SECURITY_CATEGORIES,
-    'No successful security checks recorded.'
-  )}
+  ${buildSuccessfulChecksTableForCategory(reportData.security, 'No successful security checks recorded.')}
 
   <h2>Skipped Checks</h2>
   <table>
@@ -463,15 +416,15 @@ export function buildPrintableHtml(
       </tr>
     </thead>
     <tbody>
-      ${buildSkippedRows(result)}
+      ${buildSkippedRows(reportData.skippedChecks)}
     </tbody>
   </table>
 
   <h2>Network</h2>
-  ${buildNetworkHtml(result)}
+  ${buildNetworkHtml(reportData.network)}
 
   <h2>Raw Config</h2>
-  ${buildRawConfigHtml(result)}
+  ${buildRawConfigHtml(reportData.rawConfig)}
 
   <div class="footer">
     Generated by Adyen Web Inspector v${escapeHtml(metadata.extensionVersion)} &mdash; ${escapeHtml(

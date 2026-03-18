@@ -9,7 +9,8 @@ import {
   MSG_SCAN_RESET,
   MSG_SCAN_STARTED,
 } from '~shared/messages';
-import { buildIssueExportRows } from '~shared/utils';
+import { buildJsonExport } from '~shared/export-json';
+import { buildPrintableReportMetadata } from '~shared/export-metadata';
 import { exportPdf } from '~shared/export-pdf';
 import {
   OverviewTab,
@@ -208,16 +209,7 @@ export function Panel(): JSX.Element {
 
   function handleExportJson(): void {
     if (!result) return;
-    const exportData = {
-      exportedAt: new Date().toISOString(),
-      summary: {
-        pageUrl: result.pageUrl,
-        scannedAt: result.scannedAt,
-        health: result.health,
-      },
-      issues: buildIssueExportRows(result.checks),
-      scanResult: result,
-    };
+    const exportData = buildJsonExport(result, buildPrintableReportMetadata());
     const blob = new Blob([JSON.stringify(exportData, null, 2)], {
       type: 'application/json',
     });
