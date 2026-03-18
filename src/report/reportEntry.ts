@@ -116,7 +116,6 @@ function detectBrowserFromUserAgent(userAgent: string): NavigatorBrand {
     { brand: 'Microsoft Edge', pattern: /Edg\/([0-9.]+)/ },
     { brand: 'Opera', pattern: /OPR\/([0-9.]+)/ },
     { brand: 'Google Chrome', pattern: /Chrome\/([0-9.]+)/ },
-    { brand: 'Safari', pattern: /Version\/([0-9.]+).*Safari\// },
     { brand: 'Firefox', pattern: /Firefox\/([0-9.]+)/ },
   ];
 
@@ -124,6 +123,13 @@ function detectBrowserFromUserAgent(userAgent: string): NavigatorBrand {
     const match = browserPattern.pattern.exec(userAgent);
     if (match?.[1] !== undefined) {
       return { brand: browserPattern.brand, version: match[1] };
+    }
+  }
+
+  if (userAgent.includes('Safari/')) {
+    const safariVersionMatch = /Version\/([0-9.]+)/.exec(userAgent);
+    if (safariVersionMatch?.[1] !== undefined) {
+      return { brand: 'Safari', version: safariVersionMatch[1] };
     }
   }
 
@@ -135,32 +141,62 @@ function normalizePlatform(platform: string): string {
     return 'Unknown platform';
   }
 
-  if (platform.includes('mac') || platform.includes('Mac')) {
+  const normalizedPlatform = platform.toLowerCase();
+
+  if (normalizedPlatform.includes('mac')) {
     return 'macOS';
   }
-  if (platform.includes('win') || platform.includes('Win')) {
+  if (normalizedPlatform.includes('win')) {
     return 'Windows';
   }
-  if (platform.includes('android') || platform.includes('Android')) {
+  if (normalizedPlatform.includes('android')) {
     return 'Android';
   }
-  if (platform.includes('iphone') || platform.includes('iPhone')) {
+  if (normalizedPlatform.includes('iphone')) {
     return 'iOS';
   }
-  if (platform.includes('ipad') || platform.includes('iPad')) {
+  if (normalizedPlatform.includes('ipad')) {
     return 'iPadOS';
   }
-  if (platform.includes('linux') || platform.includes('Linux')) {
+  if (normalizedPlatform.includes('linux')) {
     return 'Linux';
   }
 
   return platform;
 }
 
+function detectPlatformFromUserAgent(userAgent: string): string {
+  const normalizedUserAgent = userAgent.toLowerCase();
+
+  if (normalizedUserAgent.includes('macintosh') || normalizedUserAgent.includes('mac os')) {
+    return 'macOS';
+  }
+  if (normalizedUserAgent.includes('windows')) {
+    return 'Windows';
+  }
+  if (normalizedUserAgent.includes('android')) {
+    return 'Android';
+  }
+  if (normalizedUserAgent.includes('iphone')) {
+    return 'iOS';
+  }
+  if (normalizedUserAgent.includes('ipad')) {
+    return 'iPadOS';
+  }
+  if (normalizedUserAgent.includes('linux')) {
+    return 'Linux';
+  }
+
+  return 'Unknown platform';
+}
+
 function buildBrowserLabel(): string {
   const userAgent = navigator.userAgent;
   const userAgentData = getUserAgentData();
-  const platform = normalizePlatform(userAgentData?.platform ?? navigator.platform);
+  const platform =
+    userAgentData?.platform === undefined || userAgentData.platform === ''
+      ? detectPlatformFromUserAgent(userAgent)
+      : normalizePlatform(userAgentData.platform);
   const browserInfo =
     userAgentData?.brands === undefined || userAgentData.brands.length === 0
       ? detectBrowserFromUserAgent(userAgent)

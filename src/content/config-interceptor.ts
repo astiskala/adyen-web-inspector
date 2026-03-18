@@ -39,6 +39,8 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
   const STRING_CONFIG_KEYS = ['clientKey', 'environment', 'locale', 'countryCode'] as const;
   const ADYEN_INSTANCE_MARKER = '__adyenInstance';
   const LOCALE_FROM_URL_PATTERN = /\/translations\/([^/]+)\.json$/;
+  const LIVE_ENVIRONMENT_PATTERN = /(?:^|\.|-)(live(?:-[a-z]{2,4})?)(?:\.|$)/;
+  const TEST_ENVIRONMENT_PATTERN = /(?:^|\.|-)(test)(?:\.|$)/;
 
   /** Inlined from shared/utils — config-interceptor must be dependency-free. */
   function extractLocaleFromUrl(url: string): string | null {
@@ -210,8 +212,8 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
         return;
       }
 
-      const liveMatch = u.hostname.match(/(?:^|\.|-)(live(?:-[a-z]{2,4})?)(?:\.|$)/);
-      const testMatch = u.hostname.match(/(?:^|\.|-)(test)(?:\.|$)/);
+      const liveMatch = LIVE_ENVIRONMENT_PATTERN.exec(u.hostname);
+      const testMatch = TEST_ENVIRONMENT_PATTERN.exec(u.hostname);
 
       if (liveMatch !== null) {
         mergeAndPublishInferred({ environment: liveMatch[1] as string });
@@ -470,32 +472,43 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
   // Promise.prototype.then Interception (Aggressive Discovery)
   // ---------------------------------------------------------------------------
 
+  type PromiseCallbackResult<T> = T | PromiseLike<T>;
+  type OnFulfilled<T, R> = ((value: T) => PromiseCallbackResult<R>) | undefined | null;
+  type OnRejected<R> = ((reason: unknown) => PromiseCallbackResult<R>) | undefined | null;
+
+  function observeResolvedPromiseValue<T>(value: T): T {
+    try {
+      tryCaptureFromInstance(value);
+    } catch {
+      /* ignore */
+    }
+
+    return value;
+  }
+
+  function ignoreRejectedPromise(): void {}
+
+  function ignoreObservedPromise<T>(_promise: Promise<T>): void {}
+
+  function observePromiseResolution<T>(
+    promise: Promise<T>,
+    originalThen: typeof Promise.prototype.then
+  ): void {
+    ignoreObservedPromise(
+      originalThen.call(promise, observeResolvedPromiseValue, ignoreRejectedPromise)
+    );
+  }
+
   try {
     const originalThen = Promise.prototype.then;
-
-    type OnFulfilled<T, R> = ((value: T) => R | PromiseLike<R>) | undefined | null;
-    type OnRejected<R> = ((reason: unknown) => R | PromiseLike<R>) | undefined | null;
 
     Promise.prototype.then = function <T, TResult1 = T, TResult2 = never>(
       this: Promise<T>,
       onfulfilled?: OnFulfilled<T, TResult1>,
       onrejected?: OnRejected<TResult2>
     ): Promise<TResult1 | TResult2> {
-      const wrappedOnFulfilled =
-        typeof onfulfilled === 'function'
-          ? (value: T): TResult1 | PromiseLike<TResult1> => {
-              try {
-                tryCaptureFromInstance(value);
-              } catch {
-                /* ignore */
-              }
-              return onfulfilled(value);
-            }
-          : onfulfilled;
-
-      return originalThen.call(this, wrappedOnFulfilled, onrejected) as Promise<
-        TResult1 | TResult2
-      >;
+      observePromiseResolution(this, originalThen);
+      return originalThen.call(this, onfulfilled, onrejected) as Promise<TResult1 | TResult2>;
     };
   } catch {
     /* ignore */
