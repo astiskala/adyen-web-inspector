@@ -1,6 +1,7 @@
 import { defineConfig, type Plugin } from 'vite';
 import preact from '@preact/preset-vite';
-import { resolve } from 'node:path';
+import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { dirname, relative, resolve } from 'node:path';
 
 const root = import.meta.dirname;
 
@@ -39,33 +40,63 @@ function chromeExtensionHtmlFlatten(): Plugin {
   return {
     name: 'chrome-extension-html-flatten',
     enforce: 'post',
-    generateBundle(_options, bundle): void {
-      for (const [fileName, chunk] of Object.entries(bundle)) {
-        if (!fileName.startsWith('src/') || !fileName.endsWith('.html')) {
-          continue;
-        }
-        const newPath = fileName.replace(/^src\//, '');
-
-        if (chunk.type === 'asset' && typeof chunk.source === 'string') {
-          // Removing one directory level from the path means every
-          // relative reference needs one fewer "../" prefix.
-          chunk.source = chunk.source.replaceAll(
-            /(['"(])((?:\.\.\/)+)/g,
-            (_match: string, quote: string, dots: string) => {
-              const levels = dots.length / 3;
-              return levels > 1 ? quote + '../'.repeat(levels - 1) : quote + './';
-            }
-          );
-        }
-
-        chunk.fileName = newPath;
-        bundle[newPath] = chunk;
-        if (Object.hasOwn(bundle, fileName) && fileName !== newPath) {
-          Reflect.deleteProperty(bundle, fileName);
-        }
+    async writeBundle(options): Promise<void> {
+      const outputDirectory = options.dir;
+      if (outputDirectory === undefined) {
+        return;
       }
+
+      const htmlRoot = resolve(outputDirectory, 'src');
+      const htmlFiles = await collectHtmlFiles(htmlRoot);
+
+      for (const htmlFile of htmlFiles) {
+        const relativePath = relative(htmlRoot, htmlFile);
+        const targetPath = resolve(outputDirectory, relativePath);
+        const htmlSource = await readFile(htmlFile, 'utf8');
+
+        // Removing one directory level from the path means every relative
+        // reference needs one fewer "../" prefix.
+        const flattenedHtml = htmlSource.replaceAll(
+          /(['"(])((?:\.\.\/)+)/g,
+          (_match: string, quote: string, dots: string) => {
+            const levels = dots.length / 3;
+            return levels > 1 ? quote + '../'.repeat(levels - 1) : quote + './';
+          }
+        );
+
+        await mkdir(dirname(targetPath), { recursive: true });
+        await writeFile(targetPath, flattenedHtml);
+        await rm(htmlFile);
+      }
+
+      await rm(htmlRoot, { recursive: true, force: true });
     },
   };
+}
+
+async function collectHtmlFiles(directory: string): Promise<string[]> {
+  try {
+    const entries = await readdir(directory, { withFileTypes: true });
+    const files = await Promise.all(
+      entries.map(async (entry) => {
+        const entryPath = resolve(directory, entry.name);
+
+        if (entry.isDirectory()) {
+          return collectHtmlFiles(entryPath);
+        }
+
+        return entry.isFile() && entry.name.endsWith('.html') ? [entryPath] : [];
+      })
+    );
+
+    return files.flat();
+  } catch (error: unknown) {
+    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+      return [];
+    }
+
+    throw error;
+  }
 }
 
 export default defineConfig({

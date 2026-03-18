@@ -7,7 +7,8 @@
     "src/content/page-extractor.ts",
     "src/popup/Popup.tsx",
     "src/devtools/devtools.ts",
-    "src/devtools/panel/panelEntry.tsx"
+    "src/devtools/panel/panelEntry.tsx",
+    "src/report/reportEntry.ts"
   ],
   "project": ["src/**/*.{ts,tsx}", "tests/**/*.{ts,tsx}"],
   "include": [
