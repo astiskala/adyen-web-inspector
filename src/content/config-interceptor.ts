@@ -374,6 +374,14 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
     }
   }
 
+  function observeCheckoutFactoryResult(result: Promise<unknown>): void {
+    result
+      .then((inst: unknown) => {
+        tryCaptureFromInstance(inst);
+      })
+      .catch(() => {});
+  }
+
   function wrapCheckoutFactory(original: SdkCallable): SdkCallable {
     if (isWrapped(original)) {
       return original;
@@ -383,12 +391,7 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
       captureConfig(args[0], 'checkout');
       const result = original.apply(this, args);
       if (result instanceof Promise) {
-        void result
-          .then((inst: unknown) => {
-            tryCaptureFromInstance(inst);
-            return inst;
-          })
-          .catch(() => {});
+        observeCheckoutFactoryResult(result);
       }
       return result;
     };
@@ -464,52 +467,6 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
       configurable: true,
       enumerable: true,
     });
-  } catch {
-    /* ignore */
-  }
-
-  // ---------------------------------------------------------------------------
-  // Promise.prototype.then Interception (Aggressive Discovery)
-  // ---------------------------------------------------------------------------
-
-  type PromiseCallbackResult<T> = T | PromiseLike<T>;
-  type OnFulfilled<T, R> = ((value: T) => PromiseCallbackResult<R>) | undefined | null;
-  type OnRejected<R> = ((reason: unknown) => PromiseCallbackResult<R>) | undefined | null;
-
-  function observeResolvedPromiseValue<T>(value: T): T {
-    try {
-      tryCaptureFromInstance(value);
-    } catch {
-      /* ignore */
-    }
-
-    return value;
-  }
-
-  function ignoreRejectedPromise(): void {}
-
-  function ignoreObservedPromise<T>(_promise: Promise<T>): void {}
-
-  function observePromiseResolution<T>(
-    promise: Promise<T>,
-    originalThen: typeof Promise.prototype.then
-  ): void {
-    ignoreObservedPromise(
-      originalThen.call(promise, observeResolvedPromiseValue, ignoreRejectedPromise)
-    );
-  }
-
-  try {
-    const originalThen = Promise.prototype.then;
-
-    Promise.prototype.then = function <T, TResult1 = T, TResult2 = never>(
-      this: Promise<T>,
-      onfulfilled?: OnFulfilled<T, TResult1>,
-      onrejected?: OnRejected<TResult2>
-    ): Promise<TResult1 | TResult2> {
-      observePromiseResolution(this, originalThen);
-      return originalThen.call(this, onfulfilled, onrejected) as Promise<TResult1 | TResult2>;
-    };
   } catch {
     /* ignore */
   }

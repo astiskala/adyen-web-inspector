@@ -151,24 +151,6 @@ describe('config-interceptor', () => {
       expect(config?.['countryCode']).toBe('NL');
       expect(config?.['locale']).toBe('nl-NL');
     });
-
-    it('captures config via global Promise.prototype.then interception', async () => {
-      const fakeCheckout = {
-        create: (): void => {},
-        options: {
-          clientKey: 'test_AGGRESSIVE',
-          environment: 'test',
-        },
-      };
-
-      // Simulate a promise resolving to an Adyen instance, e.g. from a bundled SDK
-      const p = Promise.resolve(fakeCheckout);
-      await p.then((val) => val);
-
-      const config = getCapturedConfig();
-      expect(config).toBeDefined();
-      expect(config?.['clientKey']).toBe('test_AGGRESSIVE');
-    });
   });
 
   describe('Network interception', () => {

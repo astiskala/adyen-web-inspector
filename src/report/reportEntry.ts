@@ -220,25 +220,21 @@ function buildPrintableReportMetadata(): PrintableReportMetadata {
   };
 }
 
-async function main(): Promise<void> {
-  const url = new URL(globalThis.location.href);
-  const token = url.searchParams.get(PDF_REPORT_TOKEN_PARAM);
+const url = new URL(globalThis.location.href);
+const token = url.searchParams.get(PDF_REPORT_TOKEN_PARAM);
 
-  if (token === null || token === '') {
-    showError('The PDF export request was missing its report token. Please try again.');
-    return;
+if (token === null || token === '') {
+  showError('The PDF export request was missing its report token. Please try again.');
+} else {
+  try {
+    const result = await loadStoredResult(token);
+    if (result === null) {
+      showError('The export data was unavailable. Please rerun the scan and try again.');
+    } else {
+      renderReportHtml(buildPrintableHtml(result, buildPrintableReportMetadata()));
+      triggerPrint();
+    }
+  } catch {
+    showError('An unexpected error occurred while building the export report.');
   }
-
-  const result = await loadStoredResult(token);
-  if (result === null) {
-    showError('The export data was unavailable. Please rerun the scan and try again.');
-    return;
-  }
-
-  renderReportHtml(buildPrintableHtml(result, buildPrintableReportMetadata()));
-  triggerPrint();
 }
-
-main().catch(() => {
-  showError('An unexpected error occurred while building the export report.');
-});
