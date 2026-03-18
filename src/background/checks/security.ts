@@ -64,7 +64,7 @@ const STRINGS = {
   XSS_NOTICE_URL: 'https://owasp.org/www-project-secure-headers/#x-xss-protection',
 
   HSTS_SKIP_TITLE: 'HSTS check skipped.',
-  HSTS_SKIP_REASON: 'Not a live environment.',
+  HSTS_SKIP_REASON: 'Not required for test environment.',
   HSTS_PASS_TITLE: 'HSTS header is present.',
   HSTS_NOTICE_TITLE: 'HSTS header is missing on a live environment.',
   HSTS_NOTICE_DETAIL:
