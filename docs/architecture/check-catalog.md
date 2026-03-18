@@ -37,7 +37,7 @@ This catalog is the documentation source of truth for checks registered in:
 | `sdk-identity`      | `sdk-detected`                             | Detect Adyen Web SDK presence via metadata or script/resource signals.                             | `info`, `fail`                   |
 | `sdk-identity`      | `sdk-flavor`                               | Identify integration flavor (`Drop-in`, `Components`, `Custom`, `unknown`) and evidence source.    | `info`                           |
 | `sdk-identity`      | `sdk-import-method`                        | Classify SDK loading method (`CDN`, `Adyen`, `NPM`).                                               | `info`                           |
-| `sdk-identity`      | `sdk-bundle-type`                          | Assess bundle type (`auto` vs optimised/tree-shakable) for non-CDN integrations.                   | `pass`, `warn`, `skip`           |
+| `sdk-identity`      | `sdk-bundle-type`                          | Assess bundle type (`auto` vs optimised/tree-shakable) for non-CDN integrations.                   | `pass`, `notice`, `skip`         |
 | `sdk-identity`      | `sdk-analytics`                            | Verify checkout analytics is not explicitly disabled (`analytics.enabled !== false`).              | `pass`, `warn`, `skip`           |
 | `sdk-identity`      | `sdk-multi-init`                           | Warn if `AdyenCheckout` is initialised multiple times.                                             | `pass`, `warn`, `skip`           |
 | `version-lifecycle` | `version-detected`                         | Verify the inspector can determine the running `adyen-web` version.                                | `info`, `warn`                   |

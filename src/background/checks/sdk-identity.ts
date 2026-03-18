@@ -2,11 +2,14 @@
  * Category 1 — SDK Identity checks.
  */
 
+import type { ScanPayload } from '../../shared/types.js';
 import {
   detectImportMethod,
+  detectIntegrationFlow,
   hasCheckoutActivity,
   isCdnCheckoutScriptUrl,
   resolveIntegrationFlavor,
+  type IntegrationFlow,
 } from '../../shared/implementation-attributes.js';
 import { isAdyenCheckoutResource } from '../../shared/utils.js';
 import { createRegistry } from './registry.js';
@@ -38,11 +41,10 @@ const STRINGS = {
   BUNDLE_TYPE_CDN_SKIP_REASON: 'Not applicable for CDN imports.',
   BUNDLE_TYPE_UNKNOWN_SKIP_TITLE: 'Could not determine bundle type.',
   BUNDLE_TYPE_UNKNOWN_SKIP_REASON: 'AdyenWebMetadata not available.',
-  BUNDLE_AUTO_WARN_TITLE: 'Using the auto bundle — consider switching to tree-shakable imports.',
-  // BUNDLE_AUTO_WARN_DETAIL stays inline (dynamic: uses bundleType)
-  BUNDLE_AUTO_WARN_REMEDIATION:
+
+  BUNDLE_AUTO_NOTICE_TITLE: 'Using the auto bundle — consider switching to tree-shakable imports.',
+  BUNDLE_AUTO_NOTICE_REMEDIATION:
     'Switch from the auto bundle to tree-shakable imports. Instead of importing the entire Adyen Web package, import only the specific payment method components your integration uses. This significantly reduces JavaScript bundle size and improves checkout page load time.',
-  BUNDLE_AUTO_WARN_URL: 'https://docs.adyen.com/online-payments/upgrade-your-integration/',
 
   ANALYTICS_SKIP_TITLE: 'Analytics check skipped.',
   ANALYTICS_SKIP_REASON: 'SDK not active on this page.',
@@ -63,6 +65,21 @@ const STRINGS = {
     'Ensure AdyenCheckout is initialised only once. Use a ref or a custom hook that returns a stable instance and only mount components when ready.',
   MULTI_INIT_WARN_URL:
     'https://docs.adyen.com/online-payments/web-best-practices/#handle-web-framework-re-renders',
+} as const;
+
+const BUNDLE_AUTO_DOCS = {
+  advanced: {
+    'Drop-in':
+      'https://docs.adyen.com/online-payments/build-your-integration/advanced-flow?platform=Web&integration=Drop-in#import-drop-in-with-individual-payment-methods',
+    Components:
+      'https://docs.adyen.com/online-payments/build-your-integration/advanced-flow?platform=Web&integration=Components#add',
+  },
+  sessions: {
+    'Drop-in':
+      'https://docs.adyen.com/online-payments/build-your-integration/sessions-flow?platform=Web&integration=Drop-in#import-drop-in-with-individual-payment-methods',
+    Components:
+      'https://docs.adyen.com/online-payments/build-your-integration/sessions-flow?platform=Web&integration=Components#create-the-component',
+  },
 } as const;
 
 const CATEGORY = 'sdk-identity' as const;
@@ -125,7 +142,7 @@ export const SDK_IDENTITY_CHECKS = createRegistry(CATEGORY)
 
     return info(`Import method: ${method}.`, detail);
   })
-  .add('sdk-bundle-type', (payload, { skip, warn, pass }) => {
+  .add('sdk-bundle-type', (payload, { skip, notice, pass }) => {
     const { adyenMetadata, scripts } = payload.page;
     const isCdn = scripts.some((s) => isCdnCheckoutScriptUrl(s.src));
 
@@ -140,11 +157,13 @@ export const SDK_IDENTITY_CHECKS = createRegistry(CATEGORY)
     }
 
     if (bundleType === 'auto') {
-      return warn(
-        STRINGS.BUNDLE_AUTO_WARN_TITLE,
-        `Bundle type is "${bundleType}". The auto bundle includes all payment methods, increasing bundle size.`,
-        STRINGS.BUNDLE_AUTO_WARN_REMEDIATION,
-        STRINGS.BUNDLE_AUTO_WARN_URL
+      const flow = detectIntegrationFlow(payload);
+      const docsUrl = getFlowSensitiveBundleDocsUrl(payload, flow);
+      return notice(
+        STRINGS.BUNDLE_AUTO_NOTICE_TITLE,
+        `Bundle type is "${bundleType}". The auto bundle includes all payment methods, increasing bundle size. This is a flexible option if you expect to add new payment methods in the future.`,
+        STRINGS.BUNDLE_AUTO_NOTICE_REMEDIATION,
+        docsUrl
       );
     }
 
@@ -190,3 +209,12 @@ export const SDK_IDENTITY_CHECKS = createRegistry(CATEGORY)
     return pass(STRINGS.MULTI_INIT_PASS_TITLE);
   })
   .getChecks();
+
+function getFlowSensitiveBundleDocsUrl(payload: ScanPayload, flow: IntegrationFlow): string {
+  const callbackDocFlavor =
+    resolveIntegrationFlavor(payload).flavor === 'Drop-in' ? 'Drop-in' : 'Components';
+  if (flow === 'sessions') {
+    return BUNDLE_AUTO_DOCS.sessions[callbackDocFlavor];
+  }
+  return BUNDLE_AUTO_DOCS.advanced[callbackDocFlavor];
+}

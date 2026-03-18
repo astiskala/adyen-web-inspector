@@ -22,6 +22,7 @@ import { IssueList } from './components/IssueList';
 import { NotDetected } from './components/NotDetected';
 import { DetectedReady } from './components/DetectedReady';
 import { VersionOutdated } from './components/VersionOutdated';
+import { ScanError } from './components/ScanError';
 
 type PopupState = 'loading' | 'ready' | 'detected' | 'not-detected' | 'error' | 'version-outdated';
 interface RuntimeMessage {
@@ -50,7 +51,6 @@ export function Popup(): JSX.Element {
   const [state, setState] = useState<PopupState>('loading');
   const [result, setResult] = useState<ScanResult | null>(null);
   const [scanning, setScanning] = useState<boolean>(false);
-  const [errorMsg, setErrorMsg] = useState<string>('');
   const [outdatedVersion, setOutdatedVersion] = useState<string>('');
 
   function checkVersionGate(tabId: number): void {
@@ -122,7 +122,6 @@ export function Popup(): JSX.Element {
     if (message.type === MSG_SCAN_RESET) {
       setScanning(false);
       setResult(null);
-      setErrorMsg('');
       setOutdatedVersion('');
       setState('loading');
       globalThis.setTimeout(() => {
@@ -133,14 +132,12 @@ export function Popup(): JSX.Element {
 
     if (message.type === MSG_SCAN_COMPLETE) {
       setScanning(false);
-      setErrorMsg('');
       loadResult(tabId);
       return;
     }
 
     setScanning(false);
     setState('error');
-    setErrorMsg(message.error ?? 'Scan failed. Try reloading the page.');
   }
 
   useEffect(() => {
@@ -167,27 +164,23 @@ export function Popup(): JSX.Element {
   }, []);
 
   function handleScan(): void {
-    setErrorMsg('');
     setScanning(true);
     getActiveTabId()
       .then((tabId) => {
         if (tabId === undefined) {
           setScanning(false);
           setState('error');
-          setErrorMsg('No active tab found.');
           return;
         }
 
         chrome.runtime.sendMessage({ type: MSG_SCAN_REQUEST, tabId, source: 'popup' }).catch(() => {
           setScanning(false);
           setState('error');
-          setErrorMsg('Unable to start scan. Try reloading the page.');
         });
       })
       .catch(() => {
         setScanning(false);
         setState('error');
-        setErrorMsg('Unable to start scan. Try reloading the page.');
       });
   }
 
@@ -202,8 +195,7 @@ export function Popup(): JSX.Element {
   const sdkNotDetected = isDetected && sdkDetectedCheck?.severity === 'fail';
   const sdkNotDetectedMessage =
     sdkDetectedCheck?.title ?? 'Adyen Web SDK was not detected on this page.';
-  const showScanControls =
-    (state === 'ready' || state === 'detected' || state === 'error') && !sdkNotDetected;
+  const showScanControls = (state === 'ready' || state === 'detected') && !sdkNotDetected;
   let scanButtonText = 'Run Scan';
   if (scanning) {
     scanButtonText = 'Scanning…';
@@ -225,19 +217,9 @@ export function Popup(): JSX.Element {
           Loading…
         </div>
       )}
-      {state === 'error' && (
-        <div
-          style={{
-            padding: '16px 12px',
-            color: 'var(--color-red)',
-            fontSize: '12px',
-          }}
-        >
-          {errorMsg}
-        </div>
-      )}
+      {state === 'error' && <ScanError onRetry={handleScan} scanning={scanning} />}
       {state === 'ready' && <DetectedReady />}
-      {state === 'not-detected' && <NotDetected />}
+      {state === 'not-detected' && <NotDetected onAttemptScan={handleScan} scanning={scanning} />}
       {state === 'version-outdated' && <VersionOutdated version={outdatedVersion} />}
       {isDetected && !sdkNotDetected && (
         <>

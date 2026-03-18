@@ -17,6 +17,10 @@ const sdkImportMethod = requireCheck(SDK_IDENTITY_CHECKS, 'sdk-import-method');
 const sdkBundleType = requireCheck(SDK_IDENTITY_CHECKS, 'sdk-bundle-type');
 const sdkAnalytics = requireCheck(SDK_IDENTITY_CHECKS, 'sdk-analytics');
 const sdkMultiInit = requireCheck(SDK_IDENTITY_CHECKS, 'sdk-multi-init');
+const ADVANCED_COMPONENTS_BUNDLE_DOC =
+  'https://docs.adyen.com/online-payments/build-your-integration/advanced-flow?platform=Web&integration=Components#add';
+const SESSIONS_DROP_IN_BUNDLE_DOC =
+  'https://docs.adyen.com/online-payments/build-your-integration/sessions-flow?platform=Web&integration=Drop-in#import-drop-in-with-individual-payment-methods';
 
 describe('sdk-detected', () => {
   it('returns info when AdyenWebMetadata is present', () => {
@@ -77,14 +81,11 @@ describe('sdk-bundle-type', () => {
     expect(result.severity).toBe('skip');
   });
 
-  it('returns warn for auto bundle', () => {
-    const payload = makeScanPayload({
-      page: makePageExtract({
-        adyenMetadata: makeAdyenMetadata({ bundleType: 'auto' }),
-      }),
-    });
+  it('returns notice for auto bundle and uses advanced-flow docs by default', () => {
+    const payload = makeAdyenPayload({ bundleType: 'auto' });
     const result = sdkBundleType.run(payload);
-    expect(result.severity).toBe('warn');
+    expect(result.severity).toBe('notice');
+    expect(result.docsUrl).toBe(ADVANCED_COMPONENTS_BUNDLE_DOC);
   });
 
   it('returns pass for esm bundle', () => {
@@ -106,12 +107,17 @@ describe('sdk-bundle-type', () => {
     expect(result.title).toContain('eslegacy');
   });
 
-  it('returns warn when analytics reports auto buildType (no metadata)', () => {
+  it('returns notice when analytics reports auto buildType and uses sessions docs', () => {
     const payload = makeScanPayload({
-      analyticsData: makeAnalyticsData({ buildType: 'auto' }),
+      analyticsData: makeAnalyticsData({
+        buildType: 'auto',
+        flavor: 'dropin',
+        sessionId: 'session-id-123',
+      }),
     });
     const result = sdkBundleType.run(payload);
-    expect(result.severity).toBe('warn');
+    expect(result.severity).toBe('notice');
+    expect(result.docsUrl).toBe(SESSIONS_DROP_IN_BUNDLE_DOC);
   });
 
   it('prefers metadata bundleType over analytics buildType', () => {
