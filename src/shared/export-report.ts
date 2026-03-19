@@ -1,7 +1,14 @@
 import { buildImplementationAttributes } from './implementation-attributes.js';
 import { buildIssueExportRows, type ExportIssueRow } from './export-utils.js';
 import { extractHostname, isAdyenHost } from './utils.js';
-import type { CapturedRequest, CheckCategory, CheckId, CheckResult, ScanResult } from './types.js';
+import type {
+  CapturedRequest,
+  CheckCategory,
+  CheckId,
+  CheckResult,
+  ScanResult,
+  StandardCompliance,
+} from './types.js';
 
 const BEST_PRACTICE_EXPORT_CATEGORIES: ReadonlySet<CheckCategory> = new Set([
   'sdk-identity',
@@ -41,6 +48,7 @@ interface ExportRawConfigData {
 
 export interface ReportExportData {
   readonly implementationAttributes: ImplementationAttributes;
+  readonly standardCompliance: StandardCompliance;
   readonly issues: readonly ExportIssueRow[];
   readonly bestPractices: ExportCategorySection;
   readonly security: ExportCategorySection;
@@ -117,6 +125,7 @@ export function buildReportExportData(result: ScanResult): ReportExportData {
 
   return {
     implementationAttributes: buildImplementationAttributes(result.payload),
+    standardCompliance: result.standardCompliance,
     issues,
     bestPractices: buildExportSection(result.checks, issues, BEST_PRACTICE_EXPORT_CATEGORIES),
     security: buildExportSection(result.checks, issues, SECURITY_EXPORT_CATEGORIES),

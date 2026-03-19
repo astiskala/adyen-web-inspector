@@ -11,6 +11,7 @@ import {
 } from '../../fixtures/makeScanPayload';
 import { requireCheck } from './requireCheck';
 
+const apiKeyExposed = requireCheck(SECURITY_CHECKS, 'security-api-key-exposed');
 const securityHttps = requireCheck(SECURITY_CHECKS, 'security-https');
 const sriScript = requireCheck(SECURITY_CHECKS, 'security-sri-script');
 const sriCss = requireCheck(SECURITY_CHECKS, 'security-sri-css');
@@ -264,6 +265,41 @@ describe('Security Checks', () => {
       const result = iframeReferrerPolicy.run(payload);
       expect(result.severity).toBe('info');
       expect(result.title).toContain('missing referrerpolicy');
+    });
+  });
+
+  describe('API Key Exposed', () => {
+    it('passes when no API key is detected', () => {
+      const payload = makeScanPayload();
+      const result = apiKeyExposed.run(payload);
+      expect(result.severity).toBe('pass');
+      expect(result.category).toBe('security');
+    });
+
+    it('fails when API key is detected in frontend code', () => {
+      const payload = makeScanPayload({
+        page: makePageExtract({ apiKeyDetected: true }),
+      });
+      const result = apiKeyExposed.run(payload);
+      expect(result.severity).toBe('fail');
+      expect(result.title).toContain('API key detected');
+      expect(result.detail).toContain('credential leak');
+      expect(result.remediation).toContain('Remove the API key');
+      expect(result.docsUrl).toBe('https://docs.adyen.com/development-resources/api-credentials');
+    });
+
+    it('passes when apiKeyDetected is undefined', () => {
+      const payload = makeScanPayload({
+        page: makePageExtract(),
+      });
+      expect(apiKeyExposed.run(payload).severity).toBe('pass');
+    });
+
+    it('passes when apiKeyDetected is false', () => {
+      const payload = makeScanPayload({
+        page: makePageExtract({ apiKeyDetected: false }),
+      });
+      expect(apiKeyExposed.run(payload).severity).toBe('pass');
     });
   });
 });

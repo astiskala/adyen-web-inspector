@@ -11,6 +11,7 @@ import type {
 } from '../shared/types.js';
 import { STORAGE_SCAN_RESULT_PREFIX } from '../shared/constants.js';
 import { calculateHealthScore, extractLocaleFromUrl } from '../shared/utils.js';
+import { computeStandardCompliance } from '../shared/standard-compliance.js';
 import { HeaderCollector } from './header-collector.js';
 import { getLatestAdyenWebVersion } from './npm-registry.js';
 import { ALL_CHECKS } from './checks/index.js';
@@ -101,6 +102,7 @@ export async function runScan(tabId: number): Promise<ScanResult> {
 
     const checks = ALL_CHECKS.map((check: Check) => check.run(payload));
     const health = calculateHealthScore(checks);
+    const standardCompliance = computeStandardCompliance(checks, payload);
 
     const result: ScanResult = {
       tabId,
@@ -108,6 +110,7 @@ export async function runScan(tabId: number): Promise<ScanResult> {
       scannedAt: payload.scannedAt,
       checks,
       health,
+      standardCompliance,
       payload,
     };
 

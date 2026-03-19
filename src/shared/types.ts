@@ -75,7 +75,9 @@ export type CheckId =
   | '3p-tag-manager'
   | '3p-session-replay'
   | '3p-ad-pixels'
-  | '3p-no-sri';
+  | '3p-no-sri'
+  // API Key Exposure
+  | 'security-api-key-exposed';
 
 // ─── Check Result ─────────────────────────────────────────────────────────────
 
@@ -177,6 +179,8 @@ export interface PageExtractResult {
   readonly observedRequests?: ObservedRequest[];
   /** Number of times AdyenCheckout has been initialised. */
   readonly checkoutInitCount?: number;
+  /** True when an Adyen API key pattern was found in inline scripts or config. */
+  readonly apiKeyDetected?: boolean;
   readonly isInsideIframe: boolean;
   readonly pageUrl: string;
   readonly pageProtocol: string;
@@ -257,11 +261,17 @@ export interface HealthScore {
   readonly tier: 'excellent' | 'issues' | 'critical';
 }
 
+export interface StandardCompliance {
+  readonly compliant: boolean;
+  readonly reasons: readonly string[];
+}
+
 export interface ScanResult {
   readonly tabId: number;
   readonly pageUrl: string;
   readonly scannedAt: string;
   readonly checks: CheckResult[];
   readonly health: HealthScore;
+  readonly standardCompliance: StandardCompliance;
   readonly payload: ScanPayload;
 }

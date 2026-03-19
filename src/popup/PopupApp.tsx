@@ -23,6 +23,7 @@ import { NotDetected } from './components/NotDetected';
 import { DetectedReady } from './components/DetectedReady';
 import { VersionOutdated } from './components/VersionOutdated';
 import { ScanError } from './components/ScanError';
+import { StandardComplianceBadge } from './components/StandardComplianceBadge';
 
 type PopupState = 'loading' | 'ready' | 'detected' | 'not-detected' | 'error' | 'version-outdated';
 interface RuntimeMessage {
@@ -225,6 +226,7 @@ export function Popup(): JSX.Element {
         <>
           <IdentityCard result={result} />
           <HealthScore result={result} />
+          <StandardComplianceBadge compliance={result.standardCompliance} />
           <IssueList checks={result.checks} />
         </>
       )}

@@ -1,6 +1,7 @@
 import { defineConfig } from 'eslint/config';
 import gts from 'gts';
 import jsdoc from 'eslint-plugin-jsdoc';
+import react from 'eslint-plugin-react';
 import regexp from 'eslint-plugin-regexp';
 import sonarjs from 'eslint-plugin-sonarjs';
 import unicorn from 'eslint-plugin-unicorn';
@@ -27,6 +28,7 @@ export default defineConfig([
     files: ['**/*.ts', '**/*.tsx'],
     plugins: {
       jsdoc,
+      react,
       regexp,
       sonarjs,
       unicorn,
@@ -71,6 +73,7 @@ export default defineConfig([
         },
       ],
       '@typescript-eslint/unified-signatures': 'error',
+      'react/jsx-child-element-spacing': 'error',
       'regexp/prefer-d': 'error',
       'sonarjs/cognitive-complexity': ['error', 15],
       'sonarjs/deprecation': 'error',
@@ -80,6 +83,7 @@ export default defineConfig([
       'sonarjs/prefer-regexp-exec': 'error',
       'sonarjs/slow-regex': 'error',
       'unicorn/consistent-function-scoping': 'error',
+      'unicorn/no-object-as-default-parameter': 'error',
       'unicorn/prefer-top-level-await': 'error',
       'jsdoc/check-alignment': 'error',
       'jsdoc/check-param-names': 'error',

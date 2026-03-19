@@ -77,6 +77,14 @@ const STRINGS = {
   IFRAME_RP_MISSING_INFO_TITLE: 'Some Adyen iframes are missing referrerpolicy.',
   IFRAME_RP_MISSING_INFO_DETAIL:
     'Add a referrerpolicy attribute to each Adyen iframe element. See: https://developer.mozilla.org/en-US/docs/Web/HTML/Element/iframe#referrerpolicy',
+
+  API_KEY_PASS_TITLE: 'No API key detected in frontend code.',
+  API_KEY_FAIL_TITLE: 'API key detected in frontend code.',
+  API_KEY_FAIL_DETAIL:
+    'An Adyen API key was found in client-side code. API keys are server-side credentials and must never be exposed in the browser. Even though CORS prevents direct use from the frontend, an exposed key is a credential leak.',
+  API_KEY_FAIL_REMEDIATION:
+    'Remove the API key from all frontend code. Use a client key for frontend authentication. API keys must only be used in server-to-server calls.',
+  API_KEY_FAIL_URL: 'https://docs.adyen.com/development-resources/api-credentials',
 } as const;
 
 const CATEGORY = 'security' as const;
@@ -225,5 +233,16 @@ export const SECURITY_CHECKS = createRegistry(CATEGORY)
     if (missing.length === 0) return pass(STRINGS.IFRAME_RP_PASS_TITLE);
 
     return info(STRINGS.IFRAME_RP_MISSING_INFO_TITLE, STRINGS.IFRAME_RP_MISSING_INFO_DETAIL);
+  })
+  .add('security-api-key-exposed', (payload, { pass, fail }) => {
+    if (payload.page.apiKeyDetected === true) {
+      return fail(
+        STRINGS.API_KEY_FAIL_TITLE,
+        STRINGS.API_KEY_FAIL_DETAIL,
+        STRINGS.API_KEY_FAIL_REMEDIATION,
+        STRINGS.API_KEY_FAIL_URL
+      );
+    }
+    return pass(STRINGS.API_KEY_PASS_TITLE);
   })
   .getChecks();

@@ -1,4 +1,4 @@
-import type { ScanResult } from './types';
+import type { ScanResult, StandardCompliance } from './types';
 import type { ExportIssueRow } from './utils';
 import { buildReportExportData, type ExportCategorySection } from './export-report';
 
@@ -330,13 +330,45 @@ function buildRawConfigHtml(
   `;
 }
 
+function buildComplianceHtml(compliance: StandardCompliance): string {
+  const icon = compliance.compliant ? '\u2713' : '\u2717';
+  const iconColor = compliance.compliant ? '#16a34a' : '#e53935';
+  const label = compliance.compliant
+    ? 'Standard Integration Compliant'
+    : 'Not Standard Integration Compliant';
+
+  const reasonsList =
+    !compliance.compliant && compliance.reasons.length > 0
+      ? `<ul style="margin:4px 0 0 20px;padding:0;font-size:11px;color:#6b7280">${compliance.reasons
+          .map((r) => `<li>${escapeHtml(r)}</li>`)
+          .join('')}</ul>`
+      : '';
+
+  const caveat =
+    '<div style="margin-top:6px;font-size:11px;color:#6b7280;line-height:1.4">' +
+    'Note: Not all aspects of a standard integration can be assessed from the frontend. ' +
+    'For a comprehensive review, see the <a class="docs-link" href="https://docs.adyen.com/online-payments/build-your-integration" target="_blank" rel="noopener noreferrer">documentation</a>.' +
+    '</div>';
+
+  return `<div style="border:1px solid #e5e7eb;border-radius:6px;padding:10px 16px;margin-bottom:20px">
+    <div style="display:flex;align-items:center;gap:6px">
+      <span style="font-size:16px;font-weight:700;color:${iconColor}">${icon}</span>
+      <span style="font-size:12px;font-weight:600">${escapeHtml(label)}</span>
+    </div>
+    ${reasonsList}
+    ${caveat}
+  </div>`;
+}
+
+const DEFAULT_REPORT_METADATA: PrintableReportMetadata = {
+  extensionVersion: 'Unknown',
+  browser: 'Unknown',
+};
+
 /** Builds the self-contained HTML document used by the printable export tab. */
 export function buildPrintableHtml(
   result: ScanResult,
-  metadata: PrintableReportMetadata = {
-    extensionVersion: 'Unknown',
-    browser: 'Unknown',
-  }
+  metadata: PrintableReportMetadata = DEFAULT_REPORT_METADATA
 ): string {
   const date = new Date(result.scannedAt).toLocaleString();
   const { score, passing, total, tier } = result.health;
@@ -388,6 +420,8 @@ export function buildPrintableHtml(
       ${passing} of ${total} checks passing
     </div>
   </div>
+
+  ${buildComplianceHtml(reportData.standardCompliance)}
 
   <h2>Implementation Attributes</h2>
   ${buildAttributesHtml(reportData.implementationAttributes)}

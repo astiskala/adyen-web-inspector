@@ -264,6 +264,35 @@ function extractComponentConfig(): ComponentExtraction {
   return { config: merged, mountCount: findCount };
 }
 
+/**
+ * Matches an Adyen API key: starts with "AQ", ~159 chars, contains "==-" and "=-" delimiters.
+ */
+const ADYEN_API_KEY_PATTERN = /AQ[A-Za-z0-9+/]+==-[A-Za-z0-9+/]+=-[A-Za-z0-9+/]+/;
+
+function detectApiKeyExposure(g: GlobalWithAdyen): boolean {
+  // Scan inline <script> tag contents
+  const scripts = document.querySelectorAll<HTMLScriptElement>('script:not([src])');
+  for (const script of Array.from(scripts)) {
+    if (ADYEN_API_KEY_PATTERN.test(script.textContent)) {
+      return true;
+    }
+  }
+
+  // Scan captured config objects
+  const capturedConfig = g.__adyenWebInspectorCapturedConfig;
+  const inferredConfig = g.__adyenWebInspectorCapturedInferredConfig;
+
+  if (capturedConfig !== undefined && ADYEN_API_KEY_PATTERN.test(JSON.stringify(capturedConfig))) {
+    return true;
+  }
+
+  if (inferredConfig !== undefined && ADYEN_API_KEY_PATTERN.test(JSON.stringify(inferredConfig))) {
+    return true;
+  }
+
+  return false;
+}
+
 function extract(): PageExtractResult {
   const g = globalThis as GlobalWithAdyen;
 
@@ -271,6 +300,7 @@ function extract(): PageExtractResult {
   const { config: componentConfig, mountCount } = extractComponentConfig();
   const checkoutConfig = extractCheckoutConfig(g);
   const inferredConfig = extractInferredConfig(g);
+  const apiKeyDetected = detectApiKeyExposure(g);
 
   return {
     adyenMetadata: metadata,
@@ -286,6 +316,7 @@ function extract(): PageExtractResult {
       : {}),
     ...(mountCount > 0 ? { componentMountCount: mountCount } : {}),
     ...(hasDropinDOM() ? { hasDropinDOM: true } : {}),
+    ...(apiKeyDetected ? { apiKeyDetected: true } : {}),
     isInsideIframe: globalThis.self !== globalThis.top,
     pageUrl: globalThis.location.href,
     pageProtocol: globalThis.location.protocol,

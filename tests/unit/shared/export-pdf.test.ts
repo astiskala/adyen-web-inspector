@@ -39,6 +39,7 @@ function makeResult(): ScanResult {
       total: 1,
       tier: 'excellent',
     },
+    standardCompliance: { compliant: true, reasons: [] },
     payload: makeScanPayload(),
   };
 }

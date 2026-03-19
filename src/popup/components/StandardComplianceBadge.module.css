@@ -1,0 +1,59 @@
+.container {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.icon {
+  font-size: 14px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.iconCompliant {
+  color: var(--color-green);
+}
+
+.iconNonCompliant {
+  color: var(--color-red);
+}
+
+.title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.reasons {
+  margin: 4px 0 0 20px;
+  padding: 0;
+  list-style: disc;
+}
+
+.reason {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
+
+.caveat {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  line-height: 1.4;
+}
+
+.caveat a {
+  color: var(--color-blue, #2563eb);
+  text-decoration: none;
+}
+
+.caveat a:hover {
+  text-decoration: underline;
+}

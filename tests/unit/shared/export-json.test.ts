@@ -18,6 +18,7 @@ function makeResult(): ScanResult {
       total: 14,
       tier: 'issues',
     },
+    standardCompliance: { compliant: false, reasons: ['Not using the latest SDK version.'] },
     payload: makeScanPayload(),
   };
 }

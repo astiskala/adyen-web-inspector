@@ -17,9 +17,9 @@ This catalog is the documentation source of truth for checks registered in:
 | `auth`              |           3 | `auth.ts`                        |
 | `callbacks`         |          11 | `callbacks.ts`                   |
 | `risk`              |           2 | `risk-module.ts`                 |
-| `security`          |          13 | `security.ts`, `security-csp.ts` |
+| `security`          |          14 | `security.ts`, `security-csp.ts` |
 | `third-party`       |           4 | `third-party-scripts.ts`         |
-| **Total**           |      **46** | `ALL_CHECKS`                     |
+| **Total**           |      **47** | `ALL_CHECKS`                     |
 
 ## Severity Model
 
@@ -71,6 +71,7 @@ This catalog is the documentation source of truth for checks registered in:
 | `security`          | `security-xss-protection`                  | Confirm legacy `X-XSS-Protection` is absent or disabled.                                           | `pass`, `notice`                 |
 | `security`          | `security-hsts`                            | Ensure HSTS is present on live environments.                                                       | `pass`, `notice`, `skip`         |
 | `security`          | `security-iframe-referrerpolicy`           | Check Adyen iframe `referrerpolicy` usage.                                                         | `pass`, `info`                   |
+| `security`          | `security-api-key-exposed`                 | Detect Adyen API keys accidentally exposed in frontend code.                                       | `pass`, `fail`                   |
 | `security`          | `security-csp-present`                     | Require a CSP header.                                                                              | `pass`, `warn`                   |
 | `security`          | `security-csp-script-src`                  | Ensure CSP allows required Adyen script domains.                                                   | `pass`, `warn`, `skip`           |
 | `security`          | `security-csp-frame-src`                   | Ensure CSP iframe policy supports required 3DS iframe behavior.                                    | `pass`, `warn`, `skip`           |

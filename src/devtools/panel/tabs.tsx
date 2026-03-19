@@ -4,6 +4,7 @@ import { extractHostname, getImpactLevel, isAdyenHost } from '~shared/utils';
 import { IdentityCard } from '../../popup/components/IdentityCard';
 import { HealthScore } from '../../popup/components/HealthScore';
 import { IssueList } from '../../popup/components/IssueList';
+import { StandardComplianceBadge } from '../../popup/components/StandardComplianceBadge';
 import styles from './panel.module.css';
 
 const s = (key: string): string => styles[key] ?? '';
@@ -259,6 +260,7 @@ export function OverviewTab({ result }: Props): JSX.Element {
       <div class={s('overviewCard')}>
         <IdentityCard result={result} />
         <HealthScore result={result} />
+        <StandardComplianceBadge compliance={result.standardCompliance} />
         <div class={s('overviewIssues')}>
           <IssueList checks={result.checks} />
         </div>
