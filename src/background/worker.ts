@@ -25,6 +25,34 @@ import {
 } from '../shared/constants.js';
 import type { HealthScore } from '../shared/types.js';
 
+// ─── Theme-Aware Icon ────────────────────────────────────────────────────────
+
+type IconPaths = Record<string, string>;
+
+const LIGHT_ICONS: IconPaths = {
+  '16': 'assets/icon-16.png',
+  '32': 'assets/icon-32.png',
+  '48': 'assets/icon-48.png',
+  '128': 'assets/icon-128.png',
+};
+
+const DARK_ICONS: IconPaths = {
+  '16': 'assets/icon-dark-16.png',
+  '32': 'assets/icon-dark-32.png',
+  '48': 'assets/icon-dark-48.png',
+  '128': 'assets/icon-dark-128.png',
+};
+
+function applyThemeIcon(isDark: boolean): void {
+  chrome.action.setIcon({ path: isDark ? DARK_ICONS : LIGHT_ICONS }).catch(() => {});
+}
+
+if (typeof globalThis.matchMedia === 'function') {
+  const mq = globalThis.matchMedia('(prefers-color-scheme: dark)');
+  applyThemeIcon(mq.matches);
+  mq.addEventListener('change', (e) => applyThemeIcon(e.matches));
+}
+
 // ─── Badge Helpers ─────────────────────────────────────────────────────────────
 
 function setBadgeDetected(tabId: number): void {
