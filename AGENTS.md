@@ -12,21 +12,22 @@ Adyen Web Inspector is a Chrome Manifest V3 extension that analyses adyen-web (D
 
 ## Build & Test Commands
 
-| Command              | Purpose                                                                 |
-| -------------------- | ----------------------------------------------------------------------- |
-| `pnpm install`       | Install dependencies                                                    |
-| `pnpm dev`           | Build in watch mode (`dist/`)                                           |
-| `pnpm build`         | Production build                                                        |
-| `pnpm typecheck`     | TypeScript type check (`tsc --noEmit`)                                  |
-| `pnpm lint`          | ESLint + Markdown lint                                                  |
-| `pnpm lint:fix`      | ESLint + Markdown lint with auto-fix                                    |
-| `pnpm lint:md`       | Markdown lint (`markdownlint-cli2`)                                     |
-| `pnpm format`        | Prettier write                                                          |
-| `pnpm format:check`  | Prettier check                                                          |
-| `pnpm test`          | Unit tests (Vitest)                                                     |
-| `pnpm test:coverage` | Unit tests with V8 coverage                                             |
-| `pnpm test:e2e`      | E2E tests (Playwright + Chromium)                                       |
-| `pnpm validate`      | Local quality gate: typecheck + lint + format + depcruise + knip + test |
+| Command                 | Purpose                                                                 |
+| ----------------------- | ----------------------------------------------------------------------- |
+| `pnpm install`          | Install dependencies                                                    |
+| `pnpm dev`              | Build in watch mode (`dist/`)                                           |
+| `pnpm build`            | Production build                                                        |
+| `pnpm typecheck`        | TypeScript type check (`tsc --noEmit`)                                  |
+| `pnpm lint`             | ESLint + Markdown lint                                                  |
+| `pnpm lint:fix`         | ESLint + Markdown lint with auto-fix                                    |
+| `pnpm lint:md`          | Markdown lint (`markdownlint-cli2`)                                     |
+| `pnpm format`           | Prettier write                                                          |
+| `pnpm format:check`     | Prettier check                                                          |
+| `pnpm test`             | Unit tests (Vitest)                                                     |
+| `pnpm test:coverage`    | Unit tests with V8 coverage                                             |
+| `pnpm test:integration` | Integration tests (cross-module pipeline)                               |
+| `pnpm test:e2e`         | E2E tests (Playwright + Chromium)                                       |
+| `pnpm validate`         | Local quality gate: typecheck + lint + format + depcruise + knip + test |
 
 ---
 
@@ -48,6 +49,11 @@ Adyen Web Inspector is a Chrome Manifest V3 extension that analyses adyen-web (D
 
 ### Linting (gts / ESLint)
 
+- `--max-warnings=0` enforced on ESLint gate.
+- `noInlineConfig: true` on source files (tests are excluded — they may use `eslint-disable` and `@ts-expect-error` with description).
+- `@typescript-eslint/ban-ts-comment` blocks `@ts-ignore` and `@ts-nocheck`; `@ts-expect-error` is only allowed in test files with a description.
+- `eslint-plugin-import-x` enforces no import cycles and no duplicate imports.
+- `eslint-plugin-security` detects runtime hazards (eval, child process, buffer, etc.).
 - No nested ternaries — extract to `if`/`else` or helper functions.
 - `String#replaceAll()` over regex-based `String#replace()`.
 - `element.remove()` over `parent.removeChild(element)`.
@@ -145,6 +151,13 @@ Check-specific guidance:
 - Framework: Vitest with jsdom
 - Fixtures: `tests/fixtures/makeScanPayload.ts` — use `makeScanPayload()`, `makeAdyenPayload()`, `makePageExtract()`, `makeCheckoutConfig()`, `makeAdyenMetadata()`, `makeRequest()`, `makeHeader()`.
 - Coverage threshold: **95% lines/functions/statements and 90% branches** on `src/background/checks/**`.
+
+### Integration Tests
+
+- Location: `tests/integration/`
+- Framework: Vitest with jsdom (separate config: `vitest.integration.config.ts`)
+- Purpose: Cross-module pipeline tests — exercises `ALL_CHECKS → health score → standard compliance` end-to-end.
+- Uses the same fixtures as unit tests.
 
 ### E2E Tests
 

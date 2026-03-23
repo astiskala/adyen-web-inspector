@@ -49,6 +49,9 @@ jobs:
       - name: Unit tests with coverage
         run: pnpm test:coverage
 
+      - name: Integration tests
+        run: pnpm test:integration
+
       - name: Build extension
         run: pnpm build
 
@@ -64,6 +67,41 @@ jobs:
           name: adyen-web-inspector-extension
           path: dist/
           retention-days: 30
+
+  sonar:
+    name: SonarCloud Scan
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Unit tests with coverage (lcov for Sonar)
+        run: pnpm test:coverage
+
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarqube-scan-action@aa536f74ea7daa5a9e61e03ae4bb1c913cec9708
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
   release:
     name: Release

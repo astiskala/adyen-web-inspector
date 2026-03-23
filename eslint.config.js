@@ -1,13 +1,15 @@
 import { defineConfig } from 'eslint/config';
 import gts from 'gts';
+import importX from 'eslint-plugin-import-x';
 import jsdoc from 'eslint-plugin-jsdoc';
 import react from 'eslint-plugin-react';
 import regexp from 'eslint-plugin-regexp';
+import security from 'eslint-plugin-security';
 import sonarjs from 'eslint-plugin-sonarjs';
 import unicorn from 'eslint-plugin-unicorn';
 
 export default defineConfig([
-  { ignores: ['dist/', 'coverage/', '*.cjs'] },
+  { ignores: ['dist/', 'coverage/', '*.cjs', 'vitest.integration.config.ts'] },
   ...gts,
   {
     files: ['eslint.config.js'],
@@ -26,14 +28,21 @@ export default defineConfig([
   },
   {
     files: ['**/*.ts', '**/*.tsx'],
+    linterOptions: {
+      noInlineConfig: true,
+      reportUnusedDisableDirectives: 'error',
+    },
     plugins: {
+      'import-x': importX,
       jsdoc,
       react,
       regexp,
+      security,
       sonarjs,
       unicorn,
     },
     rules: {
+      // TypeScript safety
       '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/explicit-function-return-type': 'error',
       '@typescript-eslint/explicit-module-boundary-types': 'error',
@@ -73,8 +82,37 @@ export default defineConfig([
         },
       ],
       '@typescript-eslint/unified-signatures': 'error',
+      '@typescript-eslint/ban-ts-comment': [
+        'error',
+        {
+          'ts-check': true,
+          'ts-expect-error': true,
+          'ts-ignore': true,
+          'ts-nocheck': true,
+        },
+      ],
+
+      // Import ordering and cycles
+      'import-x/no-cycle': 'error',
+      'import-x/no-duplicates': 'error',
+
+      // Security
+      'security/detect-bidi-characters': 'error',
+      'security/detect-buffer-noassert': 'error',
+      'security/detect-child-process': 'error',
+      'security/detect-disable-mustache-escape': 'error',
+      'security/detect-eval-with-expression': 'error',
+      'security/detect-new-buffer': 'error',
+      'security/detect-non-literal-require': 'error',
+      'security/detect-pseudoRandomBytes': 'error',
+
+      // React
       'react/jsx-child-element-spacing': 'error',
+
+      // Regexp
       'regexp/prefer-d': 'error',
+
+      // Sonar
       'sonarjs/cognitive-complexity': ['error', 15],
       'sonarjs/deprecation': 'error',
       'sonarjs/function-return-type': 'error',
@@ -82,9 +120,13 @@ export default defineConfig([
       'sonarjs/no-redundant-assignments': 'error',
       'sonarjs/prefer-regexp-exec': 'error',
       'sonarjs/slow-regex': 'error',
+
+      // Unicorn
       'unicorn/consistent-function-scoping': 'error',
       'unicorn/no-object-as-default-parameter': 'error',
       'unicorn/prefer-top-level-await': 'error',
+
+      // JSDoc
       'jsdoc/check-alignment': 'error',
       'jsdoc/check-param-names': 'error',
       'jsdoc/check-tag-names': 'error',
@@ -100,6 +142,8 @@ export default defineConfig([
         },
       ],
       'jsdoc/tag-lines': 'error',
+
+      // Core JavaScript
       eqeqeq: 'error',
       'no-console': 'error',
       'no-extend-native': 'error',
@@ -121,6 +165,23 @@ export default defineConfig([
             { name: 'fs', message: 'Use node:fs instead.' },
             { name: 'path', message: 'Use node:path instead.' },
           ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['tests/**/*.ts', 'tests/**/*.tsx', 'src/**/*.test.ts', 'src/**/*.test.tsx'],
+    linterOptions: {
+      noInlineConfig: false,
+    },
+    rules: {
+      '@typescript-eslint/ban-ts-comment': [
+        'error',
+        {
+          'ts-check': true,
+          'ts-expect-error': 'allow-with-description',
+          'ts-ignore': true,
+          'ts-nocheck': true,
         },
       ],
     },

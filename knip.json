@@ -1,5 +1,5 @@
 {
-  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "$schema": "https://unpkg.com/knip@6/schema.json",
   "entry": [
     "src/background/worker.ts",
     "src/content/config-interceptor.ts",
@@ -24,7 +24,6 @@
     "types",
     "nsTypes",
     "enumMembers",
-    "classMembers",
     "duplicates",
     "catalog"
   ],
