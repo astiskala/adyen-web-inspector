@@ -155,7 +155,14 @@ async function handleScanRequest(senderTabId: number): Promise<void> {
       result,
     };
     sendUiMessage(response);
-    setBadgeHealth(senderTabId, result.health);
+    const sdkDetected = !result.checks.some(
+      (c) => c.id === 'sdk-detected' && c.severity === 'fail'
+    );
+    if (sdkDetected) {
+      setBadgeHealth(senderTabId, result.health);
+    } else {
+      clearBadge(senderTabId);
+    }
   } catch (err: unknown) {
     let errorMsg: string;
     if (err instanceof Error) {

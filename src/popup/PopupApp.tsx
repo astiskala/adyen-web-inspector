@@ -194,8 +194,6 @@ export function Popup(): JSX.Element {
   const sdkDetectedCheck =
     result === null ? undefined : result.checks.find((check) => check.id === 'sdk-detected');
   const sdkNotDetected = isDetected && sdkDetectedCheck?.severity === 'fail';
-  const sdkNotDetectedMessage =
-    sdkDetectedCheck?.title ?? 'Adyen Web SDK was not detected on this page.';
   const showScanControls = (state === 'ready' || state === 'detected') && !sdkNotDetected;
   let scanButtonText = 'Run Scan';
   if (scanning) {
@@ -230,19 +228,7 @@ export function Popup(): JSX.Element {
           <IssueList checks={result.checks} />
         </>
       )}
-      {sdkNotDetected && (
-        <div
-          style={{
-            padding: '24px 12px',
-            textAlign: 'center',
-            color: 'var(--color-text)',
-            fontSize: '13px',
-            lineHeight: '1.5',
-          }}
-        >
-          {sdkNotDetectedMessage}
-        </div>
-      )}
+      {sdkNotDetected && <NotDetected onAttemptScan={handleScan} scanning={scanning} />}
       {showScanControls && (
         <div
           style={{
