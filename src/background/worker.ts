@@ -43,15 +43,31 @@ const DARK_ICONS: IconPaths = {
   '128': 'assets/icon-dark-128.png',
 };
 
+const MSG_THEME_CHANGE = 'THEME_CHANGE' as const;
+
 function applyThemeIcon(isDark: boolean): void {
   chrome.action.setIcon({ path: isDark ? DARK_ICONS : LIGHT_ICONS }).catch(() => {});
 }
 
-if (typeof globalThis.matchMedia === 'function') {
-  const mq = globalThis.matchMedia('(prefers-color-scheme: dark)');
-  applyThemeIcon(mq.matches);
-  mq.addEventListener('change', (e) => applyThemeIcon(e.matches));
+async function ensureOffscreenThemeDetector(): Promise<void> {
+  const contexts = await chrome.runtime.getContexts({
+    contextTypes: [chrome.runtime.ContextType.OFFSCREEN_DOCUMENT],
+  });
+  if (contexts.length > 0) return;
+  await chrome.offscreen.createDocument({
+    url: 'offscreen.html',
+    reasons: [chrome.offscreen.Reason.MATCH_MEDIA],
+    justification: 'Detect system color scheme for toolbar icon',
+  });
 }
+
+await ensureOffscreenThemeDetector().catch(() => {});
+
+chrome.runtime.onMessage.addListener((message: { type: string; isDark?: boolean }) => {
+  if (message.type === MSG_THEME_CHANGE) {
+    applyThemeIcon(message.isDark === true);
+  }
+});
 
 // ─── Badge Helpers ─────────────────────────────────────────────────────────────
 

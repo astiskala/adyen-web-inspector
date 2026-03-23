@@ -1,0 +1,9 @@
+<!doctype html>
+<script>
+  const mq = matchMedia('(prefers-color-scheme: dark)');
+  function send(isDark) {
+    chrome.runtime.sendMessage({ type: 'THEME_CHANGE', isDark });
+  }
+  send(mq.matches);
+  mq.addEventListener('change', (e) => send(e.matches));
+</script>
