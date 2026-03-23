@@ -64,6 +64,15 @@ interface OptionsObject {
   onPaymentFailed?: () => unknown;
   onError?: () => unknown;
   beforeSubmit?: () => unknown;
+  // v6 deprecated
+  setStatusAutomatically?: boolean;
+  showBrandsUnderCardNumber?: boolean;
+  showFormInstruction?: boolean;
+  installmentOptions?: unknown;
+  onValid?: () => unknown;
+  onOrderCreated?: () => unknown;
+  onShippingChange?: () => unknown;
+  onShopperDetails?: () => unknown;
 }
 
 /**
@@ -89,6 +98,20 @@ export function extractFieldsFromOptions(options: unknown): CheckoutConfig {
     config['hasSession'] = true;
   }
 
+  // v6 deprecated boolean config
+  if (typeof o.setStatusAutomatically === 'boolean') {
+    config['setStatusAutomatically'] = o.setStatusAutomatically;
+  }
+  if (typeof o.showBrandsUnderCardNumber === 'boolean') {
+    config['showBrandsUnderCardNumber'] = o.showBrandsUnderCardNumber;
+  }
+  if (typeof o.showFormInstruction === 'boolean') {
+    config['showFormInstruction'] = o.showFormInstruction;
+  }
+  if (o.installmentOptions !== undefined && o.installmentOptions !== null) {
+    config['installmentOptions'] = true;
+  }
+
   extractCallbacks(o, config);
   extractSources(o, config);
 
@@ -103,6 +126,11 @@ function extractCallbacks(o: OptionsObject, config: Record<string, unknown>): vo
     'onPaymentFailed',
     'onError',
     'beforeSubmit',
+    // v6 deprecated callbacks
+    'onValid',
+    'onOrderCreated',
+    'onShippingChange',
+    'onShopperDetails',
   ] as const;
 
   for (const name of callbackNames) {

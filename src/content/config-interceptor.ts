@@ -35,8 +35,18 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
     'onPaymentFailed',
     'onError',
     'beforeSubmit',
+    // v6 deprecated callbacks
+    'onValid',
+    'onOrderCreated',
+    'onShippingChange',
+    'onShopperDetails',
   ] as const;
   const STRING_CONFIG_KEYS = ['clientKey', 'environment', 'locale', 'countryCode'] as const;
+  const BOOLEAN_CONFIG_KEYS = [
+    'setStatusAutomatically',
+    'showBrandsUnderCardNumber',
+    'showFormInstruction',
+  ] as const;
   const ADYEN_INSTANCE_MARKER = '__adyenInstance';
   const LOCALE_FROM_URL_PATTERN = /\/translations\/([^/]+)\.json$/;
   const LIVE_ENVIRONMENT_PATTERN = /(?:^|\.|-)(live(?:-[a-z]{2,4})?)(?:\.|$)/;
@@ -98,6 +108,24 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
     }
   }
 
+  function copyBooleanConfigFields(source: PlainRecord, target: PlainRecord): void {
+    for (const key of BOOLEAN_CONFIG_KEYS) {
+      if (typeof source[key] === 'boolean') {
+        target[key] = source[key];
+      }
+    }
+  }
+
+  function copyInstallmentOptionsField(source: PlainRecord, target: PlainRecord): void {
+    if (
+      source['installmentOptions'] !== null &&
+      source['installmentOptions'] !== undefined &&
+      typeof source['installmentOptions'] === 'object'
+    ) {
+      target['installmentOptions'] = true;
+    }
+  }
+
   function extractFields(raw: unknown, source: CallbackSource): Partial<CheckoutConfig> | null {
     if (raw === null || typeof raw !== 'object') {
       return null;
@@ -109,6 +137,8 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
     copyRiskFields(r, c);
     copyAnalyticsFields(r, c);
     copySessionFields(r, c);
+    copyBooleanConfigFields(r, c);
+    copyInstallmentOptionsField(r, c);
 
     for (const key of CALLBACK_KEYS) {
       if (hasCallback(r[key])) {

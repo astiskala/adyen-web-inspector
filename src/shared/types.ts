@@ -79,7 +79,10 @@ export type CheckId =
   // API Key Exposure
   | 'security-api-key-exposed'
   // Styling
-  | 'styling-css-custom-props';
+  | 'styling-css-custom-props'
+  // v6 Upgrade Deprecations
+  | 'v6-deprecated-properties'
+  | 'v6-deprecated-callbacks';
 
 // ─── Check Result ─────────────────────────────────────────────────────────────
 
@@ -229,6 +232,23 @@ export interface CheckoutConfig {
   readonly beforeSubmitSource?: string;
   /** True when a session object was detected in the checkout configuration (Sessions flow indicator). */
   readonly hasSession?: boolean;
+  // ─── v6 Deprecated Properties ───────────────────────────────────────────────
+  /** Deprecated in v6: use disableFinalAnimation instead. */
+  readonly setStatusAutomatically?: boolean;
+  /** Deprecated in v6: must be set in Card config, not globally. Presence-only flag. */
+  readonly installmentOptions?: true;
+  /** Deprecated in v6: no longer used. */
+  readonly showBrandsUnderCardNumber?: boolean;
+  /** Deprecated in v6: no longer used. */
+  readonly showFormInstruction?: boolean;
+  /** Deprecated in v6: removed, should be deleted from config. */
+  readonly onValid?: CallbackSource;
+  /** Deprecated in v6: renamed to onOrderUpdated. */
+  readonly onOrderCreated?: CallbackSource;
+  /** Deprecated in v6 (PayPal): use onShippingAddressChange + onShippingOptionsChange. */
+  readonly onShippingChange?: CallbackSource;
+  /** Deprecated in v6 (PayPal): renamed to onAuthorized. */
+  readonly onShopperDetails?: CallbackSource;
 }
 
 // ─── Network Captures ─────────────────────────────────────────────────────────
