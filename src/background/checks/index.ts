@@ -12,6 +12,7 @@ import { RISK_CHECKS } from './risk-module.js';
 import { SECURITY_CHECKS } from './security.js';
 import { CSP_CHECKS } from './security-csp.js';
 import { THIRD_PARTY_CHECKS } from './third-party-scripts.js';
+import { STYLING_CHECKS } from './styling.js';
 
 export const ALL_CHECKS: Check[] = [
   ...SDK_IDENTITY_CHECKS,
@@ -23,4 +24,5 @@ export const ALL_CHECKS: Check[] = [
   ...SECURITY_CHECKS,
   ...CSP_CHECKS,
   ...THIRD_PARTY_CHECKS,
+  ...STYLING_CHECKS,
 ];

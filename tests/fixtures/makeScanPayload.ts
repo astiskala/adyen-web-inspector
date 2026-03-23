@@ -19,6 +19,7 @@ export function makePageExtract(overrides: Partial<PageExtractResult> = {}): Pag
     scripts: [],
     links: [],
     iframes: [],
+    adyenStyles: { classOverrideCount: 0, classOverrideSelectors: [], customPropertyCount: 0 },
     isInsideIframe: false,
     pageUrl: 'https://example.com/checkout',
     pageProtocol: 'https:',

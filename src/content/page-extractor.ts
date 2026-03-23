@@ -10,6 +10,7 @@ import {
   mergeConfigs,
 } from '../shared/preact-tree-extractor.js';
 import type {
+  AdyenStyleInfo,
   AdyenWebMetadata,
   CheckoutConfig,
   IframeInfo,
@@ -293,6 +294,72 @@ function detectApiKeyExposure(g: GlobalWithAdyen): boolean {
   return false;
 }
 
+/** Adyen CDN stylesheet host patterns — rules from these sheets are not overrides. */
+const ADYEN_CDN_HREF_PATTERN = /checkoutshopper[-.]|adyen\.com/i;
+const ADYEN_CHECKOUT_CLASS_PATTERN = /\.adyen-checkout__/;
+
+/** Safely reads CSS rules from a stylesheet, returning null for cross-origin sheets. */
+function safeGetCssRules(sheet: CSSStyleSheet): CSSRuleList | null {
+  try {
+    return sheet.cssRules;
+  } catch {
+    return null;
+  }
+}
+
+/** Counts --adyen-sdk-* custom properties declared in a single style rule. */
+function countAdyenCustomProps(style: CSSStyleDeclaration): number {
+  let count = 0;
+  for (const prop of Array.from(style)) {
+    if (prop.startsWith('--adyen-sdk-')) count++;
+  }
+  return count;
+}
+
+interface StyleAccumulator {
+  overrideCount: number;
+  overrideSelectors: string[];
+  customPropertyCount: number;
+}
+
+/** Recursively walks CSS rules including nested @media/@supports/@layer blocks. */
+function walkCssRules(rules: CSSRuleList, acc: StyleAccumulator): void {
+  for (const rule of Array.from(rules)) {
+    if (rule instanceof CSSStyleRule) {
+      if (ADYEN_CHECKOUT_CLASS_PATTERN.test(rule.selectorText)) {
+        acc.overrideCount++;
+        if (acc.overrideSelectors.length < 5) {
+          acc.overrideSelectors.push(rule.selectorText);
+        }
+      }
+      acc.customPropertyCount += countAdyenCustomProps(rule.style);
+    } else if ('cssRules' in rule) {
+      walkCssRules((rule as CSSGroupingRule).cssRules, acc);
+    }
+  }
+}
+
+/** Scans document stylesheets for Adyen class overrides and custom property usage. */
+function extractAdyenStyles(): AdyenStyleInfo {
+  const acc: StyleAccumulator = { overrideCount: 0, overrideSelectors: [], customPropertyCount: 0 };
+
+  for (const sheet of Array.from(document.styleSheets)) {
+    const href = sheet.href ?? '';
+    if (href !== '' && ADYEN_CDN_HREF_PATTERN.test(href)) continue;
+
+    const rules = safeGetCssRules(sheet);
+    if (rules === null) continue;
+
+    walkCssRules(rules, acc);
+  }
+
+  return {
+    classOverrideCount: acc.overrideCount,
+    classOverrideSelectors: acc.overrideSelectors,
+    customPropertyCount: acc.customPropertyCount,
+  };
+}
+
 function extract(): PageExtractResult {
   const g = globalThis as GlobalWithAdyen;
 
@@ -317,6 +384,7 @@ function extract(): PageExtractResult {
     ...(mountCount > 0 ? { componentMountCount: mountCount } : {}),
     ...(hasDropinDOM() ? { hasDropinDOM: true } : {}),
     ...(apiKeyDetected ? { apiKeyDetected: true } : {}),
+    adyenStyles: extractAdyenStyles(),
     isInsideIframe: globalThis.self !== globalThis.top,
     pageUrl: globalThis.location.href,
     pageProtocol: globalThis.location.protocol,

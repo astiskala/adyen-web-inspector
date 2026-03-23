@@ -11,7 +11,7 @@ This catalog is the documentation source of truth for checks registered in:
 
 | Category            | Check count | Source modules                   |
 | ------------------- | ----------: | -------------------------------- |
-| `sdk-identity`      |           6 | `sdk-identity.ts`                |
+| `sdk-identity`      |           7 | `sdk-identity.ts`, `styling.ts`  |
 | `version-lifecycle` |           2 | `sdk-version.ts`                 |
 | `environment`       |           5 | `environment.ts`                 |
 | `auth`              |           3 | `auth.ts`                        |
@@ -19,7 +19,7 @@ This catalog is the documentation source of truth for checks registered in:
 | `risk`              |           2 | `risk-module.ts`                 |
 | `security`          |          14 | `security.ts`, `security-csp.ts` |
 | `third-party`       |           4 | `third-party-scripts.ts`         |
-| **Total**           |      **47** | `ALL_CHECKS`                     |
+| **Total**           |      **48** | `ALL_CHECKS`                     |
 
 ## Severity Model
 
@@ -81,6 +81,7 @@ This catalog is the documentation source of truth for checks registered in:
 | `third-party`       | `3p-session-replay`                        | Detect session replay/screen recording tools on checkout pages.                                    | `pass`, `fail`                   |
 | `third-party`       | `3p-ad-pixels`                             | Detect advertising/conversion pixels on checkout pages.                                            | `pass`, `warn`                   |
 | `third-party`       | `3p-no-sri`                                | Ensure detected known third-party scripts use SRI.                                                 | `pass`, `notice`                 |
+| `sdk-identity`      | `styling-css-custom-props`                 | Detect CSS class overrides and recommend CSS custom properties for Adyen Web v6+ styling.          | `pass`, `notice`, `skip`         |
 
 ## Maintenance Checklist
 

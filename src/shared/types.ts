@@ -77,7 +77,9 @@ export type CheckId =
   | '3p-ad-pixels'
   | '3p-no-sri'
   // API Key Exposure
-  | 'security-api-key-exposed';
+  | 'security-api-key-exposed'
+  // Styling
+  | 'styling-css-custom-props';
 
 // ─── Check Result ─────────────────────────────────────────────────────────────
 
@@ -160,6 +162,16 @@ export interface ObservedRequest {
   readonly initiatorType?: string;
 }
 
+/** CSS styling information detected on the page for Adyen components. */
+export interface AdyenStyleInfo {
+  /** Number of non-Adyen CSS rules targeting .adyen-checkout__* selectors (class overrides). */
+  readonly classOverrideCount: number;
+  /** Sample selectors that override Adyen classes (up to 5). */
+  readonly classOverrideSelectors: readonly string[];
+  /** Number of CSS rules setting --adyen-sdk-* custom properties. */
+  readonly customPropertyCount: number;
+}
+
 export interface PageExtractResult {
   readonly adyenMetadata: AdyenWebMetadata | null;
   /** Serialised checkout config object (best-effort, may be null) */
@@ -181,6 +193,8 @@ export interface PageExtractResult {
   readonly checkoutInitCount?: number;
   /** True when an Adyen API key pattern was found in inline scripts or config. */
   readonly apiKeyDetected?: boolean;
+  /** CSS styling info for Adyen components (class overrides vs custom properties). */
+  readonly adyenStyles: AdyenStyleInfo;
   readonly isInsideIframe: boolean;
   readonly pageUrl: string;
   readonly pageProtocol: string;
