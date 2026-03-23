@@ -9,7 +9,9 @@ import sonarjs from 'eslint-plugin-sonarjs';
 import unicorn from 'eslint-plugin-unicorn';
 
 export default defineConfig([
-  { ignores: ['dist/', 'coverage/', '*.cjs', 'vitest.integration.config.ts'] },
+  {
+    ignores: ['dist/', 'coverage/', '*.cjs', 'vitest.integration.config.ts'],
+  },
   ...gts,
   {
     files: ['eslint.config.js'],

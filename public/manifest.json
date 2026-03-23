@@ -9,14 +9,7 @@
     "48": "assets/icon-48.png",
     "128": "assets/icon-128.png"
   },
-  "permissions": [
-    "activeTab",
-    "scripting",
-    "webRequest",
-    "storage",
-    "declarativeContent",
-    "offscreen"
-  ],
+  "permissions": ["activeTab", "scripting", "webRequest", "storage", "declarativeContent"],
   "host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "worker.js",
