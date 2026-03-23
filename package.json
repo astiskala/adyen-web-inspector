@@ -55,7 +55,7 @@
     "gts": "^7.0.0",
     "husky": "^9.1.7",
     "jsdom": "^29.0.0",
-    "knip": "^5.88.0",
+    "knip": "^6.0.2",
     "lint-staged": "^16.4.0",
     "markdownlint-cli2": "^0.21.0",
     "prettier": "^3.8.1",
