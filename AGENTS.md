@@ -193,6 +193,25 @@ When adding a new UI component:
 
 ---
 
+## Releasing
+
+To publish a new version:
+
+1. **Bump version in both files** — `package.json` **and** `public/manifest.json` must have the same version. The Chrome Web Store rejects uploads where the manifest version is not greater than the currently published version.
+2. **Commit** with message `chore: bump version to X.Y.Z`.
+3. **Push** to `main`.
+4. **Tag** the commit: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+5. **CI handles the rest** — the `release` job in `.github/workflows/ci.yml` builds, packages (`pnpm package:chrome`), and creates a GitHub Release with the zip artifact attached.
+6. **Update release notes** — CI auto-generates notes, but we replace them with curated bullet points. Use the same style as previous releases (past-tense sentences, one bullet per change, ending with a `**Full Changelog**` link).
+7. **Upload to Chrome Web Store** — download the zip from the GitHub Release and upload it via the [Chrome Web Store Developer Dashboard](https://chrome.google.com/webstore/devconsole).
+
+### Common mistakes
+
+- Forgetting to bump `public/manifest.json` — the Chrome Web Store will reject the upload with _"Invalid version number"_.
+- Tagging before pushing — if you tag a commit that isn't on `main` yet, the release zip won't include the latest changes.
+
+---
+
 ## Docs
 
 - Check catalog: `docs/architecture/check-catalog.md`
