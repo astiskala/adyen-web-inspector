@@ -38,6 +38,17 @@ const SESSIONS_DROP_IN_CALLBACK_DOC =
 const SESSIONS_COMPONENTS_CALLBACK_DOC =
   'https://docs.adyen.com/online-payments/build-your-integration/sessions-flow?platform=Web&integration=Components#configure';
 
+function makePartialCheckoutConfigPayload(
+  componentConfigOverrides: Parameters<typeof makeCheckoutConfig>[0] = {}
+): ReturnType<typeof makeScanPayload> {
+  return makeScanPayload({
+    page: makePageExtract({
+      checkoutConfig: { countryCode: 'SG' },
+      componentConfig: makeCheckoutConfig(componentConfigOverrides),
+    }),
+  });
+}
+
 describe('flow-type', () => {
   it('reports sessions flow when sessions API is captured', () => {
     const payload = makeScanPayload({
@@ -706,5 +717,44 @@ describe('componentConfig fallback', () => {
     });
     const result = beforeSubmit.run(payload);
     expect(result.severity).not.toBe('skip');
+  });
+});
+
+describe('partial checkoutConfig fallback', () => {
+  it('callback-on-submit uses componentConfig when checkoutConfig is partial', () => {
+    const payload = makePartialCheckoutConfigPayload({ onSubmit: 'checkout' });
+    expect(onSubmit.run(payload).severity).toBe('pass');
+  });
+
+  it('callback-on-additional-details uses componentConfig when checkoutConfig is partial', () => {
+    const payload = makePartialCheckoutConfigPayload({ onAdditionalDetails: 'checkout' });
+    expect(onAdditionalDetails.run(payload).severity).toBe('pass');
+  });
+
+  it('callback-on-payment-completed uses componentConfig when checkoutConfig is partial', () => {
+    const payload = makePartialCheckoutConfigPayload({ onPaymentCompleted: 'checkout' });
+    expect(onPaymentCompleted.run(payload).severity).toBe('pass');
+  });
+
+  it('callback-on-payment-failed uses componentConfig when checkoutConfig is partial', () => {
+    const payload = makePartialCheckoutConfigPayload({ onPaymentFailed: 'checkout' });
+    expect(onPaymentFailed.run(payload).severity).toBe('pass');
+  });
+
+  it('callback-on-error uses componentConfig when checkoutConfig is partial', () => {
+    const payload = makePartialCheckoutConfigPayload({ onError: 'checkout' });
+    expect(onError.run(payload).severity).toBe('pass');
+  });
+
+  it('source-based callback checks use componentConfig when checkoutConfig is partial', () => {
+    const payload = makePartialCheckoutConfigPayload({
+      onSubmit: 'checkout',
+      onSubmitSource:
+        'async (state, component, actions) => { button.disabled = true; actions.resolve(result); }',
+    });
+
+    expect(onSubmitSelectiveHandling.run(payload).severity).toBe('pass');
+    expect(actionsPattern.run(payload).severity).toBe('pass');
+    expect(multipleSubmissions.run(payload).severity).toBe('pass');
   });
 });

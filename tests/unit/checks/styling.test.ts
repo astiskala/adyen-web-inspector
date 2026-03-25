@@ -67,6 +67,7 @@ describe('Styling Checks', () => {
       });
       const result = cssCustomProps.run(payload);
       expect(result.severity).toBe('notice');
+      expect(result.detail).toContain('Examples:');
       expect(result.detail).toContain('.adyen-checkout__button');
       expect(result.detail).toContain('.adyen-checkout__input');
       expect(result.docsUrl).toContain('upgrade-to-web-v6');
@@ -133,6 +134,62 @@ describe('Styling Checks', () => {
       });
       const result = cssCustomProps.run(payload);
       expect(result.detail).toContain('12 rules overriding');
+      expect(result.detail).toContain('.adyen-checkout__button');
+      expect(result.detail).toContain('.adyen-checkout__input');
+      expect(result.detail).toContain('.adyen-checkout__label');
+      expect(result.detail).not.toContain('.adyen-checkout__card');
+      expect(result.detail).not.toContain('.adyen-checkout__field');
+      expect(result.detail).toContain('9 more selectors omitted.');
+    });
+
+    it('caps examples to 3 individual selectors when a rule contains comma-separated selectors', () => {
+      const payload = makeScanPayload({
+        page: makePageExtract({
+          adyenStyles: {
+            classOverrideCount: 564,
+            classOverrideSelectors: [
+              '.adyen-checkout__status--success, .adyen-checkout__status__icon',
+              '.adyen-checkout__status__text, .adyen-checkout__payment-method',
+              '.adyen-checkout__field--cardNumber, .adyen-checkout__label',
+            ],
+            customPropertyCount: 0,
+          },
+        }),
+      });
+
+      const result = cssCustomProps.run(payload);
+      expect(result.detail).toContain('.adyen-checkout__status--success');
+      expect(result.detail).toContain('.adyen-checkout__status__icon');
+      expect(result.detail).toContain('.adyen-checkout__status__text');
+      expect(result.detail).not.toContain('.adyen-checkout__payment-method');
+      expect(result.detail).not.toContain('.adyen-checkout__field--cardNumber');
+      expect(result.detail).not.toContain('.adyen-checkout__label');
+      expect(result.detail).toContain('561 more selectors omitted.');
+    });
+
+    it('focuses examples on the Adyen override target instead of the full ancestor chain', () => {
+      const payload = makeScanPayload({
+        page: makePageExtract({
+          adyenStyles: {
+            classOverrideCount: 564,
+            classOverrideSelectors: [
+              '.vd-cmp-payment .vd-cmp-payment__modal .adyenComponentLightBox .modal_container .lightBoxPositon .adyenDialog .modal_content .modal_body .adyen-checkout__status--success',
+              '.vd-cmp-payment .vd-cmp-payment__modal .adyenComponentLightBox .modal_container .lightBoxPositon .payment-dialog .modal_content .modal_body .adyen-checkout__status--success',
+              '.vd-cmp-payment .vd-cmp-payment__modal .adyenComponentLightBox .modal_container .lightBoxPositon .adyenDialog .modal_content .modal_body .adyen-checkout__status--success .adyen-checkout__status__icon',
+              '.vd-cmp-payment .vd-cmp-payment__modal .adyenComponentLightBox .modal_container .lightBoxPositon .payment-dialog .modal_content .modal_body .adyen-checkout__status--success .adyen-checkout__status__icon',
+              '.vd-cmp-payment .vd-cmp-payment__modal .adyenComponentLightBox .modal_container .lightBoxPositon .adyenDialog .modal_content .modal_body .adyen-checkout__status--success .adyen-checkout__status__text',
+            ],
+            customPropertyCount: 0,
+          },
+        }),
+      });
+
+      const result = cssCustomProps.run(payload);
+      expect(result.detail).toContain(
+        'Examples: .adyen-checkout__status--success, .adyen-checkout__status--success .adyen-checkout__status__icon, .adyen-checkout__status--success .adyen-checkout__status__text.'
+      );
+      expect(result.detail).not.toContain('.vd-cmp-payment');
+      expect(result.detail).toContain('561 more selectors omitted.');
     });
   });
 });

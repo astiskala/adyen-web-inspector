@@ -78,6 +78,24 @@ function isComponentOnly(value: CallbackValue): boolean {
   return value === 'component';
 }
 
+function getEffectiveCheckoutConfig(payload: ScanPayload): CheckoutConfig | null {
+  const checkoutConfig = payload.page.checkoutConfig;
+  const componentConfig = payload.page.componentConfig;
+
+  if (checkoutConfig === null) {
+    return componentConfig;
+  }
+
+  if (componentConfig === null) {
+    return checkoutConfig;
+  }
+
+  return {
+    ...componentConfig,
+    ...checkoutConfig,
+  };
+}
+
 function joinSignals(signals: readonly string[]): string {
   if (signals.length === 0) return 'no strong flow signals';
   if (signals.length === 1) {
@@ -221,7 +239,7 @@ function runAdvancedRequiredCallbackCheck(
   options: AdvancedRequiredCallbackOptions,
   { pass, fail, skip, warn }: CheckContext
 ): CheckOutcome {
-  const config = payload.page.checkoutConfig ?? payload.page.componentConfig;
+  const config = getEffectiveCheckoutConfig(payload);
 
   if (!config) {
     return skip(`${options.label} check skipped.`, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
@@ -266,7 +284,7 @@ function runFlowSensitiveOutcomeCallbackCheck(
   options: FlowSensitiveOutcomeCallbackOptions,
   { pass, fail, skip, warn }: CheckContext
 ): CheckOutcome {
-  const config = payload.page.checkoutConfig ?? payload.page.componentConfig;
+  const config = getEffectiveCheckoutConfig(payload);
 
   if (!config) {
     return skip(`${options.label} check skipped.`, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
@@ -526,7 +544,7 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
     );
   })
   .add('callback-on-submit-filtering', (payload, { skip, warn, pass }) => {
-    const config = payload.page.checkoutConfig ?? payload.page.componentConfig;
+    const config = getEffectiveCheckoutConfig(payload);
     if (!config) {
       return skip('onSubmit filtering check skipped.', SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
     }
@@ -608,7 +626,7 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
     );
   })
   .add('callback-on-error', (payload, { pass, fail, skip, warn }) => {
-    const config = payload.page.checkoutConfig ?? payload.page.componentConfig;
+    const config = getEffectiveCheckoutConfig(payload);
 
     if (!config) {
       return skip(STRINGS.ON_ERROR_SKIP_TITLE, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
@@ -634,7 +652,7 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
     );
   })
   .add('callback-before-submit', (payload, { pass, info, skip, warn }) => {
-    const config = payload.page.checkoutConfig ?? payload.page.componentConfig;
+    const config = getEffectiveCheckoutConfig(payload);
     if (!config) {
       return skip(STRINGS.BEFORE_SUBMIT_SKIP_TITLE, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
     }
@@ -653,7 +671,7 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
     return info(STRINGS.BEFORE_SUBMIT_INFO_TITLE);
   })
   .add('callback-actions-pattern', (payload, { skip, pass, warn, info }) => {
-    const config = payload.page.checkoutConfig ?? payload.page.componentConfig;
+    const config = getEffectiveCheckoutConfig(payload);
     if (!config) {
       return skip(STRINGS.ACTIONS_PATTERN_SKIP_TITLE, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
     }
@@ -684,7 +702,7 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
     return info(STRINGS.ACTIONS_PATTERN_INFO_TITLE);
   })
   .add('callback-multiple-submissions', (payload, { skip, pass, notice }) => {
-    const config = payload.page.checkoutConfig ?? payload.page.componentConfig;
+    const config = getEffectiveCheckoutConfig(payload);
     if (!config) {
       return skip('Multiple submissions check skipped.', SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
     }
@@ -709,7 +727,7 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
     );
   })
   .add('callback-custom-pay-button-compatibility', (payload, { skip, pass, warn }) => {
-    const config = payload.page.checkoutConfig ?? payload.page.componentConfig;
+    const config = getEffectiveCheckoutConfig(payload);
     if (!config) {
       return skip(
         'Custom pay button compatibility check skipped.',
