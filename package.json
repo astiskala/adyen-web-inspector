@@ -1,6 +1,6 @@
 {
   "name": "adyen-web-inspector",
-  "version": "1.3.3",
+  "version": "1.3.4",
   "description": "Chrome Extension that analyses adyen-web (Drop-in / Components) implementations",
   "private": true,
   "type": "module",
