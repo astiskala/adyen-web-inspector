@@ -33,6 +33,15 @@ describe('buildImplementationAttributes', () => {
     expect(attrs.region).toBe('US');
   });
 
+  it('treats bare live config environment as EU', () => {
+    const payload = makeAdyenPayload({}, { environment: 'live' });
+
+    const attrs = buildImplementationAttributes(payload);
+
+    expect(attrs.environment).toBe('live');
+    expect(attrs.region).toBe('EU');
+  });
+
   it('uses live-in environment for India live', () => {
     const payload = makeAdyenPayload({}, { environment: 'live-in' });
 

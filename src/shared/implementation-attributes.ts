@@ -99,7 +99,7 @@ function parseConfigEnvironment(environment: string | undefined): {
     return { env: 'test', region: 'unknown' };
   }
   if (value === 'live') {
-    return { env: 'live', region: 'unknown' };
+    return { env: 'live', region: 'EU' };
   }
 
   const match = /^(test|live)(?:[-_]([a-z]+))?$/.exec(value);

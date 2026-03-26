@@ -31,7 +31,8 @@ describe('env-region', () => {
     );
     const result = envRegion.run(payload);
     expect(result.severity).toBe('info');
-    expect(result.title).toContain('Region:');
+    expect(result.title).toContain('Region: EU.');
+    expect(result.detail).toContain('checkoutConfig.environment');
   });
 
   it('uses checkout config region when environment includes live region suffix', () => {
@@ -219,13 +220,15 @@ describe('env-region-mismatch', () => {
     expect(result.title).toContain('US vs APSE');
   });
 
-  it('skips when configured region is unknown', () => {
+  it('warns when bare live config resolves to EU and regional CDN differs', () => {
     const payload = makeAdyenPayload(
       {},
       { environment: 'live' },
       { capturedRequests: [makeRequest('https://checkoutshopper-live-us.cdn.adyen.com/sdk.js')] }
     );
-    expect(envRegionMismatch.run(payload).severity).toBe('skip');
+    const result = envRegionMismatch.run(payload);
+    expect(result.severity).toBe('warn');
+    expect(result.title).toContain('US vs EU');
   });
 });
 
