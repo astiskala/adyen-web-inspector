@@ -298,6 +298,15 @@ function detectApiKeyExposure(g: GlobalWithAdyen): boolean {
 const ADYEN_CDN_HREF_PATTERN = /checkoutshopper[-.]|adyen\.com/i;
 const ADYEN_CHECKOUT_CLASS_PATTERN = /\.adyen-checkout__/;
 
+/**
+ * When Adyen Web is loaded via npm, the SDK's own CSS is bundled into a
+ * `<style>` tag or a merchant-hosted CSS file. These sheets contain hundreds
+ * of `.adyen-checkout__*` selectors (the SDK's base styles), which should not
+ * be counted as merchant overrides. If a single stylesheet exceeds this
+ * threshold of Adyen-class selectors, we treat it as the SDK's own CSS bundle.
+ */
+const SDK_BUNDLE_SELECTOR_THRESHOLD = 50;
+
 /** Safely reads CSS rules from a stylesheet, returning null for cross-origin sheets. */
 function safeGetCssRules(sheet: CSSStyleSheet): CSSRuleList | null {
   try {
@@ -339,16 +348,28 @@ function walkCssRules(rules: CSSRuleList, acc: StyleAccumulator): void {
   }
 }
 
+/** Returns true when the stylesheet is likely Adyen's own CSS (CDN or npm bundle). */
+function isAdyenOwnStylesheet(sheet: CSSStyleSheet, rules: CSSRuleList): boolean {
+  const href = sheet.href ?? '';
+  if (href !== '' && ADYEN_CDN_HREF_PATTERN.test(href)) return true;
+
+  const sheetAcc: StyleAccumulator = {
+    overrideCount: 0,
+    overrideSelectors: [],
+    customPropertyCount: 0,
+  };
+  walkCssRules(rules, sheetAcc);
+  return sheetAcc.overrideCount >= SDK_BUNDLE_SELECTOR_THRESHOLD;
+}
+
 /** Scans document stylesheets for Adyen class overrides and custom property usage. */
 function extractAdyenStyles(): AdyenStyleInfo {
   const acc: StyleAccumulator = { overrideCount: 0, overrideSelectors: [], customPropertyCount: 0 };
 
   for (const sheet of Array.from(document.styleSheets)) {
-    const href = sheet.href ?? '';
-    if (href !== '' && ADYEN_CDN_HREF_PATTERN.test(href)) continue;
-
     const rules = safeGetCssRules(sheet);
     if (rules === null) continue;
+    if (isAdyenOwnStylesheet(sheet, rules)) continue;
 
     walkCssRules(rules, acc);
   }
