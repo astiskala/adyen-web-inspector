@@ -1,6 +1,6 @@
 # Check Catalog
 
-Last validated: 2026-03-23
+Last validated: 2026-03-26
 
 This catalog is the documentation source of truth for checks registered in:
 
@@ -25,10 +25,31 @@ This catalog is the documentation source of truth for checks registered in:
 
 - `pass`: requirement or recommendation is met.
 - `info`: informational signal; no direct failure.
-- `notice`: non-blocking improvement area or manual follow-up.
+- `notice`: non-blocking finding. Render as `Low impact` for automated recommendations, or `Manual review` when human or PCI/compliance validation is still required.
 - `warn`: important risk or best-practice gap.
 - `fail`: high-confidence issue requiring remediation.
 - `skip`: check not applicable or insufficient data.
+
+## Notice Presentation
+
+- `Low impact`: automated non-blocking recommendation with a clear remediation path. Source of truth: `LOW_IMPACT_NOTICE_IDS` in `src/shared/check-config.ts`.
+- `Manual review`: default for any `notice` not listed in `LOW_IMPACT_NOTICE_IDS`. Use this when the extension cannot verify acceptability automatically, or when PCI/script-inventory review is still required.
+
+Current low-impact notice checks:
+
+- `sdk-bundle-type`
+- `version-latest` (patch drift path)
+- `security-referrer-policy`
+- `security-x-content-type`
+- `security-xss-protection`
+- `security-hsts`
+- `styling-css-custom-props`
+
+Current manual-review notice checks:
+
+- `callback-multiple-submissions`
+- `3p-tag-manager`
+- `3p-no-sri`
 
 ## Check Index
 
@@ -37,11 +58,11 @@ This catalog is the documentation source of truth for checks registered in:
 | `sdk-identity`      | `sdk-detected`                             | Detect Adyen Web SDK presence via metadata or script/resource signals.                                                                       | `info`, `fail`                   |
 | `sdk-identity`      | `sdk-flavor`                               | Identify integration flavor (`Drop-in`, `Components`, `Custom`, `unknown`) and evidence source.                                              | `info`                           |
 | `sdk-identity`      | `sdk-import-method`                        | Classify SDK loading method (`CDN`, `Adyen`, `NPM`).                                                                                         | `info`                           |
-| `sdk-identity`      | `sdk-bundle-type`                          | Assess bundle type (`auto` vs optimised/tree-shakable) for non-CDN integrations.                                                             | `pass`, `notice`, `skip`         |
+| `sdk-identity`      | `sdk-bundle-type`                          | Assess bundle type (`auto` vs optimised/tree-shakable) for non-CDN integrations; `auto` is a low-impact notice.                              | `pass`, `notice`, `skip`         |
 | `sdk-identity`      | `sdk-analytics`                            | Verify checkout analytics is not explicitly disabled (`analytics.enabled !== false`).                                                        | `pass`, `warn`, `skip`           |
 | `sdk-identity`      | `sdk-multi-init`                           | Warn if `AdyenCheckout` is initialised multiple times.                                                                                       | `pass`, `warn`, `skip`           |
 | `version-lifecycle` | `version-detected`                         | Verify the inspector can determine the running `adyen-web` version.                                                                          | `info`, `warn`                   |
-| `version-lifecycle` | `version-latest`                           | Compare detected version with latest npm version and classify version drift.                                                                 | `pass`, `notice`, `warn`, `skip` |
+| `version-lifecycle` | `version-latest`                           | Compare detected version with latest npm version and classify version drift; patch drift is a low-impact notice.                             | `pass`, `notice`, `warn`, `skip` |
 | `environment`       | `env-cdn-mismatch`                         | Ensure CDN asset environment matches configured environment.                                                                                 | `pass`, `fail`, `skip`           |
 | `environment`       | `env-region-mismatch`                      | Ensure CDN asset region matches configured region.                                                                                           | `pass`, `warn`, `skip`           |
 | `environment`       | `env-region`                               | Determine region from config/network evidence (or unknown/test skip).                                                                        | `info`, `skip`                   |
@@ -59,7 +80,7 @@ This catalog is the documentation source of truth for checks registered in:
 | `callbacks`         | `callback-on-error`                        | Verify technical error handler is present.                                                                                                   | `pass`, `fail`, `skip`           |
 | `callbacks`         | `callback-before-submit`                   | Detect optional `beforeSubmit` callback presence for custom pay-button setups.                                                               | `pass`, `info`, `skip`           |
 | `callbacks`         | `callback-actions-pattern`                 | Detect v6 `actions.resolve/reject` vs legacy v5 callback style in `onSubmit`.                                                                | `pass`, `warn`, `info`, `skip`   |
-| `callbacks`         | `callback-multiple-submissions`            | Verify that `onSubmit` or `beforeSubmit` handling appears to prevent multiple submissions.                                                   | `pass`, `notice`, `skip`         |
+| `callbacks`         | `callback-multiple-submissions`            | Heuristically verify that `onSubmit` or `beforeSubmit` handling appears to prevent multiple submissions.                                     | `pass`, `notice`, `skip`         |
 | `callbacks`         | `callback-custom-pay-button-compatibility` | Detect custom pay button indicators with unsupported payment methods (PayPal, Klarna).                                                       | `pass`, `warn`, `skip`           |
 | `risk`              | `risk-df-iframe`                           | Detect Adyen risk device-fingerprint iframe/activity.                                                                                        | `pass`, `warn`                   |
 | `risk`              | `risk-module-not-disabled`                 | Ensure `riskEnabled` is not explicitly set to `false`.                                                                                       | `pass`, `warn`, `skip`           |
@@ -77,11 +98,11 @@ This catalog is the documentation source of truth for checks registered in:
 | `security`          | `security-csp-frame-src`                   | Ensure CSP iframe policy supports required 3DS iframe behavior.                                                                              | `pass`, `warn`, `skip`           |
 | `security`          | `security-csp-frame-ancestors`             | Require anti-framing protection (`frame-ancestors` or `X-Frame-Options`).                                                                    | `pass`, `warn`                   |
 | `security`          | `security-csp-reporting`                   | Validate CSP violation reporting configuration (`report-to`, `Reporting-Endpoints`, `report-uri`).                                           | `pass`, `warn`, `info`           |
-| `third-party`       | `3p-tag-manager`                           | Detect tag managers on checkout pages.                                                                                                       | `pass`, `notice`                 |
+| `third-party`       | `3p-tag-manager`                           | Detect tag managers on checkout pages for PCI script inventory and authorization review.                                                     | `pass`, `notice`                 |
 | `third-party`       | `3p-session-replay`                        | Detect session replay/screen recording tools on checkout pages.                                                                              | `pass`, `fail`                   |
 | `third-party`       | `3p-ad-pixels`                             | Detect advertising/conversion pixels on checkout pages.                                                                                      | `pass`, `warn`                   |
-| `third-party`       | `3p-no-sri`                                | Ensure detected known third-party scripts use SRI.                                                                                           | `pass`, `notice`                 |
-| `sdk-identity`      | `styling-css-custom-props`                 | Detect CSS class overrides and recommend CSS custom properties for Adyen Web v6+ styling.                                                    | `pass`, `notice`, `skip`         |
+| `third-party`       | `3p-no-sri`                                | Detect known third-party scripts missing SRI for PCI integrity review.                                                                       | `pass`, `notice`                 |
+| `sdk-identity`      | `styling-css-custom-props`                 | Detect CSS class overrides and recommend CSS custom properties for Adyen Web v6+ styling as a low-impact improvement.                        | `pass`, `notice`, `skip`         |
 | `version-lifecycle` | `v6-deprecated-properties`                 | Detect deprecated v6 config properties (`setStatusAutomatically`, `installmentOptions`, `showBrandsUnderCardNumber`, `showFormInstruction`). | `pass`, `warn`, `skip`           |
 | `version-lifecycle` | `v6-deprecated-callbacks`                  | Detect deprecated v6 event handlers (`onValid`, `onOrderCreated`, `onShippingChange`, `onShopperDetails`).                                   | `pass`, `warn`, `skip`           |
 
@@ -93,4 +114,5 @@ When adding, removing, or renaming a check:
 2. Update `src/shared/types.ts` (`CheckId` and, if needed, `CheckCategory`).
 3. Ensure `src/background/checks/index.ts` exports the check through `ALL_CHECKS`.
 4. Add or update tests in `tests/unit/checks/`.
-5. Update this catalog in the same pull request.
+5. If a check can return `notice`, review `LOW_IMPACT_NOTICE_IDS` in `src/shared/check-config.ts`.
+6. Update this catalog in the same pull request.

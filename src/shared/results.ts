@@ -5,6 +5,7 @@
 import type { CheckId, CheckResult } from './types.js';
 import {
   ADYEN_WEB_BEST_PRACTICES_DOC,
+  LOW_IMPACT_NOTICE_IDS,
   WARNING_PRIORITY_BY_ID,
   type WarningPriority,
 } from './check-config.js';
@@ -13,6 +14,10 @@ export type IssueImpactLevel = 'high' | 'medium' | 'low' | 'manual';
 
 function getWarningPriority(checkId: CheckId): WarningPriority {
   return WARNING_PRIORITY_BY_ID[checkId] ?? 'medium';
+}
+
+function getNoticeImpact(checkId: CheckId): 'low' | 'manual' {
+  return LOW_IMPACT_NOTICE_IDS.has(checkId) ? 'low' : 'manual';
 }
 
 /**
@@ -29,7 +34,7 @@ export function getImpactLevel(check: CheckResult): IssueImpactLevel | 'none' {
     return 'medium';
   }
   if (check.severity === 'notice') {
-    return 'manual';
+    return getNoticeImpact(check.id);
   }
   return 'none';
 }
@@ -93,6 +98,12 @@ export function getRemediationText(check: CheckResult, options: RemediationOptio
   }
 
   if (check.severity === 'notice') {
+    const impactLevel = getImpactLevel(check);
+    if (impactLevel === 'low') {
+      return options.friendly === true
+        ? 'Review this recommended improvement, apply the change, then rerun the scan.'
+        : 'Review this recommendation and align your integration with Adyen best practices.';
+    }
     return options.friendly === true
       ? 'Review this item manually in your site config and network headers before going live.'
       : 'Validate this area manually based on your page headers and Adyen setup.';

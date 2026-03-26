@@ -33,3 +33,18 @@ export const WARNING_PRIORITY_BY_ID: Partial<Record<CheckId, WarningPriority>> =
   '3p-ad-pixels': 'medium',
   'env-not-iframe': 'medium',
 };
+
+/**
+ * Notice-severity checks that should render as low impact.
+ * Any notice not listed here falls back to manual review by default because
+ * the finding depends on human or PCI/compliance verification.
+ */
+export const LOW_IMPACT_NOTICE_IDS: ReadonlySet<CheckId> = new Set([
+  'sdk-bundle-type',
+  'version-latest',
+  'security-referrer-policy',
+  'security-x-content-type',
+  'security-xss-protection',
+  'security-hsts',
+  'styling-css-custom-props',
+]);

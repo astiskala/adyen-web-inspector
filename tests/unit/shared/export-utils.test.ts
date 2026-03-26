@@ -134,8 +134,30 @@ describe('buildIssueExportRows', () => {
       expect(row.impact).toBe('High impact');
     });
 
-    it('maps notice severity to manual impact', () => {
-      const check = makeCheck('security-referrer-policy', 'notice', { category: 'security' });
+    it('maps configured notice severity to low impact', () => {
+      const check = makeCheck('styling-css-custom-props', 'notice');
+
+      const row = first(buildIssueExportRows([check]));
+
+      expect(row.impactLevel).toBe('low');
+      expect(row.impact).toBe('Low impact');
+    });
+
+    it('maps heuristic notice severity to manual impact', () => {
+      const check = makeCheck('callback-multiple-submissions', 'notice', {
+        category: 'callbacks',
+      });
+
+      const row = first(buildIssueExportRows([check]));
+
+      expect(row.impactLevel).toBe('manual');
+      expect(row.impact).toBe('Manual verification needed');
+    });
+
+    it('maps PCI review notice severity to manual impact', () => {
+      const check = makeCheck('3p-no-sri', 'notice', {
+        category: 'third-party',
+      });
 
       const row = first(buildIssueExportRows([check]));
 
@@ -177,17 +199,20 @@ describe('buildIssueExportRows', () => {
 
     it('sorts by impact rank: high before medium before low before manual', () => {
       const checks = [
-        makeCheck('security-referrer-policy', 'notice', {
-          category: 'security',
+        makeCheck('callback-multiple-submissions', 'notice', {
+          category: 'callbacks',
           title: 'Manual check',
         }),
         makeCheck('auth-locale', 'warn', { title: 'Medium warning' }),
         makeCheck('auth-country-code', 'fail', { title: 'High failure' }),
+        makeCheck('styling-css-custom-props', 'notice', {
+          title: 'Low notice',
+        }),
       ];
 
       const rows = buildIssueExportRows(checks, { sortByImpact: true });
 
-      expect(rows.map((r) => r.impactLevel)).toEqual(['high', 'medium', 'manual']);
+      expect(rows.map((r) => r.impactLevel)).toEqual(['high', 'medium', 'low', 'manual']);
     });
 
     it('sorts by severity within the same impact level', () => {
@@ -221,9 +246,13 @@ describe('buildIssueExportRows', () => {
     it('applies all three sort tiers together', () => {
       const checks = [
         // manual (notice)
-        makeCheck('security-referrer-policy', 'notice', {
-          category: 'security',
-          title: 'Referrer notice',
+        makeCheck('callback-multiple-submissions', 'notice', {
+          category: 'callbacks',
+          title: 'Manual notice',
+        }),
+        // low (notice)
+        makeCheck('styling-css-custom-props', 'notice', {
+          title: 'Styling notice',
         }),
         // medium (warn, default priority)
         makeCheck('auth-locale', 'warn', { title: 'Locale warn' }),
@@ -250,8 +279,10 @@ describe('buildIssueExportRows', () => {
         // medium: warns (alphabetical)
         'Completed callback warn',
         'Locale warn',
+        // low: notices
+        'Styling notice',
         // manual: notices
-        'Referrer notice',
+        'Manual notice',
       ]);
     });
   });
@@ -302,7 +333,19 @@ describe('buildIssueExportRows', () => {
     });
 
     it('returns friendly default remediation for notice without remediation text', () => {
-      const check = makeCheck('security-referrer-policy', 'notice', { category: 'security' });
+      const check = makeCheck('styling-css-custom-props', 'notice');
+
+      const row = first(buildIssueExportRows([check], { friendlyRemediation: true }));
+
+      expect(row.remediation).toBe(
+        'Review this recommended improvement, apply the change, then rerun the scan.'
+      );
+    });
+
+    it('returns manual-review default remediation for heuristic notice without remediation text', () => {
+      const check = makeCheck('callback-multiple-submissions', 'notice', {
+        category: 'callbacks',
+      });
 
       const row = first(buildIssueExportRows([check], { friendlyRemediation: true }));
 
@@ -369,9 +412,9 @@ describe('buildIssueExportRows', () => {
   describe('combined options', () => {
     it('applies sorting, friendly remediation, and Adyen docs together', () => {
       const checks = [
-        makeCheck('security-referrer-policy', 'notice', {
-          category: 'security',
-          title: 'Referrer notice',
+        makeCheck('callback-multiple-submissions', 'notice', {
+          category: 'callbacks',
+          title: 'Manual notice',
         }),
         makeCheck('auth-country-code', 'fail', {
           title: 'Country fail',
@@ -387,7 +430,7 @@ describe('buildIssueExportRows', () => {
       });
 
       // Sorted: high (fail) -> medium (warn) -> manual (notice)
-      expect(rows.map((r) => r.title)).toEqual(['Country fail', 'Version warn', 'Referrer notice']);
+      expect(rows.map((r) => r.title)).toEqual(['Country fail', 'Version warn', 'Manual notice']);
 
       // Friendly remediation applied
       expect(first(rows).remediation).toContain('Update your AdyenCheckout configuration');
