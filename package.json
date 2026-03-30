@@ -45,11 +45,11 @@
     "@playwright/test": "^1.58.2",
     "@preact/preset-vite": "^2.10.5",
     "@types/chrome": "^0.1.38",
-    "@vitest/coverage-v8": "^4.1.0",
-    "dependency-cruiser": "^17.3.9",
+    "@vitest/coverage-v8": "^4.1.2",
+    "dependency-cruiser": "^17.3.10",
     "eslint": "^10.1.0",
     "eslint-plugin-import-x": "^4.16.2",
-    "eslint-plugin-jsdoc": "^62.8.0",
+    "eslint-plugin-jsdoc": "^62.8.1",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-regexp": "^3.1.0",
     "eslint-plugin-security": "^4.0.0",
@@ -58,13 +58,13 @@
     "gts": "^7.0.0",
     "husky": "^9.1.7",
     "jsdom": "^29.0.1",
-    "knip": "^6.0.2",
+    "knip": "^6.1.0",
     "lint-staged": "^16.4.0",
     "markdownlint-cli2": "^0.22.0",
     "prettier": "^3.8.1",
     "typescript": "^5.9.3",
-    "vite": "^8.0.1",
-    "vitest": "^4.1.0"
+    "vite": "^8.0.3",
+    "vitest": "^4.1.2"
   },
   "lint-staged": {
     "*.{ts,tsx}": [
