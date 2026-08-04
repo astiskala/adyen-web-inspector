@@ -4,6 +4,11 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  tmp@<=0.2.3: '>=0.2.4'
+  minimatch@>=10.0.0 <10.2.3: '>=10.2.3'
+  typescript: ^6.0.3
+
 importers:
 
   .:
