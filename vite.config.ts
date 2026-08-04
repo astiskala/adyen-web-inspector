@@ -29,6 +29,11 @@ function wrapMainWorldScriptsInBlock(): Plugin {
       for (const [fileName, chunk] of Object.entries(bundle)) {
         if (!targetFiles.has(fileName)) continue;
         if (chunk.type === 'chunk' && typeof chunk.code === 'string') {
+          if (/^\s*import\s/m.test(chunk.code)) {
+            throw new Error(
+              `${fileName} must be self-contained because chrome.scripting.executeScript injects it as a classic script.`
+            );
+          }
           chunk.code = `{\n${chunk.code}\n}\n`;
         }
       }

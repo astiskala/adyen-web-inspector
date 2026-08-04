@@ -334,8 +334,8 @@ function buildComplianceHtml(compliance: StandardCompliance): string {
   const icon = compliance.compliant ? '\u2713' : '\u2717';
   const iconColor = compliance.compliant ? '#16a34a' : '#e53935';
   const label = compliance.compliant
-    ? 'Standard Payments Integration Compliant'
-    : 'Not Standard Payments Integration Compliant';
+    ? 'Standard Drop-in frontend criteria met'
+    : 'Standard Drop-in criteria not met';
 
   const reasonsList =
     !compliance.compliant && compliance.reasons.length > 0
@@ -346,8 +346,8 @@ function buildComplianceHtml(compliance: StandardCompliance): string {
 
   const caveat =
     '<div style="margin-top:6px;font-size:11px;color:#6b7280;line-height:1.4">' +
-    'Note: Not all aspects of a standard payments integration can be assessed from the frontend. ' +
-    'For a comprehensive review, see the <a class="docs-link" href="https://docs.adyen.com/standard" target="_blank" rel="noopener noreferrer">documentation</a>.' +
+    'This is not a compliance determination. Server-side API version, webhooks, account setup, security, testing, and go-live requirements require manual review. ' +
+    'See the <a class="docs-link" href="https://docs.adyen.com/standard" target="_blank" rel="noopener noreferrer">Standard integration checklist</a>.' +
     '</div>';
 
   return `<div style="border:1px solid #e5e7eb;border-radius:6px;padding:10px 16px;margin-bottom:20px">

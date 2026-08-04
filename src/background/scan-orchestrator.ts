@@ -5,6 +5,7 @@
 import type {
   CapturedRequest,
   Check,
+  CheckoutConfig,
   PageExtractResult,
   ScanPayload,
   ScanResult,
@@ -51,7 +52,7 @@ export async function runScan(tabId: number): Promise<ScanResult> {
     );
 
     const mainDocumentHeaders =
-      collected.mainDocumentHeaders.length > 0
+      !pageData.isInsideIframe && collected.mainDocumentHeaders.length > 0
         ? collected.mainDocumentHeaders
         : await probeMainDocumentHeaders(pageData.pageUrl);
 
@@ -102,7 +103,7 @@ export async function runScan(tabId: number): Promise<ScanResult> {
 
     const checks = ALL_CHECKS.map((check: Check) => check.run(payload));
     const health = calculateHealthScore(checks);
-    const standardCompliance = computeStandardCompliance(checks, payload);
+    const standardCompliance = computeStandardCompliance(payload);
 
     const result: ScanResult = {
       tabId,
@@ -213,11 +214,21 @@ async function extractPageData(tabId: number): Promise<PageExtractResult> {
 }
 
 async function executeExtract(tabId: number): Promise<PageExtractResult> {
-  let results: chrome.scripting.InjectionResult<PageExtractResult>[];
+  let serializedResults: chrome.scripting.InjectionResult<string | null>[];
   try {
-    results = await chrome.scripting.executeScript<[], PageExtractResult>({
-      target: { tabId },
+    await chrome.scripting.executeScript({
+      target: { tabId, allFrames: true },
       files: ['page-extractor.js'],
+      world: 'MAIN',
+    });
+    serializedResults = await chrome.scripting.executeScript<[], string | null>({
+      target: { tabId, allFrames: true },
+      func: () => {
+        const extractionGlobal = globalThis as typeof globalThis & {
+          __adyenWebInspectorPageExtractResultJson?: string;
+        };
+        return extractionGlobal.__adyenWebInspectorPageExtractResultJson ?? null;
+      },
       world: 'MAIN',
     });
   } catch (err: unknown) {
@@ -232,22 +243,111 @@ async function executeExtract(tabId: number): Promise<PageExtractResult> {
     throw new Error(`Page extraction script injection failed for tab ${tabId}: ${message}`);
   }
 
-  const frame = results[0];
-  if (!frame) {
+  const results = serializedResults.map((frame) => {
+    const serialized = frame.result;
+    if (serialized === undefined || serialized === null) {
+      return { ...frame, result: null };
+    }
+    return {
+      ...frame,
+      result: JSON.parse(serialized) as PageExtractResult,
+    };
+  });
+
+  return selectPageExtractResult(results, tabId);
+}
+
+function pageExtractScore(result: PageExtractResult): number {
+  let score = 0;
+  if (result.checkoutConfig !== null) score += 100;
+  if (result.componentConfig !== null) score += 90;
+  if (result.hasDropinDOM === true) score += 60;
+  if (result.adyenMetadata !== null) score += 40;
+  if (result.scripts.some((script) => /checkoutshopper-|@adyen|adyen/i.test(script.src))) {
+    score += 20;
+  }
+  if (result.iframes.some((frame) => frame.name?.startsWith('adyen-') === true)) {
+    score += 10;
+  }
+  return score;
+}
+
+function mergeFrameConfigs(
+  results: readonly PageExtractResult[],
+  readConfig: (result: PageExtractResult) => CheckoutConfig | null
+): CheckoutConfig | null {
+  let merged: CheckoutConfig | null = null;
+  for (const result of results) {
+    const config = readConfig(result);
+    if (config !== null) {
+      if (merged === null) {
+        merged = config;
+        continue;
+      }
+
+      const missingEntries = Object.entries(config).filter(
+        ([key, value]) => value !== undefined && merged?.[key as keyof CheckoutConfig] === undefined
+      );
+      merged = {
+        ...merged,
+        ...Object.fromEntries(missingEntries),
+      };
+    }
+  }
+  return merged;
+}
+
+/** Selects the frame containing the strongest Adyen checkout signals. */
+export function selectPageExtractResult(
+  results: readonly chrome.scripting.InjectionResult<PageExtractResult | null>[],
+  tabId: number
+): PageExtractResult {
+  const framesWithResults = results.filter(
+    (
+      frame
+    ): frame is chrome.scripting.InjectionResult<PageExtractResult> & {
+      result: PageExtractResult;
+    } => frame.result !== undefined && frame.result !== null
+  );
+
+  const [firstFrame, ...remainingFrames] = framesWithResults;
+  if (firstFrame === undefined) {
     throw new Error(
-      `Page extraction returned no frames for tab ${tabId}. ` + `Results length: ${results.length}`
+      `Page extraction returned no frame results for tab ${tabId}. ` +
+        `Results length: ${results.length}`
     );
   }
 
-  if (!frame.result) {
-    throw new Error(
-      `Page extraction returned no results for tab ${tabId}. ` +
-        `Frame documentId: ${frame.documentId}, ` +
-        `frameId: ${frame.frameId}`
-    );
+  let selected = firstFrame;
+  for (const frame of remainingFrames) {
+    const selectedScore = pageExtractScore(selected.result);
+    const frameScore = pageExtractScore(frame.result);
+    if (frameScore > selectedScore || (frameScore === selectedScore && frame.frameId === 0)) {
+      selected = frame;
+    }
   }
 
-  return frame.result;
+  const frameResults = framesWithResults.map((frame) => frame.result);
+  const checkoutConfig = mergeFrameConfigs(frameResults, (result) => result.checkoutConfig);
+  const inferredConfig = mergeFrameConfigs(frameResults, (result) => result.inferredConfig);
+  const componentConfig = mergeFrameConfigs(frameResults, (result) => result.componentConfig);
+  const adyenMetadata =
+    selected.result.adyenMetadata ??
+    frameResults.find((result) => result.adyenMetadata !== null)?.adyenMetadata ??
+    null;
+
+  return {
+    ...selected.result,
+    adyenMetadata,
+    checkoutConfig,
+    inferredConfig,
+    componentConfig,
+    ...(frameResults.some((result) => result.hasDropinDOM === true) ? { hasDropinDOM: true } : {}),
+    ...(frameResults.some((result) => result.apiKeyDetected === true)
+      ? { apiKeyDetected: true }
+      : {}),
+    isInsideIframe: selected.frameId !== 0,
+  };
 }
 
 /**

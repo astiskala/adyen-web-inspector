@@ -20,7 +20,9 @@
       "matches": ["http://*/*", "https://*/*"],
       "js": ["config-interceptor.js"],
       "run_at": "document_start",
-      "world": "MAIN"
+      "world": "MAIN",
+      "all_frames": true,
+      "match_about_blank": true
     },
     {
       "matches": ["http://*/*", "https://*/*"],

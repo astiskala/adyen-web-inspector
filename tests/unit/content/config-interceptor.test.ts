@@ -130,6 +130,22 @@ describe('config-interceptor', () => {
       expect(config?.['onError']).toBe('checkout');
     });
 
+    it('captures nested risk configuration', async () => {
+      const fakeCheckout = {
+        create: (): void => {},
+        options: {
+          clientKey: 'test_RISK',
+          environment: 'test',
+          risk: { enabled: false },
+        },
+      };
+
+      installAdyenCheckoutFactory(async () => fakeCheckout);
+      await callAdyenCheckout({});
+
+      expect(getCapturedConfig()?.['riskEnabled']).toBe(false);
+    });
+
     it('wraps create on the captured instance for component config', async () => {
       const fakeCheckout: Record<string, unknown> = {
         create: (_type: unknown, _cfg?: unknown) => ({}),

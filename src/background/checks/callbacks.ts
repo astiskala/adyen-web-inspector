@@ -55,14 +55,7 @@ const PAYMENT_METHOD_SELECTOR_PATTERN =
 const ACTION_CODE_SELECTOR_PATTERN =
   /\bresultCode\b|\baction(?:\?\.)?\.type\b|\baction\s*\[\s*['"]type['"]\s*\]/;
 
-const UNSUPPORTED_CUSTOM_BUTTON_METHODS = [
-  'paypal',
-  'klarna',
-  'paywithgoogle',
-  'googlepay',
-  'applepay',
-  'clicktopay',
-];
+const UNSUPPORTED_CUSTOM_BUTTON_METHODS = ['paypal', 'klarna', 'clicktopay'];
 
 function flowLabel(flow: IntegrationFlow): string {
   if (flow === 'sessions') return 'Sessions flow';
@@ -165,13 +158,13 @@ const STRINGS = {
   ON_PAYMENT_COMPLETED_PASS_TITLE: 'onPaymentCompleted callback is present.',
   ON_PAYMENT_COMPLETED_MISSING_TITLE: 'onPaymentCompleted callback is not set.',
   ON_PAYMENT_COMPLETED_SESSIONS_DETAIL:
-    'For Sessions flow, onPaymentCompleted is the primary handler for authorised and refused outcomes.',
+    'For Sessions flow, onPaymentCompleted provides the immediate browser-side authorised outcome for shopper-facing UI. Use webhooks as the source of truth for business logic.',
   ON_PAYMENT_COMPLETED_ADVANCED_DETAIL:
-    'Without onPaymentCompleted, successful outcomes may not trigger your confirmation and fulfillment logic.',
+    'Without onPaymentCompleted, the browser may not show confirmation or next-step UI after a successful payment. Use webhooks as the source of truth for business logic.',
   ON_PAYMENT_COMPLETED_SESSIONS_REMEDIATION:
-    'Add an onPaymentCompleted handler to your AdyenCheckout configuration. For Sessions flow, this is the primary callback for payment outcomes.',
+    'Add an onPaymentCompleted handler to present the shopper-facing outcome. Do not use this client-side callback as the sole trigger for fulfilment; accept Adyen webhooks on your server.',
   ON_PAYMENT_COMPLETED_ADVANCED_REMEDIATION:
-    'Add an onPaymentCompleted handler to receive notification when a payment is authorised.',
+    'Add an onPaymentCompleted handler to update the shopper-facing UI when a payment is authorised. Keep server-side business logic driven by Adyen webhooks.',
 
   ON_PAYMENT_FAILED_PASS_TITLE: 'onPaymentFailed callback is present.',
   ON_PAYMENT_FAILED_MISSING_TITLE: 'onPaymentFailed callback is not set.',

@@ -10,7 +10,7 @@ interface Props {
   readonly compliance: StandardCompliance;
 }
 
-/** Displays the standard payments integration compliance status with pass/fail indicator. */
+/** Displays the browser-visible Standard Drop-in assessment. */
 export function StandardComplianceBadge({ compliance }: Props): JSX.Element {
   const { compliant, reasons } = compliance;
 
@@ -22,8 +22,8 @@ export function StandardComplianceBadge({ compliance }: Props): JSX.Element {
         </span>
         <span class={s('title')}>
           {compliant
-            ? 'Standard Payments Integration Compliant'
-            : 'Not Standard Payments Integration Compliant'}
+            ? 'Standard Drop-in frontend criteria met'
+            : 'Standard Drop-in criteria not met'}
         </span>
       </div>
       {!compliant && reasons.length > 0 && (
@@ -36,10 +36,10 @@ export function StandardComplianceBadge({ compliance }: Props): JSX.Element {
         </ul>
       )}
       <div class={s('caveat')}>
-        Note: Not all aspects of a standard payments integration can be assessed from the frontend.
-        For a comprehensive review, see the{' '}
+        This is not a compliance determination. Server-side API version, webhooks, account setup,
+        security, testing, and go-live requirements require manual review. See the{' '}
         <a href={STANDARD_PAYMENTS_INTEGRATION_DOCS_URL} target="_blank" rel="noopener noreferrer">
-          documentation
+          Standard integration checklist
         </a>
         {'.'}
       </div>

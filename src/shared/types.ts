@@ -32,6 +32,7 @@ export type CheckId =
   // Version & Lifecycle
   | 'version-detected'
   | 'version-latest'
+  | 'uplift-cobadged-version'
   // Environment & Region
   | 'env-region'
   | 'env-cdn-mismatch'

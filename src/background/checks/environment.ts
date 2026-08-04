@@ -35,9 +35,9 @@ const STRINGS = {
 
   IFRAME_WARN_TITLE: 'Checkout appears to be rendered inside an <iframe>.',
   IFRAME_WARN_DETAIL:
-    'Embedding checkout in an iframe may cause issues with 3DS redirects, cookies, and CSP.',
+    'Embedding checkout in an iframe may cause issues with redirects, cookies, and payment methods that require navigation to another domain.',
   IFRAME_WARN_REMEDIATION:
-    'Render Drop-in or Components directly in the top-level page document rather than inside a parent iframe. Embedding checkout in an iframe breaks 3DS redirect flows, causes cookie restrictions in cross-origin contexts, and complicates CSP configuration.',
+    'Render Drop-in or Components directly in the top-level page. If an iframe is unavoidable, host it on the same domain as the parent page.',
   IFRAME_WARN_URL: 'https://docs.adyen.com/online-payments/web-best-practices/#iframe',
   IFRAME_PASS_TITLE: 'Checkout is not embedded inside an iframe.',
 

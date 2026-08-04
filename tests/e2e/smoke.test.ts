@@ -37,4 +37,87 @@ test.describe('Extension loading', () => {
     const root = popupPage.locator('#root');
     await expect(root).toBeAttached();
   });
+
+  test('scan detects checkout embedded in a merchant iframe', async ({ context, extensionId }) => {
+    const page = await context.newPage();
+    await page.goto('http://localhost:4321/adyen-iframe-merchant.html');
+    await page.waitForLoadState('load');
+
+    const popupPage = await context.newPage();
+    await popupPage.goto(`chrome-extension://${extensionId}/popup/index.html`);
+
+    const tabId = await popupPage.evaluate(async () => {
+      const tabs = await chrome.tabs.query({});
+      return tabs.find((tab) => tab.url?.endsWith('/adyen-iframe-merchant.html') === true)?.id;
+    });
+    if (tabId === undefined) {
+      throw new Error('Embedded checkout fixture tab not found.');
+    }
+
+    const outcome = await popupPage.evaluate((targetTabId) => {
+      return new Promise<{
+        type: string;
+        error?: string;
+        result?: { checks?: { id: string; severity: string }[] };
+      }>((resolve) => {
+        const listener = (message: {
+          type?: string;
+          tabId?: number;
+          error?: string;
+          result?: { checks?: { id: string; severity: string }[] };
+        }): void => {
+          if (
+            message.tabId === targetTabId &&
+            (message.type === 'SCAN_COMPLETE' || message.type === 'SCAN_ERROR')
+          ) {
+            chrome.runtime.onMessage.removeListener(listener);
+            resolve({
+              type: message.type,
+              ...(message.error === undefined ? {} : { error: message.error }),
+              ...(message.result === undefined ? {} : { result: message.result }),
+            });
+          }
+        };
+
+        chrome.runtime.onMessage.addListener(listener);
+        chrome.runtime
+          .sendMessage({
+            type: 'SCAN_REQUEST',
+            tabId: targetTabId,
+            source: 'popup',
+          })
+          .catch((error: unknown) => {
+            chrome.runtime.onMessage.removeListener(listener);
+            let errorMessage = 'Unknown runtime messaging error.';
+            if (error instanceof Error) {
+              errorMessage = error.message;
+            } else if (typeof error === 'string') {
+              errorMessage = error;
+            }
+            resolve({ type: 'SEND_ERROR', error: errorMessage });
+          });
+      });
+    }, tabId);
+
+    const frameDiagnostics = await Promise.all(
+      page.frames().map(async (frame) => {
+        return frame.evaluate(() => {
+          const extractionGlobal = globalThis as typeof globalThis & {
+            __adyenWebInspectorPageExtractResultJson?: string;
+          };
+          return {
+            url: globalThis.location.href,
+            resultLength: extractionGlobal.__adyenWebInspectorPageExtractResultJson?.length ?? 0,
+          };
+        });
+      })
+    );
+
+    expect(outcome.type, `${outcome.error ?? ''} ${JSON.stringify(frameDiagnostics)}`).toBe(
+      'SCAN_COMPLETE'
+    );
+    expect(outcome.result?.checks?.find((check) => check.id === 'env-not-iframe')?.severity).toBe(
+      'warn'
+    );
+  });
 });

@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import { computeStandardCompliance } from '../../../src/shared/standard-compliance';
-import type { CheckResult } from '../../../src/shared/types';
 import {
   makeScanPayload,
   makePageExtract,
@@ -9,120 +8,124 @@ import {
   makeVersionInfo,
 } from '../../fixtures/makeScanPayload';
 
-function makeVersionCheck(severity: CheckResult['severity']): CheckResult {
-  return {
-    id: 'version-latest',
-    category: 'version-lifecycle',
-    severity,
-    title: severity === 'pass' ? 'Running the latest version.' : 'Not on the latest version.',
-  };
-}
-
 describe('computeStandardCompliance', () => {
-  it('returns compliant when latest version, Sessions flow, and Drop-in', () => {
-    const checks = [makeVersionCheck('pass')];
+  it('returns aligned when minimum version, Sessions flow, and Drop-in are detected', () => {
     const payload = makeScanPayload({
       page: makePageExtract({
         checkoutConfig: makeCheckoutConfig({ hasSession: true }),
       }),
       analyticsData: makeAnalyticsData({ flavor: 'dropin', sessionId: 'session-123' }),
+      versionInfo: makeVersionInfo({ detected: '6.30.0' }),
     });
 
-    const result = computeStandardCompliance(checks, payload);
+    const result = computeStandardCompliance(payload);
 
     expect(result.compliant).toBe(true);
     expect(result.reasons).toEqual([]);
   });
 
-  it('returns non-compliant when version is not latest', () => {
-    const checks = [makeVersionCheck('warn')];
+  it('accepts a newer version without requiring the exact latest release', () => {
     const payload = makeScanPayload({
       page: makePageExtract({
         checkoutConfig: makeCheckoutConfig({ hasSession: true }),
       }),
       analyticsData: makeAnalyticsData({ flavor: 'dropin', sessionId: 'session-123' }),
+      versionInfo: makeVersionInfo({ detected: '6.31.1', latest: '6.32.0' }),
     });
 
-    const result = computeStandardCompliance(checks, payload);
+    const result = computeStandardCompliance(payload);
 
-    expect(result.compliant).toBe(false);
-    expect(result.reasons).toContain('Not using the latest SDK version.');
+    expect(result.compliant).toBe(true);
   });
 
-  it('returns non-compliant when not using Sessions flow', () => {
-    const checks = [makeVersionCheck('pass')];
+  it('returns not aligned when the version is below the documented minimum', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({
+        checkoutConfig: makeCheckoutConfig({ hasSession: true }),
+      }),
+      analyticsData: makeAnalyticsData({ flavor: 'dropin', sessionId: 'session-123' }),
+      versionInfo: makeVersionInfo({ detected: '6.29.0' }),
+    });
+
+    const result = computeStandardCompliance(payload);
+
+    expect(result.compliant).toBe(false);
+    expect(result.reasons).toContain('Web Drop-in 6.30.0 or later is required.');
+  });
+
+  it('returns not aligned when not using Sessions flow', () => {
     const payload = makeScanPayload({
       page: makePageExtract({
         checkoutConfig: makeCheckoutConfig(),
       }),
       analyticsData: makeAnalyticsData({ flavor: 'dropin' }),
+      versionInfo: makeVersionInfo({ detected: '6.30.0' }),
     });
 
-    const result = computeStandardCompliance(checks, payload);
+    const result = computeStandardCompliance(payload);
 
     expect(result.compliant).toBe(false);
     expect(result.reasons).toContain('Not using Sessions flow.');
   });
 
-  it('returns non-compliant when not using Drop-in', () => {
-    const checks = [makeVersionCheck('pass')];
+  it('returns not aligned when not using Drop-in', () => {
     const payload = makeScanPayload({
       page: makePageExtract({
         checkoutConfig: makeCheckoutConfig({ hasSession: true }),
       }),
       analyticsData: makeAnalyticsData({ flavor: 'components', sessionId: 'session-123' }),
+      versionInfo: makeVersionInfo({ detected: '6.30.0' }),
     });
 
-    const result = computeStandardCompliance(checks, payload);
+    const result = computeStandardCompliance(payload);
 
     expect(result.compliant).toBe(false);
     expect(result.reasons).toContain('Not using Drop-in.');
   });
 
   it('returns all three reasons when none of the criteria are met', () => {
-    const checks = [makeVersionCheck('notice')];
     const payload = makeScanPayload({
       page: makePageExtract({
         checkoutConfig: makeCheckoutConfig(),
       }),
       analyticsData: makeAnalyticsData({ flavor: 'components' }),
+      versionInfo: makeVersionInfo({ detected: '6.29.0' }),
     });
 
-    const result = computeStandardCompliance(checks, payload);
+    const result = computeStandardCompliance(payload);
 
     expect(result.compliant).toBe(false);
     expect(result.reasons).toHaveLength(3);
-    expect(result.reasons).toContain('Not using the latest SDK version.');
+    expect(result.reasons).toContain('Web Drop-in 6.30.0 or later is required.');
     expect(result.reasons).toContain('Not using Sessions flow.');
     expect(result.reasons).toContain('Not using Drop-in.');
   });
 
-  it('returns non-compliant when version-latest check is missing', () => {
-    const checks: CheckResult[] = [];
+  it('returns not aligned when the SDK version cannot be verified', () => {
     const payload = makeScanPayload({
       page: makePageExtract({
         checkoutConfig: makeCheckoutConfig({ hasSession: true }),
       }),
       analyticsData: makeAnalyticsData({ flavor: 'dropin', sessionId: 'session-123' }),
+      versionInfo: makeVersionInfo({ detected: null }),
     });
 
-    const result = computeStandardCompliance(checks, payload);
+    const result = computeStandardCompliance(payload);
 
     expect(result.compliant).toBe(false);
-    expect(result.reasons).toContain('Not using the latest SDK version.');
+    expect(result.reasons).toContain('Web Drop-in 6.30.0 or later could not be verified.');
   });
 
   it('detects Drop-in from DOM presence when analytics not available', () => {
-    const checks = [makeVersionCheck('pass')];
     const payload = makeScanPayload({
       page: makePageExtract({
         checkoutConfig: makeCheckoutConfig({ hasSession: true }),
         hasDropinDOM: true,
       }),
-      versionInfo: makeVersionInfo({ detected: '6.0.0', latest: '6.0.0' }),
+      versionInfo: makeVersionInfo({ detected: '6.30.0', latest: '6.30.0' }),
     });
 
-    const result = computeStandardCompliance(checks, payload);
+    const result = computeStandardCompliance(payload);
 
     expect(result.compliant).toBe(true);
   });

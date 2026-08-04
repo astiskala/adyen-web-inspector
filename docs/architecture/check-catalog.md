@@ -1,6 +1,6 @@
 # Check Catalog
 
-Last validated: 2026-03-26
+Last validated: 2026-08-04
 
 This catalog is the documentation source of truth for checks registered in:
 
@@ -12,14 +12,24 @@ This catalog is the documentation source of truth for checks registered in:
 | Category            | Check count | Source modules                         |
 | ------------------- | ----------: | -------------------------------------- |
 | `sdk-identity`      |           7 | `sdk-identity.ts`, `styling.ts`        |
-| `version-lifecycle` |           4 | `sdk-version.ts`, `v6-deprecations.ts` |
+| `version-lifecycle` |           5 | `sdk-version.ts`, `v6-deprecations.ts` |
 | `environment`       |           5 | `environment.ts`                       |
 | `auth`              |           3 | `auth.ts`                              |
 | `callbacks`         |          11 | `callbacks.ts`                         |
 | `risk`              |           2 | `risk-module.ts`                       |
 | `security`          |          14 | `security.ts`, `security-csp.ts`       |
 | `third-party`       |           4 | `third-party-scripts.ts`               |
-| **Total**           |      **50** | `ALL_CHECKS`                           |
+| **Total**           |      **51** | `ALL_CHECKS`                           |
+
+## Adyen Uplift Scope
+
+The inspector assesses only browser-visible Uplift signals. It does not claim to verify server-side
+or account-side requirements such as Checkout API request fields, webhooks, tokenization, 3D Secure
+configuration, payment method ordering, or Customer Area settings.
+
+Automated browser signals cover the co-badged card SDK minimum
+(`uplift-cobadged-version`) and fraud data collection activity
+(`risk-df-iframe`, `risk-module-not-disabled`).
 
 ## Severity Model
 
@@ -63,11 +73,12 @@ Current manual-review notice checks:
 | `sdk-identity`      | `sdk-multi-init`                           | Warn if `AdyenCheckout` is initialised multiple times.                                                                                       | `pass`, `warn`, `skip`           |
 | `version-lifecycle` | `version-detected`                         | Verify the inspector can determine the running `adyen-web` version.                                                                          | `info`, `warn`                   |
 | `version-lifecycle` | `version-latest`                           | Compare detected version with latest npm version and classify version drift; patch drift is a low-impact notice.                             | `pass`, `notice`, `warn`, `skip` |
+| `version-lifecycle` | `uplift-cobadged-version`                  | Verify Web Drop-in/Components meets the Adyen Uplift v6.16.0 minimum for co-badged card support.                                             | `pass`, `fail`, `skip`           |
 | `environment`       | `env-cdn-mismatch`                         | Ensure CDN asset environment matches configured environment.                                                                                 | `pass`, `fail`, `skip`           |
 | `environment`       | `env-region-mismatch`                      | Ensure CDN asset region matches configured region.                                                                                           | `pass`, `warn`, `skip`           |
 | `environment`       | `env-region`                               | Determine region from config/network evidence (or unknown/test skip).                                                                        | `info`, `skip`                   |
 | `environment`       | `env-key-mismatch`                         | Ensure client key prefix environment aligns with observed API environment.                                                                   | `pass`, `fail`, `skip`           |
-| `environment`       | `env-not-iframe`                           | Warn if checkout is embedded inside an iframe.                                                                                               | `pass`, `warn`                   |
+| `environment`       | `env-not-iframe`                           | Warn if all-frame extraction finds checkout embedded inside an iframe.                                                                       | `pass`, `warn`                   |
 | `auth`              | `auth-client-key`                          | Detect deprecated origin keys (`pub.v2.`) and enforce client-key usage.                                                                      | `pass`, `warn`, `skip`           |
 | `auth`              | `auth-country-code`                        | Ensure `countryCode` is set in checkout config.                                                                                              | `pass`, `fail`, `skip`           |
 | `auth`              | `auth-locale`                              | Validate `locale` is set and supported by Adyen Web translations.                                                                            | `pass`, `warn`, `skip`           |
@@ -81,9 +92,9 @@ Current manual-review notice checks:
 | `callbacks`         | `callback-before-submit`                   | Detect optional `beforeSubmit` callback presence for custom pay-button setups.                                                               | `pass`, `info`, `skip`           |
 | `callbacks`         | `callback-actions-pattern`                 | Detect v6 `actions.resolve/reject` vs legacy v5 callback style in `onSubmit`.                                                                | `pass`, `warn`, `info`, `skip`   |
 | `callbacks`         | `callback-multiple-submissions`            | Heuristically verify that `onSubmit` or `beforeSubmit` handling appears to prevent multiple submissions.                                     | `pass`, `notice`, `skip`         |
-| `callbacks`         | `callback-custom-pay-button-compatibility` | Detect custom pay button indicators with unsupported payment methods (PayPal, Klarna).                                                       | `pass`, `warn`, `skip`           |
-| `risk`              | `risk-df-iframe`                           | Detect Adyen risk device-fingerprint iframe/activity.                                                                                        | `pass`, `warn`                   |
-| `risk`              | `risk-module-not-disabled`                 | Ensure `riskEnabled` is not explicitly set to `false`.                                                                                       | `pass`, `warn`, `skip`           |
+| `callbacks`         | `callback-custom-pay-button-compatibility` | Detect custom pay button indicators with unsupported payment methods (PayPal, Klarna, Click to Pay).                                         | `pass`, `warn`, `skip`           |
+| `risk`              | `risk-df-iframe`                           | Detect Adyen risk device-fingerprint iframe/activity when checkout is active.                                                                | `pass`, `warn`, `skip`           |
+| `risk`              | `risk-module-not-disabled`                 | Ensure browser risk data collection is not explicitly disabled with `risk.enabled` or legacy `riskEnabled`.                                  | `pass`, `warn`, `skip`           |
 | `security`          | `security-https`                           | Enforce HTTPS on live environments.                                                                                                          | `pass`, `fail`, `skip`           |
 | `security`          | `security-sri-script`                      | Ensure Adyen script tags include SRI attributes (`integrity`, `crossorigin`).                                                                | `pass`, `fail`, `skip`           |
 | `security`          | `security-sri-css`                         | Ensure Adyen stylesheet links include SRI attributes.                                                                                        | `pass`, `warn`, `skip`           |

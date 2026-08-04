@@ -28,6 +28,8 @@ type GlobalWithAdyen = typeof globalThis & {
   __adyenWebInspectorCapturedInferredConfig?: CheckoutConfig;
   /** Published by config-interceptor.ts (MAIN-world, document_start). */
   __adyenWebInspectorCheckoutInitCount?: number;
+  /** Published by this script for retrieval after all-frame file injection. */
+  __adyenWebInspectorPageExtractResultJson?: string;
 };
 
 interface ElementWithVnode extends Element {
@@ -412,5 +414,7 @@ function extract(): PageExtractResult {
   };
 }
 
-// This function is injected by executeScript — it must be self-contained and return a value.
-extract();
+// This function is injected by executeScript and must be self-contained.
+const pageExtractResult = extract();
+(globalThis as GlobalWithAdyen).__adyenWebInspectorPageExtractResultJson =
+  JSON.stringify(pageExtractResult);

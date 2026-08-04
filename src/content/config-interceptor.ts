@@ -81,10 +81,19 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
   }
 
   function copyRiskFields(source: PlainRecord, target: PlainRecord): void {
-    const risk = source['riskEnabled'];
-    if (typeof risk === 'boolean') {
-      target['riskEnabled'] = risk;
-    } else if (typeof risk === 'function') {
+    const riskConfig = source['risk'];
+    if (typeof riskConfig === 'object' && riskConfig !== null) {
+      const enabled = (riskConfig as PlainRecord)['enabled'];
+      if (typeof enabled === 'boolean') {
+        target['riskEnabled'] = enabled;
+        return;
+      }
+    }
+
+    const legacyRisk = source['riskEnabled'];
+    if (typeof legacyRisk === 'boolean') {
+      target['riskEnabled'] = legacyRisk;
+    } else if (typeof legacyRisk === 'function') {
       target['riskEnabled'] = true;
     }
   }

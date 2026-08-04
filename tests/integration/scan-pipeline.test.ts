@@ -31,7 +31,7 @@ function runPipeline(payload: ScanPayload): {
 } {
   const checks = ALL_CHECKS.map((check) => check.run(payload));
   const health = calculateHealthScore(checks);
-  const compliance = computeStandardCompliance(checks, payload);
+  const compliance = computeStandardCompliance(payload);
   return { checks, health, compliance };
 }
 
@@ -96,7 +96,7 @@ function makeGoodPayload(): ScanPayload {
     pageUrl: 'https://merchant.com/checkout',
     page: makePageExtract({
       adyenMetadata: makeAdyenMetadata({
-        version: '6.5.0',
+        version: '6.30.0',
         bundleType: 'esm',
         variants: ['dropin'],
       }),
@@ -117,14 +117,14 @@ function makeGoodPayload(): ScanPayload {
       pageProtocol: 'https:',
       scripts: [
         {
-          src: 'https://checkoutshopper-live.adyen.com/checkoutshopper/sdk/6.5.0/adyen.js',
+          src: 'https://checkoutshopper-live.adyen.com/checkoutshopper/sdk/6.30.0/adyen.js',
           integrity: 'sha384-abc123',
           crossorigin: 'anonymous',
         },
       ],
       links: [
         {
-          href: 'https://checkoutshopper-live.adyen.com/checkoutshopper/sdk/6.5.0/adyen.css',
+          href: 'https://checkoutshopper-live.adyen.com/checkoutshopper/sdk/6.30.0/adyen.css',
           rel: 'stylesheet',
           integrity: 'sha384-def456',
           crossorigin: 'anonymous',
@@ -139,15 +139,15 @@ function makeGoodPayload(): ScanPayload {
       makeHeader('referrer-policy', 'strict-origin-when-cross-origin'),
     ],
     capturedRequests: [
-      makeRequest('https://checkoutshopper-live.adyen.com/checkoutshopper/sdk/6.5.0/adyen.js', {
+      makeRequest('https://checkoutshopper-live.adyen.com/checkoutshopper/sdk/6.30.0/adyen.js', {
         type: 'script',
         statusCode: 200,
       }),
     ],
-    versionInfo: makeVersionInfo({ detected: '6.5.0', latest: '6.5.0' }),
+    versionInfo: makeVersionInfo({ detected: '6.30.0', latest: '6.30.0' }),
     analyticsData: {
       flavor: 'dropin',
-      version: '6.5.0',
+      version: '6.30.0',
       buildType: 'esm',
     },
   });
@@ -161,7 +161,7 @@ describe('Well-configured integration', () => {
     expect(health.failing).toBe(0);
   });
 
-  it('achieves standard compliance with sessions + dropin + latest', () => {
+  it('meets Standard Drop-in frontend criteria', () => {
     const { compliance } = runPipeline(makeGoodPayload());
 
     expect(compliance.compliant).toBe(true);
@@ -203,7 +203,7 @@ describe('Misconfigured integration', () => {
     expect(health.tier).toBe('critical');
   });
 
-  it('produces non-compliance for advanced flow without dropin', () => {
+  it('does not meet Standard Drop-in criteria for advanced Components', () => {
     const payload = makeAdyenPayload(
       { variants: ['card'] },
       { onSubmit: 'checkout', hasSession: false },

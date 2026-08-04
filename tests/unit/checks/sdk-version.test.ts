@@ -5,6 +5,7 @@ import { requireCheck } from './requireCheck';
 
 const versionDetected = requireCheck(SDK_VERSION_CHECKS, 'version-detected');
 const versionLatest = requireCheck(SDK_VERSION_CHECKS, 'version-latest');
+const upliftCobadgedVersion = requireCheck(SDK_VERSION_CHECKS, 'uplift-cobadged-version');
 
 describe('version-detected', () => {
   it('returns info when version is detected', () => {
@@ -61,5 +62,37 @@ describe('version-latest', () => {
       versionInfo: makeVersionInfo({ detected: '5.67.0', latest: null }),
     });
     expect(versionLatest.run(payload).severity).toBe('skip');
+  });
+});
+
+describe('uplift-cobadged-version', () => {
+  it('passes at the minimum supported version', () => {
+    const payload = makeScanPayload({
+      versionInfo: makeVersionInfo({ detected: '6.16.0' }),
+    });
+    expect(upliftCobadgedVersion.run(payload).severity).toBe('pass');
+  });
+
+  it('passes above the minimum supported version', () => {
+    const payload = makeScanPayload({
+      versionInfo: makeVersionInfo({ detected: '6.30.0' }),
+    });
+    expect(upliftCobadgedVersion.run(payload).severity).toBe('pass');
+  });
+
+  it('fails below the minimum supported version', () => {
+    const payload = makeScanPayload({
+      versionInfo: makeVersionInfo({ detected: '6.15.9' }),
+    });
+    const result = upliftCobadgedVersion.run(payload);
+    expect(result.severity).toBe('fail');
+    expect(result.docsUrl).toBe('https://docs.adyen.com/uplift/uplift-requirements/');
+  });
+
+  it('skips when the SDK version cannot be detected', () => {
+    const payload = makeScanPayload({
+      versionInfo: makeVersionInfo({ detected: null }),
+    });
+    expect(upliftCobadgedVersion.run(payload).severity).toBe('skip');
   });
 });

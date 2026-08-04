@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { RISK_CHECKS } from '../../../src/background/checks/risk-module';
 import {
+  makeAdyenPayload,
   makeScanPayload,
   makePageExtract,
   makeCheckoutConfig,
@@ -22,10 +23,15 @@ describe('risk-df-iframe', () => {
   });
 
   it('warns when dfIframe is absent', () => {
+    const payload = makeAdyenPayload();
+    expect(riskIframe.run(payload).severity).toBe('warn');
+  });
+
+  it('skips when no active Adyen checkout is detected', () => {
     const payload = makeScanPayload({
       page: makePageExtract({ iframes: [] }),
     });
-    expect(riskIframe.run(payload).severity).toBe('warn');
+    expect(riskIframe.run(payload).severity).toBe('skip');
   });
 });
 

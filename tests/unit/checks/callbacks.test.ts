@@ -344,7 +344,8 @@ describe('callback-on-payment-completed', () => {
     const result = onPaymentCompleted.run(payload);
     expect(result.severity).toBe('fail');
     expect(result.docsUrl).toBe(SESSIONS_COMPONENTS_CALLBACK_DOC);
-    expect(result.detail).toContain('primary handler');
+    expect(result.detail).toContain('shopper-facing UI');
+    expect(result.detail).toContain('webhooks');
   });
 
   it('warns for advanced flow when missing', () => {
@@ -352,7 +353,8 @@ describe('callback-on-payment-completed', () => {
     const result = onPaymentCompleted.run(payload);
     expect(result.severity).toBe('warn');
     expect(result.docsUrl).toBe(ADVANCED_COMPONENTS_CALLBACK_DOC);
-    expect(result.detail).toContain('confirmation and fulfillment');
+    expect(result.detail).toContain('confirmation or next-step UI');
+    expect(result.detail).toContain('webhooks');
   });
 
   it('warns when advanced flow is inferred from config (no network)', () => {
@@ -658,15 +660,25 @@ describe('callback-custom-pay-button-compatibility', () => {
     expect(result.title).toContain('paypal');
   });
 
-  it('warns when custom button used with Apple Pay detected in analytics', () => {
+  it('passes when custom button is used with Apple Pay', () => {
     const payload = makeAdyenPayload(
       {},
       { beforeSubmit: 'checkout' },
       { analyticsData: makeAnalyticsData({ variants: ['applepay'] }) }
     );
     const result = customPayButtonCompat.run(payload);
+    expect(result.severity).toBe('pass');
+  });
+
+  it('warns when custom button used with Click to Pay detected in analytics', () => {
+    const payload = makeAdyenPayload(
+      {},
+      { beforeSubmit: 'checkout' },
+      { analyticsData: makeAnalyticsData({ variants: ['clicktopay'] }) }
+    );
+    const result = customPayButtonCompat.run(payload);
     expect(result.severity).toBe('warn');
-    expect(result.title).toContain('applepay');
+    expect(result.title).toContain('clicktopay');
   });
 
   it('skips when combined source is empty', () => {

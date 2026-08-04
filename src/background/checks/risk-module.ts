@@ -3,6 +3,7 @@
  */
 
 import { DF_IFRAME_NAME, DF_IFRAME_URL_PATTERN } from '../../shared/constants.js';
+import { hasCheckoutActivity } from '../../shared/implementation-attributes.js';
 import { SKIP_REASONS } from './constants.js';
 import { createRegistry } from './registry.js';
 
@@ -21,16 +22,20 @@ const STRINGS = {
   DF_IFRAME_WARN_URL: RISK_MANAGEMENT_URL,
   MODULE_SKIP_TITLE: 'Risk module setting check skipped.',
   MODULE_PASS_TITLE: 'Risk module is enabled.',
-  MODULE_WARN_TITLE: 'Risk module is explicitly disabled (riskEnabled: false).',
+  MODULE_WARN_TITLE: 'Risk data collection is explicitly disabled.',
   MODULE_WARN_DETAIL:
-    'Disabling the Adyen risk module removes fraud detection entirely, increasing chargeback exposure.',
+    "Disabling browser data collection removes device signals used by Adyen's risk engine and can reduce fraud detection effectiveness.",
   MODULE_WARN_REMEDIATION:
-    "Remove the riskEnabled: false setting from your AdyenCheckout configuration, or replace it with a fully tested alternative fraud and risk management solution. Disabling the risk module eliminates Adyen's device fingerprinting signals entirely and increases your exposure to fraudulent transactions and chargebacks.",
+    'Remove risk.enabled: false (or legacy riskEnabled: false) from your AdyenCheckout configuration unless you have intentionally disabled browser data collection after assessing the fraud-detection impact.',
   MODULE_WARN_URL: RISK_MANAGEMENT_URL,
 } as const;
 
 export const RISK_CHECKS = createRegistry(CATEGORY)
-  .add('risk-df-iframe', (payload, { pass, warn }) => {
+  .add('risk-df-iframe', (payload, { pass, skip, warn }) => {
+    if (!hasCheckoutActivity(payload)) {
+      return skip('Device fingerprint check skipped.', 'No active Adyen checkout detected.');
+    }
+
     const { page, capturedRequests } = payload;
     const hasDfIframe =
       page.iframes.some((f) => f.name === DF_IFRAME_NAME) ||

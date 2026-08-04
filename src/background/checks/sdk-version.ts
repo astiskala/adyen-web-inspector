@@ -3,6 +3,8 @@ import { createRegistry } from './registry.js';
 
 const RELEASE_NOTES_URL = 'https://docs.adyen.com/online-payments/release-notes/';
 const UPGRADE_URL = 'https://docs.adyen.com/online-payments/upgrade-your-integration/';
+const UPLIFT_REQUIREMENTS_URL = 'https://docs.adyen.com/uplift/uplift-requirements/';
+const UPLIFT_COBADGED_MINIMUM_VERSION = '6.16.0';
 
 const STRINGS = {
   VERSION_SKIP_TITLE: 'Version comparison skipped.',
@@ -35,6 +37,16 @@ const STRINGS = {
   MAJOR_BEHIND_WARN_REMEDIATION:
     'Update your adyen-web package to the latest major version. Major releases may include breaking changes. Review the release notes and migration guide before upgrading in a staging environment.',
   MAJOR_BEHIND_WARN_URL: RELEASE_NOTES_URL,
+
+  UPLIFT_VERSION_SKIP_TITLE: 'Adyen Uplift co-badged card version check skipped.',
+  UPLIFT_VERSION_SKIP_REASON: 'Could not determine the current SDK version.',
+  UPLIFT_VERSION_PASS_TITLE: 'SDK version supports the Adyen Uplift co-badged card requirement.',
+  UPLIFT_VERSION_FAIL_TITLE:
+    'SDK version does not support the Adyen Uplift co-badged card requirement.',
+  UPLIFT_VERSION_FAIL_DETAIL:
+    'Adyen Uplift requires Web Drop-in or Components v6.16.0 or later to support co-badged cards.',
+  UPLIFT_VERSION_FAIL_REMEDIATION:
+    'Upgrade @adyen/adyen-web to v6.16.0 or later. Adyen recommends v6.18.1 or later for the documented co-badged card capability.',
 } as const;
 
 const CATEGORY = 'version-lifecycle' as const;
@@ -99,5 +111,24 @@ export const SDK_VERSION_CHECKS = createRegistry(CATEGORY)
       STRINGS.MAJOR_BEHIND_WARN_REMEDIATION,
       STRINGS.MAJOR_BEHIND_WARN_URL
     );
+  })
+  .add('uplift-cobadged-version', (payload, { fail, pass, skip }) => {
+    const detected = parseVersion(payload.versionInfo.detected ?? '');
+    const minimum = parseVersion(UPLIFT_COBADGED_MINIMUM_VERSION);
+
+    if (detected === null || minimum === null) {
+      return skip(STRINGS.UPLIFT_VERSION_SKIP_TITLE, STRINGS.UPLIFT_VERSION_SKIP_REASON);
+    }
+
+    if (compareVersions(detected, minimum) < 0) {
+      return fail(
+        STRINGS.UPLIFT_VERSION_FAIL_TITLE,
+        STRINGS.UPLIFT_VERSION_FAIL_DETAIL,
+        STRINGS.UPLIFT_VERSION_FAIL_REMEDIATION,
+        UPLIFT_REQUIREMENTS_URL
+      );
+    }
+
+    return pass(STRINGS.UPLIFT_VERSION_PASS_TITLE);
   })
   .getChecks();

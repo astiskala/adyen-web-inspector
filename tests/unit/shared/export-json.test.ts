@@ -18,7 +18,10 @@ function makeResult(): ScanResult {
       total: 14,
       tier: 'issues',
     },
-    standardCompliance: { compliant: false, reasons: ['Not using the latest SDK version.'] },
+    standardCompliance: {
+      compliant: false,
+      reasons: ['Web Drop-in 6.30.0 or later is required.'],
+    },
     payload: makeScanPayload(),
   };
 }
