@@ -2,7 +2,15 @@
  * Smoke tests — verify the extension loads and the popup renders.
  */
 
+import type { Page } from '@playwright/test';
 import { test, expect } from './fixtures';
+
+const findIframeMerchantTabId = async (popupPage: Page): Promise<number | undefined> => {
+  return popupPage.evaluate(async () => {
+    const tabs = await chrome.tabs.query({});
+    return tabs.find((tab) => tab.url?.endsWith('/adyen-iframe-merchant.html') === true)?.id;
+  });
+};
 
 test.describe('Extension loading', () => {
   test('service worker starts successfully', async ({ extensionId }) => {
@@ -49,10 +57,7 @@ test.describe('Extension loading', () => {
     let tabId: number | undefined;
     await expect
       .poll(async () => {
-        tabId = await popupPage.evaluate(async () => {
-          const tabs = await chrome.tabs.query({});
-          return tabs.find((tab) => tab.url?.endsWith('/adyen-iframe-merchant.html') === true)?.id;
-        });
+        tabId = await findIframeMerchantTabId(popupPage);
         return tabId;
       })
       .not.toBeUndefined();
