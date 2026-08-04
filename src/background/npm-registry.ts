@@ -14,6 +14,20 @@ interface NpmLatestResponse {
   version: string;
 }
 
+function isNpmCacheEntry(value: unknown): value is NpmCacheEntry {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  const { version, fetchedAt } = value as Record<string, unknown>;
+  return (
+    typeof version === 'string' &&
+    version.length > 0 &&
+    typeof fetchedAt === 'number' &&
+    Number.isFinite(fetchedAt)
+  );
+}
+
 /**
  * Returns the latest published `@adyen/adyen-web` version.
  * Uses a 24-hour `chrome.storage.local` cache and returns `null` on failure.
@@ -43,11 +57,16 @@ export async function getLatestAdyenWebVersion(): Promise<string | null> {
 async function readCache(): Promise<NpmCacheEntry | null> {
   try {
     const result = await chrome.storage.local.get(STORAGE_NPM_CACHE_KEY);
-    const entry = result[STORAGE_NPM_CACHE_KEY] as NpmCacheEntry | undefined;
-    if (!entry) return null;
+    const entry = result[STORAGE_NPM_CACHE_KEY];
+    if (!isNpmCacheEntry(entry)) {
+      if (entry !== undefined) {
+        await chrome.storage.local.remove(STORAGE_NPM_CACHE_KEY);
+      }
+      return null;
+    }
 
     const age = Date.now() - entry.fetchedAt;
-    if (age > NPM_CACHE_TTL_MS) {
+    if (age < 0 || age > NPM_CACHE_TTL_MS) {
       await chrome.storage.local.remove(STORAGE_NPM_CACHE_KEY);
       return null;
     }

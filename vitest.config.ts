@@ -13,7 +13,12 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov', 'html'],
-      include: ['src/background/checks/**', 'src/background/payload-builder.ts', 'src/shared/**'],
+      include: [
+        'src/background/checks/**',
+        'src/background/npm-registry.ts',
+        'src/background/payload-builder.ts',
+        'src/shared/**',
+      ],
       exclude: ['src/shared/export-pdf.ts', 'src/shared/types.ts', 'src/shared/base.css'],
       thresholds: {
         'src/background/checks/**': {
@@ -33,6 +38,12 @@ export default defineConfig({
           functions: 90,
           branches: 85,
           statements: 90,
+        },
+        'src/background/npm-registry.ts': {
+          lines: 95,
+          functions: 95,
+          branches: 90,
+          statements: 95,
         },
       },
     },
