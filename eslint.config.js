@@ -1,6 +1,6 @@
 import { defineConfig } from 'eslint/config';
 import gts from 'gts';
-import importX from 'eslint-plugin-import-x';
+import importX, { createNodeResolver } from 'eslint-plugin-import-x';
 import jsdoc from 'eslint-plugin-jsdoc';
 import react from 'eslint-plugin-react';
 import regexp from 'eslint-plugin-regexp';
@@ -42,6 +42,11 @@ export default defineConfig([
       security,
       sonarjs,
       unicorn,
+    },
+    settings: {
+      // Use the modern resolver interface; the legacy auto-detected `node`
+      // resolver fails to load under ESLint 10's jiti config loader.
+      'import-x/resolver-next': [createNodeResolver()],
     },
     rules: {
       // TypeScript safety

@@ -28,6 +28,5 @@
     "catalog"
   ],
   "includeEntryExports": true,
-  "treatConfigHintsAsErrors": true,
-  "ignoreDependencies": ["@types/chrome"]
+  "treatConfigHintsAsErrors": true
 }

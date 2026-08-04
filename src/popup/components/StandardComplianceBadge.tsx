@@ -4,14 +4,13 @@ import styles from './StandardComplianceBadge.module.css';
 
 const s = (key: string): string => styles[key] ?? '';
 
-const STANDARD_INTEGRATION_DOCS_URL =
-  'https://docs.adyen.com/online-payments/build-your-integration';
+const STANDARD_PAYMENTS_INTEGRATION_DOCS_URL = 'https://docs.adyen.com/standard';
 
 interface Props {
   readonly compliance: StandardCompliance;
 }
 
-/** Displays the standard integration compliance status with pass/fail indicator. */
+/** Displays the standard payments integration compliance status with pass/fail indicator. */
 export function StandardComplianceBadge({ compliance }: Props): JSX.Element {
   const { compliant, reasons } = compliance;
 
@@ -22,7 +21,9 @@ export function StandardComplianceBadge({ compliance }: Props): JSX.Element {
           {compliant ? '\u2713' : '\u2717'}
         </span>
         <span class={s('title')}>
-          {compliant ? 'Standard Integration Compliant' : 'Not Standard Integration Compliant'}
+          {compliant
+            ? 'Standard Payments Integration Compliant'
+            : 'Not Standard Payments Integration Compliant'}
         </span>
       </div>
       {!compliant && reasons.length > 0 && (
@@ -35,9 +36,9 @@ export function StandardComplianceBadge({ compliance }: Props): JSX.Element {
         </ul>
       )}
       <div class={s('caveat')}>
-        Note: Not all aspects of a standard integration can be assessed from the frontend. For a
-        comprehensive review, see the{' '}
-        <a href={STANDARD_INTEGRATION_DOCS_URL} target="_blank" rel="noopener noreferrer">
+        Note: Not all aspects of a standard payments integration can be assessed from the frontend.
+        For a comprehensive review, see the{' '}
+        <a href={STANDARD_PAYMENTS_INTEGRATION_DOCS_URL} target="_blank" rel="noopener noreferrer">
           documentation
         </a>
         {'.'}

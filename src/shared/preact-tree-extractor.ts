@@ -115,7 +115,7 @@ export function extractFieldsFromOptions(options: unknown): CheckoutConfig {
   extractCallbacks(o, config);
   extractSources(o, config);
 
-  return config as CheckoutConfig;
+  return config;
 }
 
 function extractCallbacks(o: OptionsObject, config: Record<string, unknown>): void {
@@ -168,5 +168,5 @@ export function mergeConfigs(base: CheckoutConfig, extra: CheckoutConfig): Check
       merged[key] = value;
     }
   }
-  return merged as CheckoutConfig;
+  return merged;
 }

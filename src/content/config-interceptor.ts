@@ -162,7 +162,7 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
       }
     }
 
-    return Object.keys(c).length > 0 ? (c as Partial<CheckoutConfig>) : null;
+    return Object.keys(c).length > 0 ? c : null;
   }
 
   // ---------------------------------------------------------------------------
@@ -192,7 +192,7 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
     }
 
     try {
-      (globalThis as PlainRecord)[CAPTURED_CONFIG_KEY] = structuredClone(captured) as PlainRecord;
+      (globalThis as PlainRecord)[CAPTURED_CONFIG_KEY] = structuredClone(captured);
     } catch {
       /* ignore */
     }
@@ -210,9 +210,7 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
     }
 
     try {
-      (globalThis as PlainRecord)[CAPTURED_INFERRED_CONFIG_KEY] = structuredClone(
-        inferred
-      ) as PlainRecord;
+      (globalThis as PlainRecord)[CAPTURED_INFERRED_CONFIG_KEY] = structuredClone(inferred);
     } catch {
       /* ignore */
     }

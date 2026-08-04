@@ -104,7 +104,7 @@ export const THIRD_PARTY_CHECKS = createRegistry(CATEGORY)
       {
         patterns: SESSION_REPLAY_PATTERNS,
         detectedTitlePrefix: 'Session replay tool detected',
-        detectionSeverity: 'fail',
+        detectionSeverity: 'warn',
         detail:
           'Session replay tools record DOM state including payment form fields, risking exposure of sensitive payment data. All scripts on the payment page must be inventoried and authorized per PCI DSS requirement 6.4.3.',
         remediation:

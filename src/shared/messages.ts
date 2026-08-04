@@ -36,24 +36,24 @@ interface ScanRequestMessage {
   readonly source?: ScanRequestSource;
 }
 
-export interface ScanCompleteMessage {
+interface ScanCompleteMessage {
   readonly type: typeof MSG_SCAN_COMPLETE;
   readonly tabId: number;
   readonly result: ScanResult;
 }
 
-export interface ScanStartedMessage {
+interface ScanStartedMessage {
   readonly type: typeof MSG_SCAN_STARTED;
   readonly tabId: number;
 }
 
-export interface ScanErrorMessage {
+interface ScanErrorMessage {
   readonly type: typeof MSG_SCAN_ERROR;
   readonly tabId: number;
   readonly error: string;
 }
 
-export interface ScanResetMessage {
+interface ScanResetMessage {
   readonly type: typeof MSG_SCAN_RESET;
   readonly tabId: number;
 }
@@ -69,13 +69,10 @@ interface GetResultMessage {
 export type ContentToBswMessage = AdyenDetectedMessage | AdyenNotDetectedMessage;
 
 /** Messages sent from popup/devtools to background service worker */
-export type UiToBswMessage = ScanRequestMessage | GetResultMessage;
+type UiToBswMessage = ScanRequestMessage | GetResultMessage;
 
 /** Messages sent from background service worker to popup/devtools */
 export type BswToUiMessage =
-  | ScanStartedMessage
-  | ScanCompleteMessage
-  | ScanErrorMessage
-  | ScanResetMessage;
+  ScanStartedMessage | ScanCompleteMessage | ScanErrorMessage | ScanResetMessage;
 
 export type ExtensionMessage = ContentToBswMessage | UiToBswMessage | BswToUiMessage;

@@ -9,14 +9,12 @@ type CheckoutFactory = (config: unknown) => Promise<unknown>;
 
 function getCapturedConfig(): CapturedConfig | undefined {
   return (globalThis as unknown as Record<string, unknown>)[CONFIG_KEY] as
-    | CapturedConfig
-    | undefined;
+    CapturedConfig | undefined;
 }
 
 function getCapturedInferredConfig(): CapturedConfig | undefined {
   return (globalThis as unknown as Record<string, unknown>)[INFERRED_CONFIG_KEY] as
-    | CapturedConfig
-    | undefined;
+    CapturedConfig | undefined;
 }
 
 function resetGlobals(): void {
@@ -34,7 +32,7 @@ function resetGlobals(): void {
 
 async function loadInterceptor(): Promise<void> {
   vi.resetModules();
-  globalThis.fetch = vi.fn().mockResolvedValue({} as Response);
+  globalThis.fetch = vi.fn().mockResolvedValue({});
 
   // Create a proper XHR mock
   const openMock = vi.fn();

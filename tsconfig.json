@@ -20,9 +20,9 @@
     "noPropertyAccessFromIndexSignature": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
-    "baseUrl": ".",
+    "types": ["chrome"],
     "paths": {
-      "~shared/*": ["src/shared/*"]
+      "~shared/*": ["./src/shared/*"]
     }
   },
   "include": [

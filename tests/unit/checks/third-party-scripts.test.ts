@@ -43,20 +43,20 @@ describe('3p-session-replay', () => {
     expect(sessionReplay.run(payload).severity).toBe('pass');
   });
 
-  it('fails when FullStory is detected', () => {
+  it('warns when FullStory is detected', () => {
     const payload = makeScanPayload({
       page: makeScriptPage(['https://edge.fullstory.com/s/fs.js']),
     });
     const result = sessionReplay.run(payload);
-    expect(result.severity).toBe('fail');
+    expect(result.severity).toBe('warn');
     expect(result.title).toContain('FullStory');
   });
 
-  it('fails when Hotjar is detected', () => {
+  it('warns when Hotjar is detected', () => {
     const payload = makeScanPayload({
       page: makeScriptPage(['https://static.hotjar.com/c/hotjar.js']),
     });
-    expect(sessionReplay.run(payload).severity).toBe('fail');
+    expect(sessionReplay.run(payload).severity).toBe('warn');
   });
 });
 

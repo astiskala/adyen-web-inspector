@@ -58,7 +58,7 @@ export function makeCheckoutConfig(overrides: CheckoutConfigOverrides = {}): Che
   const withoutUndefined = Object.fromEntries(
     Object.entries(merged).filter((entry) => entry[1] !== undefined)
   );
-  return withoutUndefined as CheckoutConfig;
+  return withoutUndefined;
 }
 
 /**

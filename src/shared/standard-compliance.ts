@@ -1,13 +1,13 @@
 /**
- * Standard Integration Compliance — derives a binary compliance status
- * from check results and scan payload signals.
+ * Standard Payments Integration Compliance — derives a binary compliance
+ * status from check results and scan payload signals.
  */
 
 import type { CheckResult, ScanPayload, StandardCompliance } from './types.js';
 import { detectIntegrationFlow, resolveIntegrationFlavor } from './implementation-attributes.js';
 
 /**
- * Computes whether the integration meets the Adyen standard integration criteria:
+ * Computes whether the integration meets the Adyen standard payments integration criteria:
  * 1. Running the exact latest SDK version
  * 2. Using Sessions flow
  * 3. Using Drop-in

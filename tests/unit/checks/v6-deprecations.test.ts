@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { V6_DEPRECATION_CHECKS } from '../../../src/background/checks/v6-deprecations';
-import type { ScanPayload, CheckoutConfig } from '../../../src/shared/types';
+import type { ScanPayload } from '../../../src/shared/types';
 import {
   makeAdyenPayload,
   makePageExtract,
@@ -22,7 +22,7 @@ function noConfigPayload(): ScanPayload {
 function emptyConfigPayload(): ScanPayload {
   return makeScanPayload({
     page: makePageExtract({
-      checkoutConfig: {} as CheckoutConfig,
+      checkoutConfig: {},
     }),
   });
 }

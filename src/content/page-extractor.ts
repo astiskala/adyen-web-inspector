@@ -168,7 +168,7 @@ function findAllVnodeRoots(): ElementWithVnode[] {
     scanned++;
 
     if (isVnodeRoot(el)) {
-      roots.push(el as ElementWithVnode);
+      roots.push(el);
     }
 
     if (el.shadowRoot !== null) {
