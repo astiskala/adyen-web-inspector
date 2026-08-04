@@ -58,7 +58,7 @@ pnpm validate
 ```
 
 `pnpm lint` runs ESLint for TypeScript files and markdownlint for Markdown files.
-`pnpm validate` runs the local quality gate: typecheck, lint, format check, dependency-cruiser, knip, and unit tests. CI also runs coverage, build, and E2E tests.
+`pnpm validate` runs the local quality gate: typecheck, lint, format check, dependency-cruiser, knip, unit coverage, and integration tests. CI also runs build and E2E tests.
 Contributor workflow and coding conventions: [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## Architecture

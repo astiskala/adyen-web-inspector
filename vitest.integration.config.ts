@@ -7,6 +7,7 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
+    allowOnly: false,
     include: ['tests/integration/**/*.test.ts'],
   },
   resolve: {

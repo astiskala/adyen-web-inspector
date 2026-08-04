@@ -7,12 +7,13 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
+    allowOnly: false,
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'tests/unit/**/*.test.ts'],
     exclude: ['tests/e2e/**', 'node_modules/**', 'dist/**'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov', 'html'],
-      include: ['src/background/checks/**', 'src/shared/**'],
+      include: ['src/background/checks/**', 'src/background/payload-builder.ts', 'src/shared/**'],
       exclude: ['src/shared/export-pdf.ts', 'src/shared/types.ts', 'src/shared/base.css'],
       thresholds: {
         'src/background/checks/**': {
@@ -26,6 +27,12 @@ export default defineConfig({
           functions: 80,
           branches: 70,
           statements: 80,
+        },
+        'src/background/payload-builder.ts': {
+          lines: 90,
+          functions: 90,
+          branches: 85,
+          statements: 90,
         },
       },
     },

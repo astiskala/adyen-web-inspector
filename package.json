@@ -33,7 +33,7 @@
     "test:e2e": "pnpm build && playwright test",
     "depcruise": "depcruise src --config .dependency-cruiser.cjs",
     "knip": "knip",
-    "validate": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm depcruise && pnpm knip && pnpm test:coverage",
+    "validate": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm depcruise && pnpm knip && pnpm test:coverage && pnpm test:integration",
     "prepare": "husky"
   },
   "dependencies": {

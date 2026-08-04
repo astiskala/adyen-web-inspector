@@ -164,6 +164,11 @@ export default defineConfig([
           message:
             'Avoid String() constructor. Use template literals for coercion, or explicit type guards for errors.',
         },
+        {
+          selector:
+            'CallExpression[callee.object.name=/^(it|test|describe)$/][callee.property.name="only"]',
+          message: 'Focused tests must not be committed. Remove .only before merging.',
+        },
       ],
       'no-restricted-imports': [
         'error',

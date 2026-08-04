@@ -44,7 +44,7 @@ Load the `dist/` folder as an unpacked extension in `chrome://extensions` (Devel
 pnpm validate
 ```
 
-This runs (in order): `typecheck` → `lint` → `format:check` → `depcruise` → `knip` → `test`.
+This runs (in order): `typecheck` → `lint` → `format:check` → `depcruise` → `knip` → `test:coverage` → `test:integration`.
 `lint` includes TypeScript linting and Markdown linting.
 
 ### 4. Commit
