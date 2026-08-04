@@ -46,10 +46,16 @@ test.describe('Extension loading', () => {
     const popupPage = await context.newPage();
     await popupPage.goto(`chrome-extension://${extensionId}/popup/index.html`);
 
-    const tabId = await popupPage.evaluate(async () => {
-      const tabs = await chrome.tabs.query({});
-      return tabs.find((tab) => tab.url?.endsWith('/adyen-iframe-merchant.html') === true)?.id;
-    });
+    let tabId: number | undefined;
+    await expect
+      .poll(async () => {
+        tabId = await popupPage.evaluate(async () => {
+          const tabs = await chrome.tabs.query({});
+          return tabs.find((tab) => tab.url?.endsWith('/adyen-iframe-merchant.html') === true)?.id;
+        });
+        return tabId;
+      })
+      .not.toBeUndefined();
     if (tabId === undefined) {
       throw new Error('Embedded checkout fixture tab not found.');
     }
