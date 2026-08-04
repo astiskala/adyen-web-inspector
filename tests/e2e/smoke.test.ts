@@ -5,10 +5,13 @@
 import type { Page } from '@playwright/test';
 import { test, expect } from './fixtures';
 
-const findIframeMerchantTabId = async (popupPage: Page): Promise<number | undefined> => {
+const findActiveTabId = async (popupPage: Page): Promise<number | undefined> => {
   return popupPage.evaluate(async () => {
-    const tabs = await chrome.tabs.query({});
-    return tabs.find((tab) => tab.url?.endsWith('/adyen-iframe-merchant.html') === true)?.id;
+    const [activeTab] = await chrome.tabs.query({
+      active: true,
+      lastFocusedWindow: true,
+    });
+    return activeTab?.id;
   });
 };
 
@@ -53,11 +56,12 @@ test.describe('Extension loading', () => {
 
     const popupPage = await context.newPage();
     await popupPage.goto(`chrome-extension://${extensionId}/popup/index.html`);
+    await page.bringToFront();
 
     let tabId: number | undefined;
     await expect
       .poll(async () => {
-        tabId = await findIframeMerchantTabId(popupPage);
+        tabId = await findActiveTabId(popupPage);
         return tabId;
       })
       .not.toBeUndefined();
