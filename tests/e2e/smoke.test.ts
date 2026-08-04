@@ -47,11 +47,8 @@ test.describe('Extension loading', () => {
     await popupPage.goto(`chrome-extension://${extensionId}/popup/index.html`);
 
     const tabId = await popupPage.evaluate(async () => {
-      const [activeTab] = await chrome.tabs.query({
-        active: true,
-        lastFocusedWindow: true,
-      });
-      return activeTab?.id;
+      const tabs = await chrome.tabs.query({});
+      return tabs.find((tab) => tab.url?.endsWith('/adyen-iframe-merchant.html') === true)?.id;
     });
     if (tabId === undefined) {
       throw new Error('Embedded checkout fixture tab not found.');
