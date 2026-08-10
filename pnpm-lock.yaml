@@ -4,18 +4,13 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-overrides:
-  tmp@<=0.2.3: '>=0.2.4'
-  minimatch@>=10.0.0 <10.2.3: '>=10.2.3'
-  typescript: ^6.0.3
-
 importers:
 
   .:
     dependencies:
       preact:
-        specifier: ^10.29.7
-        version: 10.29.7
+        specifier: ^10.29.8
+        version: 10.29.8
     devDependencies:
       '@commitlint/cli':
         specifier: ^20.5.3
@@ -28,7 +23,7 @@ importers:
         version: 1.61.1
       '@preact/preset-vite':
         specifier: ^2.10.5
-        version: 2.10.5(@babel/core@7.29.7(supports-color@7.2.0))(preact@10.29.7)(rollup@4.59.0)(supports-color@7.2.0)(vite@8.1.4(@types/node@25.3.0)(esbuild@0.27.3)(jiti@2.7.0)(yaml@2.9.0))
+        version: 2.10.5(@babel/core@7.29.7(supports-color@7.2.0))(preact@10.29.8)(rollup@4.59.0)(supports-color@7.2.0)(vite@8.1.4(@types/node@25.3.0)(esbuild@0.27.3)(jiti@2.7.0)(yaml@2.9.0))
       '@types/chrome':
         specifier: ^0.2.2
         version: 0.2.2
@@ -3211,8 +3206,8 @@ packages:
     resolution: {integrity: sha512-Mz8SaolMd8nB+G13WkORcxQKHZ/NE4xXevtkJHVuG+guo9/wYKlIMTKAqGdEmYOXR2ijPjTYNHssizdaVSUNdQ==}
     engines: {node: ^10 || ^12 || >=14}
 
-  preact@10.29.7:
-    resolution: {integrity: sha512-DCHYrK/B10yUD3ZjLfhZ3WIE/9Vf9VFUODcRE2dRomTYDpJk6z6L9wecSfhfE6M9ZTHUdyQkoC46arIDhEV84Q==}
+  preact@10.29.8:
+    resolution: {integrity: sha512-ej2aVZ+vZ8WO7tvlQWRM9N63A0KzF9q4mWJfDUHgYaIofWY9hu74QdnQrjoPMmZi2/nZ5gN0bJCQF49xQqx09Q==}
     peerDependencies:
       preact-render-to-string: '>=5'
     peerDependenciesMeta:
@@ -4681,12 +4676,12 @@ snapshots:
     dependencies:
       playwright: 1.61.1
 
-  '@preact/preset-vite@2.10.5(@babel/core@7.29.7(supports-color@7.2.0))(preact@10.29.7)(rollup@4.59.0)(supports-color@7.2.0)(vite@8.1.4(@types/node@25.3.0)(esbuild@0.27.3)(jiti@2.7.0)(yaml@2.9.0))':
+  '@preact/preset-vite@2.10.5(@babel/core@7.29.7(supports-color@7.2.0))(preact@10.29.8)(rollup@4.59.0)(supports-color@7.2.0)(vite@8.1.4(@types/node@25.3.0)(esbuild@0.27.3)(jiti@2.7.0)(yaml@2.9.0))':
     dependencies:
       '@babel/core': 7.29.7(supports-color@7.2.0)
       '@babel/plugin-transform-react-jsx': 7.29.7(@babel/core@7.29.7(supports-color@7.2.0))(supports-color@7.2.0)
       '@babel/plugin-transform-react-jsx-development': 7.29.7(@babel/core@7.29.7(supports-color@7.2.0))(supports-color@7.2.0)
-      '@prefresh/vite': 2.4.12(preact@10.29.7)(supports-color@7.2.0)(vite@8.1.4(@types/node@25.3.0)(esbuild@0.27.3)(jiti@2.7.0)(yaml@2.9.0))
+      '@prefresh/vite': 2.4.12(preact@10.29.8)(supports-color@7.2.0)(vite@8.1.4(@types/node@25.3.0)(esbuild@0.27.3)(jiti@2.7.0)(yaml@2.9.0))
       '@rollup/pluginutils': 5.4.0(rollup@4.59.0)
       babel-plugin-transform-hook-names: 1.0.2(@babel/core@7.29.7(supports-color@7.2.0))
       debug: 4.4.3(supports-color@7.2.0)
@@ -4702,20 +4697,20 @@ snapshots:
 
   '@prefresh/babel-plugin@0.5.3': {}
 
-  '@prefresh/core@1.5.10(preact@10.29.7)':
+  '@prefresh/core@1.5.10(preact@10.29.8)':
     dependencies:
-      preact: 10.29.7
+      preact: 10.29.8
 
   '@prefresh/utils@1.2.1': {}
 
-  '@prefresh/vite@2.4.12(preact@10.29.7)(supports-color@7.2.0)(vite@8.1.4(@types/node@25.3.0)(esbuild@0.27.3)(jiti@2.7.0)(yaml@2.9.0))':
+  '@prefresh/vite@2.4.12(preact@10.29.8)(supports-color@7.2.0)(vite@8.1.4(@types/node@25.3.0)(esbuild@0.27.3)(jiti@2.7.0)(yaml@2.9.0))':
     dependencies:
       '@babel/core': 7.29.7(supports-color@7.2.0)
       '@prefresh/babel-plugin': 0.5.3
-      '@prefresh/core': 1.5.10(preact@10.29.7)
+      '@prefresh/core': 1.5.10(preact@10.29.8)
       '@prefresh/utils': 1.2.1
       '@rollup/pluginutils': 4.2.1
-      preact: 10.29.7
+      preact: 10.29.8
       vite: 8.1.4(@types/node@25.3.0)(esbuild@0.27.3)(jiti@2.7.0)(yaml@2.9.0)
     transitivePeerDependencies:
       - supports-color
@@ -7301,7 +7296,7 @@ snapshots:
       picocolors: 1.1.1
       source-map-js: 1.2.1
 
-  preact@10.29.7: {}
+  preact@10.29.8: {}
 
   prelude-ls@1.2.1: {}
 
