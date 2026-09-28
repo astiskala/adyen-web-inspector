@@ -4,6 +4,10 @@
 
 import { DF_IFRAME_NAME, DF_IFRAME_URL_PATTERN } from '../../shared/constants.js';
 import { hasCheckoutActivity } from '../../shared/implementation-attributes.js';
+import {
+  hasVerifiedCheckoutConfig,
+  resolveCapturedCheckoutConfig,
+} from '../../shared/scan-evidence.js';
 import { SKIP_REASONS } from './constants.js';
 import { createRegistry } from './registry.js';
 
@@ -21,7 +25,7 @@ const STRINGS = {
     'Verify that the Adyen risk module is enabled and that your Content-Security-Policy allows the Adyen device fingerprinting iframe to load. Check that no browser extension or content blocker on the test device is preventing the iframe from being created.',
   DF_IFRAME_WARN_URL: RISK_MANAGEMENT_URL,
   MODULE_SKIP_TITLE: 'Risk module setting check skipped.',
-  MODULE_PASS_TITLE: 'Risk module is enabled.',
+  MODULE_PASS_TITLE: 'Risk data collection is not explicitly disabled in observed checkout config.',
   MODULE_WARN_TITLE: 'Risk data collection is explicitly disabled.',
   MODULE_WARN_DETAIL:
     "Disabling browser data collection removes device signals used by Adyen's risk engine and can reduce fraud detection effectiveness.",
@@ -31,43 +35,57 @@ const STRINGS = {
 } as const;
 
 export const RISK_CHECKS = createRegistry(CATEGORY)
-  .add('risk-df-iframe', (payload, { pass, skip, warn }) => {
-    if (!hasCheckoutActivity(payload)) {
-      return skip('Device fingerprint check skipped.', 'No active Adyen checkout detected.');
-    }
+  .add(
+    'risk-df-iframe',
+    (payload, { pass, skip, warn }) => {
+      if (!hasCheckoutActivity(payload)) {
+        return skip('Device fingerprint check skipped.', 'No active Adyen checkout detected.');
+      }
 
-    const { page, capturedRequests } = payload;
-    const hasDfIframe =
-      page.iframes.some((f) => f.name === DF_IFRAME_NAME) ||
-      capturedRequests.some((r) => DF_IFRAME_URL_PATTERN.test(r.url));
+      const { page, capturedRequests } = payload;
+      const hasDfIframe =
+        page.iframes.some((f) => f.name === DF_IFRAME_NAME) ||
+        capturedRequests.some((r) => DF_IFRAME_URL_PATTERN.test(r.url));
 
-    if (hasDfIframe) {
-      return pass(STRINGS.DF_IFRAME_PASS_TITLE, STRINGS.DF_IFRAME_PASS_DETAIL);
-    }
+      if (hasDfIframe) {
+        return pass(STRINGS.DF_IFRAME_PASS_TITLE, STRINGS.DF_IFRAME_PASS_DETAIL);
+      }
 
-    return warn(
-      STRINGS.DF_IFRAME_WARN_TITLE,
-      STRINGS.DF_IFRAME_WARN_DETAIL,
-      STRINGS.DF_IFRAME_WARN_REMEDIATION,
-      STRINGS.DF_IFRAME_WARN_URL
-    );
-  })
-  .add('risk-module-not-disabled', (payload, { skip, warn, pass }) => {
-    const config = payload.page.checkoutConfig ?? payload.page.componentConfig;
-
-    if (!config) {
-      return skip(STRINGS.MODULE_SKIP_TITLE, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
-    }
-
-    if (config.riskEnabled === false) {
       return warn(
-        STRINGS.MODULE_WARN_TITLE,
-        STRINGS.MODULE_WARN_DETAIL,
-        STRINGS.MODULE_WARN_REMEDIATION,
-        STRINGS.MODULE_WARN_URL
+        STRINGS.DF_IFRAME_WARN_TITLE,
+        STRINGS.DF_IFRAME_WARN_DETAIL,
+        STRINGS.DF_IFRAME_WARN_REMEDIATION,
+        STRINGS.DF_IFRAME_WARN_URL
       );
-    }
+    },
+    { warnImpact: 'high' }
+  )
+  .add(
+    'risk-module-not-disabled',
+    (payload, { skip, warn, pass }) => {
+      const config = resolveCapturedCheckoutConfig(payload);
 
-    return pass(STRINGS.MODULE_PASS_TITLE);
-  })
+      if (!config) {
+        return skip(STRINGS.MODULE_SKIP_TITLE, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
+      }
+
+      if (config.riskEnabled === false) {
+        return warn(
+          STRINGS.MODULE_WARN_TITLE,
+          STRINGS.MODULE_WARN_DETAIL,
+          STRINGS.MODULE_WARN_REMEDIATION,
+          STRINGS.MODULE_WARN_URL
+        );
+      }
+      if (config.riskEnabled === undefined && !hasVerifiedCheckoutConfig(payload)) {
+        return skip(
+          STRINGS.MODULE_SKIP_TITLE,
+          'Risk setting was not visible in partial checkout configuration.'
+        );
+      }
+
+      return pass(STRINGS.MODULE_PASS_TITLE);
+    },
+    { warnImpact: 'high' }
+  )
   .getChecks();

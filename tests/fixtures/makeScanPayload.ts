@@ -114,6 +114,7 @@ export function makeAdyenPayload(
     page: makePageExtract({
       adyenMetadata: makeAdyenMetadata(metaOverrides),
       checkoutConfig: makeCheckoutConfig(configOverrides),
+      checkoutConfigComplete: true,
     }),
     ...payloadOverrides,
   });

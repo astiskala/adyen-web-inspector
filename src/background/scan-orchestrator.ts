@@ -2,26 +2,12 @@
  * Scan orchestrator — drives the full scan pipeline.
  */
 
-import type {
-  CapturedRequest,
-  Check,
-  CheckoutConfig,
-  PageExtractResult,
-  ScanPayload,
-  ScanResult,
-} from '../shared/types.js';
+import type { CheckoutConfig, PageExtractResult, ScanResult } from '../shared/types.js';
 import { STORAGE_SCAN_RESULT_PREFIX } from '../shared/constants.js';
-import { calculateHealthScore, extractLocaleFromUrl } from '../shared/utils.js';
-import { computeStandardCompliance } from '../shared/standard-compliance.js';
 import { HeaderCollector } from './header-collector.js';
 import { getLatestAdyenWebVersion } from './npm-registry.js';
-import { ALL_CHECKS } from './checks/index.js';
-import {
-  extractVersionFromBundles,
-  extractVersionFromRequests,
-  extractVersionFromScripts,
-  probeMainDocumentHeaders,
-} from './payload-builder.js';
+import { assessScan } from './scan-assessment.js';
+import { extractVersionFromBundles, probeMainDocumentHeaders } from './payload-builder.js';
 
 const TAB_READY_TIMEOUT_MS = 15_000;
 const SPA_SETTLE_MS = 2_000;
@@ -46,74 +32,22 @@ export async function runScan(tabId: number): Promise<ScanResult> {
     collector.stop();
     const collected = collector.getResult();
 
-    const capturedRequests = mergeCapturedRequests(
-      collected.capturedRequests,
-      buildFallbackRequests(pageData)
-    );
-
     const mainDocumentHeaders =
       !pageData.isInsideIframe && collected.mainDocumentHeaders.length > 0
         ? collected.mainDocumentHeaders
         : await probeMainDocumentHeaders(pageData.pageUrl);
 
-    const scriptUrls = pageData.scripts.map((s) => s.src);
-    const bundleVersion = await extractVersionFromBundles(pageData.pageUrl, scriptUrls);
-
-    const detectedVersion =
-      pageData.adyenMetadata?.version ??
-      collected.analyticsData?.version ??
-      extractVersionFromScripts(scriptUrls) ??
-      extractVersionFromRequests(capturedRequests) ??
-      bundleVersion ??
-      null;
-
-    // Enforce locale inference from captured requests if not already present
-    const currentLocale = pageData.checkoutConfig?.locale ?? pageData.inferredConfig?.locale ?? '';
-    let enrichedInferredConfig = pageData.inferredConfig;
-
-    if (currentLocale === '') {
-      for (const req of capturedRequests) {
-        const localeFromUrl = extractLocaleFromUrl(req.url);
-        if (localeFromUrl !== null) {
-          enrichedInferredConfig = {
-            ...(enrichedInferredConfig ?? {}),
-            locale: localeFromUrl,
-          };
-          break;
-        }
-      }
-    }
-
-    const payload: ScanPayload = {
-      tabId,
-      pageUrl: pageData.pageUrl,
-      page: {
-        ...pageData,
-        inferredConfig: enrichedInferredConfig,
+    const result = await assessScan(
+      {
+        tabId,
+        page: pageData,
+        collected,
+        mainDocumentHeaders,
+        latestVersion,
+        scannedAt: new Date().toISOString(),
       },
-      mainDocumentHeaders,
-      capturedRequests,
-      versionInfo: {
-        detected: detectedVersion,
-        latest: latestVersion,
-      },
-      analyticsData: collected.analyticsData,
-      scannedAt: new Date().toISOString(),
-    };
-
-    const checks = ALL_CHECKS.map((check: Check) => check.run(payload));
-    const health = calculateHealthScore(checks);
-    const standardCompliance = computeStandardCompliance(payload);
-
-    const result: ScanResult = {
-      tabId,
-      pageUrl: payload.pageUrl,
-      scannedAt: payload.scannedAt,
-      checks,
-      health,
-      standardCompliance,
-      payload,
-    };
+      extractVersionFromBundles
+    );
 
     await chrome.storage.session.set({
       [`${STORAGE_SCAN_RESULT_PREFIX}${tabId}`]: result,
@@ -149,47 +83,6 @@ async function waitForTabReady(tabId: number): Promise<void> {
 
     chrome.tabs.onUpdated.addListener(listener);
   });
-}
-
-function mergeCapturedRequests(
-  primary: CapturedRequest[],
-  secondary: CapturedRequest[]
-): CapturedRequest[] {
-  const seen = new Set<string>();
-  const merged: CapturedRequest[] = [];
-
-  for (const req of [...primary, ...secondary]) {
-    if (!req.url) continue;
-    const key = `${req.type}:${req.url}`;
-    if (!seen.has(key)) {
-      seen.add(key);
-      merged.push(req);
-    }
-  }
-
-  return merged;
-}
-
-function buildFallbackRequests(pageData: PageExtractResult): CapturedRequest[] {
-  const requests: CapturedRequest[] = [
-    { url: pageData.pageUrl, type: 'main_frame', responseHeaders: [], statusCode: 0 },
-  ];
-
-  for (const s of pageData.scripts) {
-    requests.push({ url: s.src, type: 'script', responseHeaders: [], statusCode: 0 });
-  }
-
-  for (const l of pageData.links) {
-    const type = l.rel.toLowerCase().includes('stylesheet') ? 'stylesheet' : 'other';
-    requests.push({ url: l.href, type, responseHeaders: [], statusCode: 0 });
-  }
-
-  for (const o of pageData.observedRequests ?? []) {
-    const type = o.initiatorType === 'script' ? 'script' : 'other';
-    requests.push({ url: o.url, type, responseHeaders: [], statusCode: 0 });
-  }
-
-  return requests;
 }
 
 async function extractPageData(tabId: number): Promise<PageExtractResult> {

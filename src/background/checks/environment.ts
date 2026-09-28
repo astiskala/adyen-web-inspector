@@ -10,6 +10,7 @@ import {
   resolveEnvironment,
   resolveRegion,
 } from '../../shared/implementation-attributes.js';
+import { observeCheckoutField } from '../../shared/scan-evidence.js';
 import { createRegistry } from './registry.js';
 
 const STRINGS = {
@@ -113,10 +114,7 @@ export const ENVIRONMENT_CHECKS = createRegistry(CATEGORY)
     return info(`Region: ${region}.`, detail);
   })
   .add('env-key-mismatch', (payload, { skip, fail, pass }) => {
-    const clientKey =
-      payload.page.checkoutConfig?.clientKey ??
-      payload.page.componentConfig?.clientKey ??
-      payload.page.inferredConfig?.clientKey;
+    const { value: clientKey } = observeCheckoutField(payload, 'clientKey');
     if (clientKey === undefined || clientKey === '') {
       return skip(STRINGS.KEY_SKIP_TITLE, STRINGS.KEY_NO_KEY_SKIP_REASON);
     }

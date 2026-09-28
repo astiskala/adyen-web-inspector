@@ -16,7 +16,11 @@ export function parseCsp(headerValue: string): ParsedCsp {
   for (const part of parts) {
     if (part === '') continue;
     const [directive, ...values] = part.split(/\s+/);
-    if (directive !== undefined && directive !== '') {
+    if (
+      directive !== undefined &&
+      directive !== '' &&
+      directives[directive.toLowerCase()] === undefined
+    ) {
       directives[directive.toLowerCase()] = values;
     }
   }
@@ -64,3 +68,50 @@ export function cspIncludesDomain(csp: ParsedCsp, directive: string, domain: str
     return host === normalizedDomain || host.endsWith(`.${normalizedDomain}`);
   });
 }
+
+function sourceMatchesUrl(source: string, resource: URL, page: URL): boolean {
+  if (source === "'self'") return resource.origin === page.origin;
+  if (source === '*') return resource.protocol === 'https:' || resource.protocol === 'http:';
+  if (source === 'https:' || source === 'http:') return resource.protocol === source;
+
+  const match = /^(?:(https?):\/\/)?(\*\.)?([^/:]+)(?::(\d+))?(\/.*)?$/.exec(source.toLowerCase());
+  if (!match) return false;
+
+  const [, scheme, wildcard, host, port, path] = match;
+  if (scheme !== undefined && resource.protocol !== `${scheme}:`) return false;
+  if (host === undefined) return false;
+  const hostMatches =
+    wildcard === '*.' ? resource.hostname.endsWith(`.${host}`) : resource.hostname === host;
+  if (!hostMatches) return false;
+  if (
+    port !== undefined &&
+    (resource.port || (resource.protocol === 'https:' ? '443' : '80')) !== port
+  ) {
+    return false;
+  }
+  return path === undefined || resource.pathname.startsWith(path);
+}
+
+export const cspAllowsUrl = (
+  csp: ParsedCsp,
+  directive: 'script-src' | 'frame-src',
+  url: string,
+  pageUrl: string
+): boolean => {
+  const candidates =
+    directive === 'script-src'
+      ? ['script-src-elem', 'script-src', 'default-src']
+      : ['frame-src', 'child-src', 'default-src'];
+  const effective = candidates.find((candidate) => csp.directives[candidate] !== undefined);
+  if (effective === undefined) return true;
+
+  try {
+    const resource = new URL(url, pageUrl);
+    const page = new URL(pageUrl);
+    return (csp.directives[effective] ?? []).some((source) =>
+      sourceMatchesUrl(source, resource, page)
+    );
+  } catch {
+    return false;
+  }
+};

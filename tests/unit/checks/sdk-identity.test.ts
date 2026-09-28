@@ -322,22 +322,30 @@ describe('sdk-import-method', () => {
     expect(result.title).toBe('Import method: CDN.');
   });
 
-  it('reports npm import method when no Adyen-hosted script tags are present', () => {
+  it('reports Unknown for merchant-hosted bundles even when SDK metadata is visible', () => {
     const payload = makeScanPayload({
       page: makePageExtract({
+        adyenMetadata: makeAdyenMetadata(),
         scripts: [{ src: 'https://cdn.example.com/app.bundle.js' }],
       }),
     });
     const result = sdkImportMethod.run(payload);
     expect(result.severity).toBe('info');
-    expect(result.title).toBe('Import method: npm.');
+    expect(result.title).toBe('Import method: Unknown.');
   });
 
-  it('reports npm import method when no script tags are present', () => {
+  it('reports unknown import method when no script tags or SDK evidence are present', () => {
     const payload = makeScanPayload();
     const result = sdkImportMethod.run(payload);
     expect(result.severity).toBe('info');
-    expect(result.title).toBe('Import method: npm.');
+    expect(result.title).toBe('Import method: Unknown.');
+  });
+
+  it('reports unknown import method for a merchant bundle without SDK evidence', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({ scripts: [{ src: 'https://cdn.example.com/app.bundle.js' }] }),
+    });
+    expect(sdkImportMethod.run(payload).title).toBe('Import method: Unknown.');
   });
 });
 
@@ -347,6 +355,16 @@ describe('sdk-analytics', () => {
     const result = sdkAnalytics.run(payload);
     expect(result.severity).toBe('pass');
     expect(result.id).toBe('sdk-analytics');
+  });
+
+  it('skips when a partial captured config does not show the analytics setting', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({
+        adyenMetadata: makeAdyenMetadata(),
+        checkoutConfig: { clientKey: 'test_X' },
+      }),
+    });
+    expect(sdkAnalytics.run(payload).severity).toBe('skip');
   });
 
   it('returns pass when analytics.enabled is true', () => {

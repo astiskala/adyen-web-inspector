@@ -22,6 +22,7 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
 (function configInterceptor(): void {
   const CAPTURED_CONFIG_KEY = '__adyenWebInspectorCapturedConfig';
   const CAPTURED_INFERRED_CONFIG_KEY = '__adyenWebInspectorCapturedInferredConfig';
+  const DIRECT_CONFIG_KEY = '__adyenWebInspectorDirectCheckoutConfigCaptured';
   const CAPTURED_INIT_COUNT_KEY = '__adyenWebInspectorCheckoutInitCount';
   const WRAPPED = '__awInspectorWrapped';
 
@@ -225,9 +226,16 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
     }
   }
 
-  function captureConfig(raw: unknown, source: CallbackSource): void {
+  function captureConfig(raw: unknown, source: CallbackSource, direct = false): void {
     try {
-      mergeAndPublish(extractFields(raw, source));
+      const complete =
+        direct &&
+        source === 'checkout' &&
+        raw !== null &&
+        typeof raw === 'object' &&
+        !Array.isArray(raw);
+      mergeAndPublish(extractFields(raw, source) ?? (complete ? {} : null));
+      if (complete) (globalThis as PlainRecord)[DIRECT_CONFIG_KEY] = true;
     } catch {
       /* ignore */
     }
@@ -289,7 +297,11 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
   ): unknown {
     const result = originalParse.call(JSON, text, reviver) as unknown;
     if (result !== null && typeof result === 'object') {
-      captureConfig(result, 'checkout');
+      try {
+        mergeAndPublishInferred(extractFields(result, 'checkout'));
+      } catch {
+        return result;
+      }
     }
     return result;
   };
@@ -393,7 +405,7 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
         /* ignore */
       }
 
-      captureConfig(opts, 'checkout');
+      captureConfig(opts, 'checkout', true);
       wrapInstanceCreate(i);
       return true;
     }
@@ -425,7 +437,7 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
     }
     const wrapped: SdkCallable = function (this: unknown, ...args: unknown[]): unknown {
       incrementInitCount();
-      captureConfig(args[0], 'checkout');
+      captureConfig(args[0], 'checkout', true);
       const result = original.apply(this, args);
       if (result instanceof Promise) {
         observeCheckoutFactoryResult(result);

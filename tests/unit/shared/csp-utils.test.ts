@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseCsp, cspIncludesDomain } from '../../../src/shared/csp-utils';
+import { parseCsp, cspAllowsUrl, cspIncludesDomain } from '../../../src/shared/csp-utils';
 
 interface ParseDirectivesCase {
   readonly name: string;
@@ -254,6 +254,11 @@ describe('parseCsp', () => {
     const result = parseCsp('');
     expect(result.raw).toBe('');
   });
+
+  it('uses the first instance of a repeated directive', () => {
+    const result = parseCsp("script-src 'self'; script-src https:");
+    expect(result.directives['script-src']).toEqual(["'self'"]);
+  });
 });
 
 describe('cspIncludesDomain', () => {
@@ -263,4 +268,60 @@ describe('cspIncludesDomain', () => {
       expect(cspIncludesDomain(csp, testCase.directive, testCase.domain)).toBe(testCase.expected);
     });
   }
+});
+
+describe('effective CSP sources', () => {
+  const pageUrl = 'https://merchant.example/checkout';
+  const scriptUrl = 'https://checkoutshopper-test.adyen.com/checkoutshopper/sdk.js';
+
+  it('uses script-src-elem before script-src, then default-src', () => {
+    expect(
+      cspAllowsUrl(
+        parseCsp("default-src https:; script-src 'self'"),
+        'script-src',
+        scriptUrl,
+        pageUrl
+      )
+    ).toBe(false);
+    expect(
+      cspAllowsUrl(
+        parseCsp("script-src https:; script-src-elem 'self'"),
+        'script-src',
+        scriptUrl,
+        pageUrl
+      )
+    ).toBe(false);
+    expect(cspAllowsUrl(parseCsp('default-src https:'), 'script-src', scriptUrl, pageUrl)).toBe(
+      true
+    );
+  });
+
+  it('matches exact hosts and wildcard subdomains without matching lookalikes', () => {
+    expect(
+      cspAllowsUrl(parseCsp('script-src https://*.adyen.com'), 'script-src', scriptUrl, pageUrl)
+    ).toBe(true);
+    expect(
+      cspAllowsUrl(parseCsp('script-src https://adyen.com'), 'script-src', scriptUrl, pageUrl)
+    ).toBe(false);
+    expect(
+      cspAllowsUrl(parseCsp('script-src https://notadyen.com'), 'script-src', scriptUrl, pageUrl)
+    ).toBe(false);
+  });
+
+  it('honors self, scheme sources and none', () => {
+    expect(
+      cspAllowsUrl(
+        parseCsp("script-src 'self'"),
+        'script-src',
+        'https://merchant.example/app.js',
+        pageUrl
+      )
+    ).toBe(true);
+    expect(cspAllowsUrl(parseCsp('script-src https:'), 'script-src', scriptUrl, pageUrl)).toBe(
+      true
+    );
+    expect(cspAllowsUrl(parseCsp("script-src 'none'"), 'script-src', scriptUrl, pageUrl)).toBe(
+      false
+    );
+  });
 });

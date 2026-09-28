@@ -1,5 +1,10 @@
 import { ADYEN_WEB_TRANSLATION_LOCALES, ORIGIN_KEY_PREFIX } from '../../shared/constants.js';
 import { detectIntegrationFlow } from '../../shared/implementation-attributes.js';
+import {
+  hasCapturedCheckoutConfig,
+  hasVerifiedCheckoutConfig,
+  observeCheckoutField,
+} from '../../shared/scan-evidence.js';
 import { SKIP_REASONS } from './constants.js';
 import { createRegistry } from './registry.js';
 
@@ -50,12 +55,9 @@ const SUPPORTED_LOCALES = new Set<string>(
 
 export const AUTH_CHECKS = createRegistry(CATEGORY)
   .add('auth-client-key', (payload, { pass, skip, warn }) => {
-    const clientKey =
-      payload.page.checkoutConfig?.clientKey ??
-      payload.page.componentConfig?.clientKey ??
-      payload.page.inferredConfig?.clientKey;
+    const { value: clientKey } = observeCheckoutField(payload, 'clientKey');
 
-    if (clientKey === undefined || clientKey === '') {
+    if (clientKey === undefined) {
       return skip(STRINGS.CLIENT_KEY_SKIP_TITLE, STRINGS.CLIENT_KEY_SKIP_REASON);
     }
 
@@ -70,25 +72,26 @@ export const AUTH_CHECKS = createRegistry(CATEGORY)
 
     return pass(STRINGS.CLIENT_KEY_PASS_TITLE);
   })
-  .add('auth-country-code', (payload, { pass, fail, skip, warn }) => {
-    const config = payload.page.checkoutConfig;
-    const component = payload.page.componentConfig;
-    const inferred = payload.page.inferredConfig;
-
-    if (config?.countryCode !== undefined && config.countryCode !== '') {
+  .add('auth-country-code', (payload, { pass, fail, skip, warn, notice }) => {
+    const { value: countryCode, source } = observeCheckoutField(payload, 'countryCode');
+    if (countryCode !== undefined) {
+      if (source === 'inferred') {
+        return notice(
+          STRINGS.COUNTRY_CODE_PARTIAL_NOTICE_TITLE,
+          `countryCode "${countryCode}" was observed in an Adyen request, but its presence in checkout configuration could not be verified.`
+        );
+      }
       return pass(STRINGS.COUNTRY_CODE_PASS_TITLE);
     }
 
-    if (component?.countryCode !== undefined && component.countryCode !== '') {
-      return pass(STRINGS.COUNTRY_CODE_PASS_TITLE);
-    }
-
-    if (inferred?.countryCode !== undefined && inferred.countryCode !== '') {
-      return pass(STRINGS.COUNTRY_CODE_PASS_TITLE);
-    }
-
-    if (!config && !component) {
+    if (!hasCapturedCheckoutConfig(payload)) {
       return skip(STRINGS.COUNTRY_CODE_SKIP_TITLE, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
+    }
+    if (!hasVerifiedCheckoutConfig(payload)) {
+      return notice(
+        STRINGS.COUNTRY_CODE_PARTIAL_NOTICE_TITLE,
+        'Only partial checkout configuration was observed; countryCode absence cannot be verified.'
+      );
     }
 
     const flow = detectIntegrationFlow(payload);
@@ -108,14 +111,15 @@ export const AUTH_CHECKS = createRegistry(CATEGORY)
       STRINGS.COUNTRY_CODE_FAIL_URL
     );
   })
-  .add('auth-locale', (payload, { pass, skip, warn }) => {
-    const config = payload.page.checkoutConfig;
-    const component = payload.page.componentConfig;
-    const inferred = payload.page.inferredConfig;
-
-    const locale = config?.locale ?? component?.locale ?? inferred?.locale;
-
-    if (locale !== undefined && locale !== '') {
+  .add('auth-locale', (payload, { pass, skip, warn, notice }) => {
+    const { value: locale, source } = observeCheckoutField(payload, 'locale');
+    if (locale !== undefined) {
+      if (source === 'inferred') {
+        return notice(
+          STRINGS.LOCALE_PARTIAL_NOTICE_TITLE,
+          `locale "${locale}" was observed in an Adyen request, but its presence in checkout configuration could not be verified.`
+        );
+      }
       if (!SUPPORTED_LOCALES.has(locale.toLowerCase())) {
         return warn(
           `locale "${locale}" is not in the supported Adyen Web translations list.`,
@@ -127,8 +131,14 @@ export const AUTH_CHECKS = createRegistry(CATEGORY)
       return pass(STRINGS.LOCALE_PASS_TITLE);
     }
 
-    if (!config && !component && !inferred) {
+    if (!hasCapturedCheckoutConfig(payload)) {
       return skip(STRINGS.LOCALE_SKIP_TITLE, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
+    }
+    if (!hasVerifiedCheckoutConfig(payload)) {
+      return notice(
+        STRINGS.LOCALE_PARTIAL_NOTICE_TITLE,
+        'Only partial checkout configuration was observed; locale absence cannot be verified.'
+      );
     }
 
     return warn(

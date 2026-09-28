@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { SDK_VERSION_CHECKS } from '../../../src/background/checks/sdk-version';
-import { makeScanPayload, makeVersionInfo } from '../../fixtures/makeScanPayload';
+import {
+  makeAdyenPayload,
+  makePageExtract,
+  makeScanPayload,
+  makeVersionInfo,
+} from '../../fixtures/makeScanPayload';
 import { requireCheck } from './requireCheck';
 
 const versionDetected = requireCheck(SDK_VERSION_CHECKS, 'version-detected');
@@ -67,23 +72,35 @@ describe('version-latest', () => {
 
 describe('uplift-cobadged-version', () => {
   it('passes at the minimum supported version', () => {
-    const payload = makeScanPayload({
-      versionInfo: makeVersionInfo({ detected: '6.16.0' }),
-    });
+    const payload = makeAdyenPayload(
+      {},
+      {},
+      {
+        versionInfo: makeVersionInfo({ detected: '6.16.0' }),
+      }
+    );
     expect(upliftCobadgedVersion.run(payload).severity).toBe('pass');
   });
 
   it('passes above the minimum supported version', () => {
-    const payload = makeScanPayload({
-      versionInfo: makeVersionInfo({ detected: '6.30.0' }),
-    });
+    const payload = makeAdyenPayload(
+      {},
+      {},
+      {
+        versionInfo: makeVersionInfo({ detected: '6.30.0' }),
+      }
+    );
     expect(upliftCobadgedVersion.run(payload).severity).toBe('pass');
   });
 
   it('fails below the minimum supported version', () => {
-    const payload = makeScanPayload({
-      versionInfo: makeVersionInfo({ detected: '6.15.9' }),
-    });
+    const payload = makeAdyenPayload(
+      {},
+      {},
+      {
+        versionInfo: makeVersionInfo({ detected: '6.15.9' }),
+      }
+    );
     const result = upliftCobadgedVersion.run(payload);
     expect(result.severity).toBe('fail');
     expect(result.docsUrl).toBe('https://docs.adyen.com/uplift/uplift-requirements/');
@@ -93,6 +110,26 @@ describe('uplift-cobadged-version', () => {
     const payload = makeScanPayload({
       versionInfo: makeVersionInfo({ detected: null }),
     });
+    expect(upliftCobadgedVersion.run(payload).severity).toBe('skip');
+  });
+
+  it('does not fail for a versioned SDK with no active checkout', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({ adyenMetadata: { version: '6.15.9' } }),
+      versionInfo: makeVersionInfo({ detected: '6.15.9' }),
+    });
+    expect(upliftCobadgedVersion.run(payload).severity).toBe('skip');
+  });
+
+  it('skips a custom integration not covered by the Drop-in/Components rule', () => {
+    const payload = makeAdyenPayload(
+      {},
+      {},
+      {
+        analyticsData: { flavor: 'custom' },
+        versionInfo: makeVersionInfo({ detected: '6.15.9' }),
+      }
+    );
     expect(upliftCobadgedVersion.run(payload).severity).toBe('skip');
   });
 });

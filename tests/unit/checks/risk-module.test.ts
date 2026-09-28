@@ -43,16 +43,18 @@ describe('risk-module-not-disabled', () => {
     expect(riskNotDisabled.run(payload).severity).toBe('skip');
   });
 
-  it('passes when riskEnabled is not explicitly false', () => {
+  it('passes when riskEnabled is not explicitly false in verified checkout config', () => {
     const payload = makeScanPayload({
       page: makePageExtract({
         checkoutConfig: {
           clientKey: 'test_X',
           environment: 'test',
         },
+        checkoutConfigComplete: true,
       }),
     });
     expect(riskNotDisabled.run(payload).severity).toBe('pass');
+    expect(riskNotDisabled.run(payload).title).toContain('not explicitly disabled');
   });
 
   it('warns when riskEnabled is false', () => {
@@ -63,6 +65,23 @@ describe('risk-module-not-disabled', () => {
           environment: 'test',
           riskEnabled: false,
         },
+      }),
+    });
+    expect(riskNotDisabled.run(payload).severity).toBe('warn');
+  });
+
+  it('skips when the risk setting is absent from partial config', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({ checkoutConfig: { clientKey: 'test_X' } }),
+    });
+    expect(riskNotDisabled.run(payload).severity).toBe('skip');
+  });
+
+  it('detects a disabled setting in a component when captured config is partial', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({
+        checkoutConfig: { clientKey: 'test_X' },
+        componentConfig: { riskEnabled: false },
       }),
     });
     expect(riskNotDisabled.run(payload).severity).toBe('warn');

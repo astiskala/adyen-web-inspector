@@ -24,6 +24,7 @@ type GlobalWithAdyen = typeof globalThis & {
   AdyenWebMetadata?: AdyenWebMetadata;
   /** Published by config-interceptor.ts (MAIN-world, document_start). */
   __adyenWebInspectorCapturedConfig?: CheckoutConfig;
+  __adyenWebInspectorDirectCheckoutConfigCaptured?: boolean;
   /** Published by config-interceptor.ts (MAIN-world, document_start). */
   __adyenWebInspectorCapturedInferredConfig?: CheckoutConfig;
   /** Published by config-interceptor.ts (MAIN-world, document_start). */
@@ -47,7 +48,11 @@ function extractMetadata(g: GlobalWithAdyen): AdyenWebMetadata | null {
  */
 function extractCheckoutConfig(g: GlobalWithAdyen): CheckoutConfig | null {
   const captured = g.__adyenWebInspectorCapturedConfig;
-  if (captured && typeof captured === 'object' && Object.keys(captured).length > 0) {
+  if (
+    captured &&
+    typeof captured === 'object' &&
+    (Object.keys(captured).length > 0 || g.__adyenWebInspectorDirectCheckoutConfigCaptured === true)
+  ) {
     return captured;
   }
   return null;
@@ -395,6 +400,9 @@ function extract(): PageExtractResult {
   return {
     adyenMetadata: metadata,
     checkoutConfig,
+    ...(g.__adyenWebInspectorDirectCheckoutConfigCaptured === true
+      ? { checkoutConfigComplete: true }
+      : {}),
     inferredConfig,
     componentConfig,
     scripts: extractScripts(),

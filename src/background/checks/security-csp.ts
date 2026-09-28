@@ -2,13 +2,18 @@
  * Security: CSP checks.
  */
 
-import type { ScanPayload, CapturedHeader } from '../../shared/types.js';
-import { cspIncludesDomain, getAllHeaders, getHeader, parseCsp } from '../../shared/utils.js';
+import type { ScanPayload } from '../../shared/types.js';
+import {
+  cspAllowsUrl,
+  getAllHeaders,
+  getHeader,
+  isAdyenCheckoutResource,
+  parseCsp,
+} from '../../shared/utils.js';
 import { COMMON_DETAILS } from './constants.js';
 import { createRegistry } from './registry.js';
 
 const CATEGORY = 'security' as const;
-const ADYEN_CDN = 'adyen.com';
 const ADYEN_PCI_DSS_SCRIPT_SECURITY_DOC =
   'https://docs.adyen.com/development-resources/pci-dss-compliance-guide/script-security#implement-a-content-security-policy-for-requirement-6-4-3';
 const ADYEN_PCI_DSS_REPORTING_DOC =
@@ -25,8 +30,8 @@ const STRINGS = {
   CSP_PRESENT_WARN_URL: ADYEN_PCI_DSS_SCRIPT_SECURITY_DOC,
 
   SCRIPT_SRC_SKIP_TITLE: 'CSP script-src check skipped.',
-  SCRIPT_SRC_PASS_TITLE: 'CSP script-src includes Adyen CDN domain.',
-  SCRIPT_SRC_WARN_TITLE: 'CSP script-src may not include the Adyen CDN domain.',
+  SCRIPT_SRC_PASS_TITLE: 'CSP allows the observed Adyen checkout scripts.',
+  SCRIPT_SRC_WARN_TITLE: 'CSP may block an observed Adyen checkout script.',
   SCRIPT_SRC_WARN_DETAIL: `If script-src omits Adyen domains, checkout assets can be blocked or require unsafe CSP relaxations. ${COMMON_DETAILS.PCI_COMPLIANCE_NOTICE}`,
   SCRIPT_SRC_WARN_REMEDIATION:
     'Update your Content-Security-Policy to include the Adyen CDN script domains.',
@@ -68,10 +73,11 @@ const STRINGS = {
   REPORTING_NONE_INFO_DETAIL: `Configure CSP violation reporting by adding the report-to directive. See: ${ADYEN_PCI_DSS_REPORTING_DOC}`,
 } as const;
 
-function getCspHeader(payload: ScanPayload): string | null {
-  const values = getAllHeaders(payload, 'content-security-policy');
-  if (values.length === 0) return null;
-  return values.join(', ');
+function getCspPolicies(payload: ScanPayload): ReturnType<typeof parseCsp>[] {
+  return getAllHeaders(payload, 'content-security-policy')
+    .flatMap((value) => value.split(/\s*,\s*/))
+    .filter((value) => value.trim() !== '')
+    .map(parseCsp);
 }
 
 function allowsAnySources(values: string[]): boolean {
@@ -79,9 +85,14 @@ function allowsAnySources(values: string[]): boolean {
 }
 
 export const CSP_CHECKS = createRegistry(CATEGORY)
-  .add('security-csp-present', (payload, { pass, warn }) => {
-    const cspValue = getCspHeader(payload);
-    if (cspValue !== null && cspValue !== '') {
+  .add('security-csp-present', (payload, { pass, warn, skip }) => {
+    if (payload.mainDocumentHeadersAvailable === false) {
+      return skip(
+        'CSP presence check skipped.',
+        'Document response headers could not be captured.'
+      );
+    }
+    if (getCspPolicies(payload).length > 0) {
       return pass(STRINGS.CSP_PRESENT_PASS_TITLE);
     }
     return warn(
@@ -92,23 +103,30 @@ export const CSP_CHECKS = createRegistry(CATEGORY)
     );
   })
   .add('security-csp-script-src', (payload, { skip, pass, warn }) => {
-    const cspValue = getCspHeader(payload);
-    if (cspValue === null || cspValue === '') {
+    if (payload.mainDocumentHeadersAvailable === false) {
+      return skip(
+        STRINGS.SCRIPT_SRC_SKIP_TITLE,
+        'Document response headers could not be captured.'
+      );
+    }
+    const policies = getCspPolicies(payload);
+    if (policies.length === 0) {
       return skip(STRINGS.SCRIPT_SRC_SKIP_TITLE, STRINGS.NO_CSP_SKIP_REASON);
     }
 
-    const csp = parseCsp(cspValue);
-    const scriptSrcValues = csp.directives['script-src'] ?? [];
-    const defaultSrcValues = csp.directives['default-src'] ?? [];
-    const hasAdyen =
-      allowsAnySources(scriptSrcValues) ||
-      allowsAnySources(defaultSrcValues) ||
-      cspIncludesDomain(csp, 'script-src', ADYEN_CDN) ||
-      cspIncludesDomain(csp, 'default-src', ADYEN_CDN);
-
-    if (hasAdyen) {
-      return pass(STRINGS.SCRIPT_SRC_PASS_TITLE);
+    const adyenScripts = payload.page.scripts.filter((script) =>
+      isAdyenCheckoutResource(script.src)
+    );
+    if (adyenScripts.length === 0) {
+      return skip(STRINGS.SCRIPT_SRC_SKIP_TITLE, 'No Adyen-hosted checkout scripts detected.');
     }
+
+    const allAllowed = policies.every((policy) =>
+      adyenScripts.every((script) =>
+        cspAllowsUrl(policy, 'script-src', script.src, payload.pageUrl)
+      )
+    );
+    if (allAllowed) return pass(STRINGS.SCRIPT_SRC_PASS_TITLE);
 
     return warn(
       STRINGS.SCRIPT_SRC_WARN_TITLE,
@@ -118,17 +136,18 @@ export const CSP_CHECKS = createRegistry(CATEGORY)
     );
   })
   .add('security-csp-frame-src', (payload, { skip, warn, pass }) => {
-    const cspValue = getCspHeader(payload);
-    if (cspValue === null || cspValue === '') {
+    if (payload.mainDocumentHeadersAvailable === false) {
+      return skip(STRINGS.FRAME_SRC_SKIP_TITLE, 'Document response headers could not be captured.');
+    }
+    const policies = getCspPolicies(payload);
+    if (policies.length === 0) {
       return skip(STRINGS.FRAME_SRC_SKIP_TITLE, STRINGS.NO_CSP_SKIP_REASON);
     }
 
-    const csp = parseCsp(cspValue);
-    const frameSrcValues = csp.directives['frame-src'];
-    const childSrcValues = csp.directives['child-src'];
-    const effectiveFrameValues = frameSrcValues ?? childSrcValues;
-
-    if (!effectiveFrameValues) {
+    const frameSources = policies.map(
+      (policy) => policy.directives['frame-src'] ?? policy.directives['child-src']
+    );
+    if (frameSources.some((sources) => sources === undefined)) {
       return warn(
         STRINGS.FRAME_SRC_MISSING_WARN_TITLE,
         STRINGS.FRAME_SRC_MISSING_WARN_DETAIL,
@@ -137,7 +156,7 @@ export const CSP_CHECKS = createRegistry(CATEGORY)
       );
     }
 
-    if (allowsAnySources(effectiveFrameValues)) {
+    if (frameSources.every((sources) => sources !== undefined && allowsAnySources(sources))) {
       return pass(STRINGS.FRAME_SRC_PASS_TITLE);
     }
 
@@ -148,15 +167,17 @@ export const CSP_CHECKS = createRegistry(CATEGORY)
       STRINGS.FRAME_SRC_STRICT_WARN_URL
     );
   })
-  .add('security-csp-frame-ancestors', (payload, { pass, warn }) => {
-    const cspValue = getCspHeader(payload);
-    const xfoHeader = payload.mainDocumentHeaders.find(
-      (h: CapturedHeader) => h.name.toLowerCase() === 'x-frame-options'
+  .add('security-csp-frame-ancestors', (payload, { pass, warn, skip }) => {
+    if (payload.mainDocumentHeadersAvailable === false) {
+      return skip(
+        'CSP frame-ancestors check skipped.',
+        'Document response headers could not be captured.'
+      );
+    }
+    const hasFrameAncestors = getCspPolicies(payload).some(
+      (policy) => policy.directives['frame-ancestors'] !== undefined
     );
-
-    const csp = cspValue !== null && cspValue !== '' ? parseCsp(cspValue) : null;
-    const hasFrameAncestors = csp ? 'frame-ancestors' in csp.directives : false;
-    const hasXfo = Boolean(xfoHeader);
+    const hasXfo = getHeader(payload, 'x-frame-options') !== null;
 
     if (hasFrameAncestors || hasXfo) {
       return pass(
@@ -173,17 +194,22 @@ export const CSP_CHECKS = createRegistry(CATEGORY)
       STRINGS.FRAME_ANCESTORS_WARN_URL
     );
   })
-  .add('security-csp-reporting', (payload, { info, pass, warn }) => {
-    const cspValue = getCspHeader(payload);
+  .add('security-csp-reporting', (payload, { info, pass, warn, skip }) => {
+    if (payload.mainDocumentHeadersAvailable === false) {
+      return skip(
+        'CSP reporting check skipped.',
+        'Document response headers could not be captured.'
+      );
+    }
+    const policies = getCspPolicies(payload);
     const reportingEndpoints = getHeader(payload, 'reporting-endpoints');
 
-    if (cspValue === null || cspValue === '') {
+    if (policies.length === 0) {
       return info(STRINGS.REPORTING_SKIP_INFO_TITLE);
     }
 
-    const csp = parseCsp(cspValue);
-    const hasReportTo = 'report-to' in csp.directives;
-    const hasReportUri = 'report-uri' in csp.directives;
+    const hasReportTo = policies.some((policy) => policy.directives['report-to'] !== undefined);
+    const hasReportUri = policies.some((policy) => policy.directives['report-uri'] !== undefined);
 
     if (hasReportTo && Boolean(reportingEndpoints)) {
       return pass(STRINGS.REPORTING_PASS_TITLE);

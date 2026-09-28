@@ -11,6 +11,7 @@ import {
   resolveIntegrationFlavor,
   type IntegrationFlow,
 } from '../../shared/implementation-attributes.js';
+import { hasVerifiedCheckoutConfig, observeCheckoutField } from '../../shared/scan-evidence.js';
 import { isAdyenCheckoutResource } from '../../shared/utils.js';
 import { createRegistry } from './registry.js';
 
@@ -33,7 +34,8 @@ const STRINGS = {
   FLAVOR_UNKNOWN_DETAIL:
     'Could not determine the integration flavor from analytics, URL patterns, or page config.',
 
-  IMPORT_METHOD_NPM_DETAIL: 'SDK bundled via npm import (no Adyen-hosted script tag detected).',
+  IMPORT_METHOD_UNKNOWN_DETAIL:
+    'No Adyen-hosted SDK script tag was observed; the import method cannot be verified.',
   IMPORT_METHOD_CDN_DETAIL: 'SDK loaded via <script src> from *.cdn.adyen.com.',
   IMPORT_METHOD_ADYEN_DETAIL: 'SDK loaded via <script src> from *.adyen.com (non-CDN host).',
 
@@ -133,7 +135,7 @@ export const SDK_IDENTITY_CHECKS = createRegistry(CATEGORY)
     const { scripts } = payload.page;
     const method = detectImportMethod(scripts);
 
-    let detail: string = STRINGS.IMPORT_METHOD_NPM_DETAIL;
+    let detail: string = STRINGS.IMPORT_METHOD_UNKNOWN_DETAIL;
     if (method === 'CDN') {
       detail = STRINGS.IMPORT_METHOD_CDN_DETAIL;
     } else if (method === 'Adyen') {
@@ -142,33 +144,40 @@ export const SDK_IDENTITY_CHECKS = createRegistry(CATEGORY)
 
     return info(`Import method: ${method}.`, detail);
   })
-  .add('sdk-bundle-type', (payload, { skip, notice, pass }) => {
-    const { adyenMetadata, scripts } = payload.page;
-    const isCdn = scripts.some((s) => isCdnCheckoutScriptUrl(s.src));
+  .add(
+    'sdk-bundle-type',
+    (payload, { skip, notice, pass }) => {
+      const { adyenMetadata, scripts } = payload.page;
+      const isCdn = scripts.some((s) => isCdnCheckoutScriptUrl(s.src));
 
-    if (isCdn) {
-      return skip(STRINGS.BUNDLE_TYPE_CDN_SKIP_TITLE, STRINGS.BUNDLE_TYPE_CDN_SKIP_REASON);
-    }
+      if (isCdn) {
+        return skip(STRINGS.BUNDLE_TYPE_CDN_SKIP_TITLE, STRINGS.BUNDLE_TYPE_CDN_SKIP_REASON);
+      }
 
-    const bundleType = adyenMetadata?.bundleType ?? payload.analyticsData?.buildType ?? 'unknown';
+      const bundleType = adyenMetadata?.bundleType ?? payload.analyticsData?.buildType ?? 'unknown';
 
-    if (adyenMetadata === null && payload.analyticsData?.buildType === undefined) {
-      return skip(STRINGS.BUNDLE_TYPE_UNKNOWN_SKIP_TITLE, STRINGS.BUNDLE_TYPE_UNKNOWN_SKIP_REASON);
-    }
+      if (adyenMetadata === null && payload.analyticsData?.buildType === undefined) {
+        return skip(
+          STRINGS.BUNDLE_TYPE_UNKNOWN_SKIP_TITLE,
+          STRINGS.BUNDLE_TYPE_UNKNOWN_SKIP_REASON
+        );
+      }
 
-    if (bundleType === 'auto') {
-      const flow = detectIntegrationFlow(payload);
-      const docsUrl = getFlowSensitiveBundleDocsUrl(payload, flow);
-      return notice(
-        STRINGS.BUNDLE_AUTO_NOTICE_TITLE,
-        'The auto bundle includes all payment methods, increasing bundle size. This is a flexible option if you expect to add new payment methods in the future.',
-        STRINGS.BUNDLE_AUTO_NOTICE_REMEDIATION,
-        docsUrl
-      );
-    }
+      if (bundleType === 'auto') {
+        const flow = detectIntegrationFlow(payload);
+        const docsUrl = getFlowSensitiveBundleDocsUrl(payload, flow);
+        return notice(
+          STRINGS.BUNDLE_AUTO_NOTICE_TITLE,
+          'The auto bundle includes all payment methods, increasing bundle size. This is a flexible option if you expect to add new payment methods in the future.',
+          STRINGS.BUNDLE_AUTO_NOTICE_REMEDIATION,
+          docsUrl
+        );
+      }
 
-    return pass(`Bundle type "${bundleType}" is optimised.`);
-  })
+      return pass(`Bundle type "${bundleType}" is optimised.`);
+    },
+    { noticeImpact: 'low' }
+  )
   .add('sdk-analytics', (payload, { skip, warn, pass }) => {
     const sdkLoaded =
       payload.page.adyenMetadata !== null ||
@@ -177,13 +186,23 @@ export const SDK_IDENTITY_CHECKS = createRegistry(CATEGORY)
       return skip(STRINGS.ANALYTICS_SKIP_TITLE, STRINGS.ANALYTICS_SKIP_REASON);
     }
 
-    if ((payload.page.checkoutConfig ?? payload.page.componentConfig)?.analyticsEnabled === false) {
+    const analytics = observeCheckoutField(payload, 'analyticsEnabled');
+    if (analytics.value === false && analytics.source !== 'inferred') {
       return warn(
         STRINGS.ANALYTICS_WARN_TITLE,
         STRINGS.ANALYTICS_WARN_DETAIL,
         STRINGS.ANALYTICS_WARN_REMEDIATION,
         STRINGS.ANALYTICS_WARN_URL
       );
+    }
+    if (analytics.value === undefined && !hasVerifiedCheckoutConfig(payload)) {
+      return skip(
+        STRINGS.ANALYTICS_SKIP_TITLE,
+        'Analytics setting could not be verified in partial config.'
+      );
+    }
+    if (analytics.source === 'inferred') {
+      return skip(STRINGS.ANALYTICS_SKIP_TITLE, 'Analytics setting was only inferred.');
     }
 
     return pass(STRINGS.ANALYTICS_PASS_TITLE, STRINGS.ANALYTICS_PASS_DETAIL);

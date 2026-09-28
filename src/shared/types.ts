@@ -6,6 +6,7 @@
 // ─── Severity ────────────────────────────────────────────────────────────────
 
 export type Severity = 'pass' | 'warn' | 'fail' | 'notice' | 'info' | 'skip';
+export type CheckImpact = 'high' | 'medium' | 'low' | 'manual';
 
 // ─── Check Categories ─────────────────────────────────────────────────────────
 
@@ -91,6 +92,7 @@ export interface CheckResult {
   readonly id: CheckId;
   readonly category: CheckCategory;
   readonly severity: Severity;
+  readonly impact?: CheckImpact;
   /** One-sentence plain-language finding visible to all users. */
   readonly title: string;
   /** Optional technical detail, shown on expansion. */
@@ -180,6 +182,7 @@ export interface PageExtractResult {
   readonly adyenMetadata: AdyenWebMetadata | null;
   /** Serialised checkout config object (best-effort, may be null) */
   readonly checkoutConfig: CheckoutConfig | null;
+  readonly checkoutConfigComplete?: boolean;
   /** Configuration inferred from partial sources like network signals. */
   readonly inferredConfig: CheckoutConfig | null;
   /** Config extracted from mounted Adyen component Preact trees (works for NPM bundles). */
@@ -278,6 +281,7 @@ export interface ScanPayload {
   readonly pageUrl: string;
   readonly page: PageExtractResult;
   readonly mainDocumentHeaders: CapturedHeader[];
+  readonly mainDocumentHeadersAvailable?: boolean;
   readonly capturedRequests: CapturedRequest[];
   readonly versionInfo: VersionInfo;
   /** Data extracted from Adyen checkout analytics POST requests (merged from multiple calls). */

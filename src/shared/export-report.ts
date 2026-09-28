@@ -1,6 +1,7 @@
 import { buildImplementationAttributes } from './implementation-attributes.js';
 import { buildIssueExportRows, type ExportIssueRow } from './export-utils.js';
 import { extractHostname, isAdyenHost } from './utils.js';
+import { getImpactLevel, type IssueImpactLevel } from './results.js';
 import type {
   CapturedRequest,
   CheckCategory,
@@ -10,7 +11,7 @@ import type {
   StandardCompliance,
 } from './types.js';
 
-const BEST_PRACTICE_EXPORT_CATEGORIES: ReadonlySet<CheckCategory> = new Set([
+const BEST_PRACTICE_CATEGORIES: ReadonlySet<CheckCategory> = new Set([
   'sdk-identity',
   'version-lifecycle',
   'environment',
@@ -18,7 +19,8 @@ const BEST_PRACTICE_EXPORT_CATEGORIES: ReadonlySet<CheckCategory> = new Set([
   'callbacks',
   'risk',
 ]);
-const SECURITY_EXPORT_CATEGORIES: ReadonlySet<CheckCategory> = new Set(['security', 'third-party']);
+const SECURITY_CATEGORIES: ReadonlySet<CheckCategory> = new Set(['security', 'third-party']);
+const IMPACT_GROUP_ORDER: readonly IssueImpactLevel[] = ['high', 'medium', 'low', 'manual'];
 
 type ImplementationAttributes = ReturnType<typeof buildImplementationAttributes>;
 
@@ -57,19 +59,63 @@ export interface ReportExportData {
   readonly rawConfig: ExportRawConfigData;
 }
 
-function buildExportSection(
-  checks: readonly CheckResult[],
-  issues: readonly ExportIssueRow[],
-  categoryFilter: ReadonlySet<CheckCategory>
-): ExportCategorySection {
-  const sectionIssues = issues.filter((issue) => categoryFilter.has(issue.category));
-  const successfulChecks = checks
-    .filter((check) => categoryFilter.has(check.category) && check.severity === 'pass')
-    .sort((a, b) => a.title.localeCompare(b.title));
+interface FindingSection {
+  readonly issueGroups: readonly {
+    readonly impact: IssueImpactLevel;
+    readonly checks: readonly CheckResult[];
+  }[];
+  readonly successfulChecks: readonly CheckResult[];
+}
 
+interface FindingProjection {
+  readonly bestPractices: FindingSection;
+  readonly security: FindingSection;
+  readonly skippedChecks: readonly ExportSkippedCheck[];
+  readonly network: ExportNetworkData;
+  readonly rawConfig: ExportRawConfigData;
+}
+
+function isIssue(check: CheckResult): boolean {
+  return check.severity === 'fail' || check.severity === 'warn' || check.severity === 'notice';
+}
+
+function severityRank(check: CheckResult): number {
+  if (check.severity === 'fail') return 0;
+  if (check.severity === 'warn') return 1;
+  return 2;
+}
+
+function sortChecks(a: CheckResult, b: CheckResult): number {
+  return severityRank(a) - severityRank(b) || a.title.localeCompare(b.title);
+}
+
+function buildFindingSection(
+  checks: readonly CheckResult[],
+  categories: ReadonlySet<CheckCategory>
+): FindingSection {
+  const matching = checks.filter((check) => categories.has(check.category));
+  const issues = matching.filter(isIssue);
   return {
-    issues: sectionIssues,
-    successfulChecks,
+    issueGroups: IMPACT_GROUP_ORDER.map((impact) => ({
+      impact,
+      checks: issues.filter((check) => getImpactLevel(check) === impact).sort(sortChecks),
+    })).filter((group) => group.checks.length > 0),
+    successfulChecks: matching
+      .filter((check) => check.severity === 'pass')
+      .sort((a, b) => a.title.localeCompare(b.title)),
+  };
+}
+
+function buildExportSection(
+  section: FindingSection,
+  issues: readonly ExportIssueRow[]
+): ExportCategorySection {
+  const ids = new Set(
+    section.issueGroups.flatMap((group) => group.checks.map((check) => check.id))
+  );
+  return {
+    issues: issues.filter((issue) => ids.has(issue.id)),
+    successfulChecks: section.successfulChecks,
   };
 }
 
@@ -115,8 +161,17 @@ function buildRawConfigData(result: ScanResult): ExportRawConfigData {
   };
 }
 
+export const buildFindingProjection = (result: ScanResult): FindingProjection => ({
+  bestPractices: buildFindingSection(result.checks, BEST_PRACTICE_CATEGORIES),
+  security: buildFindingSection(result.checks, SECURITY_CATEGORIES),
+  skippedChecks: buildSkippedChecks(result),
+  network: buildNetworkData(result),
+  rawConfig: buildRawConfigData(result),
+});
+
 /** Builds the shared structured report data consumed by both JSON and PDF exports. */
 export function buildReportExportData(result: ScanResult): ReportExportData {
+  const projection = buildFindingProjection(result);
   const issues = buildIssueExportRows(result.checks, {
     sortByImpact: true,
     friendlyRemediation: true,
@@ -127,10 +182,10 @@ export function buildReportExportData(result: ScanResult): ReportExportData {
     implementationAttributes: buildImplementationAttributes(result.payload),
     standardCompliance: result.standardCompliance,
     issues,
-    bestPractices: buildExportSection(result.checks, issues, BEST_PRACTICE_EXPORT_CATEGORIES),
-    security: buildExportSection(result.checks, issues, SECURITY_EXPORT_CATEGORIES),
-    skippedChecks: buildSkippedChecks(result),
-    network: buildNetworkData(result),
-    rawConfig: buildRawConfigData(result),
+    bestPractices: buildExportSection(projection.bestPractices, issues),
+    security: buildExportSection(projection.security, issues),
+    skippedChecks: projection.skippedChecks,
+    network: projection.network,
+    rawConfig: projection.rawConfig,
   };
 }

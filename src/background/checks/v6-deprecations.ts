@@ -8,6 +8,11 @@
  */
 
 import type { CheckoutConfig, ScanPayload } from '../../shared/types.js';
+import {
+  hasVerifiedCheckoutConfig,
+  resolveCapturedCheckoutConfig,
+} from '../../shared/scan-evidence.js';
+import { parseVersion } from '../../shared/utils.js';
 import { SKIP_REASONS } from './constants.js';
 import { createRegistry } from './registry.js';
 
@@ -89,44 +94,45 @@ const KNOWN_CALLBACKS: readonly ConfigKey[] = [
   'beforeSubmit',
 ];
 
-function hasAnyKnownField(payload: ScanPayload, keys: readonly ConfigKey[]): boolean {
-  for (const key of keys) {
-    if (
-      payload.page.checkoutConfig?.[key] !== undefined ||
-      payload.page.componentConfig?.[key] !== undefined
-    ) {
-      return true;
-    }
-  }
-  return false;
+function hasAnyKnownField(config: CheckoutConfig, keys: readonly ConfigKey[]): boolean {
+  return keys.some((key) => config[key] !== undefined);
 }
 
 function canVerifyConfig(payload: ScanPayload): boolean {
-  return hasAnyKnownField(payload, KNOWN_PROPERTIES) || hasAnyKnownField(payload, KNOWN_CALLBACKS);
+  const config = resolveCapturedCheckoutConfig(payload);
+  return (
+    config !== null &&
+    hasVerifiedCheckoutConfig(payload) &&
+    (hasAnyKnownField(config, KNOWN_PROPERTIES) || hasAnyKnownField(config, KNOWN_CALLBACKS))
+  );
 }
 
 function detectPresent(payload: ScanPayload, items: readonly DeprecatedItem[]): DeprecatedItem[] {
-  return items.filter(
-    (item) =>
-      payload.page.checkoutConfig?.[item.key] !== undefined ||
-      payload.page.componentConfig?.[item.key] !== undefined
-  );
+  const config = resolveCapturedCheckoutConfig(payload);
+  return items.filter((item) => config?.[item.key] !== undefined);
 }
 
 function buildDetail(found: readonly DeprecatedItem[]): string {
   return found.map((item) => `${item.label}: ${item.remediation}`).join('\n');
 }
 
+function isPreV6(payload: ScanPayload): boolean {
+  const version = parseVersion(payload.versionInfo.detected ?? '');
+  return version !== null && version.major < 6;
+}
+
 export const V6_DEPRECATION_CHECKS = createRegistry('version-lifecycle')
   .add('v6-deprecated-properties', (payload, { warn, skip, pass }) => {
-    if (!canVerifyConfig(payload)) {
+    if (isPreV6(payload)) {
+      return skip('v6 deprecated properties check skipped.', 'SDK is running a pre-v6 version.');
+    }
+    const found = detectPresent(payload, DEPRECATED_PROPERTIES);
+    if (found.length === 0 && !canVerifyConfig(payload)) {
       return skip(
         'v6 deprecated properties check skipped.',
         SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED
       );
     }
-
-    const found = detectPresent(payload, DEPRECATED_PROPERTIES);
 
     if (found.length === 0) {
       return pass('No deprecated configuration properties detected.');
@@ -142,14 +148,16 @@ export const V6_DEPRECATION_CHECKS = createRegistry('version-lifecycle')
     );
   })
   .add('v6-deprecated-callbacks', (payload, { warn, skip, pass }) => {
-    if (!canVerifyConfig(payload)) {
+    if (isPreV6(payload)) {
+      return skip('v6 deprecated callbacks check skipped.', 'SDK is running a pre-v6 version.');
+    }
+    const found = detectPresent(payload, DEPRECATED_CALLBACKS);
+    if (found.length === 0 && !canVerifyConfig(payload)) {
       return skip(
         'v6 deprecated callbacks check skipped.',
         SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED
       );
     }
-
-    const found = detectPresent(payload, DEPRECATED_CALLBACKS);
 
     if (found.length === 0) {
       return pass('No deprecated event handlers detected.');

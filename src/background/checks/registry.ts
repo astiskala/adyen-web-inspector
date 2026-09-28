@@ -2,7 +2,14 @@
  * Check registry helper — provides a concise way to define groups of checks.
  */
 
-import type { Check, CheckCategory, CheckId, ScanPayload, Severity } from '../../shared/types.js';
+import type {
+  Check,
+  CheckCategory,
+  CheckId,
+  CheckImpact,
+  ScanPayload,
+  Severity,
+} from '../../shared/types.js';
 
 /**
  * Result of a check runner before ID and Category are injected.
@@ -29,6 +36,18 @@ export interface CheckContext {
 
 type CheckRunner = (payload: ScanPayload, context: CheckContext) => CheckOutcome;
 
+interface CheckImpactPolicy {
+  readonly warnImpact?: 'high' | 'low';
+  readonly noticeImpact?: 'low';
+}
+
+function outcomeImpact(severity: Severity, policy: CheckImpactPolicy): CheckImpact | undefined {
+  if (severity === 'fail') return 'high';
+  if (severity === 'warn') return policy.warnImpact ?? 'medium';
+  if (severity === 'notice') return policy.noticeImpact ?? 'manual';
+  return undefined;
+}
+
 function buildOutcome(
   severity: Severity,
   title: string,
@@ -53,7 +72,7 @@ class CheckRegistry {
     this.category = category;
   }
 
-  add(id: CheckId, run: CheckRunner): this {
+  add(id: CheckId, run: CheckRunner, policy: CheckImpactPolicy = {}): this {
     const category = this.category;
 
     const context: CheckContext = {
@@ -73,10 +92,12 @@ class CheckRegistry {
       category,
       run: (payload) => {
         const outcome = run(payload, context);
+        const impact = outcomeImpact(outcome.severity, policy);
         return {
           ...outcome,
           id,
           category,
+          ...(impact === undefined ? {} : { impact }),
         };
       },
     });

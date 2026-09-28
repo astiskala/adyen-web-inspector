@@ -2,7 +2,7 @@
  * Check result factory functions and remediation formatting.
  */
 
-import type { CheckId, CheckResult } from './types.js';
+import type { CheckId, CheckImpact, CheckResult } from './types.js';
 import {
   ADYEN_WEB_BEST_PRACTICES_DOC,
   LOW_IMPACT_NOTICE_IDS,
@@ -10,7 +10,7 @@ import {
   type WarningPriority,
 } from './check-config.js';
 
-export type IssueImpactLevel = 'high' | 'medium' | 'low' | 'manual';
+export type IssueImpactLevel = CheckImpact;
 
 function getWarningPriority(checkId: CheckId): WarningPriority {
   return WARNING_PRIORITY_BY_ID[checkId] ?? 'medium';
@@ -28,13 +28,10 @@ export function getImpactLevel(check: CheckResult): IssueImpactLevel | 'none' {
     return 'high';
   }
   if (check.severity === 'warn') {
-    const priority = getWarningPriority(check.id);
-    if (priority === 'high') return 'high';
-    if (priority === 'low') return 'low';
-    return 'medium';
+    return check.impact ?? getWarningPriority(check.id);
   }
   if (check.severity === 'notice') {
-    return getNoticeImpact(check.id);
+    return check.impact ?? getNoticeImpact(check.id);
   }
   return 'none';
 }

@@ -1,3 +1,7 @@
+import {
+  hasCheckoutActivity,
+  resolveIntegrationFlavor,
+} from '../../shared/implementation-attributes.js';
 import { compareVersions, parseVersion } from '../../shared/utils.js';
 import { createRegistry } from './registry.js';
 
@@ -64,55 +68,67 @@ export const SDK_VERSION_CHECKS = createRegistry(CATEGORY)
     }
     return info(`Detected adyen-web version: ${detected}.`);
   })
-  .add('version-latest', (payload, { pass, skip, warn, notice }) => {
-    const { detected, latest } = payload.versionInfo;
-    if (detected === null || detected === '') {
-      return skip(STRINGS.VERSION_SKIP_TITLE, STRINGS.VERSION_NO_DETECTED_SKIP_REASON);
-    }
-    if (latest === null || latest === '') {
-      return skip(STRINGS.VERSION_SKIP_TITLE, STRINGS.VERSION_NO_LATEST_SKIP_REASON);
-    }
+  .add(
+    'version-latest',
+    (payload, { pass, skip, warn, notice }) => {
+      const { detected, latest } = payload.versionInfo;
+      if (detected === null || detected === '') {
+        return skip(STRINGS.VERSION_SKIP_TITLE, STRINGS.VERSION_NO_DETECTED_SKIP_REASON);
+      }
+      if (latest === null || latest === '') {
+        return skip(STRINGS.VERSION_SKIP_TITLE, STRINGS.VERSION_NO_LATEST_SKIP_REASON);
+      }
 
-    const parsedDetected = parseVersion(detected);
-    const parsedLatest = parseVersion(latest);
-    if (!parsedDetected || !parsedLatest) {
-      return skip(STRINGS.VERSION_SKIP_TITLE, STRINGS.VERSION_PARSE_FAIL_SKIP_REASON);
-    }
+      const parsedDetected = parseVersion(detected);
+      const parsedLatest = parseVersion(latest);
+      if (!parsedDetected || !parsedLatest) {
+        return skip(STRINGS.VERSION_SKIP_TITLE, STRINGS.VERSION_PARSE_FAIL_SKIP_REASON);
+      }
 
-    const diff = compareVersions(parsedLatest, parsedDetected);
-    if (diff <= 0) {
-      return pass(`Running the latest version (${detected}).`);
-    }
+      const diff = compareVersions(parsedLatest, parsedDetected);
+      if (diff <= 0) {
+        return pass(`Running the latest version (${detected}).`);
+      }
 
-    if (
-      parsedLatest.major === parsedDetected.major &&
-      parsedLatest.minor === parsedDetected.minor
-    ) {
-      return notice(
-        `Version ${detected} is behind latest patch (${latest}).`,
-        STRINGS.PATCH_BEHIND_NOTICE_DETAIL,
-        STRINGS.PATCH_BEHIND_NOTICE_REMEDIATION,
-        STRINGS.PATCH_BEHIND_NOTICE_URL
-      );
-    }
+      if (
+        parsedLatest.major === parsedDetected.major &&
+        parsedLatest.minor === parsedDetected.minor
+      ) {
+        return notice(
+          `Version ${detected} is behind latest patch (${latest}).`,
+          STRINGS.PATCH_BEHIND_NOTICE_DETAIL,
+          STRINGS.PATCH_BEHIND_NOTICE_REMEDIATION,
+          STRINGS.PATCH_BEHIND_NOTICE_URL
+        );
+      }
 
-    if (parsedLatest.major === parsedDetected.major) {
+      if (parsedLatest.major === parsedDetected.major) {
+        return warn(
+          `Version ${detected} is behind latest minor version (${latest}).`,
+          STRINGS.MINOR_BEHIND_WARN_DETAIL,
+          STRINGS.MINOR_BEHIND_WARN_REMEDIATION,
+          STRINGS.MINOR_BEHIND_WARN_URL
+        );
+      }
+
       return warn(
-        `Version ${detected} is behind latest minor version (${latest}).`,
-        STRINGS.MINOR_BEHIND_WARN_DETAIL,
-        STRINGS.MINOR_BEHIND_WARN_REMEDIATION,
-        STRINGS.MINOR_BEHIND_WARN_URL
+        `Version ${detected} is behind latest major version (${latest}).`,
+        STRINGS.MAJOR_BEHIND_WARN_DETAIL,
+        STRINGS.MAJOR_BEHIND_WARN_REMEDIATION,
+        STRINGS.MAJOR_BEHIND_WARN_URL
+      );
+    },
+    { noticeImpact: 'low' }
+  )
+  .add('uplift-cobadged-version', (payload, { fail, pass, skip }) => {
+    const flavor = resolveIntegrationFlavor(payload).flavor;
+    if (!hasCheckoutActivity(payload) || (flavor !== 'Drop-in' && flavor !== 'Components')) {
+      return skip(
+        STRINGS.UPLIFT_VERSION_SKIP_TITLE,
+        'No active Drop-in or Components checkout could be verified.'
       );
     }
 
-    return warn(
-      `Version ${detected} is behind latest major version (${latest}).`,
-      STRINGS.MAJOR_BEHIND_WARN_DETAIL,
-      STRINGS.MAJOR_BEHIND_WARN_REMEDIATION,
-      STRINGS.MAJOR_BEHIND_WARN_URL
-    );
-  })
-  .add('uplift-cobadged-version', (payload, { fail, pass, skip }) => {
     const detected = parseVersion(payload.versionInfo.detected ?? '');
     const minimum = parseVersion(UPLIFT_COBADGED_MINIMUM_VERSION);
 

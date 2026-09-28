@@ -224,7 +224,7 @@ describe('callback-on-submit-filtering', () => {
     expect(onSubmitSelectiveHandling.run(payload).severity).toBe('skip');
   });
 
-  it('passes when onSubmit does not selectively filter payment methods or action codes', () => {
+  it('requests manual review when onSubmit has no obvious selective filters', () => {
     const payload = makeAdyenPayload(
       {},
       {
@@ -233,7 +233,7 @@ describe('callback-on-submit-filtering', () => {
       }
     );
 
-    expect(onSubmitSelectiveHandling.run(payload).severity).toBe('pass');
+    expect(onSubmitSelectiveHandling.run(payload).severity).toBe('notice');
   });
 
   it('warns when paymentMethod.type filtering has no fallback branch', () => {
@@ -290,7 +290,7 @@ describe('callback-on-submit-filtering', () => {
     expect(result.detail).toContain('action codes');
   });
 
-  it('passes when selective filtering includes an else fallback', () => {
+  it('requests manual review when selective filtering includes an else fallback', () => {
     const payload = makeAdyenPayload(
       {},
       {
@@ -299,7 +299,7 @@ describe('callback-on-submit-filtering', () => {
       }
     );
 
-    expect(onSubmitSelectiveHandling.run(payload).severity).toBe('pass');
+    expect(onSubmitSelectiveHandling.run(payload).severity).toBe('notice');
   });
 
   it('skips when flow is Sessions', () => {
@@ -315,6 +315,16 @@ describe('callback-on-submit-filtering', () => {
   it('skips when onSubmit source is unavailable', () => {
     const payload = makeAdyenPayload({}, { onSubmitSource: undefined });
     expect(onSubmitSelectiveHandling.run(payload).severity).toBe('skip');
+  });
+
+  it('does not pass an unrecognised callback source', () => {
+    const payload = makeAdyenPayload({}, { onSubmitSource: 'doSomething()' });
+    expect(onSubmitSelectiveHandling.run(payload).severity).toBe('info');
+  });
+
+  it('requests manual review when captured callback source may be truncated', () => {
+    const payload = makeAdyenPayload({}, { onSubmitSource: 'a'.repeat(1200) });
+    expect(onSubmitSelectiveHandling.run(payload).severity).toBe('notice');
   });
 });
 
@@ -383,6 +393,7 @@ describe('callback-on-payment-completed', () => {
     const payload = makeScanPayload({
       page: makePageExtract({
         checkoutConfig: makeCheckoutConfig({ hasSession: true }),
+        checkoutConfigComplete: true,
       }),
     });
     expect(onPaymentCompleted.run(payload).severity).toBe('fail');
@@ -589,24 +600,24 @@ describe('callback-multiple-submissions', () => {
     expect(multipleSubmissions.run(payload).severity).toBe('skip');
   });
 
-  it('passes when onSubmit appears to prevent multiple submissions', () => {
+  it('reports a possible onSubmit guard without asserting it works at runtime', () => {
     const payload = makeAdyenPayload(
       {},
       {
         onSubmitSource: 'onSubmit: (state, component, actions) => { btn.disabled = true; }',
       }
     );
-    expect(multipleSubmissions.run(payload).severity).toBe('pass');
+    expect(multipleSubmissions.run(payload).severity).toBe('info');
   });
 
-  it('passes when beforeSubmit appears to prevent multiple submissions', () => {
+  it('reports a possible beforeSubmit guard without asserting it works at runtime', () => {
     const payload = makeAdyenPayload(
       {},
       {
         beforeSubmitSource: 'beforeSubmit: (state, component, actions) => { setLoading(true); }',
       }
     );
-    expect(multipleSubmissions.run(payload).severity).toBe('pass');
+    expect(multipleSubmissions.run(payload).severity).toBe('info');
   });
 
   it('returns notice when no prevention pattern detected', () => {
@@ -626,6 +637,11 @@ describe('callback-custom-pay-button-compatibility', () => {
       {},
       { beforeSubmit: undefined, onSubmitSource: 'actions.resolve()' }
     );
+    expect(customPayButtonCompat.run(payload).severity).toBe('skip');
+  });
+
+  it('skips when a custom button is detected without a payment method inventory', () => {
+    const payload = makeAdyenPayload({}, { beforeSubmit: 'checkout' });
     expect(customPayButtonCompat.run(payload).severity).toBe('skip');
   });
 
@@ -733,6 +749,15 @@ describe('componentConfig fallback', () => {
 });
 
 describe('partial checkoutConfig fallback', () => {
+  it('does not report absent callbacks as failures without direct checkout options', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({ checkoutConfig: { countryCode: 'SG' } }),
+    });
+    expect(onSubmit.run(payload).severity).toBe('skip');
+    expect(onError.run(payload).severity).toBe('skip');
+    expect(onPaymentCompleted.run(payload).severity).toBe('skip');
+  });
+
   it('callback-on-submit uses componentConfig when checkoutConfig is partial', () => {
     const payload = makePartialCheckoutConfigPayload({ onSubmit: 'checkout' });
     expect(onSubmit.run(payload).severity).toBe('pass');
@@ -765,8 +790,8 @@ describe('partial checkoutConfig fallback', () => {
         'async (state, component, actions) => { button.disabled = true; actions.resolve(result); }',
     });
 
-    expect(onSubmitSelectiveHandling.run(payload).severity).toBe('pass');
+    expect(onSubmitSelectiveHandling.run(payload).severity).toBe('notice');
     expect(actionsPattern.run(payload).severity).toBe('pass');
-    expect(multipleSubmissions.run(payload).severity).toBe('pass');
+    expect(multipleSubmissions.run(payload).severity).toBe('info');
   });
 });

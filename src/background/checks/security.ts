@@ -143,82 +143,123 @@ export const SECURITY_CHECKS = createRegistry(CATEGORY)
 
     return pass(STRINGS.SRI_SCRIPT_PASS_TITLE);
   })
-  .add('security-sri-css', (payload, { pass, warn, skip }) => {
-    const { links } = payload.page;
-    const adyenLinks = links.filter((l: LinkTag) => isAdyenCheckoutResource(l.href));
+  .add(
+    'security-sri-css',
+    (payload, { pass, warn, skip }) => {
+      const { links } = payload.page;
+      const adyenLinks = links.filter((l: LinkTag) => isAdyenCheckoutResource(l.href));
 
-    if (adyenLinks.length === 0) {
-      return skip(STRINGS.SRI_CSS_SKIP_TITLE, STRINGS.SRI_CSS_SKIP_REASON);
-    }
+      if (adyenLinks.length === 0) {
+        return skip(STRINGS.SRI_CSS_SKIP_TITLE, STRINGS.SRI_CSS_SKIP_REASON);
+      }
 
-    const missing = adyenLinks.filter(hasMissingSriAttributes);
-    if (missing.length > 0) {
-      return warn(
-        `${missing.length} Adyen stylesheet link(s) missing SRI attributes.`,
-        STRINGS.SRI_CSS_WARN_DETAIL,
-        STRINGS.SRI_CSS_WARN_REMEDIATION,
-        STRINGS.SRI_CSS_WARN_URL
-      );
-    }
-    return pass(STRINGS.SRI_CSS_PASS_TITLE);
-  })
+      const missing = adyenLinks.filter(hasMissingSriAttributes);
+      if (missing.length > 0) {
+        return warn(
+          `${missing.length} Adyen stylesheet link(s) missing SRI attributes.`,
+          STRINGS.SRI_CSS_WARN_DETAIL,
+          STRINGS.SRI_CSS_WARN_REMEDIATION,
+          STRINGS.SRI_CSS_WARN_URL
+        );
+      }
+      return pass(STRINGS.SRI_CSS_PASS_TITLE);
+    },
+    { warnImpact: 'high' }
+  )
   // Header Checks
-  .add('security-referrer-policy', (payload, { pass, notice }) => {
-    const value = getHeader(payload, 'Referrer-Policy');
-    const recommended = 'strict-origin-when-cross-origin';
-    if (
-      value !== null &&
-      value !== '' &&
-      (value === recommended || value === 'no-referrer' || value === 'same-origin')
-    ) {
-      return pass(`Referrer-Policy is set to "${value}".`);
-    }
-    return notice(
-      value !== null && value !== ''
-        ? `Referrer-Policy is "${value}". Consider using the recommended value.`
-        : STRINGS.REFERRER_POLICY_NOT_SET_NOTICE_TITLE,
-      STRINGS.REFERRER_POLICY_NOTICE_DETAIL,
-      STRINGS.REFERRER_POLICY_NOTICE_REMEDIATION,
-      STRINGS.REFERRER_POLICY_NOTICE_URL
-    );
-  })
-  .add('security-x-content-type', (payload, { pass, notice }) => {
-    const value = getHeader(payload, 'X-Content-Type-Options');
-    if (value?.toLowerCase() === 'nosniff') {
-      return pass(STRINGS.XCTO_PASS_TITLE);
-    }
-    return notice(
-      STRINGS.XCTO_NOTICE_TITLE,
-      STRINGS.XCTO_NOTICE_DETAIL,
-      STRINGS.XCTO_NOTICE_REMEDIATION,
-      STRINGS.XCTO_NOTICE_URL
-    );
-  })
-  .add('security-xss-protection', (payload, { pass, notice }) => {
-    const value = getHeader(payload, 'X-XSS-Protection');
-    if (value === null || value === '' || value === '0') {
-      return pass(STRINGS.XSS_PASS_TITLE);
-    }
-    return notice(
-      STRINGS.XSS_NOTICE_TITLE,
-      STRINGS.XSS_NOTICE_DETAIL,
-      STRINGS.XSS_NOTICE_REMEDIATION,
-      STRINGS.XSS_NOTICE_URL
-    );
-  })
-  .add('security-hsts', (payload, { pass, notice, skip }) => {
-    if (resolveEnvironment(payload).env !== 'live') {
-      return skip(STRINGS.HSTS_SKIP_TITLE, STRINGS.HSTS_SKIP_REASON);
-    }
-    const value = getHeader(payload, 'Strict-Transport-Security');
-    if (value !== null && value !== '') return pass(STRINGS.HSTS_PASS_TITLE);
-    return notice(
-      STRINGS.HSTS_NOTICE_TITLE,
-      STRINGS.HSTS_NOTICE_DETAIL,
-      STRINGS.HSTS_NOTICE_REMEDIATION,
-      STRINGS.HSTS_NOTICE_URL
-    );
-  })
+  .add(
+    'security-referrer-policy',
+    (payload, { pass, notice, skip }) => {
+      if (payload.mainDocumentHeadersAvailable === false) {
+        return skip(
+          'Referrer-Policy check skipped.',
+          'Document response headers could not be captured.'
+        );
+      }
+      const value = getHeader(payload, 'Referrer-Policy');
+      const recommended = 'strict-origin-when-cross-origin';
+      if (
+        value !== null &&
+        value !== '' &&
+        (value === recommended || value === 'no-referrer' || value === 'same-origin')
+      ) {
+        return pass(`Referrer-Policy is set to "${value}".`);
+      }
+      return notice(
+        value !== null && value !== ''
+          ? `Referrer-Policy is "${value}". Consider using the recommended value.`
+          : STRINGS.REFERRER_POLICY_NOT_SET_NOTICE_TITLE,
+        STRINGS.REFERRER_POLICY_NOTICE_DETAIL,
+        STRINGS.REFERRER_POLICY_NOTICE_REMEDIATION,
+        STRINGS.REFERRER_POLICY_NOTICE_URL
+      );
+    },
+    { noticeImpact: 'low' }
+  )
+  .add(
+    'security-x-content-type',
+    (payload, { pass, notice, skip }) => {
+      if (payload.mainDocumentHeadersAvailable === false) {
+        return skip(
+          'X-Content-Type-Options check skipped.',
+          'Document response headers could not be captured.'
+        );
+      }
+      const value = getHeader(payload, 'X-Content-Type-Options');
+      if (value?.toLowerCase() === 'nosniff') {
+        return pass(STRINGS.XCTO_PASS_TITLE);
+      }
+      return notice(
+        STRINGS.XCTO_NOTICE_TITLE,
+        STRINGS.XCTO_NOTICE_DETAIL,
+        STRINGS.XCTO_NOTICE_REMEDIATION,
+        STRINGS.XCTO_NOTICE_URL
+      );
+    },
+    { noticeImpact: 'low' }
+  )
+  .add(
+    'security-xss-protection',
+    (payload, { pass, notice, skip }) => {
+      if (payload.mainDocumentHeadersAvailable === false) {
+        return skip(
+          'X-XSS-Protection check skipped.',
+          'Document response headers could not be captured.'
+        );
+      }
+      const value = getHeader(payload, 'X-XSS-Protection');
+      if (value === null || value === '' || value === '0') {
+        return pass(STRINGS.XSS_PASS_TITLE);
+      }
+      return notice(
+        STRINGS.XSS_NOTICE_TITLE,
+        STRINGS.XSS_NOTICE_DETAIL,
+        STRINGS.XSS_NOTICE_REMEDIATION,
+        STRINGS.XSS_NOTICE_URL
+      );
+    },
+    { noticeImpact: 'low' }
+  )
+  .add(
+    'security-hsts',
+    (payload, { pass, notice, skip }) => {
+      if (resolveEnvironment(payload).env !== 'live') {
+        return skip(STRINGS.HSTS_SKIP_TITLE, STRINGS.HSTS_SKIP_REASON);
+      }
+      if (payload.mainDocumentHeadersAvailable === false) {
+        return skip(STRINGS.HSTS_SKIP_TITLE, 'Document response headers could not be captured.');
+      }
+      const value = getHeader(payload, 'Strict-Transport-Security');
+      if (value !== null && value !== '') return pass(STRINGS.HSTS_PASS_TITLE);
+      return notice(
+        STRINGS.HSTS_NOTICE_TITLE,
+        STRINGS.HSTS_NOTICE_DETAIL,
+        STRINGS.HSTS_NOTICE_REMEDIATION,
+        STRINGS.HSTS_NOTICE_URL
+      );
+    },
+    { noticeImpact: 'low' }
+  )
   .add('security-iframe-referrerpolicy', (payload, { pass, info }) => {
     const { iframes } = payload.page;
     const adyenIframes = iframes.filter(

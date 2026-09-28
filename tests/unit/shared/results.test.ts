@@ -63,6 +63,12 @@ describe('notice impact mapping', () => {
     expect(getImpactLabel(check)).toBe('Manual verification needed');
   });
 
+  it('uses check-owned impact when a new result supplies it', () => {
+    expect(getImpactLevel(makeCheck({ severity: 'warn', impact: 'high' }))).toBe('high');
+    expect(getImpactLevel(makeCheck({ severity: 'notice', impact: 'low' }))).toBe('low');
+    expect(getImpactLevel(makeCheck({ severity: 'pass', impact: 'high' }))).toBe('none');
+  });
+
   it('keeps PCI review notice checks as manual verification', () => {
     const check = makeCheck({
       id: '3p-no-sri',

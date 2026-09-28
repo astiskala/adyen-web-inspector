@@ -1,6 +1,7 @@
 import type { JSX } from 'preact';
-import type { ScanResult, CapturedRequest, CheckResult } from '~shared/types';
-import { extractHostname, getImpactLevel, isAdyenHost } from '~shared/utils';
+import type { ScanResult, CheckResult } from '~shared/types';
+import type { IssueImpactLevel } from '~shared/results';
+import { buildFindingProjection } from '~shared/export-report';
 import { IdentityCard } from '../../popup/components/IdentityCard';
 import { HealthScore } from '../../popup/components/HealthScore';
 import { IssueList } from '../../popup/components/IssueList';
@@ -8,18 +9,7 @@ import { StandardComplianceBadge } from '../../popup/components/StandardComplian
 import styles from './panel.module.css';
 
 const s = (key: string): string => styles[key] ?? '';
-const BEST_PRACTICE_CATEGORY_SET = new Set([
-  'sdk-identity',
-  'version-lifecycle',
-  'environment',
-  'auth',
-  'callbacks',
-  'risk',
-]);
-const SECURITY_CATEGORY_SET = new Set(['security', 'third-party']);
-
-type ImpactGroup = 'high' | 'medium' | 'low' | 'manual';
-const IMPACT_GROUP_ORDER: readonly ImpactGroup[] = ['high', 'medium', 'low', 'manual'];
+type ImpactGroup = IssueImpactLevel;
 const IMPACT_GROUP_LABEL: Record<ImpactGroup, string> = {
   high: 'High impact',
   medium: 'Medium impact',
@@ -59,79 +49,9 @@ function SeverityBadge({ severity }: SeverityBadgeProps): JSX.Element {
   );
 }
 
-function isIssue(check: CheckResult): boolean {
-  return check.severity === 'fail' || check.severity === 'warn' || check.severity === 'notice';
-}
-
-function isPass(check: CheckResult): boolean {
-  return check.severity === 'pass';
-}
-
-function isSecurityCheck(check: CheckResult): boolean {
-  return SECURITY_CATEGORY_SET.has(check.category);
-}
-
-function isSecurityIssue(check: CheckResult): boolean {
-  return isSecurityCheck(check) && isIssue(check);
-}
-
-function isSecurityPass(check: CheckResult): boolean {
-  return isSecurityCheck(check) && isPass(check);
-}
-
-function isBestPracticeCheck(check: CheckResult): boolean {
-  return BEST_PRACTICE_CATEGORY_SET.has(check.category);
-}
-
-function isBestPracticeIssue(check: CheckResult): boolean {
-  return isBestPracticeCheck(check) && isIssue(check);
-}
-
-function isBestPracticePass(check: CheckResult): boolean {
-  return isBestPracticeCheck(check) && isPass(check);
-}
-
-function getImpactGroup(check: CheckResult): ImpactGroup {
-  const impact = getImpactLevel(check);
-  if (impact === 'high' || impact === 'medium' || impact === 'low' || impact === 'manual') {
-    return impact;
-  }
-  return 'manual';
-}
-
-function severityRank(check: CheckResult): number {
-  if (check.severity === 'fail') return 0;
-  if (check.severity === 'warn') return 1;
-  if (check.severity === 'notice') return 2;
-  if (check.severity === 'pass') return 3;
-  if (check.severity === 'skip') return 4;
-  return 5;
-}
-
-function sortChecksBySeverityThenTitle(a: CheckResult, b: CheckResult): number {
-  const rankDiff = severityRank(a) - severityRank(b);
-  if (rankDiff !== 0) {
-    return rankDiff;
-  }
-  return a.title.localeCompare(b.title);
-}
-
-function sortChecksByTitle(a: CheckResult, b: CheckResult): number {
-  return a.title.localeCompare(b.title);
-}
-
 interface ImpactGroupChecks {
   readonly impact: ImpactGroup;
   readonly checks: readonly CheckResult[];
-}
-
-function buildImpactGroups(checks: readonly CheckResult[]): ImpactGroupChecks[] {
-  return IMPACT_GROUP_ORDER.map((impact) => ({
-    impact,
-    checks: checks
-      .filter((check) => getImpactGroup(check) === impact)
-      .sort(sortChecksBySeverityThenTitle),
-  })).filter((group) => group.checks.length > 0);
 }
 
 interface BestPracticeImpactSectionProps {
@@ -273,8 +193,7 @@ export function OverviewTab({ result }: Props): JSX.Element {
  * Best-practice findings grouped by impact plus successful best-practice checks.
  */
 export function BestPracticesTab({ result }: Props): JSX.Element {
-  const issueGroups = buildImpactGroups(result.checks.filter(isBestPracticeIssue));
-  const successfulChecks = result.checks.filter(isBestPracticePass).sort(sortChecksByTitle);
+  const { issueGroups, successfulChecks } = buildFindingProjection(result).bestPractices;
 
   return (
     <CategorizedCheckTab
@@ -290,8 +209,7 @@ export function BestPracticesTab({ result }: Props): JSX.Element {
  * Security and third-party findings grouped by impact plus successful checks.
  */
 export function SecurityTab({ result }: Props): JSX.Element {
-  const issueGroups = buildImpactGroups(result.checks.filter(isSecurityIssue));
-  const successfulChecks = result.checks.filter(isSecurityPass).sort(sortChecksByTitle);
+  const { issueGroups, successfulChecks } = buildFindingProjection(result).security;
 
   return (
     <CategorizedCheckTab
@@ -307,14 +225,7 @@ export function SecurityTab({ result }: Props): JSX.Element {
  * Network capture table for requests recorded during the scan.
  */
 export function NetworkTab({ result }: Props): JSX.Element {
-  const reqs: readonly CapturedRequest[] = result.payload.capturedRequests.filter((req) => {
-    if (req.type !== 'other') {
-      return true;
-    }
-
-    const host = extractHostname(req.url);
-    return host !== null && isAdyenHost(host);
-  });
+  const reqs = buildFindingProjection(result).network.capturedRequests;
 
   return (
     <div class={s('tabContent')}>
@@ -351,10 +262,12 @@ export function NetworkTab({ result }: Props): JSX.Element {
  * Raw JSON view of extracted checkout configuration and SDK metadata.
  */
 export function RawConfigTab({ result }: Props): JSX.Element {
-  const config = result.payload.page.checkoutConfig;
-  const component = result.payload.page.componentConfig;
-  const inferred = result.payload.page.inferredConfig;
-  const metadata = result.payload.page.adyenMetadata;
+  const {
+    checkoutConfig: config,
+    componentConfig: component,
+    inferredCheckoutConfig: inferred,
+    sdkMetadata: metadata,
+  } = buildFindingProjection(result).rawConfig;
 
   const configText = config ? JSON.stringify(config, null, 2) : 'No config captured.';
   const componentText = component
@@ -391,7 +304,7 @@ export function RawConfigTab({ result }: Props): JSX.Element {
  * Lists skipped checks and the extracted skip reason for each entry.
  */
 export function SkippedChecksTab({ result }: Props): JSX.Element {
-  const skipped = result.checks.filter((c) => c.severity === 'skip');
+  const skipped = buildFindingProjection(result).skippedChecks;
 
   return (
     <div class={s('tabContent')}>
@@ -403,7 +316,7 @@ export function SkippedChecksTab({ result }: Props): JSX.Element {
             <div key={check.id} class={s('checkCard')}>
               <div class={s('checkSummaryStatic')}>
                 <span class={s('checkSummaryTitle')}>{check.title}</span>
-                {check.detail !== undefined && check.detail !== '' && (
+                {check.reason !== '—' && (
                   <span
                     style={{
                       color: 'var(--color-text-secondary)',
@@ -411,7 +324,7 @@ export function SkippedChecksTab({ result }: Props): JSX.Element {
                       flexShrink: 0,
                     }}
                   >
-                    {check.detail}
+                    {check.reason}
                   </span>
                 )}
               </div>

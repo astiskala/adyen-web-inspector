@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 
 const CONFIG_KEY = '__adyenWebInspectorCapturedConfig';
 const INFERRED_CONFIG_KEY = '__adyenWebInspectorCapturedInferredConfig';
+const DIRECT_CONFIG_KEY = '__adyenWebInspectorDirectCheckoutConfigCaptured';
 const INSTALLED_KEY = `${CONFIG_KEY}__installed`;
 
 type CapturedConfig = Record<string, unknown>;
@@ -21,6 +22,7 @@ function resetGlobals(): void {
   const g = globalThis as unknown as Record<string, unknown>;
   Reflect.deleteProperty(g, CONFIG_KEY);
   Reflect.deleteProperty(g, INFERRED_CONFIG_KEY);
+  Reflect.deleteProperty(g, DIRECT_CONFIG_KEY);
   Reflect.deleteProperty(g, INSTALLED_KEY);
   Reflect.deleteProperty(g, 'AdyenCheckout');
   Reflect.deleteProperty(g, 'AdyenWeb');
@@ -86,6 +88,18 @@ describe('config-interceptor', () => {
       expect(config?.['environment']).toBe('test');
       expect(config?.['locale']).toBe('en-US');
       expect(config?.['countryCode']).toBe('NL');
+      expect((globalThis as unknown as Record<string, unknown>)[DIRECT_CONFIG_KEY]).toBe(true);
+    });
+
+    it('records a directly observed empty checkout options object', async () => {
+      installAdyenCheckoutFactory(async () => ({
+        create: (): void => {},
+        options: {},
+      }));
+      await callAdyenCheckout({});
+
+      expect(getCapturedConfig()).toEqual({});
+      expect((globalThis as unknown as Record<string, unknown>)[DIRECT_CONFIG_KEY]).toBe(true);
     });
 
     it('captures config from _options property', async () => {
@@ -225,17 +239,32 @@ describe('config-interceptor', () => {
   });
 
   describe('JSON.parse interception', () => {
-    it('captures config from a large bootstrap object', () => {
+    it('keeps parsed bootstrap fields separate from directly captured checkout options', async () => {
+      JSON.parse(JSON.stringify({ countryCode: 'NL' }));
+      installAdyenCheckoutFactory(async () => ({
+        create: (): void => {},
+        options: { clientKey: 'test_DIRECT' },
+      }));
+      await callAdyenCheckout({});
+
+      expect(getCapturedConfig()).toEqual({ clientKey: 'test_DIRECT' });
+      expect(getCapturedInferredConfig()).toEqual({ countryCode: 'NL' });
+      expect((globalThis as unknown as Record<string, unknown>)[DIRECT_CONFIG_KEY]).toBe(true);
+    });
+
+    it('treats a parsed bootstrap object as inferred config', () => {
       const raw = JSON.stringify({
         clientKey: 'test_JSON789',
         environment: 'test',
         locale: 'en-GB',
       });
       JSON.parse(raw);
-      const config = getCapturedConfig();
+      const config = getCapturedInferredConfig();
       expect(config?.['clientKey']).toBe('test_JSON789');
       expect(config?.['environment']).toBe('test');
       expect(config?.['locale']).toBe('en-GB');
+      expect(getCapturedConfig()).toBeUndefined();
+      expect((globalThis as unknown as Record<string, unknown>)[DIRECT_CONFIG_KEY]).toBeUndefined();
     });
   });
 

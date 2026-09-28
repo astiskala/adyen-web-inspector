@@ -51,9 +51,16 @@ describe('auth-country-code', () => {
     expect(result.title).toBe('countryCode is set correctly.');
   });
 
-  it('fails when country code is missing', () => {
+  it('fails when country code is missing from verified config', () => {
     const payload = makeAdyenPayload({}, { countryCode: undefined });
     expect(authCountryCode.run(payload).severity).toBe('fail');
+  });
+
+  it('does not fail when country code is missing from partial config', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({ checkoutConfig: { clientKey: 'test_X' } }),
+    });
+    expect(authCountryCode.run(payload).severity).toBe('notice');
   });
 
   it('skips when no checkout config present', () => {
@@ -73,14 +80,21 @@ describe('auth-country-code', () => {
     expect(authCountryCode.run(payload).severity).toBe('skip');
   });
 
-  it('passes when country code is set in inferred config', () => {
+  it('does not claim that an inferred country code was verified in checkout config', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({ inferredConfig: { countryCode: 'IN' } }),
+    });
+    expect(authCountryCode.run(payload).severity).toBe('notice');
+  });
+
+  it('returns notice when country code is found only in inferred config', () => {
     const payload = makeScanPayload({
       page: makePageExtract({
         checkoutConfig: null,
         inferredConfig: makeCheckoutConfig({ countryCode: 'IN' }),
       }),
     });
-    expect(authCountryCode.run(payload).severity).toBe('pass');
+    expect(authCountryCode.run(payload).severity).toBe('notice');
   });
 });
 
@@ -104,9 +118,16 @@ describe('auth-locale', () => {
     expect(result.title).toContain('not in the supported Adyen Web translations list');
   });
 
-  it('warns when locale is missing', () => {
+  it('warns when locale is missing from verified config', () => {
     const payload = makeAdyenPayload({}, { locale: undefined });
     expect(authLocale.run(payload).severity).toBe('warn');
+  });
+
+  it('does not warn when locale is missing from partial config', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({ checkoutConfig: { clientKey: 'test_X' } }),
+    });
+    expect(authLocale.run(payload).severity).toBe('notice');
   });
 
   it('skips when no checkout config present', () => {
@@ -116,21 +137,31 @@ describe('auth-locale', () => {
     expect(authLocale.run(payload).severity).toBe('skip');
   });
 
-  it('warns when locale is missing but inferred config is present', () => {
+  it('skips when locale is missing and only inferred config is present', () => {
     const payload = makeScanPayload({
       page: makePageExtract({
         checkoutConfig: null,
         inferredConfig: makeCheckoutConfig({ locale: undefined }),
       }),
     });
-    expect(authLocale.run(payload).severity).toBe('warn');
+    expect(authLocale.run(payload).severity).toBe('skip');
   });
 
-  it('passes when locale is set in inferred config', () => {
+  it('returns notice when locale is set only in inferred config', () => {
     const payload = makeScanPayload({
       page: makePageExtract({
         checkoutConfig: null,
         inferredConfig: makeCheckoutConfig({ locale: 'en-US' }),
+      }),
+    });
+    expect(authLocale.run(payload).severity).toBe('notice');
+  });
+
+  it('falls back to a component locale when captured locale is empty', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({
+        checkoutConfig: { locale: '' },
+        componentConfig: { locale: 'nl-NL' },
       }),
     });
     expect(authLocale.run(payload).severity).toBe('pass');

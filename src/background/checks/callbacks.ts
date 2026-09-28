@@ -9,6 +9,11 @@ import {
   resolveIntegrationFlavor,
   type IntegrationFlow,
 } from '../../shared/implementation-attributes.js';
+import {
+  hasVerifiedCheckoutConfig,
+  resolveCapturedCheckoutConfig,
+} from '../../shared/scan-evidence.js';
+import { detectUnhandledOnSubmitFilters, detectsMultipleSubmissions } from './callback-source.js';
 import { SKIP_REASONS } from './constants.js';
 import { createRegistry, type CheckContext } from './registry.js';
 
@@ -44,17 +49,6 @@ interface CheckOutcome {
   readonly docsUrl?: string;
 }
 
-interface UnhandledOnSubmitFilters {
-  readonly paymentMethod: boolean;
-  readonly actionCode: boolean;
-}
-
-const STRING_LITERAL_PATTERN = /['"`][^'"`\n]+['"`]/;
-const PAYMENT_METHOD_SELECTOR_PATTERN =
-  /\bpaymentMethod(?:\?\.)?\.type\b|\bpaymentMethod\s*\[\s*['"]type['"]\s*\]/;
-const ACTION_CODE_SELECTOR_PATTERN =
-  /\bresultCode\b|\baction(?:\?\.)?\.type\b|\baction\s*\[\s*['"]type['"]\s*\]/;
-
 const UNSUPPORTED_CUSTOM_BUTTON_METHODS = ['paypal', 'klarna', 'clicktopay'];
 
 function flowLabel(flow: IntegrationFlow): string {
@@ -69,24 +63,6 @@ function isCallbackPresent(value: CallbackValue): boolean {
 
 function isComponentOnly(value: CallbackValue): boolean {
   return value === 'component';
-}
-
-function getEffectiveCheckoutConfig(payload: ScanPayload): CheckoutConfig | null {
-  const checkoutConfig = payload.page.checkoutConfig;
-  const componentConfig = payload.page.componentConfig;
-
-  if (checkoutConfig === null) {
-    return componentConfig;
-  }
-
-  if (componentConfig === null) {
-    return checkoutConfig;
-  }
-
-  return {
-    ...componentConfig,
-    ...checkoutConfig,
-  };
 }
 
 function joinSignals(signals: readonly string[]): string {
@@ -145,8 +121,7 @@ const STRINGS = {
   // SUBMIT_FILTER_WARN_DETAIL stays inline (dynamic: uses joinSignals(filteredTargets))
   SUBMIT_FILTER_WARN_REMEDIATION:
     'Refactor onSubmit so all submissions follow a generic fallback path. Method-specific or action-specific logic can be added as an exception, but all other cases should still call actions.resolve(...) or actions.reject(...).',
-  SUBMIT_FILTER_PASS_TITLE:
-    'onSubmit appears to handle payment methods and action codes through a generic fallback path.',
+  SUBMIT_FILTER_NOTICE_TITLE: 'Verify that onSubmit handles every payment method and action code.',
 
   ON_ADD_DETAILS_PASS_TITLE: 'onAdditionalDetails callback is present.',
   ON_ADD_DETAILS_FAIL_TITLE: 'onAdditionalDetails callback is missing.',
@@ -198,7 +173,8 @@ const STRINGS = {
     'Migrate your onSubmit handler from the v5-style component callbacks to the v6 actions pattern.',
   ACTIONS_PATTERN_INFO_TITLE: 'Could not determine onSubmit callback pattern from static analysis.',
 
-  MULTIPLE_SUBMISSIONS_PASS_TITLE: 'Submission handling appears to prevent multiple clicks.',
+  MULTIPLE_SUBMISSIONS_INFO_TITLE:
+    'A possible duplicate-submission guard was found in callback source.',
   MULTIPLE_SUBMISSIONS_NOTICE_TITLE: 'Ensure your checkout prevents multiple submissions.',
   MULTIPLE_SUBMISSIONS_DETAIL:
     'To prevent duplicate orders, you should disable your pay button as soon as a payment attempt is made.',
@@ -232,7 +208,7 @@ function runAdvancedRequiredCallbackCheck(
   options: AdvancedRequiredCallbackOptions,
   { pass, fail, skip, warn }: CheckContext
 ): CheckOutcome {
-  const config = getEffectiveCheckoutConfig(payload);
+  const config = resolveCapturedCheckoutConfig(payload);
 
   if (!config) {
     return skip(`${options.label} check skipped.`, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
@@ -258,6 +234,12 @@ function runAdvancedRequiredCallbackCheck(
     return pass(options.presentTitle);
   }
 
+  if (!hasVerifiedCheckoutConfig(payload)) {
+    return skip(
+      `${options.label} check skipped.`,
+      'Callback absence could not be verified in partial config.'
+    );
+  }
   return fail(options.missingTitle, options.missingDetail, options.remediation, docsUrl);
 }
 
@@ -277,7 +259,7 @@ function runFlowSensitiveOutcomeCallbackCheck(
   options: FlowSensitiveOutcomeCallbackOptions,
   { pass, fail, skip, warn }: CheckContext
 ): CheckOutcome {
-  const config = getEffectiveCheckoutConfig(payload);
+  const config = resolveCapturedCheckoutConfig(payload);
 
   if (!config) {
     return skip(`${options.label} check skipped.`, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
@@ -299,6 +281,12 @@ function runFlowSensitiveOutcomeCallbackCheck(
     return pass(options.presentTitle);
   }
 
+  if (!hasVerifiedCheckoutConfig(payload)) {
+    return skip(
+      `${options.label} check skipped.`,
+      'Callback absence could not be verified in partial config.'
+    );
+  }
   if (flow === 'sessions') {
     return fail(
       options.missingTitle,
@@ -314,207 +302,6 @@ function runFlowSensitiveOutcomeCallbackCheck(
     options.missingAdvancedRemediation,
     docsUrl
   );
-}
-
-function isWhitespaceChar(char: string | undefined): boolean {
-  return char === ' ' || char === '\n' || char === '\r' || char === '\t' || char === '\f';
-}
-
-function skipWhitespace(source: string, start: number): number {
-  let index = start;
-  while (isWhitespaceChar(source[index])) {
-    index += 1;
-  }
-  return index;
-}
-
-function findMatchingDelimiter(
-  source: string,
-  start: number,
-  openDelimiter: string,
-  closeDelimiter: string
-): number {
-  let depth = 0;
-  for (let index = start; index < source.length; index += 1) {
-    const char = source[index];
-    if (char === openDelimiter) {
-      depth += 1;
-      continue;
-    }
-    if (char === closeDelimiter) {
-      depth -= 1;
-      if (depth === 0) {
-        return index;
-      }
-    }
-  }
-  return -1;
-}
-
-function findStatementEnd(source: string, start: number): number {
-  const firstToken = source[start];
-  if (firstToken === '{') {
-    return findMatchingDelimiter(source, start, '{', '}');
-  }
-
-  const semicolonIndex = source.indexOf(';', start);
-  if (semicolonIndex !== -1) {
-    return semicolonIndex;
-  }
-
-  const newlineIndex = source.indexOf('\n', start);
-  if (newlineIndex !== -1) {
-    return newlineIndex;
-  }
-
-  return source.length - 1;
-}
-
-interface ParsedSwitchStatement {
-  readonly malformed: boolean;
-  readonly nextSearchIndex: number;
-  readonly condition?: string;
-  readonly block?: string;
-}
-
-function parseSwitchStatement(source: string, switchStart: number): ParsedSwitchStatement {
-  const conditionStart = source.indexOf('(', switchStart);
-  if (conditionStart === -1) {
-    return {
-      malformed: false,
-      nextSearchIndex: switchStart + 1,
-    };
-  }
-
-  const conditionEnd = findMatchingDelimiter(source, conditionStart, '(', ')');
-  if (conditionEnd === -1) {
-    return {
-      malformed: true,
-      nextSearchIndex: source.length,
-    };
-  }
-
-  const condition = source.slice(conditionStart + 1, conditionEnd);
-  const blockStart = skipWhitespace(source, conditionEnd + 1);
-  if (source[blockStart] !== '{') {
-    return {
-      malformed: false,
-      nextSearchIndex: conditionEnd + 1,
-      condition,
-    };
-  }
-
-  const blockEnd = findMatchingDelimiter(source, blockStart, '{', '}');
-  if (blockEnd === -1) {
-    return {
-      malformed: true,
-      nextSearchIndex: source.length,
-    };
-  }
-
-  return {
-    malformed: false,
-    nextSearchIndex: blockEnd + 1,
-    condition,
-    block: source.slice(blockStart + 1, blockEnd),
-  };
-}
-
-function hasStringCasesWithoutDefault(switchBlock: string): boolean {
-  const hasStringCases = /\bcase\s*['"`][^'"`\n]+['"`]\s*:/.test(switchBlock);
-  const hasDefaultCase = /\bdefault\s*:/.test(switchBlock);
-  return hasStringCases && !hasDefaultCase;
-}
-
-function hasUnhandledSelectorIfStatement(source: string, selectorPattern: RegExp): boolean {
-  const ifPattern = /\bif\s*\(/g;
-  let match = ifPattern.exec(source);
-
-  while (match !== null) {
-    const conditionStart = source.indexOf('(', match.index);
-    if (conditionStart === -1) {
-      match = ifPattern.exec(source);
-      continue;
-    }
-
-    const conditionEnd = findMatchingDelimiter(source, conditionStart, '(', ')');
-    if (conditionEnd === -1) {
-      return false;
-    }
-
-    const condition = source.slice(conditionStart + 1, conditionEnd);
-    const hasSelector = selectorPattern.test(condition);
-    const hasSpecificLiteral = STRING_LITERAL_PATTERN.test(condition);
-    if (hasSelector && hasSpecificLiteral) {
-      const statementStart = skipWhitespace(source, conditionEnd + 1);
-      const statementEnd = findStatementEnd(source, statementStart);
-      if (statementEnd === -1) {
-        return false;
-      }
-
-      const trailingTokenStart = skipWhitespace(source, statementEnd + 1);
-      if (!source.startsWith('else', trailingTokenStart)) {
-        return true;
-      }
-    }
-
-    ifPattern.lastIndex = conditionEnd + 1;
-    match = ifPattern.exec(source);
-  }
-
-  return false;
-}
-
-function hasUnhandledSelectorSwitchStatement(source: string, selectorPattern: RegExp): boolean {
-  const switchPattern = /\bswitch\s*\(/g;
-  let match = switchPattern.exec(source);
-
-  while (match !== null) {
-    const parsed = parseSwitchStatement(source, match.index);
-    if (parsed.malformed) {
-      return false;
-    }
-
-    if (
-      parsed.condition !== undefined &&
-      parsed.block !== undefined &&
-      selectorPattern.test(parsed.condition) &&
-      hasStringCasesWithoutDefault(parsed.block)
-    ) {
-      return true;
-    }
-
-    switchPattern.lastIndex = parsed.nextSearchIndex;
-    match = switchPattern.exec(source);
-  }
-
-  return false;
-}
-
-function detectUnhandledOnSubmitFilters(source: string): UnhandledOnSubmitFilters {
-  const paymentMethodFiltered =
-    hasUnhandledSelectorIfStatement(source, PAYMENT_METHOD_SELECTOR_PATTERN) ||
-    hasUnhandledSelectorSwitchStatement(source, PAYMENT_METHOD_SELECTOR_PATTERN);
-  const actionCodeFiltered =
-    hasUnhandledSelectorIfStatement(source, ACTION_CODE_SELECTOR_PATTERN) ||
-    hasUnhandledSelectorSwitchStatement(source, ACTION_CODE_SELECTOR_PATTERN);
-
-  return {
-    paymentMethod: paymentMethodFiltered,
-    actionCode: actionCodeFiltered,
-  };
-}
-
-function detectsMultipleSubmissions(source: string): boolean {
-  // Looks for common patterns like .disabled = true, setLoading(true), .setAttribute('disabled', ...), etc.
-  const patterns = [
-    /\.disabled\s*=\s*(?:true|1)/,
-    /setLoading\s*\(\s*(?:true|1)\s*\)/,
-    /\.setAttribute\s*\(\s*['"]disabled['"]/,
-    /\.classList\.add\s*\(\s*['"](?:is-)?loading['"]/,
-    /this\.isSubmitting\s*=\s*true/,
-  ];
-  return patterns.some((p) => p.test(source));
 }
 
 export const CALLBACK_CHECKS = createRegistry(CATEGORY)
@@ -536,8 +323,8 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
       context
     );
   })
-  .add('callback-on-submit-filtering', (payload, { skip, warn, pass }) => {
-    const config = getEffectiveCheckoutConfig(payload);
+  .add('callback-on-submit-filtering', (payload, { skip, warn, notice, info }) => {
+    const config = resolveCapturedCheckoutConfig(payload);
     if (!config) {
       return skip('onSubmit filtering check skipped.', SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
     }
@@ -550,6 +337,12 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
     const onSubmitSource = config.onSubmitSource ?? '';
     if (onSubmitSource === '') {
       return skip('onSubmit filtering check skipped.', STRINGS.NO_SOURCE_SKIP_REASON);
+    }
+    if (onSubmitSource.length >= 1200) {
+      return notice(
+        STRINGS.SUBMIT_FILTER_NOTICE_TITLE,
+        'Captured callback source may be truncated, so complete handling cannot be verified.'
+      );
     }
 
     const filters = detectUnhandledOnSubmitFilters(onSubmitSource);
@@ -570,7 +363,16 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
       );
     }
 
-    return pass(STRINGS.SUBMIT_FILTER_PASS_TITLE);
+    if (!/actions\.(resolve|reject)\(/.test(onSubmitSource)) {
+      return info('Could not determine onSubmit fallback coverage from callback source.');
+    }
+
+    return notice(
+      STRINGS.SUBMIT_FILTER_NOTICE_TITLE,
+      'A resolution call was found, but static source inspection cannot verify every payment method and action code reaches it.',
+      STRINGS.SUBMIT_FILTER_WARN_REMEDIATION,
+      getFlowSensitiveCallbackDocsUrl(payload, 'advanced')
+    );
   })
   .add('callback-on-additional-details', (payload, context) => {
     return runAdvancedRequiredCallbackCheck(
@@ -619,7 +421,7 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
     );
   })
   .add('callback-on-error', (payload, { pass, fail, skip, warn }) => {
-    const config = getEffectiveCheckoutConfig(payload);
+    const config = resolveCapturedCheckoutConfig(payload);
 
     if (!config) {
       return skip(STRINGS.ON_ERROR_SKIP_TITLE, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
@@ -636,6 +438,12 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
       }
       return pass(STRINGS.ON_ERROR_PASS_TITLE);
     }
+    if (!hasVerifiedCheckoutConfig(payload)) {
+      return skip(
+        STRINGS.ON_ERROR_SKIP_TITLE,
+        'Callback absence could not be verified in partial config.'
+      );
+    }
 
     return fail(
       STRINGS.ON_ERROR_FAIL_TITLE,
@@ -645,7 +453,7 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
     );
   })
   .add('callback-before-submit', (payload, { pass, info, skip, warn }) => {
-    const config = getEffectiveCheckoutConfig(payload);
+    const config = resolveCapturedCheckoutConfig(payload);
     if (!config) {
       return skip(STRINGS.BEFORE_SUBMIT_SKIP_TITLE, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
     }
@@ -661,10 +469,16 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
       }
       return pass(STRINGS.BEFORE_SUBMIT_PASS_TITLE);
     }
+    if (!hasVerifiedCheckoutConfig(payload)) {
+      return skip(
+        STRINGS.BEFORE_SUBMIT_SKIP_TITLE,
+        'Callback absence could not be verified in partial config.'
+      );
+    }
     return info(STRINGS.BEFORE_SUBMIT_INFO_TITLE);
   })
   .add('callback-actions-pattern', (payload, { skip, pass, warn, info }) => {
-    const config = getEffectiveCheckoutConfig(payload);
+    const config = resolveCapturedCheckoutConfig(payload);
     if (!config) {
       return skip(STRINGS.ACTIONS_PATTERN_SKIP_TITLE, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
     }
@@ -694,8 +508,8 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
 
     return info(STRINGS.ACTIONS_PATTERN_INFO_TITLE);
   })
-  .add('callback-multiple-submissions', (payload, { skip, pass, notice }) => {
-    const config = getEffectiveCheckoutConfig(payload);
+  .add('callback-multiple-submissions', (payload, { skip, info, notice }) => {
+    const config = resolveCapturedCheckoutConfig(payload);
     if (!config) {
       return skip('Multiple submissions check skipped.', SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
     }
@@ -709,7 +523,10 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
     }
 
     if (detectsMultipleSubmissions(combinedSource)) {
-      return pass(STRINGS.MULTIPLE_SUBMISSIONS_PASS_TITLE);
+      return info(
+        STRINGS.MULTIPLE_SUBMISSIONS_INFO_TITLE,
+        'A source pattern suggests a guard may be present; its runtime behavior cannot be verified automatically.'
+      );
     }
 
     return notice(
@@ -720,7 +537,7 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
     );
   })
   .add('callback-custom-pay-button-compatibility', (payload, { skip, pass, warn }) => {
-    const config = getEffectiveCheckoutConfig(payload);
+    const config = resolveCapturedCheckoutConfig(payload);
     if (!config) {
       return skip(
         'Custom pay button compatibility check skipped.',
@@ -755,6 +572,13 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
         STRINGS.CUSTOM_PAY_BUTTON_COMPAT_WARN_DETAIL,
         STRINGS.CUSTOM_PAY_BUTTON_COMPAT_WARN_REMEDIATION,
         STRINGS.CUSTOM_PAY_BUTTON_COMPAT_WARN_URL
+      );
+    }
+
+    if (capturedVariants.length === 0) {
+      return skip(
+        'Custom pay button compatibility check skipped.',
+        'Payment method inventory was not observed.'
       );
     }
 

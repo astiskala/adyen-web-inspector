@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { CSP_CHECKS } from '../../../src/background/checks/security-csp';
-import { makeScanPayload, makeHeader } from '../../fixtures/makeScanPayload';
+import { makeScanPayload, makeHeader, makePageExtract } from '../../fixtures/makeScanPayload';
 import { requireCheck } from './requireCheck';
 
 const cspPresent = requireCheck(CSP_CHECKS, 'security-csp-present');
@@ -28,11 +28,27 @@ describe('csp-present', () => {
     expect(result.severity).toBe('warn');
     expect(result.detail).toContain('PCI compliance');
   });
+
+  it('skips CSP checks when response headers could not be captured', () => {
+    const payload = makeScanPayload({
+      mainDocumentHeaders: [],
+      mainDocumentHeadersAvailable: false,
+    });
+    expect(cspPresent.run(payload).severity).toBe('skip');
+    expect(cspScriptSrc.run(payload).severity).toBe('skip');
+    expect(cspFrameAncestors.run(payload).severity).toBe('skip');
+    expect(cspReporting.run(payload).severity).toBe('skip');
+  });
 });
 
 describe('csp-script-src', () => {
+  const page = makePageExtract({
+    scripts: [{ src: 'https://checkoutshopper-test.adyen.com/checkoutshopper/sdk.js' }],
+  });
+
   it('passes when Adyen CDN is in script-src', () => {
     const payload = makeScanPayload({
+      page,
       mainDocumentHeaders: [
         makeHeader(
           'content-security-policy',
@@ -45,10 +61,11 @@ describe('csp-script-src', () => {
 
   it('passes when Adyen CDN is in default-src', () => {
     const payload = makeScanPayload({
+      page,
       mainDocumentHeaders: [
         makeHeader(
           'content-security-policy',
-          "default-src 'self' https://checkoutshopper-live.adyen.com"
+          "default-src 'self' https://checkoutshopper-test.adyen.com"
         ),
       ],
     });
@@ -57,6 +74,7 @@ describe('csp-script-src', () => {
 
   it('warns when Adyen CDN is missing from script-src', () => {
     const payload = makeScanPayload({
+      page,
       mainDocumentHeaders: [makeHeader('content-security-policy', "default-src 'self'")],
     });
     const result = cspScriptSrc.run(payload);
@@ -66,6 +84,7 @@ describe('csp-script-src', () => {
 
   it('warns when script-src contains lookalike domains but not Adyen', () => {
     const payload = makeScanPayload({
+      page,
       mainDocumentHeaders: [
         makeHeader('content-security-policy', "script-src 'self' https://notadyen.com"),
       ],
@@ -75,6 +94,52 @@ describe('csp-script-src', () => {
 
   it('returns skip when no CSP present', () => {
     const payload = makeScanPayload({ mainDocumentHeaders: [] });
+    expect(cspScriptSrc.run(payload).severity).toBe('skip');
+  });
+
+  it('honors explicit script-src over an allowing default-src', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({
+        scripts: [{ src: 'https://checkoutshopper-test.adyen.com/checkoutshopper/sdk.js' }],
+      }),
+      mainDocumentHeaders: [
+        makeHeader('content-security-policy', "default-src https:; script-src 'self'"),
+      ],
+    });
+    expect(cspScriptSrc.run(payload).severity).toBe('warn');
+  });
+
+  it('requires each enforced CSP header to allow the observed Adyen script', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({
+        scripts: [{ src: 'https://checkoutshopper-test.adyen.com/checkoutshopper/sdk.js' }],
+      }),
+      mainDocumentHeaders: [
+        makeHeader('content-security-policy', 'script-src https://*.adyen.com'),
+        makeHeader('content-security-policy', "script-src 'self'"),
+      ],
+    });
+    expect(cspScriptSrc.run(payload).severity).toBe('warn');
+  });
+
+  it('requires all policies in a combined CSP header to allow the script', () => {
+    const payload = makeScanPayload({
+      page,
+      mainDocumentHeaders: [
+        makeHeader('content-security-policy', "script-src https://*.adyen.com, script-src 'self'"),
+      ],
+    });
+    expect(cspScriptSrc.run(payload).severity).toBe('warn');
+  });
+
+  it('skips the Adyen CDN script requirement for npm-only pages', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({
+        adyenMetadata: { version: '6.31.0' },
+        scripts: [{ src: 'https://merchant.example/app.js' }],
+      }),
+      mainDocumentHeaders: [makeHeader('content-security-policy', "script-src 'self'")],
+    });
     expect(cspScriptSrc.run(payload).severity).toBe('skip');
   });
 });

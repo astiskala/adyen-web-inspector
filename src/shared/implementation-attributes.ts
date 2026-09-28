@@ -33,7 +33,7 @@ const ANALYTICS_FLAVOR_MAP: Record<string, ImplementationFlavor> = {
 type EnvironmentSource = 'config' | 'client-key' | 'network' | 'unknown';
 type RegionSource = 'config' | 'network' | 'unknown';
 export type IntegrationFlow = 'sessions' | 'advanced' | 'unknown';
-type ImportMethod = 'CDN' | 'Adyen' | 'npm';
+type ImportMethod = 'CDN' | 'Adyen' | 'Unknown';
 type ImplementationFlavor = 'Drop-in' | 'Components' | 'Custom' | 'Unknown';
 type IntegrationFlavorSource =
   | 'analytics'
@@ -239,14 +239,14 @@ export function resolveEnvironment(payload: ScanPayload): EnvironmentResolution 
     return { env: envFromConfig, source: 'config' };
   }
 
-  const envFromInferred = detectEnvironmentFromConfig(payload.page.inferredConfig?.environment);
-  if (envFromInferred !== null) {
-    return { env: envFromInferred, source: 'config' };
-  }
-
   const envFromComponent = detectEnvironmentFromConfig(payload.page.componentConfig?.environment);
   if (envFromComponent !== null) {
     return { env: envFromComponent, source: 'config' };
+  }
+
+  const envFromInferred = detectEnvironmentFromConfig(payload.page.inferredConfig?.environment);
+  if (envFromInferred !== null) {
+    return { env: envFromInferred, source: 'config' };
   }
 
   const envFromKey =
@@ -271,10 +271,10 @@ export function resolveEnvironment(payload: ScanPayload): EnvironmentResolution 
 export function resolveRegion(payload: ScanPayload): RegionResolution {
   let regionFromConfig = detectRegionFromConfig(payload.page.checkoutConfig?.environment);
   if (regionFromConfig === 'unknown') {
-    regionFromConfig = detectRegionFromConfig(payload.page.inferredConfig?.environment);
+    regionFromConfig = detectRegionFromConfig(payload.page.componentConfig?.environment);
   }
   if (regionFromConfig === 'unknown') {
-    regionFromConfig = detectRegionFromConfig(payload.page.componentConfig?.environment);
+    regionFromConfig = detectRegionFromConfig(payload.page.inferredConfig?.environment);
   }
 
   if (regionFromConfig !== 'unknown') {
@@ -301,7 +301,7 @@ function isCdnAdyenHost(host: string): boolean {
 }
 
 /**
- * Classifies how checkout was loaded: Adyen CDN script, other Adyen host, or bundled npm.
+ * Classifies visible Adyen-hosted script origins; other import methods remain unknown.
  */
 export function detectImportMethod(scripts: ScanPayload['page']['scripts']): ImportMethod {
   let foundAdyenHost = false;
@@ -325,7 +325,7 @@ export function detectImportMethod(scripts: ScanPayload['page']['scripts']): Imp
     return 'Adyen';
   }
 
-  return 'npm';
+  return 'Unknown';
 }
 
 /**

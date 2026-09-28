@@ -79,30 +79,34 @@ const REMEDIATION =
   'Migrate CSS class name overrides (.adyen-checkout__*) to --adyen-sdk-* CSS custom properties for better compatibility with future SDK upgrades.';
 
 export const STYLING_CHECKS = createRegistry('sdk-identity')
-  .add('styling-css-custom-props', (payload, ctx) => {
-    const styles = payload.page.adyenStyles;
+  .add(
+    'styling-css-custom-props',
+    (payload, ctx) => {
+      const styles = payload.page.adyenStyles;
 
-    const hasOverrides = styles.classOverrideCount > 0;
-    const hasCustomProps = styles.customPropertyCount > 0;
+      const hasOverrides = styles.classOverrideCount > 0;
+      const hasCustomProps = styles.customPropertyCount > 0;
 
-    if (!hasOverrides && !hasCustomProps) {
-      return ctx.skip(
-        'CSS styling check skipped.',
-        'No custom Adyen styling detected on this page.'
+      if (!hasOverrides && !hasCustomProps) {
+        return ctx.skip(
+          'CSS styling check skipped.',
+          'No custom Adyen styling detected on this page.'
+        );
+      }
+
+      if (!hasOverrides && hasCustomProps) {
+        return ctx.pass(
+          `Adyen components styled using CSS custom properties (${pluralRules(styles.customPropertyCount)} found).`
+        );
+      }
+
+      return ctx.notice(
+        'Adyen components styled via CSS class overrides instead of CSS custom properties.',
+        buildOverrideDetail(styles),
+        REMEDIATION,
+        DOCS_URL
       );
-    }
-
-    if (!hasOverrides && hasCustomProps) {
-      return ctx.pass(
-        `Adyen components styled using CSS custom properties (${pluralRules(styles.customPropertyCount)} found).`
-      );
-    }
-
-    return ctx.notice(
-      'Adyen components styled via CSS class overrides instead of CSS custom properties.',
-      buildOverrideDetail(styles),
-      REMEDIATION,
-      DOCS_URL
-    );
-  })
+    },
+    { noticeImpact: 'low' }
+  )
   .getChecks();
