@@ -29,6 +29,8 @@ Adyen Web Inspector is a Chrome Manifest V3 extension that analyses adyen-web (D
 | `pnpm test:e2e`         | E2E tests (Playwright + Chromium)                                     |
 | `pnpm validate`         | Typecheck, lint, format check, depcruise, knip, coverage, integration |
 
+Keep pnpm settings such as `overrides` and `allowBuilds` in `pnpm-workspace.yaml`. pnpm 10 ignores the `pnpm` field in `package.json`, so a lockfile regenerated with settings there silently drops the security overrides.
+
 ---
 
 ## Key Conventions
