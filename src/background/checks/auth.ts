@@ -1,3 +1,8 @@
+/**
+ * Authentication checks (`auth`) — client key, rejected client-side requests, country code,
+ * and locale.
+ */
+
 import {
   ADYEN_ANALYTICS_DOMAINS,
   ADYEN_CHECKOUTSHOPPER_DOMAINS,
@@ -23,6 +28,8 @@ const STRINGS = {
 
   COUNTRY_CODE_SKIP_TITLE: 'Country code check skipped.',
   COUNTRY_CODE_PARTIAL_NOTICE_TITLE: 'countryCode presence cannot be verified.',
+  COUNTRY_CODE_PARTIAL_NOTICE_DETAIL:
+    'Only partial checkout configuration was observed; countryCode absence cannot be verified.',
   COUNTRY_CODE_PASS_TITLE: 'countryCode is set correctly.',
   COUNTRY_CODE_FAIL_TITLE: 'countryCode is not set in the checkout configuration.',
   COUNTRY_CODE_FAIL_DETAIL:
@@ -30,9 +37,13 @@ const STRINGS = {
   COUNTRY_CODE_FAIL_REMEDIATION:
     "Set the countryCode property in your AdyenCheckout configuration to the ISO 3166-1 alpha-2 code for the shopper's country. This is required to display the correct payment methods for that market and to route the payment correctly.",
   COUNTRY_CODE_FAIL_URL: 'https://docs.adyen.com/development-resources/testing/',
+  COUNTRY_CODE_SESSIONS_WARN_DETAIL:
+    'Sessions flow typically sets countryCode server-side in the /sessions request. Setting it in the client config is still recommended for optimal payment method filtering.',
 
   LOCALE_SKIP_TITLE: 'Locale check skipped.',
   LOCALE_PARTIAL_NOTICE_TITLE: 'locale presence cannot be verified.',
+  LOCALE_PARTIAL_NOTICE_DETAIL:
+    'Only partial checkout configuration was observed; locale absence cannot be verified.',
   LOCALE_PASS_TITLE: 'locale is set correctly.',
   LOCALE_MISSING_WARN_TITLE:
     'locale is not explicitly set. Language will be determined automatically.',
@@ -136,7 +147,7 @@ export const AUTH_CHECKS = createRegistry(CATEGORY)
     if (countryCode.state === 'unobserved') {
       return notice(
         STRINGS.COUNTRY_CODE_PARTIAL_NOTICE_TITLE,
-        'Only partial checkout configuration was observed; countryCode absence cannot be verified.'
+        STRINGS.COUNTRY_CODE_PARTIAL_NOTICE_DETAIL
       );
     }
 
@@ -144,7 +155,7 @@ export const AUTH_CHECKS = createRegistry(CATEGORY)
     if (flow === 'sessions') {
       return warn(
         STRINGS.COUNTRY_CODE_FAIL_TITLE,
-        'Sessions flow typically sets countryCode server-side in the /sessions request. Setting it in the client config is still recommended for optimal payment method filtering.',
+        STRINGS.COUNTRY_CODE_SESSIONS_WARN_DETAIL,
         STRINGS.COUNTRY_CODE_FAIL_REMEDIATION,
         STRINGS.COUNTRY_CODE_FAIL_URL
       );
@@ -182,10 +193,7 @@ export const AUTH_CHECKS = createRegistry(CATEGORY)
       return skip(STRINGS.LOCALE_SKIP_TITLE, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
     }
     if (evidence.state === 'unobserved') {
-      return notice(
-        STRINGS.LOCALE_PARTIAL_NOTICE_TITLE,
-        'Only partial checkout configuration was observed; locale absence cannot be verified.'
-      );
+      return notice(STRINGS.LOCALE_PARTIAL_NOTICE_TITLE, STRINGS.LOCALE_PARTIAL_NOTICE_DETAIL);
     }
 
     return warn(

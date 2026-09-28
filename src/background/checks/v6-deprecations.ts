@@ -1,9 +1,6 @@
 /**
- * Adyen Web v6 upgrade deprecation checks.
- *
- * Detects configuration properties and event handlers that were removed or
- * renamed in Adyen Web v6. Warns merchants who may not have cleaned up their
- * integration after upgrading.
+ * Adyen Web v6 deprecation checks (`version-lifecycle`) — configuration properties and event
+ * handlers that were removed or renamed in Adyen Web v6 and may remain after an upgrade.
  * @see https://docs.adyen.com/online-payments/upgrade-your-integration/upgrade-to-web-v6
  */
 
@@ -18,8 +15,26 @@ import { parseVersion } from '../../shared/utils.js';
 import { SKIP_REASONS } from './constants.js';
 import { createRegistry, type CheckContext, type CheckOutcome } from './registry.js';
 
+const CATEGORY = 'version-lifecycle' as const;
 const UPGRADE_DOCS_URL =
   'https://docs.adyen.com/online-payments/upgrade-your-integration/upgrade-to-web-v6';
+
+const STRINGS = {
+  PRE_V6_SKIP_REASON: 'SDK is running a pre-v6 version.',
+  // WARN_TITLE stays inline (dynamic: lists the deprecated items found)
+  PROPERTIES_SKIP_TITLE: 'v6 deprecated properties check skipped.',
+  PROPERTIES_PASS_TITLE: 'No deprecated configuration properties detected.',
+  PROPERTIES_SINGULAR: 'configuration property',
+  PROPERTIES_PLURAL: 'configuration properties',
+  PROPERTIES_REMEDIATION:
+    'Remove or migrate the deprecated properties listed above. See the Adyen v6 upgrade guide for details.',
+  CALLBACKS_SKIP_TITLE: 'v6 deprecated callbacks check skipped.',
+  CALLBACKS_PASS_TITLE: 'No deprecated event handlers detected.',
+  CALLBACKS_SINGULAR: 'event handler',
+  CALLBACKS_PLURAL: 'event handlers',
+  CALLBACKS_REMEDIATION:
+    'Remove or rename the deprecated event handlers listed above. See the Adyen v6 upgrade guide for details.',
+} as const;
 
 type ConfigKey = keyof CheckoutConfig;
 
@@ -125,7 +140,7 @@ function runDeprecationCheck(
   { warn, skip, pass }: CheckContext
 ): CheckOutcome {
   if (isPreV6(payload)) {
-    return skip(check.skipTitle, 'SDK is running a pre-v6 version.');
+    return skip(check.skipTitle, STRINGS.PRE_V6_SKIP_REASON);
   }
   const found = check.items.filter((item) => isCaptured(payload, item.key));
   if (found.length === 0) {
@@ -143,18 +158,17 @@ function runDeprecationCheck(
   );
 }
 
-export const V6_DEPRECATION_CHECKS = createRegistry('version-lifecycle')
+export const V6_DEPRECATION_CHECKS = createRegistry(CATEGORY)
   .add('v6-deprecated-properties', (payload, context) =>
     runDeprecationCheck(
       payload,
       {
         items: DEPRECATED_PROPERTIES,
-        skipTitle: 'v6 deprecated properties check skipped.',
-        passTitle: 'No deprecated configuration properties detected.',
-        singular: 'configuration property',
-        plural: 'configuration properties',
-        remediation:
-          'Remove or migrate the deprecated properties listed above. See the Adyen v6 upgrade guide for details.',
+        skipTitle: STRINGS.PROPERTIES_SKIP_TITLE,
+        passTitle: STRINGS.PROPERTIES_PASS_TITLE,
+        singular: STRINGS.PROPERTIES_SINGULAR,
+        plural: STRINGS.PROPERTIES_PLURAL,
+        remediation: STRINGS.PROPERTIES_REMEDIATION,
       },
       context
     )
@@ -164,12 +178,11 @@ export const V6_DEPRECATION_CHECKS = createRegistry('version-lifecycle')
       payload,
       {
         items: DEPRECATED_CALLBACKS,
-        skipTitle: 'v6 deprecated callbacks check skipped.',
-        passTitle: 'No deprecated event handlers detected.',
-        singular: 'event handler',
-        plural: 'event handlers',
-        remediation:
-          'Remove or rename the deprecated event handlers listed above. See the Adyen v6 upgrade guide for details.',
+        skipTitle: STRINGS.CALLBACKS_SKIP_TITLE,
+        passTitle: STRINGS.CALLBACKS_PASS_TITLE,
+        singular: STRINGS.CALLBACKS_SINGULAR,
+        plural: STRINGS.CALLBACKS_PLURAL,
+        remediation: STRINGS.CALLBACKS_REMEDIATION,
       },
       context
     )

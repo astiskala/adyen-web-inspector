@@ -1,5 +1,6 @@
 /**
- * Category 1 — SDK Identity checks.
+ * SDK identity checks (`sdk-identity`) — SDK presence, integration flavor, import method, bundle
+ * type, analytics, and initialisation count.
  */
 
 import type { ScanPayload } from '../../shared/types.js';
@@ -45,11 +46,15 @@ const STRINGS = {
   BUNDLE_TYPE_UNKNOWN_SKIP_REASON: 'AdyenWebMetadata not available.',
 
   BUNDLE_AUTO_NOTICE_TITLE: 'Using the NPM auto bundle.',
+  BUNDLE_AUTO_NOTICE_DETAIL:
+    'The auto bundle includes all payment methods, increasing bundle size. This is a flexible option if you expect to add new payment methods in the future.',
   BUNDLE_AUTO_NOTICE_REMEDIATION:
     'Consider switching to tree-shakable imports. Instead of importing the entire Adyen Web package, import only the specific payment method components your integration uses. This significantly reduces JavaScript bundle size and improves checkout page load time.',
 
   ANALYTICS_SKIP_TITLE: 'Analytics check skipped.',
   ANALYTICS_SKIP_REASON: 'SDK not active on this page.',
+  ANALYTICS_PARTIAL_SKIP_REASON: 'Analytics setting could not be verified in partial config.',
+  ANALYTICS_INFERRED_SKIP_REASON: 'Analytics setting was only inferred.',
   ANALYTICS_WARN_TITLE: 'Checkout analytics appear to be disabled.',
   ANALYTICS_WARN_DETAIL:
     'Checkout config sets analytics.enabled to false. When analytics is disabled, Adyen cannot optimise payment performance and the inspector must rely on fallback detection for flavor, version, and build type.',
@@ -59,6 +64,8 @@ const STRINGS = {
   ANALYTICS_PASS_TITLE: 'Checkout analytics are not explicitly disabled.',
   ANALYTICS_PASS_DETAIL: 'analytics.enabled is not set to false in checkout config.',
 
+  MULTI_INIT_SKIP_TITLE: 'Initialization count check skipped.',
+  MULTI_INIT_SKIP_REASON: 'AdyenCheckout initialization not detected.',
   MULTI_INIT_PASS_TITLE: 'AdyenCheckout initialised only once.',
   MULTI_INIT_WARN_TITLE: 'AdyenCheckout initialised multiple times.',
   MULTI_INIT_WARN_DETAIL:
@@ -166,7 +173,7 @@ export const SDK_IDENTITY_CHECKS = createRegistry(CATEGORY)
         const docsUrl = getFlowSensitiveBundleDocsUrl(payload, flow);
         return notice(
           STRINGS.BUNDLE_AUTO_NOTICE_TITLE,
-          'The auto bundle includes all payment methods, increasing bundle size. This is a flexible option if you expect to add new payment methods in the future.',
+          STRINGS.BUNDLE_AUTO_NOTICE_DETAIL,
           STRINGS.BUNDLE_AUTO_NOTICE_REMEDIATION,
           docsUrl
         );
@@ -183,13 +190,10 @@ export const SDK_IDENTITY_CHECKS = createRegistry(CATEGORY)
 
     const analytics = readCheckoutField(payload, 'analyticsEnabled');
     if (analytics.state === 'unobserved') {
-      return skip(
-        STRINGS.ANALYTICS_SKIP_TITLE,
-        'Analytics setting could not be verified in partial config.'
-      );
+      return skip(STRINGS.ANALYTICS_SKIP_TITLE, STRINGS.ANALYTICS_PARTIAL_SKIP_REASON);
     }
     if (analytics.state === 'present' && analytics.source === 'inferred') {
-      return skip(STRINGS.ANALYTICS_SKIP_TITLE, 'Analytics setting was only inferred.');
+      return skip(STRINGS.ANALYTICS_SKIP_TITLE, STRINGS.ANALYTICS_INFERRED_SKIP_REASON);
     }
     if (analytics.state === 'present' && !analytics.value) {
       return warn(
@@ -205,10 +209,7 @@ export const SDK_IDENTITY_CHECKS = createRegistry(CATEGORY)
   .add('sdk-multi-init', (payload, { pass, warn, skip }) => {
     const initCount = payload.page.checkoutInitCount ?? payload.page.componentMountCount;
     if (initCount === undefined || initCount === 0) {
-      return skip(
-        'Initialization count check skipped.',
-        'AdyenCheckout initialization not detected.'
-      );
+      return skip(STRINGS.MULTI_INIT_SKIP_TITLE, STRINGS.MULTI_INIT_SKIP_REASON);
     }
 
     if (initCount > 1) {

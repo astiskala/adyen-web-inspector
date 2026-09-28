@@ -8,21 +8,21 @@ interface Props {
   readonly result: ScanResult;
 }
 
-function tierClass(tier: string): string {
-  if (tier === 'excellent') return 'Excellent';
-  if (tier === 'issues') return 'Issues';
-  return 'Critical';
-}
+const TIER_CLASSES: Readonly<
+  Record<ScanResult['health']['tier'], { readonly score: string; readonly fill: string }>
+> = {
+  excellent: { score: 'scoreExcellent', fill: 'fillExcellent' },
+  issues: { score: 'scoreIssues', fill: 'fillIssues' },
+  critical: { score: 'scoreCritical', fill: 'fillCritical' },
+};
 
 /**
  * Displays the scan health score, pass ratio, and progress bar indicator.
  */
 export function HealthScore({ result }: Props): JSX.Element {
   const { score, passing, total, tier } = result.health;
-  const t = tierClass(tier);
-  const scoreClass = s(`score${t}`);
-  const fillClass = s(`fill${t}`);
-  const fillClasses = `${s('fill')} ${fillClass}`.trim();
+  const scoreClass = s(TIER_CLASSES[tier].score);
+  const fillClasses = `${s('fill')} ${s(TIER_CLASSES[tier].fill)}`;
 
   return (
     <div class={s('container')}>

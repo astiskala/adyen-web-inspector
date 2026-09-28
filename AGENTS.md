@@ -168,7 +168,9 @@ Check-specific guidance:
 
 - Export grouped arrays (for example `CSP_CHECKS`) from check files; do not export every individual check object.
 - Register all new checks in `src/background/checks/index.ts` and add the new ID to `CheckId` in `src/shared/types.ts`.
-- Prefer `createRegistry()` context helpers in check runners: `pass()`, `fail()`, `warn()`, `notice()`, `skip()`, `info()`.
+- Prefer `createRegistry()` context helpers in check runners: `pass()`, `fail()`, `warn()`, `notice()`, `skip()`, `info()`. Destructure them in the runner signature (`(payload, { pass, skip }) => …`).
+- Start each check module with a header naming the checks, their category ID, and their scope (see `risk-module.ts`), and declare the category once as `const CATEGORY = '…' as const`.
+- Keep static outcome text (titles, details, remediation, docs URLs) in the module's `STRINGS` table. Text that interpolates values stays inline, noted with a `// KEY stays inline (dynamic: …)` comment in the table. Short fragments composed into dynamic text may stay inline.
 - Severity set is: `pass`, `warn`, `fail`, `notice`, `info`, `skip`. Use `notice` for "cannot verify automatically" outcomes.
 - Keep `docs/architecture/check-catalog.md` in sync with code changes. `tests/unit/docs/check-catalog.test.ts` enforces check IDs/categories, totals, severities, and notice-list completeness; `tests/unit/docs/documentation.test.ts` checks local Markdown links, documented pnpm commands, README health tiers, and manifest/Sonar/package version parity. Both run in `pnpm test` and `pnpm validate`.
 

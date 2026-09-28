@@ -1,3 +1,8 @@
+/**
+ * Callback source analysis — static inspection of captured onSubmit and beforeSubmit source,
+ * used by the callback checks.
+ */
+
 interface UnhandledOnSubmitFilters {
   readonly paymentMethod: boolean;
   readonly actionCode: boolean;

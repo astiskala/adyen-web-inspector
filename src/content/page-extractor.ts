@@ -257,9 +257,8 @@ function processMountPoints(mountPoints: Set<ElementWithVnode>): {
   let findCount = 0;
 
   for (const mount of mountPoints) {
-    const vnode: unknown = mount.__k;
-    const options = findCoreOptions(vnode, 0);
-    if (options !== null && options !== undefined) {
+    const options = findCoreOptions(mount.__k, 0);
+    if (options !== null) {
       findCount++;
       configs.push(readCheckoutOptions(options, 'checkout') ?? {});
     }

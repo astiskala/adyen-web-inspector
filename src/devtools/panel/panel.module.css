@@ -77,6 +77,11 @@
   flex: 1;
 }
 
+.toolbarScore {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
 .errorBanner {
   padding: 6px 12px;
   border-bottom: 1px solid var(--color-border);
@@ -157,12 +162,38 @@
   flex: 1;
 }
 
-.passBadge {
-  color: var(--color-green);
-  font-weight: 600;
-  font-size: 11px;
-  text-transform: uppercase;
+.severity {
   flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.severityPass {
+  color: var(--color-green);
+}
+
+.severityFail {
+  color: var(--color-red);
+}
+
+.severityWarn {
+  color: var(--color-amber);
+}
+
+.severityNotice,
+.severityInfo {
+  color: var(--color-blue);
+}
+
+.severitySkip,
+.skipReason {
+  color: var(--color-text-secondary);
+}
+
+.skipReason {
+  flex-shrink: 0;
+  font-size: 11px;
 }
 
 .checkBody {

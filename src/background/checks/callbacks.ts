@@ -1,5 +1,6 @@
 /**
- * Category 5 — Integration Flow & Callback checks.
+ * Callback checks (`callbacks`) — integration flow, required and outcome callbacks, onSubmit
+ * handling, duplicate submissions, and custom pay buttons.
  */
 
 import type { CheckoutConfig, ScanPayload } from '../../shared/types.js';
@@ -112,7 +113,7 @@ function describeFlow(payload: ScanPayload, flow: IntegrationFlow): string {
     return `Advanced flow inferred from ${joinSignals(sources)}.`;
   }
 
-  return 'No Sessions or Advanced flow signals were captured.';
+  return STRINGS.FLOW_UNKNOWN_DETAIL;
 }
 
 function getDocsIntegration(payload: ScanPayload): 'Drop-in' | 'Components' {
@@ -132,6 +133,8 @@ function getFlowSensitiveCallbackDocsUrl(payload: ScanPayload, flow: Integration
 }
 
 const STRINGS = {
+  FLOW_UNKNOWN_DETAIL: 'No Sessions or Advanced flow signals were captured.',
+
   SESSIONS_FLOW_SKIP_REASON: 'Sessions flow detected.',
   NO_SOURCE_SKIP_REASON: 'onSubmit source not available.',
   CALLBACK_ABSENCE_UNVERIFIED_REASON: 'Callback absence could not be verified in partial config.',
@@ -149,6 +152,12 @@ const STRINGS = {
   SUBMIT_FILTER_WARN_REMEDIATION:
     'Refactor onSubmit so all submissions follow a generic fallback path. Method-specific or action-specific logic can be added as an exception, but all other cases should still call actions.resolve(...) or actions.reject(...).',
   SUBMIT_FILTER_NOTICE_TITLE: 'Verify that onSubmit handles every payment method and action code.',
+  SUBMIT_FILTER_NOTICE_DETAIL:
+    'A resolution call was found, but static source inspection cannot verify every payment method and action code reaches it.',
+  SUBMIT_FILTER_SKIP_TITLE: 'onSubmit filtering check skipped.',
+  SUBMIT_FILTER_TRUNCATED_DETAIL:
+    'Captured callback source may be truncated, so complete handling cannot be verified.',
+  SUBMIT_FILTER_INFO_TITLE: 'Could not determine onSubmit fallback coverage from callback source.',
 
   STATE_DATA_SKIP_TITLE: 'onSubmit state.data forwarding check skipped.',
   STATE_DATA_PASS_TITLE: 'onSubmit forwards the complete state.data object.',
@@ -208,8 +217,12 @@ const STRINGS = {
     'Migrate your onSubmit handler from the v5-style component callbacks to the v6 actions pattern.',
   ACTIONS_PATTERN_INFO_TITLE: 'Could not determine onSubmit callback pattern from static analysis.',
 
+  MULTIPLE_SUBMISSIONS_SKIP_TITLE: 'Multiple submissions check skipped.',
+  MULTIPLE_SUBMISSIONS_NO_SOURCE_SKIP_REASON: 'Callback source not available.',
   MULTIPLE_SUBMISSIONS_INFO_TITLE:
     'A possible duplicate-submission guard was found in callback source.',
+  MULTIPLE_SUBMISSIONS_INFO_DETAIL:
+    'A source pattern suggests a guard may be present; its runtime behavior cannot be verified automatically.',
   MULTIPLE_SUBMISSIONS_NOTICE_TITLE: 'Ensure your checkout prevents multiple submissions.',
   MULTIPLE_SUBMISSIONS_DETAIL:
     'To prevent duplicate orders, you should disable your pay button as soon as a payment attempt is made.',
@@ -218,6 +231,9 @@ const STRINGS = {
   MULTIPLE_SUBMISSIONS_URL:
     'https://docs.adyen.com/online-payments/web-best-practices/#prevent-multiple-submissions',
 
+  CUSTOM_PAY_BUTTON_COMPAT_SKIP_TITLE: 'Custom pay button compatibility check skipped.',
+  CUSTOM_PAY_BUTTON_COMPAT_NO_INDICATORS_SKIP_REASON: 'No custom pay button indicators detected.',
+  CUSTOM_PAY_BUTTON_COMPAT_NO_INVENTORY_SKIP_REASON: 'Payment method inventory was not observed.',
   CUSTOM_PAY_BUTTON_COMPAT_PASS_TITLE:
     'No unsupported payment methods detected for custom pay button.',
   CUSTOM_PAY_BUTTON_COMPAT_WARN_TITLE: 'Unsupported payment methods for custom pay button.',
@@ -335,23 +351,20 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
   })
   .add('callback-on-submit-filtering', (payload, { skip, warn, notice, info }) => {
     if (!hasCapturedCheckoutConfig(payload)) {
-      return skip('onSubmit filtering check skipped.', SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
+      return skip(STRINGS.SUBMIT_FILTER_SKIP_TITLE, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
     }
 
     const flow = detectIntegrationFlow(payload);
     if (flow === 'sessions') {
-      return skip('onSubmit filtering check skipped.', STRINGS.SESSIONS_FLOW_SKIP_REASON);
+      return skip(STRINGS.SUBMIT_FILTER_SKIP_TITLE, STRINGS.SESSIONS_FLOW_SKIP_REASON);
     }
 
     const onSubmitSource = readCallbackSource(payload, 'onSubmitSource');
     if (onSubmitSource === '') {
-      return skip('onSubmit filtering check skipped.', STRINGS.NO_SOURCE_SKIP_REASON);
+      return skip(STRINGS.SUBMIT_FILTER_SKIP_TITLE, STRINGS.NO_SOURCE_SKIP_REASON);
     }
     if (onSubmitSource.length >= CALLBACK_SOURCE_LIMIT) {
-      return notice(
-        STRINGS.SUBMIT_FILTER_NOTICE_TITLE,
-        'Captured callback source may be truncated, so complete handling cannot be verified.'
-      );
+      return notice(STRINGS.SUBMIT_FILTER_NOTICE_TITLE, STRINGS.SUBMIT_FILTER_TRUNCATED_DETAIL);
     }
 
     const filters = detectUnhandledOnSubmitFilters(onSubmitSource);
@@ -373,12 +386,12 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
     }
 
     if (!/actions\.(?:resolve|reject)\(/.test(onSubmitSource)) {
-      return info('Could not determine onSubmit fallback coverage from callback source.');
+      return info(STRINGS.SUBMIT_FILTER_INFO_TITLE);
     }
 
     return notice(
       STRINGS.SUBMIT_FILTER_NOTICE_TITLE,
-      'A resolution call was found, but static source inspection cannot verify every payment method and action code reaches it.',
+      STRINGS.SUBMIT_FILTER_NOTICE_DETAIL,
       STRINGS.SUBMIT_FILTER_WARN_REMEDIATION,
       getFlowSensitiveCallbackDocsUrl(payload, 'advanced')
     );
@@ -536,7 +549,10 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
   })
   .add('callback-multiple-submissions', (payload, { skip, info, notice }) => {
     if (!hasCapturedCheckoutConfig(payload)) {
-      return skip('Multiple submissions check skipped.', SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
+      return skip(
+        STRINGS.MULTIPLE_SUBMISSIONS_SKIP_TITLE,
+        SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED
+      );
     }
 
     const onSubmitSource = readCallbackSource(payload, 'onSubmitSource');
@@ -544,13 +560,16 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
     const combinedSource = `${onSubmitSource}\n${beforeSubmitSource}`;
 
     if (combinedSource.trim() === '') {
-      return skip('Multiple submissions check skipped.', 'Callback source not available.');
+      return skip(
+        STRINGS.MULTIPLE_SUBMISSIONS_SKIP_TITLE,
+        STRINGS.MULTIPLE_SUBMISSIONS_NO_SOURCE_SKIP_REASON
+      );
     }
 
     if (detectsMultipleSubmissions(combinedSource)) {
       return info(
         STRINGS.MULTIPLE_SUBMISSIONS_INFO_TITLE,
-        'A source pattern suggests a guard may be present; its runtime behavior cannot be verified automatically.'
+        STRINGS.MULTIPLE_SUBMISSIONS_INFO_DETAIL
       );
     }
 
@@ -564,7 +583,7 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
   .add('callback-custom-pay-button-compatibility', (payload, { skip, pass, warn }) => {
     if (!hasCapturedCheckoutConfig(payload)) {
       return skip(
-        'Custom pay button compatibility check skipped.',
+        STRINGS.CUSTOM_PAY_BUTTON_COMPAT_SKIP_TITLE,
         SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED
       );
     }
@@ -577,8 +596,8 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
 
     if (!hasBeforeSubmit && !hasSelectiveOnSubmit) {
       return skip(
-        'Custom pay button compatibility check skipped.',
-        'No custom pay button indicators detected.'
+        STRINGS.CUSTOM_PAY_BUTTON_COMPAT_SKIP_TITLE,
+        STRINGS.CUSTOM_PAY_BUTTON_COMPAT_NO_INDICATORS_SKIP_REASON
       );
     }
 
@@ -601,8 +620,8 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
 
     if (capturedVariants.length === 0) {
       return skip(
-        'Custom pay button compatibility check skipped.',
-        'Payment method inventory was not observed.'
+        STRINGS.CUSTOM_PAY_BUTTON_COMPAT_SKIP_TITLE,
+        STRINGS.CUSTOM_PAY_BUTTON_COMPAT_NO_INVENTORY_SKIP_REASON
       );
     }
 

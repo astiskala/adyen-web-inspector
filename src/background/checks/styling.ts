@@ -1,12 +1,26 @@
 /**
- * Styling checks — CSS custom properties vs class overrides.
+ * Styling checks (`sdk-identity`) — CSS custom properties vs class overrides.
  */
 
 import type { AdyenStyleInfo } from '../../shared/types.js';
 import { createRegistry } from './registry.js';
 
-const DOCS_URL =
-  'https://docs.adyen.com/online-payments/upgrade-your-integration/upgrade-to-web-v6#upgrade-your-styling';
+const CATEGORY = 'sdk-identity' as const;
+
+const STRINGS = {
+  SKIP_TITLE: 'CSS styling check skipped.',
+  SKIP_REASON: 'No custom Adyen styling detected on this page.',
+  // PASS_TITLE stays inline (dynamic: uses the custom property count)
+  NOTICE_TITLE: 'Adyen components styled via CSS class overrides instead of CSS custom properties.',
+  // NOTICE_DETAIL is built by buildOverrideDetail (dynamic: uses rule counts and selectors)
+  NOTICE_DETAIL_ADVICE:
+    'Adyen Web v6 uses CSS custom properties for styling. Consider migrating for better upgrade compatibility.',
+  NOTICE_REMEDIATION:
+    'Migrate CSS class name overrides (.adyen-checkout__*) to --adyen-sdk-* CSS custom properties for better compatibility with future SDK upgrades.',
+  NOTICE_URL:
+    'https://docs.adyen.com/online-payments/upgrade-your-integration/upgrade-to-web-v6#upgrade-your-styling',
+} as const;
+
 const MAX_SELECTOR_EXAMPLES = 3;
 const ADYEN_SELECTOR_START_PATTERN = /\.adyen-checkout__[^\s,>+~:]*/;
 
@@ -68,43 +82,34 @@ function buildOverrideDetail(styles: AdyenStyleInfo): string {
       `Also found ${pluralRules(styles.customPropertyCount)} using CSS custom properties.`
     );
   }
-  parts.push(
-    'Adyen Web v6 uses CSS custom properties for styling.',
-    'Consider migrating for better upgrade compatibility.'
-  );
+  parts.push(STRINGS.NOTICE_DETAIL_ADVICE);
   return parts.join(' ');
 }
 
-const REMEDIATION =
-  'Migrate CSS class name overrides (.adyen-checkout__*) to --adyen-sdk-* CSS custom properties for better compatibility with future SDK upgrades.';
-
-export const STYLING_CHECKS = createRegistry('sdk-identity')
+export const STYLING_CHECKS = createRegistry(CATEGORY)
   .add(
     'styling-css-custom-props',
-    (payload, ctx) => {
+    (payload, { skip, pass, notice }) => {
       const styles = payload.page.adyenStyles;
 
       const hasOverrides = styles.classOverrideCount > 0;
       const hasCustomProps = styles.customPropertyCount > 0;
 
       if (!hasOverrides && !hasCustomProps) {
-        return ctx.skip(
-          'CSS styling check skipped.',
-          'No custom Adyen styling detected on this page.'
-        );
+        return skip(STRINGS.SKIP_TITLE, STRINGS.SKIP_REASON);
       }
 
       if (!hasOverrides && hasCustomProps) {
-        return ctx.pass(
+        return pass(
           `Adyen components styled using CSS custom properties (${pluralRules(styles.customPropertyCount)} found).`
         );
       }
 
-      return ctx.notice(
-        'Adyen components styled via CSS class overrides instead of CSS custom properties.',
+      return notice(
+        STRINGS.NOTICE_TITLE,
         buildOverrideDetail(styles),
-        REMEDIATION,
-        DOCS_URL
+        STRINGS.NOTICE_REMEDIATION,
+        STRINGS.NOTICE_URL
       );
     },
     { noticeImpact: 'low' }

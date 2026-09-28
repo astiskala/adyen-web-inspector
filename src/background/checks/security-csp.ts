@@ -1,5 +1,5 @@
 /**
- * Security: CSP checks.
+ * Security checks (`security`) — Content-Security-Policy compatibility with Adyen Web.
  */
 
 import type { ScanPayload } from '../../shared/types.js';
@@ -27,6 +27,7 @@ const STRINGS = {
   NO_CSP_SKIP_REASON: 'No Content-Security-Policy header present.',
   NO_ENV_SKIP_REASON: 'The Adyen Web environment could not be determined.',
 
+  CSP_PRESENT_SKIP_TITLE: 'CSP presence check skipped.',
   CSP_PRESENT_PASS_TITLE: 'Content-Security-Policy header is present.',
   CSP_PRESENT_WARN_TITLE: 'Content-Security-Policy header is missing.',
   CSP_PRESENT_WARN_DETAIL: `A CSP helps prevent XSS and data injection attacks on checkout pages. ${COMMON_DETAILS.PCI_COMPLIANCE_NOTICE}`,
@@ -35,6 +36,7 @@ const STRINGS = {
   CSP_PRESENT_WARN_URL: ADYEN_PCI_DSS_SCRIPT_SECURITY_DOC,
 
   SCRIPT_SRC_SKIP_TITLE: 'CSP script-src check skipped.',
+  SCRIPT_SRC_NO_SCRIPTS_SKIP_REASON: 'No Adyen-hosted checkout scripts detected.',
   SCRIPT_SRC_PASS_TITLE: 'CSP allows the observed Adyen checkout scripts.',
   SCRIPT_SRC_WARN_TITLE: 'CSP may block an observed Adyen checkout script.',
   SCRIPT_SRC_WARN_DETAIL: `If script-src omits Adyen domains, checkout assets can be blocked or require unsafe CSP relaxations. ${COMMON_DETAILS.PCI_COMPLIANCE_NOTICE}`,
@@ -77,6 +79,7 @@ const STRINGS = {
   FORM_ACTION_WARN_REMEDIATION:
     'Set form-action to allow HTTPS destinations. Adyen recommends form-action *.',
 
+  FRAME_ANCESTORS_SKIP_TITLE: 'CSP frame-ancestors check skipped.',
   FRAME_ANCESTORS_CSP_PASS_TITLE: 'CSP frame-ancestors directive is set.',
   FRAME_ANCESTORS_XFO_PASS_TITLE: 'X-Frame-Options header is present.',
   FRAME_ANCESTORS_WARN_TITLE: 'No frame-ancestors CSP directive or X-Frame-Options header found.',
@@ -85,6 +88,7 @@ const STRINGS = {
     'Add a frame-ancestors directive to your Content-Security-Policy or set an X-Frame-Options: SAMEORIGIN header.',
   FRAME_ANCESTORS_WARN_URL: ADYEN_PCI_DSS_SCRIPT_SECURITY_DOC,
 
+  REPORTING_SKIP_TITLE: 'CSP reporting check skipped.',
   REPORTING_SKIP_INFO_TITLE: 'CSP reporting check skipped. No CSP header present.',
   REPORTING_PASS_TITLE: 'CSP reporting is configured with report-to and Reporting-Endpoints.',
   REPORTING_NO_ENDPOINTS_WARN_TITLE:
@@ -168,7 +172,7 @@ export const CSP_CHECKS = createRegistry(CATEGORY)
   .add('security-csp-present', (payload, { pass, warn, skip }) => {
     const policy = readPagePolicy(payload);
     if (policy.status === 'unavailable') {
-      return skip('CSP presence check skipped.', SKIP_REASONS.HEADERS_UNAVAILABLE);
+      return skip(STRINGS.CSP_PRESENT_SKIP_TITLE, SKIP_REASONS.HEADERS_UNAVAILABLE);
     }
     if (policy.status === 'enforced') {
       return pass(STRINGS.CSP_PRESENT_PASS_TITLE);
@@ -191,7 +195,7 @@ export const CSP_CHECKS = createRegistry(CATEGORY)
       isAdyenCheckoutResource(script.src)
     );
     if (adyenScripts.length === 0) {
-      return skip(STRINGS.SCRIPT_SRC_SKIP_TITLE, 'No Adyen-hosted checkout scripts detected.');
+      return skip(STRINGS.SCRIPT_SRC_SKIP_TITLE, STRINGS.SCRIPT_SRC_NO_SCRIPTS_SKIP_REASON);
     }
 
     if (adyenScripts.every((script) => policy.allows('script-src', script.src))) {
@@ -316,7 +320,7 @@ export const CSP_CHECKS = createRegistry(CATEGORY)
   .add('security-csp-frame-ancestors', (payload, { pass, warn, skip }) => {
     const policy = readPagePolicy(payload);
     if (policy.status === 'unavailable') {
-      return skip('CSP frame-ancestors check skipped.', SKIP_REASONS.HEADERS_UNAVAILABLE);
+      return skip(STRINGS.FRAME_ANCESTORS_SKIP_TITLE, SKIP_REASONS.HEADERS_UNAVAILABLE);
     }
     const hasFrameAncestors = policy.status === 'enforced' && policy.declares('frame-ancestors');
     const hasXfo = getHeader(payload, 'x-frame-options') !== null;
@@ -339,7 +343,7 @@ export const CSP_CHECKS = createRegistry(CATEGORY)
   .add('security-csp-reporting', (payload, { info, pass, warn, skip }) => {
     const policy = readPagePolicy(payload);
     if (policy.status === 'unavailable') {
-      return skip('CSP reporting check skipped.', SKIP_REASONS.HEADERS_UNAVAILABLE);
+      return skip(STRINGS.REPORTING_SKIP_TITLE, SKIP_REASONS.HEADERS_UNAVAILABLE);
     }
     const reportingEndpoints = getHeader(payload, 'reporting-endpoints');
 

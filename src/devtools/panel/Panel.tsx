@@ -140,7 +140,7 @@ export function Panel(): JSX.Element {
         )}
         <span class={s('toolbarSpacer')} />
         {result && !sdkNotDetected && (
-          <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
+          <span class={s('toolbarScore')}>
             Score: {result.health.score} · {result.health.passing}/{result.health.total} passing
           </span>
         )}

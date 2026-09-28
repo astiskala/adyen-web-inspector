@@ -1,5 +1,6 @@
 /**
- * Category 3 — Environment & Region checks.
+ * Environment checks (`environment`) — CDN and API environment, region, client key prefix, and
+ * iframe embedding.
  */
 
 import {
@@ -19,6 +20,10 @@ const STRINGS = {
   CDN_ENV_UNKNOWN_SKIP_REASON: 'Configured environment unknown.',
   CDN_MISMATCH_FAIL_URL:
     'https://docs.adyen.com/online-payments/web-best-practices/#embed-script-and-stylesheet',
+
+  REGION_MISMATCH_SKIP_TITLE: 'CDN region check skipped.',
+  REGION_MISMATCH_NO_CDN_SKIP_REASON: 'No regional Adyen CDN requests detected.',
+  REGION_MISMATCH_NO_CONFIG_SKIP_REASON: 'Configured region unknown.',
 
   REGION_SKIP_TITLE: 'Region check skipped.',
   REGION_SKIP_REASON: 'Environment is test, which uses a global endpoint.',
@@ -84,12 +89,15 @@ export const ENVIRONMENT_CHECKS = createRegistry(CATEGORY)
   .add('env-region-mismatch', (payload, { skip, pass, warn }) => {
     const cdnRegion = detectRegionFromCdnRequests(payload);
     if (cdnRegion === 'unknown') {
-      return skip('CDN region check skipped.', 'No regional Adyen CDN requests detected.');
+      return skip(STRINGS.REGION_MISMATCH_SKIP_TITLE, STRINGS.REGION_MISMATCH_NO_CDN_SKIP_REASON);
     }
 
     const configuredRegion = resolveRegion(payload).region;
     if (configuredRegion === 'unknown') {
-      return skip('CDN region check skipped.', 'Configured region unknown.');
+      return skip(
+        STRINGS.REGION_MISMATCH_SKIP_TITLE,
+        STRINGS.REGION_MISMATCH_NO_CONFIG_SKIP_REASON
+      );
     }
 
     if (cdnRegion !== configuredRegion) {

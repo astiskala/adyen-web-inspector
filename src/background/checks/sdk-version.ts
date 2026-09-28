@@ -1,3 +1,8 @@
+/**
+ * Version lifecycle checks (`version-lifecycle`) — detected SDK version, release freshness, and
+ * the Adyen Uplift co-badged card minimum.
+ */
+
 import {
   hasCheckoutActivity,
   resolveIntegrationFlavor,
@@ -50,6 +55,8 @@ const STRINGS = {
 
   UPLIFT_VERSION_SKIP_TITLE: 'Adyen Uplift co-badged card version check skipped.',
   UPLIFT_VERSION_SKIP_REASON: 'Could not determine the current SDK version.',
+  UPLIFT_VERSION_NO_CHECKOUT_SKIP_REASON:
+    'No active Drop-in or Components checkout could be verified.',
   UPLIFT_VERSION_PASS_TITLE: 'SDK version supports the Adyen Uplift co-badged card requirement.',
   UPLIFT_VERSION_FAIL_TITLE:
     'SDK version does not support the Adyen Uplift co-badged card requirement.',
@@ -169,7 +176,7 @@ export const SDK_VERSION_CHECKS = createRegistry(CATEGORY)
     if (!hasCheckoutActivity(payload) || (flavor !== 'Drop-in' && flavor !== 'Components')) {
       return skip(
         STRINGS.UPLIFT_VERSION_SKIP_TITLE,
-        'No active Drop-in or Components checkout could be verified.'
+        STRINGS.UPLIFT_VERSION_NO_CHECKOUT_SKIP_REASON
       );
     }
 

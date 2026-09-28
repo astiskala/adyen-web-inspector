@@ -1,5 +1,6 @@
 /**
- * Security: SRI and HTTP response header checks.
+ * Security checks (`security`) — HTTPS, Subresource Integrity, response headers, Adyen iframe
+ * referrer policy, and API key exposure.
  */
 
 import type { ScanPayload } from '../../shared/types.js';
@@ -43,6 +44,7 @@ const STRINGS = {
   SRI_CSS_WARN_URL: SRI_URL,
   SRI_CSS_PASS_TITLE: 'Adyen stylesheet links have SRI attributes.',
 
+  REFERRER_POLICY_SKIP_TITLE: 'Referrer-Policy check skipped.',
   REFERRER_POLICY_NOT_SET_NOTICE_TITLE: 'Referrer-Policy header is not set.',
   REFERRER_POLICY_NOTICE_DETAIL:
     'A missing or overly permissive referrer policy can leak checkout URL data to third-party origins.',
@@ -50,6 +52,7 @@ const STRINGS = {
     'Add a Referrer-Policy header set to strict-origin-when-cross-origin.',
   REFERRER_POLICY_NOTICE_URL: 'https://owasp.org/www-project-secure-headers/#referrer-policy',
 
+  XCTO_SKIP_TITLE: 'X-Content-Type-Options check skipped.',
   XCTO_PASS_TITLE: 'X-Content-Type-Options: nosniff is set.',
   XCTO_NOTICE_TITLE: 'X-Content-Type-Options: nosniff is not set.',
   XCTO_NOTICE_DETAIL:
@@ -57,6 +60,7 @@ const STRINGS = {
   XCTO_NOTICE_REMEDIATION: 'Add an X-Content-Type-Options: nosniff header.',
   XCTO_NOTICE_URL: 'https://owasp.org/www-project-secure-headers/#x-content-type-options',
 
+  XSS_SKIP_TITLE: 'X-XSS-Protection check skipped.',
   XSS_PASS_TITLE: 'X-XSS-Protection is absent or disabled (correct).',
   XSS_NOTICE_TITLE: 'X-XSS-Protection is set. This is not recommended for modern browsers.',
   XSS_NOTICE_DETAIL:
@@ -183,7 +187,7 @@ export const SECURITY_CHECKS = createRegistry(CATEGORY)
     'security-referrer-policy',
     (payload, { pass, notice, skip }) => {
       if (!payload.mainDocumentHeadersAvailable) {
-        return skip('Referrer-Policy check skipped.', SKIP_REASONS.HEADERS_UNAVAILABLE);
+        return skip(STRINGS.REFERRER_POLICY_SKIP_TITLE, SKIP_REASONS.HEADERS_UNAVAILABLE);
       }
       const value = getHeader(payload, 'Referrer-Policy');
       if (value !== null && ACCEPTED_REFERRER_POLICIES.has(value)) {
@@ -204,7 +208,7 @@ export const SECURITY_CHECKS = createRegistry(CATEGORY)
     'security-x-content-type',
     (payload, { pass, notice, skip }) => {
       if (!payload.mainDocumentHeadersAvailable) {
-        return skip('X-Content-Type-Options check skipped.', SKIP_REASONS.HEADERS_UNAVAILABLE);
+        return skip(STRINGS.XCTO_SKIP_TITLE, SKIP_REASONS.HEADERS_UNAVAILABLE);
       }
       const value = getHeader(payload, 'X-Content-Type-Options');
       if (value?.toLowerCase() === 'nosniff') {
@@ -223,7 +227,7 @@ export const SECURITY_CHECKS = createRegistry(CATEGORY)
     'security-xss-protection',
     (payload, { pass, notice, skip }) => {
       if (!payload.mainDocumentHeadersAvailable) {
-        return skip('X-XSS-Protection check skipped.', SKIP_REASONS.HEADERS_UNAVAILABLE);
+        return skip(STRINGS.XSS_SKIP_TITLE, SKIP_REASONS.HEADERS_UNAVAILABLE);
       }
       const value = getHeader(payload, 'X-XSS-Protection');
       if (DISABLED_XSS_PROTECTION_VALUES.has(value)) {

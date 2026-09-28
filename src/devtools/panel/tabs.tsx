@@ -1,5 +1,5 @@
 import type { JSX } from 'preact';
-import type { ScanResult, CheckResult } from '../../shared/types.js';
+import type { ScanResult, CheckResult, Severity } from '../../shared/types.js';
 import {
   buildFindingProjection,
   buildRawConfigSections,
@@ -18,32 +18,21 @@ interface Props {
   readonly result: ScanResult;
 }
 
+const SEVERITY_CLASSES: Readonly<Record<Severity, string>> = {
+  pass: 'severityPass',
+  fail: 'severityFail',
+  warn: 'severityWarn',
+  notice: 'severityNotice',
+  info: 'severityInfo',
+  skip: 'severitySkip',
+};
+
 interface SeverityBadgeProps {
-  readonly severity: string;
+  readonly severity: Severity;
 }
 
 function SeverityBadge({ severity }: SeverityBadgeProps): JSX.Element {
-  const colorMap: Record<string, string> = {
-    pass: 'var(--color-green)',
-    fail: 'var(--color-red)',
-    warn: 'var(--color-amber)',
-    notice: 'var(--color-blue)',
-    skip: 'var(--color-text-secondary)',
-    info: 'var(--color-blue)',
-  };
-  const color = colorMap[severity] ?? 'var(--color-text-secondary)';
-  return (
-    <span
-      style={{
-        color,
-        fontWeight: 600,
-        fontSize: '11px',
-        textTransform: 'uppercase',
-      }}
-    >
-      {severity}
-    </span>
-  );
+  return <span class={`${s('severity')} ${s(SEVERITY_CLASSES[severity])}`}>{severity}</span>;
 }
 
 function BestPracticeItem({ check }: { readonly check: CheckResult }): JSX.Element {
@@ -99,7 +88,7 @@ function SuccessfulCheckItem({ check }: { readonly check: CheckResult }): JSX.El
     <div class={s('checkCard')}>
       <div class={s('checkSummaryStatic')}>
         <span class={s('checkSummaryTitle')}>{check.title}</span>
-        <span class={s('passBadge')}>PASS</span>
+        <SeverityBadge severity="pass" />
       </div>
     </div>
   );
@@ -274,17 +263,7 @@ export function SkippedChecksTab({ result }: Props): JSX.Element {
             <div key={check.id} class={s('checkCard')}>
               <div class={s('checkSummaryStatic')}>
                 <span class={s('checkSummaryTitle')}>{check.title}</span>
-                {check.reason !== '—' && (
-                  <span
-                    style={{
-                      color: 'var(--color-text-secondary)',
-                      fontSize: '11px',
-                      flexShrink: 0,
-                    }}
-                  >
-                    {check.reason}
-                  </span>
-                )}
+                {check.reason !== '—' && <span class={s('skipReason')}>{check.reason}</span>}
               </div>
             </div>
           ))}

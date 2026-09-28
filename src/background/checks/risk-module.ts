@@ -1,5 +1,6 @@
 /**
- * Category 6 — Risk Module checks.
+ * Risk checks (`risk`) — device fingerprinting, risk data collection, and the cardholder name
+ * field.
  */
 
 import { DF_IFRAME_NAME, DF_IFRAME_URL_PATTERN } from '../../shared/constants.js';
@@ -13,6 +14,8 @@ const CATEGORY = 'risk' as const;
 const RISK_MANAGEMENT_URL = 'https://docs.adyen.com/risk-management/';
 
 const STRINGS = {
+  DF_IFRAME_SKIP_TITLE: 'Device fingerprint check skipped.',
+  DF_IFRAME_SKIP_REASON: 'No active Adyen checkout detected.',
   DF_IFRAME_PASS_TITLE: 'Device fingerprint iframe loaded.',
   DF_IFRAME_PASS_DETAIL: 'Adyen risk module device fingerprinting is active.',
   DF_IFRAME_WARN_TITLE: 'Device fingerprint iframe was not detected.',
@@ -22,6 +25,7 @@ const STRINGS = {
     'Verify that the Adyen risk module is enabled and that your Content-Security-Policy allows the Adyen device fingerprinting iframe to load. Check that no browser extension or content blocker on the test device is preventing the iframe from being created.',
   DF_IFRAME_WARN_URL: RISK_MANAGEMENT_URL,
   MODULE_SKIP_TITLE: 'Risk module setting check skipped.',
+  MODULE_PARTIAL_SKIP_REASON: 'Risk setting was not visible in partial checkout configuration.',
   MODULE_PASS_TITLE: 'Risk data collection is not explicitly disabled in observed checkout config.',
   MODULE_WARN_TITLE: 'Risk data collection is explicitly disabled.',
   MODULE_WARN_DETAIL:
@@ -45,7 +49,7 @@ export const RISK_CHECKS = createRegistry(CATEGORY)
     'risk-df-iframe',
     (payload, { pass, skip, warn }) => {
       if (!hasCheckoutActivity(payload)) {
-        return skip('Device fingerprint check skipped.', 'No active Adyen checkout detected.');
+        return skip(STRINGS.DF_IFRAME_SKIP_TITLE, STRINGS.DF_IFRAME_SKIP_REASON);
       }
 
       const { page, capturedRequests } = payload;
@@ -84,10 +88,7 @@ export const RISK_CHECKS = createRegistry(CATEGORY)
         );
       }
       if (risk.state === 'unobserved') {
-        return skip(
-          STRINGS.MODULE_SKIP_TITLE,
-          'Risk setting was not visible in partial checkout configuration.'
-        );
+        return skip(STRINGS.MODULE_SKIP_TITLE, STRINGS.MODULE_PARTIAL_SKIP_REASON);
       }
 
       return pass(STRINGS.MODULE_PASS_TITLE);
