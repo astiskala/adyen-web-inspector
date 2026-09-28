@@ -13,7 +13,11 @@ import {
   hasVerifiedCheckoutConfig,
   resolveCapturedCheckoutConfig,
 } from '../../shared/scan-evidence.js';
-import { detectUnhandledOnSubmitFilters, detectsMultipleSubmissions } from './callback-source.js';
+import {
+  detectStateDataForwarding,
+  detectUnhandledOnSubmitFilters,
+  detectsMultipleSubmissions,
+} from './callback-source.js';
 import { SKIP_REASONS } from './constants.js';
 import { createRegistry, type CheckContext } from './registry.js';
 
@@ -50,6 +54,9 @@ interface CheckOutcome {
 }
 
 const UNSUPPORTED_CUSTOM_BUTTON_METHODS = ['paypal', 'klarna', 'clicktopay'];
+
+// Must match the callback source capture limit in the content scripts; a source this long may be truncated.
+const CAPTURED_SOURCE_MAX_LENGTH = 1200;
 
 function flowLabel(flow: IntegrationFlow): string {
   if (flow === 'sessions') return 'Sessions flow';
@@ -96,9 +103,16 @@ function describeFlow(payload: ScanPayload, flow: IntegrationFlow): string {
   return 'No Sessions or Advanced flow signals were captured.';
 }
 
+function getDocsIntegration(payload: ScanPayload): 'Drop-in' | 'Components' {
+  return resolveIntegrationFlavor(payload).flavor === 'Drop-in' ? 'Drop-in' : 'Components';
+}
+
+function getMakePaymentDocsUrl(payload: ScanPayload): string {
+  return `https://docs.adyen.com/online-payments/build-your-integration/advanced-flow/?platform=Web&integration=${getDocsIntegration(payload)}#make-a-payment`;
+}
+
 function getFlowSensitiveCallbackDocsUrl(payload: ScanPayload, flow: IntegrationFlow): string {
-  const callbackDocFlavor =
-    resolveIntegrationFlavor(payload).flavor === 'Drop-in' ? 'Drop-in' : 'Components';
+  const callbackDocFlavor = getDocsIntegration(payload);
   if (flow === 'sessions') {
     return FLOW_DOCS.sessions.callbacks[callbackDocFlavor];
   }
@@ -108,6 +122,7 @@ function getFlowSensitiveCallbackDocsUrl(payload: ScanPayload, flow: Integration
 const STRINGS = {
   SESSIONS_FLOW_SKIP_REASON: 'Sessions flow detected.',
   NO_SOURCE_SKIP_REASON: 'onSubmit source not available.',
+  CALLBACK_ABSENCE_UNVERIFIED_REASON: 'Callback absence could not be verified in partial config.',
 
   ON_SUBMIT_PASS_TITLE: 'onSubmit callback is present.',
   ON_SUBMIT_FAIL_TITLE: 'onSubmit callback is missing.',
@@ -122,6 +137,14 @@ const STRINGS = {
   SUBMIT_FILTER_WARN_REMEDIATION:
     'Refactor onSubmit so all submissions follow a generic fallback path. Method-specific or action-specific logic can be added as an exception, but all other cases should still call actions.resolve(...) or actions.reject(...).',
   SUBMIT_FILTER_NOTICE_TITLE: 'Verify that onSubmit handles every payment method and action code.',
+
+  STATE_DATA_SKIP_TITLE: 'onSubmit state.data forwarding check skipped.',
+  STATE_DATA_PASS_TITLE: 'onSubmit forwards the complete state.data object.',
+  STATE_DATA_WARN_TITLE: 'onSubmit appears to forward only selected state.data fields.',
+  STATE_DATA_NOTICE_TITLE: 'Verify that onSubmit forwards the complete state.data object.',
+  STATE_DATA_INFO_TITLE: 'Could not determine how onSubmit forwards state.data.',
+  STATE_DATA_REMEDIATION:
+    'Send the complete state.data object from onSubmit to your server, and pass all of its fields in the /payments request instead of rebuilding it from selected properties.',
 
   ON_ADD_DETAILS_PASS_TITLE: 'onAdditionalDetails callback is present.',
   ON_ADD_DETAILS_FAIL_TITLE: 'onAdditionalDetails callback is missing.',
@@ -235,10 +258,7 @@ function runAdvancedRequiredCallbackCheck(
   }
 
   if (!hasVerifiedCheckoutConfig(payload)) {
-    return skip(
-      `${options.label} check skipped.`,
-      'Callback absence could not be verified in partial config.'
-    );
+    return skip(`${options.label} check skipped.`, STRINGS.CALLBACK_ABSENCE_UNVERIFIED_REASON);
   }
   return fail(options.missingTitle, options.missingDetail, options.remediation, docsUrl);
 }
@@ -282,10 +302,7 @@ function runFlowSensitiveOutcomeCallbackCheck(
   }
 
   if (!hasVerifiedCheckoutConfig(payload)) {
-    return skip(
-      `${options.label} check skipped.`,
-      'Callback absence could not be verified in partial config.'
-    );
+    return skip(`${options.label} check skipped.`, STRINGS.CALLBACK_ABSENCE_UNVERIFIED_REASON);
   }
   if (flow === 'sessions') {
     return fail(
@@ -338,7 +355,7 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
     if (onSubmitSource === '') {
       return skip('onSubmit filtering check skipped.', STRINGS.NO_SOURCE_SKIP_REASON);
     }
-    if (onSubmitSource.length >= 1200) {
+    if (onSubmitSource.length >= CAPTURED_SOURCE_MAX_LENGTH) {
       return notice(
         STRINGS.SUBMIT_FILTER_NOTICE_TITLE,
         'Captured callback source may be truncated, so complete handling cannot be verified.'
@@ -372,6 +389,40 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
       'A resolution call was found, but static source inspection cannot verify every payment method and action code reaches it.',
       STRINGS.SUBMIT_FILTER_WARN_REMEDIATION,
       getFlowSensitiveCallbackDocsUrl(payload, 'advanced')
+    );
+  })
+  .add('callback-on-submit-state-data', (payload, { skip, pass, warn, notice, info }) => {
+    const config = resolveCapturedCheckoutConfig(payload);
+    if (!config) {
+      return skip(STRINGS.STATE_DATA_SKIP_TITLE, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
+    }
+    if (detectIntegrationFlow(payload) === 'sessions') {
+      return skip(STRINGS.STATE_DATA_SKIP_TITLE, STRINGS.SESSIONS_FLOW_SKIP_REASON);
+    }
+    const onSubmitSource = config.onSubmitSource ?? '';
+    if (onSubmitSource === '') {
+      return skip(STRINGS.STATE_DATA_SKIP_TITLE, STRINGS.NO_SOURCE_SKIP_REASON);
+    }
+
+    const forwarding = detectStateDataForwarding(onSubmitSource);
+    if (forwarding.kind === 'complete') return pass(STRINGS.STATE_DATA_PASS_TITLE);
+    if (forwarding.kind === 'unknown') return info(STRINGS.STATE_DATA_INFO_TITLE);
+
+    const fields = forwarding.fields.map((field) => `state.data.${field}`).join(', ');
+    const detail = `onSubmit reads ${fields} without passing state.data as a whole. Adyen Web adds fields such as browserInfo, origin, riskData, and billing or shopper details to state.data depending on the payment method; dropping them can break native 3DS2 and weaken risk checks.`;
+    if (onSubmitSource.length >= CAPTURED_SOURCE_MAX_LENGTH) {
+      return notice(
+        STRINGS.STATE_DATA_NOTICE_TITLE,
+        `${detail} The captured callback source may be truncated, so later code could still forward the complete object.`,
+        STRINGS.STATE_DATA_REMEDIATION,
+        getMakePaymentDocsUrl(payload)
+      );
+    }
+    return warn(
+      STRINGS.STATE_DATA_WARN_TITLE,
+      detail,
+      STRINGS.STATE_DATA_REMEDIATION,
+      getMakePaymentDocsUrl(payload)
     );
   })
   .add('callback-on-additional-details', (payload, context) => {
@@ -439,10 +490,7 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
       return pass(STRINGS.ON_ERROR_PASS_TITLE);
     }
     if (!hasVerifiedCheckoutConfig(payload)) {
-      return skip(
-        STRINGS.ON_ERROR_SKIP_TITLE,
-        'Callback absence could not be verified in partial config.'
-      );
+      return skip(STRINGS.ON_ERROR_SKIP_TITLE, STRINGS.CALLBACK_ABSENCE_UNVERIFIED_REASON);
     }
 
     return fail(
@@ -470,10 +518,7 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
       return pass(STRINGS.BEFORE_SUBMIT_PASS_TITLE);
     }
     if (!hasVerifiedCheckoutConfig(payload)) {
-      return skip(
-        STRINGS.BEFORE_SUBMIT_SKIP_TITLE,
-        'Callback absence could not be verified in partial config.'
-      );
+      return skip(STRINGS.BEFORE_SUBMIT_SKIP_TITLE, STRINGS.CALLBACK_ABSENCE_UNVERIFIED_REASON);
     }
     return info(STRINGS.BEFORE_SUBMIT_INFO_TITLE);
   })

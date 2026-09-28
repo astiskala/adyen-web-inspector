@@ -249,12 +249,25 @@ async function runScenario() {
     await mountCheckout(
       {
         ...baseConfig,
-        onSubmit(_state, _component, actions) {
-          actions.resolve({ resultCode: 'Authorised' });
+        async onSubmit(state, _component, actions) {
+          const response = await globalThis.fetch('/api/payments', {
+            method: 'POST',
+            body: globalThis.JSON.stringify({ paymentMethod: state.data.paymentMethod }),
+          });
+          actions.resolve(await response.json());
         },
         onAdditionalDetails() {},
       },
       'card'
+    );
+  } else if (scenario === 'client-key-rejected') {
+    await mountCheckout(
+      { ...baseConfig, session: { id: 'dummy-session', sessionData: 'dummy' } },
+      'dropin'
+    );
+    await globalThis.fetch(
+      'https://checkoutshopper-test.adyen.com/checkoutshopper/v1/sessions/dummy-session/setup?clientKey=test_dummy',
+      { method: 'POST', body: '{}' }
     );
   } else if (scenario === 'custom-pay-button') {
     const button = globalThis.document.createElement('button');

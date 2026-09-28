@@ -42,15 +42,67 @@ export const ADYEN_API_DOMAINS = [
   'checkout-test.adyen.com',
 ] as const;
 
-const ADYEN_ANALYTICS_DOMAINS = [
+export const ADYEN_ANALYTICS_DOMAINS = [
+  'checkoutanalytics-live-apse.adyen.com',
+  'checkoutanalytics-live-au.adyen.com',
+  'checkoutanalytics-live-in.adyen.com',
+  'checkoutanalytics-live-nea.adyen.com',
+  'checkoutanalytics-live-us.adyen.com',
   'checkoutanalytics-live.adyen.com',
   'checkoutanalytics-test.adyen.com',
 ] as const;
 
-export const ANALYTICS_URL_PATTERNS = [
-  '*://checkoutanalytics-live.adyen.com/*',
-  '*://checkoutanalytics-test.adyen.com/*',
-] as const;
+export const ANALYTICS_URL_PATTERNS: readonly string[] = ADYEN_ANALYTICS_DOMAINS.map(
+  (domain) => `*://${domain}/*`
+);
+
+export interface AdyenWebEnvironmentOrigins {
+  readonly api: string;
+  readonly cdn: string;
+  readonly analytics: string;
+}
+
+/**
+ * Base URLs Adyen Web v6 derives from the `environment` option for API calls,
+ * CDN images and translations, and checkout analytics.
+ */
+export const ADYEN_WEB_ENVIRONMENT_URLS = {
+  test: {
+    api: 'https://checkoutshopper-test.adyen.com/checkoutshopper/',
+    cdn: 'https://checkoutshopper-test.cdn.adyen.com/checkoutshopper/',
+    analytics: 'https://checkoutanalytics-test.adyen.com/checkoutanalytics/',
+  },
+  live: {
+    api: 'https://checkoutshopper-live.adyen.com/checkoutshopper/',
+    cdn: 'https://checkoutshopper-live.cdn.adyen.com/checkoutshopper/',
+    analytics: 'https://checkoutanalytics-live.adyen.com/checkoutanalytics/',
+  },
+  'live-us': {
+    api: 'https://checkoutshopper-live-us.adyen.com/checkoutshopper/',
+    cdn: 'https://checkoutshopper-live-us.cdn.adyen.com/checkoutshopper/',
+    analytics: 'https://checkoutanalytics-live-us.adyen.com/checkoutanalytics/',
+  },
+  'live-au': {
+    api: 'https://checkoutshopper-live-au.adyen.com/checkoutshopper/',
+    cdn: 'https://checkoutshopper-live-au.cdn.adyen.com/checkoutshopper/',
+    analytics: 'https://checkoutanalytics-live-au.adyen.com/checkoutanalytics/',
+  },
+  'live-apse': {
+    api: 'https://checkoutshopper-live-apse.adyen.com/checkoutshopper/',
+    cdn: 'https://checkoutshopper-live-apse.cdn.adyen.com/checkoutshopper/',
+    analytics: 'https://checkoutanalytics-live-apse.adyen.com/checkoutanalytics/',
+  },
+  'live-in': {
+    api: 'https://checkoutshopper-live-in.adyen.com/checkoutshopper/',
+    cdn: 'https://checkoutshopper-live-in.cdn.adyen.com/checkoutshopper/',
+    analytics: 'https://checkoutanalytics-live-in.adyen.com/checkoutanalytics/',
+  },
+  'live-nea': {
+    api: 'https://checkoutshopper-live-nea.adyen.com/checkoutshopper/',
+    cdn: 'https://checkoutshopper-live-nea.cdn.adyen.com/checkoutshopper/',
+    analytics: 'https://checkoutanalytics-live-nea.adyen.com/checkoutanalytics/',
+  },
+} as const satisfies Readonly<Record<string, AdyenWebEnvironmentOrigins>>;
 
 export const ALL_ADYEN_DOMAINS = [
   ...ADYEN_CDN_DOMAINS,
@@ -178,7 +230,7 @@ export const DF_IFRAME_URL_PATTERN = /dfp\.[^/]+\.html/;
 
 // ─── NPM Registry ─────────────────────────────────────────────────────────────
 
-export const NPM_REGISTRY_URL = 'https://registry.npmjs.org/@adyen/adyen-web/latest';
+export const NPM_REGISTRY_URL = 'https://registry.npmjs.org/@adyen/adyen-web';
 export const NPM_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 // ─── Storage Keys ─────────────────────────────────────────────────────────────

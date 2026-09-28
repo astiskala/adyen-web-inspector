@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildFindingProjection, buildReportExportData } from '../../../src/shared/export-report';
 import type { CheckResult, ScanResult } from '../../../src/shared/types';
-import { makeScanPayload } from '../../fixtures/makeScanPayload';
+import { makeScanPayload, makeScanResult } from '../../fixtures/makeScanPayload';
 
 function makeCheck(overrides: Partial<CheckResult>): CheckResult {
   return {
@@ -14,13 +14,10 @@ function makeCheck(overrides: Partial<CheckResult>): CheckResult {
 }
 
 function makeResult(checks: CheckResult[] = []): ScanResult {
-  return {
-    tabId: 1,
+  return makeScanResult({
     pageUrl: 'https://merchant.example/checkout',
-    scannedAt: '2026-09-28T00:00:00.000Z',
     checks,
     health: { score: 50, passing: 1, failing: 1, warnings: 0, total: 2, tier: 'critical' },
-    standardCompliance: { compliant: false, reasons: [] },
     payload: makeScanPayload({
       capturedRequests: [
         {
@@ -44,7 +41,7 @@ function makeResult(checks: CheckResult[] = []): ScanResult {
         { url: 'not a URL', type: 'other', statusCode: 0, responseHeaders: [] },
       ],
     }),
-  };
+  });
 }
 
 describe('buildFindingProjection', () => {
@@ -61,6 +58,7 @@ describe('buildFindingProjection', () => {
         category: 'security',
         severity: 'warn',
         title: 'SRI warning',
+        impact: 'high',
       }),
       makeCheck({ id: 'auth-locale', severity: 'warn', title: 'Locale warning' }),
       makeCheck({ id: 'auth-country-code', severity: 'fail', title: 'Country failure' }),

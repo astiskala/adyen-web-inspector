@@ -45,6 +45,24 @@ describe('assessScan', () => {
     expect(probe).not.toHaveBeenCalled();
   });
 
+  it('attaches the npm release date of the detected version when known', async () => {
+    const page = makePageExtract({ adyenMetadata: makeAdyenMetadata({ version: '6.30.0' }) });
+    const releaseDates = { '6.30.0': '2026-01-10T00:00:00.000Z' };
+
+    const known = await assessScan(makeEvidence({ page, releaseDates }), vi.fn());
+    const unknown = await assessScan(
+      makeEvidence({ page, releaseDates: { '6.31.0': '2026-02-01T00:00:00.000Z' } }),
+      vi.fn()
+    );
+
+    expect(known.payload.versionInfo).toEqual({
+      detected: '6.30.0',
+      latest: '6.32.0',
+      detectedReleasedAt: '2026-01-10T00:00:00.000Z',
+    });
+    expect(unknown.payload.versionInfo).not.toHaveProperty('detectedReleasedAt');
+  });
+
   it('uses analytics, script URLs then request URLs without probing bundles', async () => {
     const probe = vi.fn().mockResolvedValue(null);
     const script = 'https://checkoutshopper-test.adyen.com/checkoutshopper/sdk/6.22.0/adyen.js';
@@ -82,6 +100,23 @@ describe('assessScan', () => {
     expect(result.payload.mainDocumentHeadersAvailable).toBe(false);
     const noVersion = await assessScan(makeEvidence(), vi.fn().mockResolvedValue(null));
     expect(noVersion.payload.versionInfo.detected).toBeNull();
+  });
+
+  it('keeps Resource Timing status codes for requests made before header capture started', async () => {
+    const sessionsUrl =
+      'https://checkoutshopper-test.adyen.com/checkoutshopper/v1/sessions/CS123/setup?clientKey=test_X';
+    const page = makePageExtract({
+      observedRequests: [{ url: sessionsUrl, initiatorType: 'fetch', responseStatus: 401 }],
+    });
+
+    const result = await assessScan(makeEvidence({ page }), vi.fn().mockResolvedValue(null));
+
+    expect(result.payload.capturedRequests).toContainEqual(
+      expect.objectContaining({ url: sessionsUrl, type: 'other', statusCode: 401 })
+    );
+    expect(result.checks.find((check) => check.id === 'auth-client-key-rejected')).toMatchObject({
+      severity: 'fail',
+    });
   });
 
   it('preserves captured requests, fills missing signals and evaluates the assembled payload', async () => {

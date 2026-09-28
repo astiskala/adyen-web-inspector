@@ -5,24 +5,7 @@ import {
 } from '~shared/export-pdf';
 import { buildPrintableReportMetadata } from '~shared/export-metadata';
 import type { ScanResult } from '~shared/types';
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
-
-function isScanResult(value: unknown): value is ScanResult {
-  if (!isRecord(value)) {
-    return false;
-  }
-
-  return (
-    typeof value['pageUrl'] === 'string' &&
-    typeof value['scannedAt'] === 'string' &&
-    Array.isArray(value['checks']) &&
-    isRecord(value['health']) &&
-    isRecord(value['payload'])
-  );
-}
+import { isScanResult } from '~shared/utils';
 
 function showError(message: string): void {
   document.title = 'Adyen Web Inspector - PDF Export Failed';

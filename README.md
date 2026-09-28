@@ -67,7 +67,7 @@ pnpm test:e2e
 pnpm validate
 ```
 
-`pnpm lint` runs ESLint, checks GitHub Actions are pinned, and runs markdownlint. `pnpm format:check` checks formatting without rewriting files (`pnpm format` writes changes). `pnpm test:e2e` builds before running Playwright; CI also installs Chromium.
+`pnpm lint` runs ESLint, checks GitHub Actions are pinned, and runs markdownlint. `pnpm format:check` checks formatting without rewriting files (`pnpm format` writes changes). `pnpm test:e2e` builds before running Playwright headless; add `--headed` to watch the browser. CI also installs Chromium.
 `pnpm validate` runs typecheck, lint, format check, dependency-cruiser, knip, unit coverage, and integration tests. CI also runs build and E2E tests.
 Contributor workflow and coding conventions: [CONTRIBUTING.md](CONTRIBUTING.md)
 

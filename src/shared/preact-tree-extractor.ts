@@ -64,6 +64,7 @@ interface OptionsObject {
   onPaymentFailed?: () => unknown;
   onError?: () => unknown;
   beforeSubmit?: () => unknown;
+  redirectFromTopWhenInIframe?: boolean;
   // v6 deprecated
   setStatusAutomatically?: boolean;
   showBrandsUnderCardNumber?: boolean;
@@ -96,6 +97,9 @@ export function extractFieldsFromOptions(options: unknown): CheckoutConfig {
 
   if (o.session !== undefined && o.session !== null) {
     config['hasSession'] = true;
+  }
+  if (typeof o.redirectFromTopWhenInIframe === 'boolean') {
+    config['redirectFromTopWhenInIframe'] = o.redirectFromTopWhenInIframe;
   }
 
   // v6 deprecated boolean config

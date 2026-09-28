@@ -32,6 +32,15 @@ const STRINGS = {
   MODULE_WARN_REMEDIATION:
     'Remove risk.enabled: false (or legacy riskEnabled: false) from your AdyenCheckout configuration unless you have intentionally disabled browser data collection after assessing the fraud-detection impact.',
   MODULE_WARN_URL: RISK_MANAGEMENT_URL,
+  HOLDER_NAME_SKIP_TITLE: 'Cardholder name field check skipped.',
+  HOLDER_NAME_SKIP_REASON: 'No rendered new-card form was detected.',
+  HOLDER_NAME_PASS_TITLE: 'Card form collects the cardholder name.',
+  HOLDER_NAME_NOTICE_TITLE: 'Card form does not show a cardholder name field.',
+  HOLDER_NAME_NOTICE_DETAIL:
+    'For 3D Secure 2, Adyen documents holderName as required for Visa and JCB transactions and recommends including it whenever available for higher authentication rates. If you collect the name elsewhere and send holderName in the /payments request, no change is needed.',
+  HOLDER_NAME_NOTICE_REMEDIATION:
+    'Set hasHolderName: true (and holderNameRequired: true where appropriate) in your Card configuration, or confirm that your server sends holderName from another source.',
+  HOLDER_NAME_NOTICE_URL: 'https://docs.adyen.com/online-payments/3d-secure/api-reference/',
 } as const;
 
 export const RISK_CHECKS = createRegistry(CATEGORY)
@@ -88,4 +97,18 @@ export const RISK_CHECKS = createRegistry(CATEGORY)
     },
     { warnImpact: 'high' }
   )
+  .add('risk-card-holder-name', (payload, { skip, pass, notice }) => {
+    if (payload.page.hasNewCardFormDOM !== true) {
+      return skip(STRINGS.HOLDER_NAME_SKIP_TITLE, STRINGS.HOLDER_NAME_SKIP_REASON);
+    }
+    if (payload.page.hasCardHolderNameDOM === true) {
+      return pass(STRINGS.HOLDER_NAME_PASS_TITLE);
+    }
+    return notice(
+      STRINGS.HOLDER_NAME_NOTICE_TITLE,
+      STRINGS.HOLDER_NAME_NOTICE_DETAIL,
+      STRINGS.HOLDER_NAME_NOTICE_REMEDIATION,
+      STRINGS.HOLDER_NAME_NOTICE_URL
+    );
+  })
   .getChecks();

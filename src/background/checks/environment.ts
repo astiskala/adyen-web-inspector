@@ -38,10 +38,16 @@ const STRINGS = {
   IFRAME_WARN_DETAIL:
     'Redirect payment flows can fail when checkout runs in an iframe on a different domain from its parent: the frame cannot redirect the top-level page. Embedding checkout can also affect cookies and other payment methods.',
   IFRAME_WARN_REMEDIATION:
-    'Render Drop-in or Components in the top-level page for redirect-based payment methods and 3DS. If an iframe is unavoidable, host it on the same domain as its parent. For Drop-in, set redirectFromTopWhenInIframe to true if redirects should navigate the top-level window, and test the return flow.',
+    'Render Drop-in or Components in the top-level page for redirect-based payment methods and 3DS. If an iframe is unavoidable, host it on the same domain as its parent. Set redirectFromTopWhenInIframe to true if redirects should navigate the top-level window, and test the return flow.',
   IFRAME_WARN_URL:
     'https://docs.adyen.com/online-payments/web-best-practices/#avoid-iframe-elements',
   IFRAME_PASS_TITLE: 'Checkout is not embedded inside an iframe.',
+  IFRAME_TOP_REDIRECT_NOTICE_TITLE:
+    'Checkout runs in an iframe with redirectFromTopWhenInIframe enabled.',
+  IFRAME_TOP_REDIRECT_NOTICE_DETAIL:
+    'Adyen Web will redirect the top-level window for redirect payment methods. Browsers can still block top-level navigation from a cross-origin iframe, for example when the iframe sandbox omits allow-top-navigation, and cookies or storage in the frame may be partitioned.',
+  IFRAME_TOP_REDIRECT_NOTICE_REMEDIATION:
+    'Test redirect payment methods and 3DS end to end in this embedded setup, including the return to your checkout. Prefer rendering checkout in the top-level page where possible.',
 
   REGION_MISMATCH_WARN_TITLE: 'CDN region does not match configured region.',
   REGION_MISMATCH_WARN_DETAIL:
@@ -116,7 +122,7 @@ export const ENVIRONMENT_CHECKS = createRegistry(CATEGORY)
   })
   .add('env-key-mismatch', (payload, { skip, fail, pass }) => {
     const { value: clientKey } = observeCheckoutField(payload, 'clientKey');
-    if (clientKey === undefined || clientKey === '') {
+    if (clientKey === undefined) {
       return skip(STRINGS.KEY_SKIP_TITLE, STRINGS.KEY_NO_KEY_SKIP_REASON);
     }
 
@@ -138,8 +144,16 @@ export const ENVIRONMENT_CHECKS = createRegistry(CATEGORY)
 
     return pass(STRINGS.KEY_PASS_TITLE);
   })
-  .add('env-not-iframe', (payload, { pass, warn }) => {
+  .add('env-not-iframe', (payload, { pass, warn, notice }) => {
     if (payload.page.isInsideIframe) {
+      if (observeCheckoutField(payload, 'redirectFromTopWhenInIframe').value === true) {
+        return notice(
+          STRINGS.IFRAME_TOP_REDIRECT_NOTICE_TITLE,
+          STRINGS.IFRAME_TOP_REDIRECT_NOTICE_DETAIL,
+          STRINGS.IFRAME_TOP_REDIRECT_NOTICE_REMEDIATION,
+          STRINGS.IFRAME_WARN_URL
+        );
+      }
       return warn(
         STRINGS.IFRAME_WARN_TITLE,
         STRINGS.IFRAME_WARN_DETAIL,

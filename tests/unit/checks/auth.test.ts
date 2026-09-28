@@ -5,6 +5,7 @@ import {
   makeAdyenPayload,
   makePageExtract,
   makeCheckoutConfig,
+  makeRequest,
 } from '../../fixtures/makeScanPayload';
 import { requireCheck } from './requireCheck';
 
@@ -194,5 +195,58 @@ describe('componentConfig fallback', () => {
       }),
     });
     expect(authLocale.run(payload).severity).toBe('pass');
+  });
+});
+
+describe('auth-client-key-rejected', () => {
+  const authKeyRejected = requireCheck(AUTH_CHECKS, 'auth-client-key-rejected');
+  const sessionsUrl =
+    'https://checkoutshopper-test.adyen.com/checkoutshopper/v1/sessions/CS123/setup?clientKey=test_SECRETVALUE';
+
+  it('skips when no Adyen client-side responses were captured', () => {
+    const payload = makeScanPayload({
+      capturedRequests: [
+        makeRequest(
+          'https://checkoutshopper-test.cdn.adyen.com/checkoutshopper/sdk/6.0.0/adyen.js'
+        ),
+        makeRequest(sessionsUrl, { statusCode: 0 }),
+      ],
+    });
+    expect(authKeyRejected.run(payload).severity).toBe('skip');
+  });
+
+  it('passes when Adyen accepted the client-side requests', () => {
+    const payload = makeScanPayload({
+      capturedRequests: [
+        makeRequest(sessionsUrl, { type: 'other' }),
+        makeRequest('https://checkoutanalytics-live-us.adyen.com/checkoutanalytics/v3/analytics', {
+          statusCode: 204,
+        }),
+      ],
+    });
+    expect(authKeyRejected.run(payload).severity).toBe('pass');
+  });
+
+  it('fails on 401 or 403 responses and reports only the rejecting origins', () => {
+    const payload = makeScanPayload({
+      capturedRequests: [
+        makeRequest(sessionsUrl, { statusCode: 401 }),
+        makeRequest(sessionsUrl, { statusCode: 401 }),
+        makeRequest(
+          'https://checkoutanalytics-test.adyen.com/checkoutanalytics/v3/analytics?clientKey=test_SECRETVALUE',
+          {
+            statusCode: 403,
+          }
+        ),
+        makeRequest('https://merchant.example/api/payments', { statusCode: 401 }),
+      ],
+    });
+    const result = authKeyRejected.run(payload);
+    expect(result.severity).toBe('fail');
+    expect(result.detail).toContain(
+      'HTTP 401 from https://checkoutshopper-test.adyen.com, HTTP 403 from https://checkoutanalytics-test.adyen.com.'
+    );
+    expect(result.detail).not.toContain('SECRETVALUE');
+    expect(result.detail).not.toContain('merchant.example');
   });
 });

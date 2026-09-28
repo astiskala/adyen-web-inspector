@@ -162,10 +162,11 @@ Check-specific guidance:
 ### E2E Tests
 
 - Location: `tests/e2e/`
-- Framework: Playwright with Chromium persistent context loading the built extension
+- Framework: Playwright with Chromium persistent context loading the built extension. Runs headless using the full Chromium build (`channel: 'chromium'`), because the default headless shell cannot load extensions; pass `--headed` (for example `pnpm test:e2e --headed`) to watch the browser.
 - Fixture pages: `tests/fixtures/*.html`; `tests/e2e/fixture-server.mjs` serves them on port 4321 and supplies scenario-specific security headers.
 - `tests/e2e/scenarios.test.ts` scans offline dummy merchant scenarios using `scanFixture()` from `tests/e2e/fixtures.ts`; external script/API requests are fulfilled locally and the npm version cache is seeded for deterministic results.
 - Keep a meaningful browser-result assertion for each registered check ID in `scenarios.test.ts`. Use the optional `duringScan` callback on `scanFixture()` for traffic that must occur during a scan (such as analytics POSTs).
+- `tests/e2e/ui.test.ts` checks what the built popup and DevTools panel render. The popup inspects the active tab of its window, so open it with `openPopupFor()`, which adds it as a background tab beside the fixture page. `openDevtoolsPanelFor()` loads the real panel bundle in a tab and stubs only `chrome.devtools.inspectedWindow.tabId`, because Playwright cannot open DevTools panels.
 - `dummy-adyen-web.js` simulates both the legacy `checkout.create()` path and v6 `AdyenWeb.Dropin`/`Card` constructors; the fixture server stubs `/api/sessions`, `/api/paymentMethods`, `/api/payments`, and `/api/payments/details` without real Adyen requests or credentials.
 
 ---

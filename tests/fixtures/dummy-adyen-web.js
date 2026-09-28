@@ -5,6 +5,24 @@ if (
   globalThis.AdyenWebMetadata = { version: '6.31.0', bundleType: 'esm' };
 }
 
+function renderElement(className, textContent) {
+  const element = globalThis.document.createElement('div');
+  element.className = className;
+  if (textContent !== undefined) element.textContent = textContent;
+  return element;
+}
+
+// Mirrors the v6 Card component wrapper and new-card form classes.
+function renderCard(componentOptions) {
+  const card = renderElement('adyen-checkout__card-input');
+  const form = renderElement('adyen-checkout__card__form', 'Dummy card component');
+  if (componentOptions.hasHolderName === true) {
+    form.append(renderElement('adyen-checkout__field adyen-checkout__card__holderName'));
+  }
+  card.append(form);
+  return card;
+}
+
 globalThis.AdyenCheckout = async function AdyenCheckout(options) {
   return {
     options,
@@ -12,9 +30,10 @@ globalThis.AdyenCheckout = async function AdyenCheckout(options) {
       return {
         mount(selector) {
           const container = globalThis.document.querySelector(selector);
-          const component = globalThis.document.createElement('div');
-          component.className = `adyen-checkout__${type}`;
-          component.textContent = `Dummy ${type} component`;
+          const component =
+            type === 'card'
+              ? renderCard(componentOptions)
+              : renderElement(`adyen-checkout__${type}`, `Dummy ${type} component`);
           container.append(component);
           return { element: component, options: componentOptions };
         },

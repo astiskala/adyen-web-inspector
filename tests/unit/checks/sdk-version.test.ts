@@ -68,6 +68,83 @@ describe('version-latest', () => {
     });
     expect(versionLatest.run(payload).severity).toBe('skip');
   });
+
+  it('returns skip when a version string cannot be parsed', () => {
+    const payload = makeScanPayload({
+      versionInfo: makeVersionInfo({ detected: 'next', latest: '6.45.2' }),
+    });
+    expect(versionLatest.run(payload).severity).toBe('skip');
+  });
+
+  const scannedAt = '2026-09-28T12:00:00.000Z';
+
+  it('returns a low-impact notice for minor drift on a release younger than 6 months', () => {
+    const payload = makeScanPayload({
+      scannedAt,
+      versionInfo: makeVersionInfo({
+        detected: '6.40.0',
+        latest: '6.45.2',
+        detectedReleasedAt: '2026-04-15T09:00:00.000Z',
+      }),
+    });
+    const result = versionLatest.run(payload);
+    expect(result).toMatchObject({ severity: 'notice', impact: 'low' });
+    expect(result.title).toContain('released within the last 6 months');
+  });
+
+  it('warns when the detected release is older than 6 months, even for patch drift', () => {
+    const payload = makeScanPayload({
+      scannedAt,
+      versionInfo: makeVersionInfo({
+        detected: '6.45.1',
+        latest: '6.45.2',
+        detectedReleasedAt: '2026-03-01T09:00:00.000Z',
+      }),
+    });
+    const result = versionLatest.run(payload);
+    expect(result.severity).toBe('warn');
+    expect(result.title).toBe(
+      'Version 6.45.1 was released on 2026-03-01, more than 6 months ago (latest: 6.45.2).'
+    );
+  });
+
+  it('treats a release exactly 6 months old as recent', () => {
+    const payload = makeScanPayload({
+      scannedAt,
+      versionInfo: makeVersionInfo({
+        detected: '6.40.0',
+        latest: '6.45.2',
+        detectedReleasedAt: '2026-03-28T12:00:00.000Z',
+      }),
+    });
+    expect(versionLatest.run(payload).severity).toBe('notice');
+  });
+
+  it('falls back to version drift when the release date is invalid', () => {
+    const payload = makeScanPayload({
+      scannedAt,
+      versionInfo: makeVersionInfo({
+        detected: '6.40.0',
+        latest: '6.45.2',
+        detectedReleasedAt: 'not-a-date',
+      }),
+    });
+    expect(versionLatest.run(payload).title).toBe(
+      'Version 6.40.0 is behind latest minor version (6.45.2).'
+    );
+  });
+
+  it('warns on major drift for a recent release', () => {
+    const payload = makeScanPayload({
+      scannedAt,
+      versionInfo: makeVersionInfo({
+        detected: '6.45.2',
+        latest: '7.0.0',
+        detectedReleasedAt: '2026-09-01T00:00:00.000Z',
+      }),
+    });
+    expect(versionLatest.run(payload).title).toContain('behind latest major version');
+  });
 });
 
 describe('uplift-cobadged-version', () => {

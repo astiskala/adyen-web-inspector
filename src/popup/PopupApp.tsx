@@ -24,6 +24,33 @@ function getActiveTabId(): Promise<number | undefined> {
 
 const popupTabAdapter = { source: 'popup', getTabId: getActiveTabId, resetDelayMs: 400 } as const;
 
+type IdleView =
+  | { readonly state: 'ready' | 'not-detected' }
+  | { readonly state: 'version-outdated'; readonly version: string };
+
+/** Resolves the view for a tab without a scan result from the detector's session flags. */
+async function getIdleView(): Promise<IdleView> {
+  const tabId = await getActiveTabId();
+  if (tabId === undefined) return { state: 'not-detected' };
+
+  const detectedKey = `${STORAGE_DETECTED_PREFIX}${tabId}`;
+  const versionKey = `${STORAGE_VERSION_PREFIX}${tabId}`;
+  const stored: Record<string, unknown> = await chrome.storage.session.get([
+    detectedKey,
+    versionKey,
+  ]);
+  if (stored[detectedKey] !== true) return { state: 'not-detected' };
+
+  const version = stored[versionKey];
+  if (typeof version === 'string') {
+    const parsed = parseVersion(version);
+    if (parsed && parsed.major < MIN_SUPPORTED_MAJOR_VERSION) {
+      return { state: 'version-outdated', version };
+    }
+  }
+  return { state: 'ready' };
+}
+
 /**
  * Popup root that loads scan state for the active tab and handles scan actions.
  */
@@ -31,27 +58,6 @@ export function Popup(): JSX.Element {
   const [state, setState] = useState<PopupState>('loading');
   const { result, scanning, loading, error, scan } = useScanLifecycle(popupTabAdapter);
   const [outdatedVersion, setOutdatedVersion] = useState<string>('');
-
-  function checkVersionGate(tabId: number): void {
-    const versionKey = `${STORAGE_VERSION_PREFIX}${tabId}`;
-    chrome.storage.session
-      .get(versionKey)
-      .then((stored: Record<string, unknown>) => {
-        const version = stored[versionKey];
-        if (typeof version === 'string') {
-          const parsed = parseVersion(version);
-          if (parsed && parsed.major < MIN_SUPPORTED_MAJOR_VERSION) {
-            setOutdatedVersion(version);
-            setState('version-outdated');
-            return;
-          }
-        }
-        setState('ready');
-      })
-      .catch(() => {
-        setState('ready');
-      });
-  }
 
   useEffect(() => {
     if (loading) {
@@ -71,29 +77,18 @@ export function Popup(): JSX.Element {
       return;
     }
 
-    getActiveTabId()
-      .then((tabId) => {
-        if (tabId === undefined) {
-          setState('not-detected');
-          return;
-        }
-        const detectedKey = `${STORAGE_DETECTED_PREFIX}${tabId}`;
-        chrome.storage.session
-          .get(detectedKey)
-          .then((stored: Record<string, unknown>) => {
-            if (stored[detectedKey] === true) {
-              checkVersionGate(tabId);
-            } else {
-              setState('not-detected');
-            }
-          })
-          .catch(() => {
-            setState('not-detected');
-          });
+    let cancelled = false;
+    getIdleView()
+      .catch((): IdleView => ({ state: 'not-detected' }))
+      .then((view) => {
+        if (cancelled) return;
+        if (view.state === 'version-outdated') setOutdatedVersion(view.version);
+        setState(view.state);
       })
-      .catch(() => {
-        setState('not-detected');
-      });
+      .catch(() => {});
+    return (): void => {
+      cancelled = true;
+    };
   }, [loading, scanning, result, error]);
 
   function handleExportPdf(): void {

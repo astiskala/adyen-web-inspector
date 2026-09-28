@@ -10,6 +10,7 @@ import type {
   ScanPayload,
   Severity,
 } from '../../shared/types.js';
+import { getDefaultImpact } from '../../shared/results.js';
 
 /**
  * Result of a check runner before ID and Category are injected.
@@ -42,10 +43,9 @@ interface CheckImpactPolicy {
 }
 
 function outcomeImpact(severity: Severity, policy: CheckImpactPolicy): CheckImpact | undefined {
-  if (severity === 'fail') return 'high';
-  if (severity === 'warn') return policy.warnImpact ?? 'medium';
-  if (severity === 'notice') return policy.noticeImpact ?? 'manual';
-  return undefined;
+  if (severity === 'warn' && policy.warnImpact !== undefined) return policy.warnImpact;
+  if (severity === 'notice' && policy.noticeImpact !== undefined) return policy.noticeImpact;
+  return getDefaultImpact(severity);
 }
 
 function buildOutcome(

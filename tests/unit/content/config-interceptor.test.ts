@@ -160,6 +160,16 @@ describe('config-interceptor', () => {
       expect(getCapturedConfig()?.['riskEnabled']).toBe(false);
     });
 
+    it('captures redirectFromTopWhenInIframe from the checkout config', async () => {
+      installAdyenCheckoutFactory(async () => ({
+        create: (): void => {},
+        options: { clientKey: 'test_TOP', redirectFromTopWhenInIframe: true },
+      }));
+      await callAdyenCheckout({});
+
+      expect(getCapturedConfig()?.['redirectFromTopWhenInIframe']).toBe(true);
+    });
+
     it('wraps create on the captured instance for component config', async () => {
       const fakeCheckout: Record<string, unknown> = {
         create: (_type: unknown, _cfg?: unknown) => ({}),

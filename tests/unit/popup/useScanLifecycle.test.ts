@@ -3,7 +3,7 @@ import { act } from 'preact/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useScanLifecycle } from '../../../src/popup/components/useScanLifecycle';
 import type { ScanResult } from '../../../src/shared/types';
-import { makeScanPayload } from '../../fixtures/makeScanPayload';
+import { makeScanResult } from '../../fixtures/makeScanPayload';
 
 type ScanSession = ReturnType<typeof useScanLifecycle>;
 type Adapter = Parameters<typeof useScanLifecycle>[0];
@@ -25,15 +25,7 @@ function TestView({ adapter }: { readonly adapter: Adapter }): JSX.Element | nul
 }
 
 function makeResult(): ScanResult {
-  return {
-    tabId: 3,
-    pageUrl: 'https://merchant.example/checkout',
-    scannedAt: '2026-09-28T00:00:00.000Z',
-    checks: [],
-    health: { score: 100, passing: 0, failing: 0, warnings: 0, total: 0, tier: 'excellent' },
-    standardCompliance: { compliant: false, reasons: [] },
-    payload: makeScanPayload(),
-  };
+  return makeScanResult({ tabId: 3, pageUrl: 'https://merchant.example/checkout' });
 }
 
 async function mount(adapter: Adapter): Promise<void> {

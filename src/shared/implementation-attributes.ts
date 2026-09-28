@@ -83,6 +83,7 @@ function mapRegionToken(token: string | undefined): AdyenRegion {
   if (token === 'au') return 'AU';
   if (token === 'apse') return 'APSE';
   if (token === 'in') return 'IN';
+  if (token === 'nea') return 'NEA';
   return 'unknown';
 }
 

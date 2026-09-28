@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Panel } from '../../../src/devtools/panel/Panel';
 import { Popup } from '../../../src/popup/PopupApp';
 import type { ScanResult } from '../../../src/shared/types';
-import { makeScanPayload } from '../../fixtures/makeScanPayload';
+import { makeScanResult } from '../../fixtures/makeScanPayload';
 
 interface Message {
   readonly type: string;
@@ -17,15 +17,10 @@ let sendMessage: ReturnType<typeof vi.fn>;
 let getStorage: ReturnType<typeof vi.fn>;
 
 function makeResult(): ScanResult {
-  return {
+  return makeScanResult({
     tabId: 3,
-    pageUrl: 'https://example.com/checkout',
-    scannedAt: '2026-09-28T00:00:00.000Z',
-    checks: [],
     health: { score: 100, passing: 1, failing: 0, warnings: 0, total: 1, tier: 'excellent' },
-    standardCompliance: { compliant: false, reasons: [] },
-    payload: makeScanPayload(),
-  };
+  });
 }
 
 async function mount(View: () => JSX.Element): Promise<void> {

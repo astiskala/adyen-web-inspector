@@ -54,10 +54,10 @@ jobs:
         run: pnpm build
 
       - name: Install Playwright browsers
-        run: pnpm exec playwright install chromium --with-deps
+        run: pnpm exec playwright install chromium --with-deps --no-shell
 
       - name: E2E tests
-        run: xvfb-run --auto-servernum pnpm test:e2e
+        run: pnpm test:e2e
 
       - name: Upload extension artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a

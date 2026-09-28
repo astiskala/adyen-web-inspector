@@ -10,7 +10,7 @@ During scans, the extension can make network requests to:
 
 - The scanned page URL (header probing via `HEAD`/`GET`)
 - Same-host script URLs (bundle/config detection fallback)
-- `https://registry.npmjs.org/@adyen/adyen-web/latest` (latest SDK version check, cached in `chrome.storage.local` for 24 hours)
+- `https://registry.npmjs.org/@adyen/adyen-web` (latest SDK version and release dates, cached in `chrome.storage.local` for 24 hours)
 
 In addition to those extension-initiated requests, Adyen network traffic triggered by the page is passively observed via `chrome.webRequest` for local analysis.
 

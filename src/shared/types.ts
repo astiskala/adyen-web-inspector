@@ -42,12 +42,14 @@ export type CheckId =
   | 'env-not-iframe'
   // Auth
   | 'auth-client-key'
+  | 'auth-client-key-rejected'
   | 'auth-country-code'
   | 'auth-locale'
   // Callbacks
   | 'flow-type'
   | 'callback-on-submit'
   | 'callback-on-submit-filtering'
+  | 'callback-on-submit-state-data'
   | 'callback-on-additional-details'
   | 'callback-on-payment-completed'
   | 'callback-on-payment-failed'
@@ -59,6 +61,7 @@ export type CheckId =
   // Risk
   | 'risk-df-iframe'
   | 'risk-module-not-disabled'
+  | 'risk-card-holder-name'
   // Security
   | 'security-https'
   | 'security-sri-script'
@@ -66,6 +69,9 @@ export type CheckId =
   | 'security-csp-present'
   | 'security-csp-script-src'
   | 'security-csp-frame-src'
+  | 'security-csp-connect-src'
+  | 'security-csp-img-src'
+  | 'security-csp-form-action'
   | 'security-csp-frame-ancestors'
   | 'security-csp-reporting'
   | 'security-referrer-policy'
@@ -168,6 +174,8 @@ export interface IframeInfo {
 export interface ObservedRequest {
   readonly url: string;
   readonly initiatorType?: string;
+  /** HTTP status from Resource Timing; absent when the browser does not expose it. */
+  readonly responseStatus?: number;
 }
 
 /** CSS styling information detected on the page for Adyen components. */
@@ -194,7 +202,12 @@ export interface PageExtractResult {
   readonly componentMountCount?: number;
   /** True when a `.adyen-checkout__dropin` element is present in the DOM. */
   readonly hasDropinDOM?: boolean;
+  /** True when a `.adyen-checkout__card-input` Card component element is present. */
   readonly hasCardDOM?: boolean;
+  /** True when a new-card (not stored-card) Card form is rendered. */
+  readonly hasNewCardFormDOM?: boolean;
+  /** True when the Card component renders its cardholder name field. */
+  readonly hasCardHolderNameDOM?: boolean;
   readonly scripts: ScriptTag[];
   readonly links: LinkTag[];
   readonly iframes: IframeInfo[];
@@ -240,6 +253,8 @@ export interface CheckoutConfig {
   readonly beforeSubmitSource?: string;
   /** True when a session object was detected in the checkout configuration (Sessions flow indicator). */
   readonly hasSession?: boolean;
+  /** When true, Adyen Web performs redirects in the top-level window when checkout runs in an iframe. */
+  readonly redirectFromTopWhenInIframe?: boolean;
   // ─── v6 Deprecated Properties ───────────────────────────────────────────────
   /** Deprecated in v6: use disableFinalAnimation instead. */
   readonly setStatusAutomatically?: boolean;
@@ -278,6 +293,8 @@ export interface CapturedRequest {
 export interface VersionInfo {
   readonly detected: string | null;
   readonly latest: string | null;
+  /** ISO timestamp when the detected version was published to npm, when known. */
+  readonly detectedReleasedAt?: string;
 }
 
 export interface ScanPayload {
@@ -285,7 +302,8 @@ export interface ScanPayload {
   readonly pageUrl: string;
   readonly page: PageExtractResult;
   readonly mainDocumentHeaders: CapturedHeader[];
-  readonly mainDocumentHeadersAvailable?: boolean;
+  /** False when no main-document response was observed, so header checks cannot run. */
+  readonly mainDocumentHeadersAvailable: boolean;
   readonly capturedRequests: CapturedRequest[];
   readonly versionInfo: VersionInfo;
   /** Data extracted from Adyen checkout analytics POST requests (merged from multiple calls). */

@@ -1,10 +1,16 @@
-import { ADYEN_WEB_TRANSLATION_LOCALES, ORIGIN_KEY_PREFIX } from '../../shared/constants.js';
+import {
+  ADYEN_ANALYTICS_DOMAINS,
+  ADYEN_CHECKOUTSHOPPER_DOMAINS,
+  ADYEN_WEB_TRANSLATION_LOCALES,
+  ORIGIN_KEY_PREFIX,
+} from '../../shared/constants.js';
 import { detectIntegrationFlow } from '../../shared/implementation-attributes.js';
 import {
   hasCapturedCheckoutConfig,
   hasVerifiedCheckoutConfig,
   observeCheckoutField,
 } from '../../shared/scan-evidence.js';
+import { extractHostname } from '../../shared/utils.js';
 import { SKIP_REASONS } from './constants.js';
 import { createRegistry } from './registry.js';
 
@@ -46,12 +52,36 @@ const STRINGS = {
     'Update the locale property in your AdyenCheckout configuration to a locale string included in the Adyen Web server translations list. Using an unsupported locale may result in an unexpected language fallback for shoppers.',
   LOCALE_UNSUPPORTED_WARN_URL:
     'https://github.com/Adyen/adyen-web/tree/522975889a4287fe9c81cc138fcf3457e6bd5a6e/packages/server/translations',
+
+  KEY_REJECTED_SKIP_TITLE: 'Client key authorization check skipped.',
+  KEY_REJECTED_SKIP_REASON: 'No HTTP status codes from Adyen client-side endpoints were observed.',
+  KEY_REJECTED_PASS_TITLE: 'Adyen accepted the captured client-side requests.',
+  KEY_REJECTED_FAIL_TITLE: 'Adyen rejected client-side requests from this page.',
+  KEY_REJECTED_FAIL_REMEDIATION:
+    'Check that the client key belongs to the same environment as your checkout configuration, and add this page origin to the allowed origins of the API credential that owns the client key.',
+  KEY_REJECTED_FAIL_URL:
+    'https://docs.adyen.com/development-resources/client-side-authentication/#allowed-origins',
 } as const;
 
 const CATEGORY = 'auth' as const;
 const SUPPORTED_LOCALES = new Set<string>(
   ADYEN_WEB_TRANSLATION_LOCALES.map((l) => l.toLowerCase())
 );
+const CLIENT_KEY_AUTHENTICATED_HOSTS = new Set<string>([
+  ...ADYEN_CHECKOUTSHOPPER_DOMAINS,
+  ...ADYEN_ANALYTICS_DOMAINS,
+]);
+const REJECTED_STATUS_CODES = new Set([401, 403]);
+
+// Paths and query strings can contain the client key, so only the origin is reported.
+function describeRejectedRequests(
+  requests: readonly { url: string; statusCode: number }[]
+): string {
+  const descriptions = new Set(
+    requests.map(({ url, statusCode }) => `HTTP ${statusCode} from ${new URL(url).origin}`)
+  );
+  return [...descriptions].join(', ');
+}
 
 export const AUTH_CHECKS = createRegistry(CATEGORY)
   .add('auth-client-key', (payload, { pass, skip, warn }) => {
@@ -71,6 +101,25 @@ export const AUTH_CHECKS = createRegistry(CATEGORY)
     }
 
     return pass(STRINGS.CLIENT_KEY_PASS_TITLE);
+  })
+  .add('auth-client-key-rejected', (payload, { pass, fail, skip }) => {
+    const responses = payload.capturedRequests.filter((request) => {
+      const host = extractHostname(request.url);
+      return host !== null && CLIENT_KEY_AUTHENTICATED_HOSTS.has(host) && request.statusCode > 0;
+    });
+    if (responses.length === 0) {
+      return skip(STRINGS.KEY_REJECTED_SKIP_TITLE, STRINGS.KEY_REJECTED_SKIP_REASON);
+    }
+
+    const rejected = responses.filter((request) => REJECTED_STATUS_CODES.has(request.statusCode));
+    if (rejected.length === 0) return pass(STRINGS.KEY_REJECTED_PASS_TITLE);
+
+    return fail(
+      STRINGS.KEY_REJECTED_FAIL_TITLE,
+      `Observed ${describeRejectedRequests(rejected)}. A 401 or 403 from these endpoints usually means the client key is not valid for this environment or this page origin is not an allowed origin for the key. Adyen Web then cannot load card fields or complete Sessions requests.`,
+      STRINGS.KEY_REJECTED_FAIL_REMEDIATION,
+      STRINGS.KEY_REJECTED_FAIL_URL
+    );
   })
   .add('auth-country-code', (payload, { pass, fail, skip, warn, notice }) => {
     const { value: countryCode, source } = observeCheckoutField(payload, 'countryCode');

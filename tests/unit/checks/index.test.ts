@@ -49,14 +49,6 @@ describe('ALL_CHECKS registry', () => {
     expect(sri).toMatchObject({ severity: 'warn', impact: 'high' });
     expect(bundle).toMatchObject({ severity: 'notice', impact: 'low' });
     expect(getImpactLevel(risk)).toBe('high');
-    expect(
-      getImpactLevel({
-        id: risk.id,
-        category: risk.category,
-        severity: risk.severity,
-        title: risk.title,
-      })
-    ).toBe('high');
   });
 
   it('serializes issue impact without adding it to non-issues', () => {

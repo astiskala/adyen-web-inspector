@@ -2,7 +2,7 @@ import { h, render } from 'preact';
 import { afterEach, describe, expect, it } from 'vitest';
 import { NetworkTab, SkippedChecksTab, SecurityTab } from '../../../src/devtools/panel/tabs';
 import type { ScanResult } from '../../../src/shared/types';
-import { makeScanPayload } from '../../fixtures/makeScanPayload';
+import { makeScanPayload, makeScanResult } from '../../fixtures/makeScanPayload';
 
 const host = document.createElement('div');
 
@@ -11,10 +11,7 @@ afterEach(() => {
 });
 
 function makeResult(): ScanResult {
-  return {
-    tabId: 1,
-    pageUrl: 'https://example.com/checkout',
-    scannedAt: '2026-09-28T00:00:00.000Z',
+  return makeScanResult({
     checks: [
       {
         id: '3p-no-sri',
@@ -27,10 +24,10 @@ function makeResult(): ScanResult {
         category: 'security',
         severity: 'warn',
         title: 'CSS integrity missing',
+        impact: 'high',
       },
     ],
     health: { score: 80, passing: 4, failing: 0, warnings: 1, total: 5, tier: 'issues' },
-    standardCompliance: { compliant: false, reasons: [] },
     payload: makeScanPayload({
       capturedRequests: [
         { url: 'https://example.com/metrics', type: 'other', responseHeaders: [], statusCode: 200 },
@@ -42,7 +39,7 @@ function makeResult(): ScanResult {
         },
       ],
     }),
-  };
+  });
 }
 
 describe('DevTools finding views', () => {

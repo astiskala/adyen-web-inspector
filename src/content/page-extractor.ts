@@ -95,13 +95,13 @@ function extractLinks(): LinkTag[] {
   });
 }
 
-function hasDropinDOM(): boolean {
-  return document.querySelector('.adyen-checkout__dropin') !== null;
+function hasElement(selector: string): boolean {
+  return document.querySelector(selector) !== null;
 }
 
-function hasCardDOM(): boolean {
-  return document.querySelector('.adyen-checkout__card') !== null;
-}
+// Stored-card forms use the same wrapper, so only new-card forms are counted.
+const NEW_CARD_FORM_SELECTOR =
+  '.adyen-checkout__card__form:not(.adyen-checkout__card__form--oneClick)';
 
 function extractIframes(): IframeInfo[] {
   return Array.from(document.querySelectorAll<HTMLIFrameElement>('iframe')).map((f) => {
@@ -130,10 +130,16 @@ function extractObservedRequests(): ObservedRequest[] {
       typeof resourceEntry.initiatorType === 'string' && resourceEntry.initiatorType.length > 0
         ? resourceEntry.initiatorType
         : undefined;
+    // Browsers report 0 for opaque cross-origin responses and older Chromium lacks the field.
+    const responseStatus =
+      typeof resourceEntry.responseStatus === 'number' && resourceEntry.responseStatus > 0
+        ? resourceEntry.responseStatus
+        : undefined;
 
     requests.push({
       url: entry.name,
       ...(initiatorType === undefined ? {} : { initiatorType }),
+      ...(responseStatus === undefined ? {} : { responseStatus }),
     });
   }
 
@@ -421,8 +427,10 @@ function extract(): PageExtractResult {
       ? { checkoutInitCount: g.__adyenWebInspectorCheckoutInitCount }
       : {}),
     ...(mountCount > 0 ? { componentMountCount: mountCount } : {}),
-    ...(hasDropinDOM() ? { hasDropinDOM: true } : {}),
-    ...(hasCardDOM() ? { hasCardDOM: true } : {}),
+    ...(hasElement('.adyen-checkout__dropin') ? { hasDropinDOM: true } : {}),
+    ...(hasElement('.adyen-checkout__card-input') ? { hasCardDOM: true } : {}),
+    ...(hasElement(NEW_CARD_FORM_SELECTOR) ? { hasNewCardFormDOM: true } : {}),
+    ...(hasElement('.adyen-checkout__card__holderName') ? { hasCardHolderNameDOM: true } : {}),
     ...(apiKeyDetected ? { apiKeyDetected: true } : {}),
     adyenStyles: extractAdyenStyles(),
     isInsideIframe: globalThis.self !== globalThis.top,

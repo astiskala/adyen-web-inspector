@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildIssueExportRows } from '../../../src/shared/export-utils';
-import { ADYEN_WEB_BEST_PRACTICES_DOC } from '../../../src/shared/check-config';
+import { ADYEN_WEB_BEST_PRACTICES_DOC } from '../../../src/shared/results';
 import type { CheckId, CheckResult, Severity } from '../../../src/shared/types';
 
 function makeCheck(
@@ -124,9 +124,8 @@ describe('buildIssueExportRows', () => {
       expect(row.impact).toBe('Medium impact');
     });
 
-    it('maps warn severity to high impact when check has high warning priority', () => {
-      // security-sri-css has 'high' in WARNING_PRIORITY_BY_ID
-      const check = makeCheck('security-sri-css', 'warn', { category: 'security' });
+    it('maps warn severity to high impact when the check sets high impact', () => {
+      const check = makeCheck('security-sri-css', 'warn', { category: 'security', impact: 'high' });
 
       const row = first(buildIssueExportRows([check]));
 
@@ -135,7 +134,7 @@ describe('buildIssueExportRows', () => {
     });
 
     it('maps configured notice severity to low impact', () => {
-      const check = makeCheck('styling-css-custom-props', 'notice');
+      const check = makeCheck('styling-css-custom-props', 'notice', { impact: 'low' });
 
       const row = first(buildIssueExportRows([check]));
 
@@ -207,6 +206,7 @@ describe('buildIssueExportRows', () => {
         makeCheck('auth-country-code', 'fail', { title: 'High failure' }),
         makeCheck('styling-css-custom-props', 'notice', {
           title: 'Low notice',
+          impact: 'low',
         }),
       ];
 
@@ -221,6 +221,7 @@ describe('buildIssueExportRows', () => {
         makeCheck('security-sri-css', 'warn', {
           category: 'security',
           title: 'SRI warning (high prio)',
+          impact: 'high',
         }),
         makeCheck('auth-country-code', 'fail', { title: 'Country code fail' }),
       ];
@@ -253,13 +254,18 @@ describe('buildIssueExportRows', () => {
         // low (notice)
         makeCheck('styling-css-custom-props', 'notice', {
           title: 'Styling notice',
+          impact: 'low',
         }),
         // medium (warn, default priority)
         makeCheck('auth-locale', 'warn', { title: 'Locale warn' }),
         // high (fail)
         makeCheck('auth-country-code', 'fail', { title: 'Country fail' }),
         // high (warn, high priority)
-        makeCheck('risk-df-iframe', 'warn', { category: 'risk', title: 'DF iframe warn' }),
+        makeCheck('risk-df-iframe', 'warn', {
+          category: 'risk',
+          title: 'DF iframe warn',
+          impact: 'high',
+        }),
         // medium (warn, default priority)
         makeCheck('callback-on-payment-completed', 'warn', {
           title: 'Completed callback warn',
@@ -333,7 +339,7 @@ describe('buildIssueExportRows', () => {
     });
 
     it('returns friendly default remediation for notice without remediation text', () => {
-      const check = makeCheck('styling-css-custom-props', 'notice');
+      const check = makeCheck('styling-css-custom-props', 'notice', { impact: 'low' });
 
       const row = first(buildIssueExportRows([check], { friendlyRemediation: true }));
 

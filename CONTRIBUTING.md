@@ -202,7 +202,7 @@ pnpm test:integration  # Cross-module scan pipeline
 pnpm test:e2e          # Build, then Playwright + Chromium
 ```
 
-E2E tests build and load the extension (`dist/`) into a Chromium persistent context and verify popup/panel rendering against fixture pages. Install Playwright Chromium first if it is not already available.
+E2E tests build and load the extension (`dist/`) into a headless Chromium persistent context, scan offline fixture pages, and verify what the popup and DevTools panel render. Run `pnpm test:e2e --headed` to watch the browser while debugging. Install Playwright Chromium first (`pnpm exec playwright install chromium`) if it is not already available.
 
 ### Dead code
 

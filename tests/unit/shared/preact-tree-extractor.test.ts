@@ -116,6 +116,15 @@ describe('extractFieldsFromOptions', () => {
     expect(extractFieldsFromOptions({}).hasSession).toBeUndefined();
   });
 
+  it('extracts redirectFromTopWhenInIframe only when it is a boolean', () => {
+    expect(
+      extractFieldsFromOptions({ redirectFromTopWhenInIframe: true }).redirectFromTopWhenInIframe
+    ).toBe(true);
+    expect(
+      extractFieldsFromOptions({ redirectFromTopWhenInIframe: 'yes' }).redirectFromTopWhenInIframe
+    ).toBeUndefined();
+  });
+
   it('detects callbacks and marks them as checkout source', () => {
     const result = extractFieldsFromOptions({
       onSubmit: () => {},

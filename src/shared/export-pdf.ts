@@ -1,6 +1,7 @@
 import type { ScanResult, StandardCompliance } from './types';
 import type { ExportIssueRow } from './utils';
 import { buildReportExportData, type ExportCategorySection } from './export-report';
+import { ISSUE_IMPACT_ORDER } from './results';
 
 const PDF_REPORT_STORAGE_PREFIX = 'pdf-report:' as const;
 const PDF_REPORT_PAGE_PATH = 'report/report.html' as const;
@@ -87,7 +88,6 @@ function scoreColor(tier: string): string {
 
 type IssueImpactGroup = ExportIssueRow['impactLevel'];
 
-const ISSUE_IMPACT_GROUP_ORDER: readonly IssueImpactGroup[] = ['high', 'medium', 'low', 'manual'];
 const ISSUE_IMPACT_GROUP_LABEL: Record<IssueImpactGroup, string> = {
   high: 'High Impact',
   medium: 'Medium Impact',
@@ -174,7 +174,7 @@ function buildIssueTableForSection(section: ExportCategorySection, emptyMessage:
 
   const rows: string[] = [];
 
-  for (const impactGroup of ISSUE_IMPACT_GROUP_ORDER) {
+  for (const impactGroup of ISSUE_IMPACT_ORDER) {
     const groupIssues = issues.filter((issue) => issue.impactLevel === impactGroup);
     if (groupIssues.length === 0) {
       continue;

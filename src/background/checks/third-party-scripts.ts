@@ -167,7 +167,7 @@ export const THIRD_PARTY_CHECKS = createRegistry(CATEGORY)
     const isAutoBlocking = page.scripts.some(
       (script) =>
         script.blockingMode?.trim().toLowerCase() === 'auto' &&
-        extractHostname(script.src)?.toLowerCase() === 'consent.cookiebot.com'
+        extractHostname(script.src) === 'consent.cookiebot.com'
     );
     if (!isAutoBlocking) return pass('No Cookiebot auto-blocking script tag detected.');
 

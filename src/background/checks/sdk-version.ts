@@ -9,6 +9,7 @@ const RELEASE_NOTES_URL = 'https://docs.adyen.com/online-payments/release-notes/
 const UPGRADE_URL = 'https://docs.adyen.com/online-payments/upgrade-your-integration/';
 const UPLIFT_REQUIREMENTS_URL = 'https://docs.adyen.com/uplift/uplift-requirements/';
 const UPLIFT_COBADGED_MINIMUM_VERSION = '6.16.0';
+const RELEASE_AGE_LIMIT_MONTHS = 6;
 
 const STRINGS = {
   VERSION_SKIP_TITLE: 'Version comparison skipped.',
@@ -29,6 +30,11 @@ const STRINGS = {
   PATCH_BEHIND_NOTICE_REMEDIATION:
     'Update your adyen-web package to the latest patch version to pick up recent bug fixes and security patches. Patch updates are backward-compatible and low-risk to apply.',
   PATCH_BEHIND_NOTICE_URL: RELEASE_NOTES_URL,
+
+  RECENT_MINOR_BEHIND_NOTICE_REMEDIATION:
+    'Plan an update to the latest adyen-web minor version. Minor releases within the same major version add fixes, payment method updates, and improvements without breaking changes.',
+  STALE_RELEASE_WARN_DETAIL: `Releases older than ${RELEASE_AGE_LIMIT_MONTHS} months miss the fixes, payment method changes, and card scheme updates published since, and fall further behind every month.`,
+  STALE_RELEASE_WARN_REMEDIATION: `Update your adyen-web package to the latest version, and schedule SDK updates at least every ${RELEASE_AGE_LIMIT_MONTHS} months. Review the release notes for changes between your version and the latest release.`,
 
   MINOR_BEHIND_WARN_DETAIL:
     'Consider upgrading to access the latest bug fixes, improvements, and payment methods.',
@@ -54,6 +60,25 @@ const STRINGS = {
 } as const;
 
 const CATEGORY = 'version-lifecycle' as const;
+
+interface ReleaseAge {
+  readonly releasedOn: string;
+  readonly stale: boolean;
+}
+
+/** Classifies the detected release against the scan time; null when either date is unknown. */
+function getReleaseAge(releasedAt: string | undefined, scannedAt: string): ReleaseAge | null {
+  if (releasedAt === undefined) return null;
+  const released = new Date(releasedAt);
+  const scanned = new Date(scannedAt);
+  if (Number.isNaN(released.getTime()) || Number.isNaN(scanned.getTime())) return null;
+  const limit = new Date(released);
+  limit.setUTCMonth(limit.getUTCMonth() + RELEASE_AGE_LIMIT_MONTHS);
+  return {
+    releasedOn: released.toISOString().slice(0, 10),
+    stale: scanned.getTime() > limit.getTime(),
+  };
+}
 
 export const SDK_VERSION_CHECKS = createRegistry(CATEGORY)
   .add('version-detected', (payload, { info, warn }) => {
@@ -90,6 +115,16 @@ export const SDK_VERSION_CHECKS = createRegistry(CATEGORY)
         return pass(`Running the latest version (${detected}).`);
       }
 
+      const releaseAge = getReleaseAge(payload.versionInfo.detectedReleasedAt, payload.scannedAt);
+      if (releaseAge?.stale === true) {
+        return warn(
+          `Version ${detected} was released on ${releaseAge.releasedOn}, more than ${RELEASE_AGE_LIMIT_MONTHS} months ago (latest: ${latest}).`,
+          STRINGS.STALE_RELEASE_WARN_DETAIL,
+          STRINGS.STALE_RELEASE_WARN_REMEDIATION,
+          RELEASE_NOTES_URL
+        );
+      }
+
       if (
         parsedLatest.major === parsedDetected.major &&
         parsedLatest.minor === parsedDetected.minor
@@ -99,6 +134,15 @@ export const SDK_VERSION_CHECKS = createRegistry(CATEGORY)
           STRINGS.PATCH_BEHIND_NOTICE_DETAIL,
           STRINGS.PATCH_BEHIND_NOTICE_REMEDIATION,
           STRINGS.PATCH_BEHIND_NOTICE_URL
+        );
+      }
+
+      if (parsedLatest.major === parsedDetected.major && releaseAge?.stale === false) {
+        return notice(
+          `Version ${detected} is behind latest minor version (${latest}) but was released within the last ${RELEASE_AGE_LIMIT_MONTHS} months.`,
+          STRINGS.MINOR_BEHIND_WARN_DETAIL,
+          STRINGS.RECENT_MINOR_BEHIND_NOTICE_REMEDIATION,
+          STRINGS.MINOR_BEHIND_WARN_URL
         );
       }
 

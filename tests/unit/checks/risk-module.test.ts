@@ -120,3 +120,32 @@ describe('componentConfig fallback', () => {
     expect(riskNotDisabled.run(payload).severity).toBe('pass');
   });
 });
+
+describe('risk-card-holder-name', () => {
+  const riskHolderName = requireCheck(RISK_CHECKS, 'risk-card-holder-name');
+
+  it('skips when no new-card form is rendered', () => {
+    expect(riskHolderName.run(makeScanPayload()).severity).toBe('skip');
+    const storedCardOnly = makeScanPayload({
+      page: makePageExtract({ hasCardDOM: true, hasNewCardFormDOM: false }),
+    });
+    expect(riskHolderName.run(storedCardOnly).severity).toBe('skip');
+  });
+
+  it('passes when the card form shows a holder name field', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({ hasNewCardFormDOM: true, hasCardHolderNameDOM: true }),
+    });
+    expect(riskHolderName.run(payload).severity).toBe('pass');
+  });
+
+  it('requests manual review when the card form has no holder name field', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({ hasNewCardFormDOM: true, hasCardHolderNameDOM: false }),
+    });
+    const result = riskHolderName.run(payload);
+    expect(result).toMatchObject({ severity: 'notice', impact: 'manual' });
+    expect(result.detail).toContain('Visa and JCB');
+    expect(result.remediation).toContain('hasHolderName: true');
+  });
+});

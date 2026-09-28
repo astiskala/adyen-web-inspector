@@ -195,6 +195,28 @@ describe('env-not-iframe', () => {
       'https://docs.adyen.com/online-payments/web-best-practices/#avoid-iframe-elements'
     );
   });
+
+  it('requests manual review when redirectFromTopWhenInIframe is enabled', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({
+        isInsideIframe: true,
+        checkoutConfig: makeCheckoutConfig({ redirectFromTopWhenInIframe: true }),
+      }),
+    });
+    const result = envNotIframe.run(payload);
+    expect(result).toMatchObject({ severity: 'notice', impact: 'manual' });
+    expect(result.detail).toContain('allow-top-navigation');
+  });
+
+  it('still warns when redirectFromTopWhenInIframe is explicitly disabled', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({
+        isInsideIframe: true,
+        checkoutConfig: makeCheckoutConfig({ redirectFromTopWhenInIframe: false }),
+      }),
+    });
+    expect(envNotIframe.run(payload).severity).toBe('warn');
+  });
 });
 
 describe('env-region-mismatch', () => {

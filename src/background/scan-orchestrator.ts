@@ -6,7 +6,7 @@ import type { CheckoutConfig, PageExtractResult, ScanResult } from '../shared/ty
 import { STORAGE_SCAN_RESULT_PREFIX } from '../shared/constants.js';
 import { extractHostname, isAdyenHost } from '../shared/utils.js';
 import { HeaderCollector } from './header-collector.js';
-import { getLatestAdyenWebVersion } from './npm-registry.js';
+import { getAdyenWebReleaseInfo } from './npm-registry.js';
 import { assessScan } from './scan-assessment.js';
 import { extractVersionFromBundles, probeMainDocumentHeaders } from './payload-builder.js';
 
@@ -24,11 +24,13 @@ export async function runScan(tabId: number): Promise<ScanResult> {
   collector.start();
 
   try {
+    // Independent of the page, so the npm lookup overlaps tab loading; it resolves null on failure.
+    const releasePromise = getAdyenWebReleaseInfo();
     await waitForTabReady(tabId);
     await new Promise((resolve) => globalThis.setTimeout(resolve, SPA_SETTLE_MS));
 
     const pageData = await extractPageData(tabId);
-    const latestVersion = await getLatestAdyenWebVersion();
+    const release = await releasePromise;
 
     collector.stop();
     const collected = collector.getResult();
@@ -44,7 +46,8 @@ export async function runScan(tabId: number): Promise<ScanResult> {
         page: pageData,
         collected,
         mainDocumentHeaders,
-        latestVersion,
+        latestVersion: release?.latest ?? null,
+        ...(release === null ? {} : { releaseDates: release.releaseDates }),
         scannedAt: new Date().toISOString(),
       },
       extractVersionFromBundles
@@ -253,6 +256,12 @@ export function selectPageExtractResult(
       : {}),
     ...(merchantFrames.some((frame) => frame.result.hasCardDOM === true)
       ? { hasCardDOM: true }
+      : {}),
+    ...(merchantFrames.some((frame) => frame.result.hasNewCardFormDOM === true)
+      ? { hasNewCardFormDOM: true }
+      : {}),
+    ...(merchantFrames.some((frame) => frame.result.hasCardHolderNameDOM === true)
+      ? { hasCardHolderNameDOM: true }
       : {}),
     ...(frameResults.some((result) => result.apiKeyDetected === true)
       ? { apiKeyDetected: true }

@@ -18,7 +18,7 @@ export const MSG_SCAN_RESET = 'SCAN_RESET' as const;
 export const MSG_GET_RESULT = 'GET_RESULT' as const;
 
 // ─── Message Payloads ─────────────────────────────────────────────────────────
-type ScanRequestSource = 'popup' | 'devtools';
+export type ScanRequestSource = 'popup' | 'devtools';
 
 export interface AdyenDetectedMessage {
   readonly type: typeof MSG_ADYEN_DETECTED;

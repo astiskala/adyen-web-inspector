@@ -27,48 +27,6 @@ export function parseCsp(headerValue: string): ParsedCsp {
   return { directives, raw: headerValue };
 }
 
-function normalizeCspDomain(domain: string): string {
-  return domain.trim().toLowerCase().replace(/^\*\./, '').replace(/^\./, '');
-}
-
-function extractCspSourceHost(value: string): string | null {
-  const normalized = value.trim().toLowerCase();
-  if (
-    !normalized ||
-    normalized === '*' ||
-    normalized.endsWith(':') ||
-    normalized.codePointAt(0) === 39
-  ) {
-    return null;
-  }
-
-  const withoutScheme = normalized.replace(/^[a-z][a-z0-9+.-]*:\/\//, '');
-  const hostAndPath = withoutScheme.split('/')[0] ?? '';
-  const hostWithWildcard = hostAndPath.split(':')[0] ?? '';
-  if (!hostWithWildcard) {
-    return null;
-  }
-
-  return hostWithWildcard.replace(/^\*\./, '');
-}
-
-/**
- * Returns true when a directive includes the given domain or one of its subdomains.
- * CSP keywords and scheme-only values are ignored.
- */
-export function cspIncludesDomain(csp: ParsedCsp, directive: string, domain: string): boolean {
-  const normalizedDomain = normalizeCspDomain(domain);
-  const values = csp.directives[directive] ?? [];
-  return values.some((value) => {
-    const host = extractCspSourceHost(value);
-    if (host === null) {
-      return false;
-    }
-
-    return host === normalizedDomain || host.endsWith(`.${normalizedDomain}`);
-  });
-}
-
 function sourceMatchesUrl(source: string, resource: URL, page: URL): boolean {
   if (source === "'self'") return resource.origin === page.origin;
   if (source === '*') return resource.protocol === 'https:' || resource.protocol === 'http:';
@@ -92,25 +50,50 @@ function sourceMatchesUrl(source: string, resource: URL, page: URL): boolean {
   return path === undefined || resource.pathname.startsWith(path);
 }
 
+type CspFetchDirective = 'script-src' | 'frame-src' | 'connect-src' | 'img-src' | 'form-action';
+
+// form-action is a navigation directive, so it never falls back to default-src.
+const CSP_DIRECTIVE_FALLBACKS: Record<CspFetchDirective, readonly string[]> = {
+  'script-src': ['script-src-elem', 'script-src', 'default-src'],
+  'frame-src': ['frame-src', 'child-src', 'default-src'],
+  'connect-src': ['connect-src', 'default-src'],
+  'img-src': ['img-src', 'default-src'],
+  'form-action': ['form-action'],
+};
+
+interface EffectiveCspSources {
+  readonly directive: string;
+  readonly sources: readonly string[];
+}
+
+/**
+ * Returns the directive that governs a resource type, following CSP fallback
+ * rules, or null when the policy leaves that resource type unrestricted.
+ */
+export function getEffectiveCspSources(
+  csp: ParsedCsp,
+  directive: CspFetchDirective
+): EffectiveCspSources | null {
+  for (const candidate of CSP_DIRECTIVE_FALLBACKS[directive]) {
+    const sources = csp.directives[candidate];
+    if (sources !== undefined) return { directive: candidate, sources };
+  }
+  return null;
+}
+
 export const cspAllowsUrl = (
   csp: ParsedCsp,
-  directive: 'script-src' | 'frame-src',
+  directive: CspFetchDirective,
   url: string,
   pageUrl: string
 ): boolean => {
-  const candidates =
-    directive === 'script-src'
-      ? ['script-src-elem', 'script-src', 'default-src']
-      : ['frame-src', 'child-src', 'default-src'];
-  const effective = candidates.find((candidate) => csp.directives[candidate] !== undefined);
-  if (effective === undefined) return true;
+  const effective = getEffectiveCspSources(csp, directive);
+  if (effective === null) return true;
 
   try {
     const resource = new URL(url, pageUrl);
     const page = new URL(pageUrl);
-    return (csp.directives[effective] ?? []).some((source) =>
-      sourceMatchesUrl(source, resource, page)
-    );
+    return effective.sources.some((source) => sourceMatchesUrl(source, resource, page));
   } catch {
     return false;
   }

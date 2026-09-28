@@ -41,6 +41,7 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
   ] as const;
   const STRING_CONFIG_KEYS = ['clientKey', 'environment', 'locale', 'countryCode'] as const;
   const BOOLEAN_CONFIG_KEYS = [
+    'redirectFromTopWhenInIframe',
     'setStatusAutomatically',
     'showBrandsUnderCardNumber',
     'showFormInstruction',
@@ -223,14 +224,11 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
     }
   }
 
-  function captureConfig(raw: unknown, source: CallbackSource, direct = false): void {
+  function captureConfig(raw: unknown, source: CallbackSource): void {
     try {
+      // Options passed straight to AdyenCheckout are the full checkout config, so absent fields are known absent.
       const complete =
-        direct &&
-        source === 'checkout' &&
-        raw !== null &&
-        typeof raw === 'object' &&
-        !Array.isArray(raw);
+        source === 'checkout' && raw !== null && typeof raw === 'object' && !Array.isArray(raw);
       mergeAndPublish(extractFields(raw, source) ?? (complete ? {} : null));
       if (complete) (globalThis as PlainRecord)[DIRECT_CONFIG_KEY] = true;
     } catch {
@@ -402,7 +400,7 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
         /* ignore */
       }
 
-      captureConfig(opts, 'checkout', true);
+      captureConfig(opts, 'checkout');
       wrapInstanceCreate(i);
       return true;
     }
@@ -434,7 +432,7 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
     }
     const wrapped: SdkCallable = function (this: unknown, ...args: unknown[]): unknown {
       incrementInitCount();
-      captureConfig(args[0], 'checkout', true);
+      captureConfig(args[0], 'checkout');
       const result = original.apply(this, args);
       if (result instanceof Promise) {
         observeCheckoutFactoryResult(result);

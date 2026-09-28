@@ -10,7 +10,24 @@ export * from './export-utils.js';
 
 import { ADYEN_HOST_SUFFIX, ADYEN_PAYMENTS_HOST_SUFFIX } from './constants.js';
 
-import type { CapturedHeader, ScanPayload } from './types.js';
+import type { CapturedHeader, ScanPayload, ScanResult } from './types.js';
+
+/** Returns true for any non-null object. */
+export function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+/** Checks the top-level shape of a scan result read from storage or a runtime message. */
+export function isScanResult(value: unknown): value is ScanResult {
+  return (
+    isRecord(value) &&
+    typeof value['pageUrl'] === 'string' &&
+    typeof value['scannedAt'] === 'string' &&
+    Array.isArray(value['checks']) &&
+    isRecord(value['health']) &&
+    isRecord(value['payload'])
+  );
+}
 
 /** Extracts the hostname from a URL string. */
 export function extractHostname(url: string): string | null {

@@ -11,7 +11,7 @@ When you run a scan, the extension may process:
 - The inspected page URL, protocol, and observed request URLs (which may include query parameters)
 - Checkout settings relevant to checks (including `clientKey`, `environment`, `locale`, `countryCode`, callback registration, and short excerpts of `onSubmit`/`beforeSubmit` function source)
 - SDK metadata, script, stylesheet, iframe, resource-timing, and CSS-rule information
-- Response headers for the inspected page and captured Adyen-related requests
+- Response headers and HTTP status codes for the inspected page and captured Adyen-related requests
 - Selected Adyen checkout analytics POST fields used for SDK identification (for example `flavor`, `version`, `buildType`, `locale`, `sessionId`); the rest of the request body is not stored
 
 ## How data is used
@@ -23,7 +23,7 @@ Processed data is used locally to generate scan findings, health scores, and rep
 The extension can make network requests to:
 
 - The currently scanned page URL (`HEAD`, falling back to `GET` for response-header probing, with page credentials) and same-host script URLs (SDK version fallback, without credentials)
-- `https://registry.npmjs.org/@adyen/adyen-web/latest` to check the latest SDK version
+- `https://registry.npmjs.org/@adyen/adyen-web` to check the latest SDK version and SDK release dates
 
 During a scan, page and Adyen-related response headers and selected Adyen checkout analytics POST fields are passively observed via `chrome.webRequest`; the extension does not replay those page requests.
 

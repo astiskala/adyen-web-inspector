@@ -1,7 +1,6 @@
 import type { JSX } from 'preact';
-import type { ScanResult, CheckResult } from '~shared/types';
-import type { IssueImpactLevel } from '~shared/results';
-import { buildFindingProjection } from '~shared/export-report';
+import type { ScanResult, CheckImpact, CheckResult } from '~shared/types';
+import { buildFindingProjection, type ImpactGroupChecks } from '~shared/export-report';
 import { IdentityCard } from '../../popup/components/IdentityCard';
 import { HealthScore } from '../../popup/components/HealthScore';
 import { IssueList } from '../../popup/components/IssueList';
@@ -9,8 +8,7 @@ import { StandardComplianceBadge } from '../../popup/components/StandardComplian
 import styles from './panel.module.css';
 
 const s = (key: string): string => styles[key] ?? '';
-type ImpactGroup = IssueImpactLevel;
-const IMPACT_GROUP_LABEL: Record<ImpactGroup, string> = {
+const IMPACT_GROUP_LABEL: Record<CheckImpact, string> = {
   high: 'High impact',
   medium: 'Medium impact',
   low: 'Low impact',
@@ -49,16 +47,6 @@ function SeverityBadge({ severity }: SeverityBadgeProps): JSX.Element {
   );
 }
 
-interface ImpactGroupChecks {
-  readonly impact: ImpactGroup;
-  readonly checks: readonly CheckResult[];
-}
-
-interface BestPracticeImpactSectionProps {
-  readonly impact: ImpactGroup;
-  readonly checks: readonly CheckResult[];
-}
-
 function BestPracticeItem({ check }: { readonly check: CheckResult }): JSX.Element {
   const hasExpandedBody = Boolean(check.detail ?? check.remediation ?? check.docsUrl);
 
@@ -91,12 +79,7 @@ function BestPracticeItem({ check }: { readonly check: CheckResult }): JSX.Eleme
   );
 }
 
-function BestPracticeImpactSection({
-  impact,
-  checks,
-}: BestPracticeImpactSectionProps): JSX.Element | null {
-  if (checks.length === 0) return null;
-
+function BestPracticeImpactSection({ impact, checks }: ImpactGroupChecks): JSX.Element {
   return (
     <div class={s('impactGroupSection')}>
       <h3 class={s('impactGroupTitle')}>

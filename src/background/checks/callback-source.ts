@@ -174,6 +174,76 @@ export const detectUnhandledOnSubmitFilters = (source: string): UnhandledOnSubmi
   };
 };
 
+interface StateDataForwarding {
+  /** `complete`: state.data is used as a whole; `partial`: only selected fields are read. */
+  readonly kind: 'complete' | 'partial' | 'unknown';
+  readonly fields: readonly string[];
+}
+
+const IDENTIFIER_PATTERN = /^[A-Za-z_$][\w$]*$/;
+const NOT_MEMBER_ACCESS = String.raw`(?!\s*(?:\?\.|\.|\[))`;
+
+function escapeIdentifier(identifier: string): string {
+  return identifier.replaceAll('$', String.raw`\$`);
+}
+
+function findCallbackBody(source: string): { param: string; body: string } | null {
+  let trimmed = source.trimStart();
+  const propertyPrefix = /^[A-Za-z_$][\w$]*\s*:\s*/.exec(trimmed);
+  if (propertyPrefix !== null) trimmed = trimmed.slice(propertyPrefix[0].length);
+  const bareArrow = /^(?:async\s+)?([A-Za-z_$][\w$]*)\s*=>/.exec(trimmed);
+  if (bareArrow?.[1] !== undefined) {
+    return { param: bareArrow[1], body: trimmed.slice(bareArrow[0].length) };
+  }
+
+  const paramsStart = trimmed.indexOf('(');
+  if (paramsStart === -1) return null;
+  const paramsEnd = findMatchingDelimiter(trimmed, paramsStart, '(', ')');
+  if (paramsEnd === -1) return null;
+
+  const param = trimmed
+    .slice(paramsStart + 1, paramsEnd)
+    .split(',')[0]
+    ?.split('=')[0]
+    ?.trim();
+  if (param === undefined || !IDENTIFIER_PATTERN.test(param)) return null;
+  return { param, body: trimmed.slice(paramsEnd + 1) };
+}
+
+/**
+ * Classifies whether onSubmit forwards the whole `state.data` object or only
+ * selected fields such as `state.data.paymentMethod`. Destructured or
+ * wholesale-forwarded `state` is `unknown`.
+ */
+export const detectStateDataForwarding = (source: string): StateDataForwarding => {
+  const callback = findCallbackBody(source);
+  if (callback === null) return { kind: 'unknown', fields: [] };
+
+  // Excludes member access such as `other.state` while still matching `...state`.
+  const state = String.raw`(?<![\w$])(?<![^.]\.)${escapeIdentifier(callback.param)}`;
+  const data = String.raw`${state}\s*(?:\?\.|\.)\s*data\b`;
+  const wholeState = new RegExp(String.raw`${state}\b${NOT_MEMBER_ACCESS}`);
+  const wholeData = new RegExp(`${data}${NOT_MEMBER_ACCESS}`);
+  const fieldAccess = new RegExp(
+    String.raw`${data}\s*(?:\?\.|\.)\s*([A-Za-z_$][\w$]*)\b${NOT_MEMBER_ACCESS}`,
+    'g'
+  );
+
+  if (wholeData.test(callback.body)) return { kind: 'complete', fields: [] };
+  if (wholeState.test(callback.body)) return { kind: 'unknown', fields: [] };
+
+  const fields = [
+    ...new Set(
+      [...callback.body.matchAll(fieldAccess)].flatMap((match) =>
+        match[1] === undefined ? [] : [match[1]]
+      )
+    ),
+  ].sort((a, b) => a.localeCompare(b));
+  return fields.includes('paymentMethod')
+    ? { kind: 'partial', fields }
+    : { kind: 'unknown', fields: [] };
+};
+
 export const detectsMultipleSubmissions = (source: string): boolean => {
   // Looks for common patterns like .disabled = true, setLoading(true), .setAttribute('disabled', ...), etc.
   const patterns = [

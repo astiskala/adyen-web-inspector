@@ -1,7 +1,7 @@
 import type { JSX } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 import type { CheckResult } from '~shared/types';
-import { getImpactLevel, getRemediationText } from '~shared/utils';
+import { getImpactLevel, getRemediationText, isIssue } from '~shared/utils';
 import styles from './IssueList.module.css';
 
 const s = (key: string): string => styles[key] ?? '';
@@ -26,9 +26,8 @@ interface IssueItemProps {
 }
 
 function IssueItem({ check, dotClass }: IssueItemProps): JSX.Element {
-  const isIssue =
-    check.severity === 'fail' || check.severity === 'warn' || check.severity === 'notice';
-  const hasDetail = Boolean(check.detail ?? check.remediation ?? check.docsUrl ?? isIssue);
+  const showRemediation = isIssue(check);
+  const hasDetail = Boolean(check.detail ?? check.remediation ?? check.docsUrl ?? showRemediation);
   const remediation = getRemediationText(check);
 
   if (!hasDetail) {
@@ -51,7 +50,7 @@ function IssueItem({ check, dotClass }: IssueItemProps): JSX.Element {
         </summary>
         <div class={s('detail')}>
           {check.detail !== undefined && <div>{check.detail}</div>}
-          {isIssue && <div class={s('remediation')}>{remediation}</div>}
+          {showRemediation && <div class={s('remediation')}>{remediation}</div>}
           {check.docsUrl !== undefined && (
             <a class={s('docsLink')} href={check.docsUrl} target="_blank" rel="noopener noreferrer">
               Documentation →

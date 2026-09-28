@@ -5,6 +5,7 @@
 import type { ScriptTag, LinkTag, IframeInfo, ScanPayload } from '../../shared/types.js';
 import { resolveEnvironment } from '../../shared/implementation-attributes.js';
 import { getHeader, isAdyenCheckoutResource } from '../../shared/utils.js';
+import { SKIP_REASONS } from './constants.js';
 import { createRegistry } from './registry.js';
 
 const PCI_GUIDE_URL = 'https://docs.adyen.com/development-resources/pci-dss-compliance-guide/';
@@ -174,11 +175,8 @@ export const SECURITY_CHECKS = createRegistry(CATEGORY)
   .add(
     'security-referrer-policy',
     (payload, { pass, notice, skip }) => {
-      if (payload.mainDocumentHeadersAvailable === false) {
-        return skip(
-          'Referrer-Policy check skipped.',
-          'Document response headers could not be captured.'
-        );
+      if (!payload.mainDocumentHeadersAvailable) {
+        return skip('Referrer-Policy check skipped.', SKIP_REASONS.HEADERS_UNAVAILABLE);
       }
       const value = getHeader(payload, 'Referrer-Policy');
       const recommended = 'strict-origin-when-cross-origin';
@@ -203,11 +201,8 @@ export const SECURITY_CHECKS = createRegistry(CATEGORY)
   .add(
     'security-x-content-type',
     (payload, { pass, notice, skip }) => {
-      if (payload.mainDocumentHeadersAvailable === false) {
-        return skip(
-          'X-Content-Type-Options check skipped.',
-          'Document response headers could not be captured.'
-        );
+      if (!payload.mainDocumentHeadersAvailable) {
+        return skip('X-Content-Type-Options check skipped.', SKIP_REASONS.HEADERS_UNAVAILABLE);
       }
       const value = getHeader(payload, 'X-Content-Type-Options');
       if (value?.toLowerCase() === 'nosniff') {
@@ -225,11 +220,8 @@ export const SECURITY_CHECKS = createRegistry(CATEGORY)
   .add(
     'security-xss-protection',
     (payload, { pass, notice, skip }) => {
-      if (payload.mainDocumentHeadersAvailable === false) {
-        return skip(
-          'X-XSS-Protection check skipped.',
-          'Document response headers could not be captured.'
-        );
+      if (!payload.mainDocumentHeadersAvailable) {
+        return skip('X-XSS-Protection check skipped.', SKIP_REASONS.HEADERS_UNAVAILABLE);
       }
       const value = getHeader(payload, 'X-XSS-Protection');
       if (value === null || value === '' || value === '0') {
@@ -250,8 +242,8 @@ export const SECURITY_CHECKS = createRegistry(CATEGORY)
       if (!isLiveEnvironment(payload)) {
         return skip(STRINGS.HSTS_SKIP_TITLE, STRINGS.HSTS_SKIP_REASON);
       }
-      if (payload.mainDocumentHeadersAvailable === false) {
-        return skip(STRINGS.HSTS_SKIP_TITLE, 'Document response headers could not be captured.');
+      if (!payload.mainDocumentHeadersAvailable) {
+        return skip(STRINGS.HSTS_SKIP_TITLE, SKIP_REASONS.HEADERS_UNAVAILABLE);
       }
       const value = getHeader(payload, 'Strict-Transport-Security');
       if (value !== null && value !== '') return pass(STRINGS.HSTS_PASS_TITLE);

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { ADYEN_WEB_BEST_PRACTICES_DOC } from '../../../src/shared/check-config';
 import {
+  ADYEN_WEB_BEST_PRACTICES_DOC,
   getImpactLabel,
   getImpactLevel,
   getRecommendedDocsUrl,
@@ -46,6 +46,7 @@ describe('notice impact mapping', () => {
       id: 'styling-css-custom-props',
       category: 'sdk-identity',
       title: 'Styling notice',
+      impact: 'low',
     });
 
     expect(getImpactLevel(check)).toBe('low');
@@ -87,6 +88,7 @@ describe('getRemediationText', () => {
       id: 'styling-css-custom-props',
       category: 'sdk-identity',
       title: 'Styling notice',
+      impact: 'low',
     });
 
     expect(getRemediationText(check, { friendly: true })).toBe(

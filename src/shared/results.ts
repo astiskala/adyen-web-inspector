@@ -2,38 +2,37 @@
  * Check result factory functions and remediation formatting.
  */
 
-import type { CheckId, CheckImpact, CheckResult } from './types.js';
-import {
-  ADYEN_WEB_BEST_PRACTICES_DOC,
-  LOW_IMPACT_NOTICE_IDS,
-  WARNING_PRIORITY_BY_ID,
-  type WarningPriority,
-} from './check-config.js';
+import type { CheckImpact, CheckResult, Severity } from './types.js';
 
-export type IssueImpactLevel = CheckImpact;
+export const ADYEN_WEB_BEST_PRACTICES_DOC =
+  'https://docs.adyen.com/online-payments/web-best-practices/';
 
-function getWarningPriority(checkId: CheckId): WarningPriority {
-  return WARNING_PRIORITY_BY_ID[checkId] ?? 'medium';
+/** Impact buckets in priority order, used to group and sort issues. */
+export const ISSUE_IMPACT_ORDER: readonly CheckImpact[] = ['high', 'medium', 'low', 'manual'];
+
+/** Returns true when a check result is an issue (fail, warn, or notice). */
+export function isIssue(check: CheckResult): boolean {
+  return check.severity === 'fail' || check.severity === 'warn' || check.severity === 'notice';
 }
 
-function getNoticeImpact(checkId: CheckId): 'low' | 'manual' {
-  return LOW_IMPACT_NOTICE_IDS.has(checkId) ? 'low' : 'manual';
+/**
+ * Returns the impact an issue severity carries unless its check overrides it,
+ * or undefined for severities that are not issues.
+ */
+export function getDefaultImpact(severity: Severity): CheckImpact | undefined {
+  if (severity === 'fail') return 'high';
+  if (severity === 'warn') return 'medium';
+  if (severity === 'notice') return 'manual';
+  return undefined;
 }
 
 /**
  * Maps a check result to the normalised impact bucket used for prioritisation.
  */
-export function getImpactLevel(check: CheckResult): IssueImpactLevel | 'none' {
-  if (check.severity === 'fail') {
-    return 'high';
-  }
-  if (check.severity === 'warn') {
-    return check.impact ?? getWarningPriority(check.id);
-  }
-  if (check.severity === 'notice') {
-    return check.impact ?? getNoticeImpact(check.id);
-  }
-  return 'none';
+export function getImpactLevel(check: CheckResult): CheckImpact | 'none' {
+  const defaultImpact = getDefaultImpact(check.severity);
+  if (defaultImpact === undefined) return 'none';
+  return check.impact ?? defaultImpact;
 }
 
 /**

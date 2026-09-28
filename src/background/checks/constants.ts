@@ -4,6 +4,7 @@
 
 export const SKIP_REASONS = {
   CHECKOUT_CONFIG_NOT_DETECTED: 'Checkout config not detected.',
+  HEADERS_UNAVAILABLE: 'Document response headers could not be captured.',
 } as const;
 
 export const COMMON_DETAILS = {

@@ -6,6 +6,7 @@ import type {
   AnalyticsData,
   CapturedHeader,
   CapturedRequest,
+  ScanResult,
   VersionInfo,
 } from '../../src/shared/types';
 
@@ -94,10 +95,27 @@ export function makeScanPayload(overrides: Partial<ScanPayload> = {}): ScanPaylo
     pageUrl: 'https://example.com/checkout',
     page: makePageExtract(),
     mainDocumentHeaders: [],
+    mainDocumentHeadersAvailable: true,
     capturedRequests: [],
     versionInfo: makeVersionInfo(),
     analyticsData: null,
     scannedAt: new Date().toISOString(),
+    ...overrides,
+  };
+}
+
+/**
+ * Creates a stored scan result fixture with no checks and optional overrides.
+ */
+export function makeScanResult(overrides: Partial<ScanResult> = {}): ScanResult {
+  return {
+    tabId: 1,
+    pageUrl: 'https://example.com/checkout',
+    scannedAt: '2026-09-28T00:00:00.000Z',
+    checks: [],
+    health: { score: 100, passing: 0, failing: 0, warnings: 0, total: 0, tier: 'excellent' },
+    standardCompliance: { compliant: false, reasons: [] },
+    payload: makeScanPayload(),
     ...overrides,
   };
 }

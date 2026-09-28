@@ -1,11 +1,12 @@
 import { buildImplementationAttributes } from './implementation-attributes.js';
-import { buildIssueExportRows, type ExportIssueRow } from './export-utils.js';
+import { buildIssueExportRows, getIssueSeverityRank, type ExportIssueRow } from './export-utils.js';
 import { extractHostname, isAdyenHost } from './utils.js';
-import { getImpactLevel, type IssueImpactLevel } from './results.js';
+import { getImpactLevel, isIssue, ISSUE_IMPACT_ORDER } from './results.js';
 import type {
   CapturedRequest,
   CheckCategory,
   CheckId,
+  CheckImpact,
   CheckResult,
   ScanResult,
   StandardCompliance,
@@ -20,7 +21,6 @@ const BEST_PRACTICE_CATEGORIES: ReadonlySet<CheckCategory> = new Set([
   'risk',
 ]);
 const SECURITY_CATEGORIES: ReadonlySet<CheckCategory> = new Set(['security', 'third-party']);
-const IMPACT_GROUP_ORDER: readonly IssueImpactLevel[] = ['high', 'medium', 'low', 'manual'];
 
 type ImplementationAttributes = ReturnType<typeof buildImplementationAttributes>;
 
@@ -59,11 +59,13 @@ export interface ReportExportData {
   readonly rawConfig: ExportRawConfigData;
 }
 
+export interface ImpactGroupChecks {
+  readonly impact: CheckImpact;
+  readonly checks: readonly CheckResult[];
+}
+
 interface FindingSection {
-  readonly issueGroups: readonly {
-    readonly impact: IssueImpactLevel;
-    readonly checks: readonly CheckResult[];
-  }[];
+  readonly issueGroups: readonly ImpactGroupChecks[];
   readonly successfulChecks: readonly CheckResult[];
 }
 
@@ -75,18 +77,11 @@ interface FindingProjection {
   readonly rawConfig: ExportRawConfigData;
 }
 
-function isIssue(check: CheckResult): boolean {
-  return check.severity === 'fail' || check.severity === 'warn' || check.severity === 'notice';
-}
-
-function severityRank(check: CheckResult): number {
-  if (check.severity === 'fail') return 0;
-  if (check.severity === 'warn') return 1;
-  return 2;
-}
-
 function sortChecks(a: CheckResult, b: CheckResult): number {
-  return severityRank(a) - severityRank(b) || a.title.localeCompare(b.title);
+  return (
+    getIssueSeverityRank(a.severity) - getIssueSeverityRank(b.severity) ||
+    a.title.localeCompare(b.title)
+  );
 }
 
 function buildFindingSection(
@@ -96,7 +91,7 @@ function buildFindingSection(
   const matching = checks.filter((check) => categories.has(check.category));
   const issues = matching.filter(isIssue);
   return {
-    issueGroups: IMPACT_GROUP_ORDER.map((impact) => ({
+    issueGroups: ISSUE_IMPACT_ORDER.map((impact) => ({
       impact,
       checks: issues.filter((check) => getImpactLevel(check) === impact).sort(sortChecks),
     })).filter((group) => group.checks.length > 0),

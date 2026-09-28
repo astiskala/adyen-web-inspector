@@ -11,7 +11,7 @@ const contentTypes = {
 };
 const secureHeaders = {
   'content-security-policy':
-    "default-src 'self'; script-src 'self'; frame-src https:; frame-ancestors 'self'; report-uri /csp-report",
+    "default-src 'self'; script-src 'self'; connect-src 'self' https://checkoutshopper-test.adyen.com https://checkoutanalytics-test.adyen.com; img-src 'self' https://checkoutshopper-test.cdn.adyen.com; frame-src https:; form-action 'self'; frame-ancestors 'self'; report-uri /csp-report",
   'referrer-policy': 'strict-origin-when-cross-origin',
   'x-content-type-options': 'nosniff',
 };

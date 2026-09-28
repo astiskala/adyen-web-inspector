@@ -108,6 +108,27 @@ describe('selectPageExtractResult', () => {
     const result = selectPageExtractResult([top, cardField], 1);
     expect(result.isInsideIframe).toBe(false);
     expect(result.hasCardDOM).toBeUndefined();
+    expect(result.hasNewCardFormDOM).toBeUndefined();
+  });
+
+  it('merges card form DOM flags from merchant frames', () => {
+    const top = makeFrame(0, makePageExtract({ checkoutConfig: makeCheckoutConfig() }));
+    const cardFrame = makeFrame(
+      4,
+      makePageExtract({
+        hasCardDOM: true,
+        hasNewCardFormDOM: true,
+        hasCardHolderNameDOM: true,
+        pageUrl: 'https://merchant.example/embedded-card',
+      })
+    );
+
+    const result = selectPageExtractResult([top, cardFrame], 1);
+    expect(result).toMatchObject({
+      hasCardDOM: true,
+      hasNewCardFormDOM: true,
+      hasCardHolderNameDOM: true,
+    });
   });
 
   it('throws when no frame returned an extraction result', () => {

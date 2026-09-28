@@ -2,13 +2,14 @@
  * Logic for building issue export rows for JSON and PDF reports.
  */
 
-import type { CheckCategory, CheckId, CheckResult, Severity } from './types.js';
+import type { CheckCategory, CheckId, CheckImpact, CheckResult, Severity } from './types.js';
 import {
   getImpactLabel,
   getImpactLevel,
   getRecommendedDocsUrl,
   getRemediationText,
-  type IssueImpactLevel,
+  isIssue,
+  ISSUE_IMPACT_ORDER,
 } from './results.js';
 
 export interface ExportIssueRow {
@@ -17,19 +18,18 @@ export interface ExportIssueRow {
   severity: Severity;
   title: string;
   impact: string;
-  impactLevel: IssueImpactLevel;
+  impactLevel: CheckImpact;
   detail: string | null;
   remediation: string;
   docsUrl: string | null;
 }
 
-const ISSUE_IMPACT_ORDER: readonly IssueImpactLevel[] = ['high', 'medium', 'low', 'manual'];
-
-function getImpactRank(impactLevel: IssueImpactLevel): number {
+function getImpactRank(impactLevel: CheckImpact): number {
   return ISSUE_IMPACT_ORDER.indexOf(impactLevel);
 }
 
-function getIssueSeverityRank(severity: Severity): number {
+/** Ranks issue severities for sorting: fail, then warn, then notice. */
+export function getIssueSeverityRank(severity: Severity): number {
   if (severity === 'fail') return 0;
   if (severity === 'warn') return 1;
   if (severity === 'notice') return 2;
@@ -64,31 +64,26 @@ export function buildIssueExportRows(
   checks: readonly CheckResult[],
   options: BuildIssueExportRowsOptions = {}
 ): ExportIssueRow[] {
-  const rows = checks
-    .filter(
-      (check) =>
-        check.severity === 'fail' || check.severity === 'warn' || check.severity === 'notice'
-    )
-    .map((check) => {
-      const impactLevel = getImpactLevel(check);
-      const normalizedImpact = impactLevel === 'none' ? 'low' : impactLevel;
+  const rows = checks.filter(isIssue).map((check) => {
+    const impactLevel = getImpactLevel(check);
+    const normalizedImpact = impactLevel === 'none' ? 'low' : impactLevel;
 
-      return {
-        id: check.id,
-        category: check.category,
-        severity: check.severity,
-        title: check.title,
-        impact: getImpactLabel(check),
-        impactLevel: normalizedImpact,
-        detail: check.detail ?? null,
-        remediation: getRemediationText(check, {
-          ...(options.friendlyRemediation === undefined
-            ? {}
-            : { friendly: options.friendlyRemediation }),
-        }),
-        docsUrl: getRecommendedDocsUrl(check, options.preferAdyenDocs === true),
-      };
-    });
+    return {
+      id: check.id,
+      category: check.category,
+      severity: check.severity,
+      title: check.title,
+      impact: getImpactLabel(check),
+      impactLevel: normalizedImpact,
+      detail: check.detail ?? null,
+      remediation: getRemediationText(check, {
+        ...(options.friendlyRemediation === undefined
+          ? {}
+          : { friendly: options.friendlyRemediation }),
+      }),
+      docsUrl: getRecommendedDocsUrl(check, options.preferAdyenDocs === true),
+    };
+  });
 
   if (options.sortByImpact !== true) {
     return rows;

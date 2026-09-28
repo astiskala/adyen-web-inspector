@@ -6,10 +6,11 @@ import {
   MSG_SCAN_REQUEST,
   MSG_SCAN_RESET,
   MSG_SCAN_STARTED,
+  type BswToUiMessage,
+  type ScanRequestSource,
 } from '../../shared/messages.js';
 import type { ScanResult } from '../../shared/types.js';
-
-type ScanSource = 'popup' | 'devtools';
+import { isScanResult } from '../../shared/utils.js';
 
 type ScanFailure =
   | { readonly kind: 'scan'; readonly message?: string }
@@ -17,7 +18,7 @@ type ScanFailure =
   | { readonly kind: 'tab' };
 
 interface TabAdapter {
-  readonly source: ScanSource;
+  readonly source: ScanRequestSource;
   getTabId(): number | undefined | Promise<number | undefined>;
   readonly resetDelayMs?: number;
 }
@@ -29,33 +30,20 @@ interface ScanState {
   readonly error: ScanFailure | null;
 }
 
-interface RuntimeMessage {
-  readonly type: string;
-  readonly tabId?: number;
-  readonly error?: string;
-}
-
 const INITIAL_STATE: ScanState = { result: null, scanning: false, loading: true, error: null };
 
-function isScanLifecycleMessage(type: string): boolean {
-  return (
-    type === MSG_SCAN_STARTED ||
-    type === MSG_SCAN_COMPLETE ||
-    type === MSG_SCAN_ERROR ||
-    type === MSG_SCAN_RESET
-  );
+const SCAN_LIFECYCLE_TYPES: ReadonlySet<string> = new Set([
+  MSG_SCAN_STARTED,
+  MSG_SCAN_COMPLETE,
+  MSG_SCAN_ERROR,
+  MSG_SCAN_RESET,
+]);
+
+function isScanLifecycleMessage(message: { readonly type: string }): message is BswToUiMessage {
+  return SCAN_LIFECYCLE_TYPES.has(message.type);
 }
 
-function isScanResult(value: unknown): value is ScanResult {
-  return typeof value === 'object' && value !== null && 'checks' in value;
-}
-
-export const useScanLifecycle = (
-  adapter: TabAdapter
-): ScanState & {
-  scan(): void;
-  reload(): void;
-} => {
+export const useScanLifecycle = (adapter: TabAdapter): ScanState & { scan(): void } => {
   const [state, setState] = useState<ScanState>(INITIAL_STATE);
   const generation = useRef(0);
   const mounted = useRef(false);
@@ -139,8 +127,7 @@ export const useScanLifecycle = (
     let resetTimer: ReturnType<typeof setTimeout> | undefined;
     reload();
 
-    async function handleMessage(message: RuntimeMessage): Promise<void> {
-      if (!isScanLifecycleMessage(message.type)) return;
+    async function handleMessage(message: BswToUiMessage): Promise<void> {
       let tabId: number | undefined;
       try {
         tabId = await adapter.getTabId();
@@ -186,11 +173,12 @@ export const useScanLifecycle = (
         ...previous,
         scanning: false,
         loading: false,
-        error: { kind: 'scan', ...(message.error === undefined ? {} : { message: message.error }) },
+        error: { kind: 'scan', message: message.error },
       }));
     }
 
-    const listener = (message: RuntimeMessage): void => {
+    const listener = (message: { readonly type: string }): void => {
+      if (!isScanLifecycleMessage(message)) return;
       handleMessage(message).catch(() => {});
     };
     chrome.runtime.onMessage.addListener(listener);
@@ -202,5 +190,5 @@ export const useScanLifecycle = (
     };
   }, [adapter]);
 
-  return { ...state, scan, reload };
+  return { ...state, scan };
 };

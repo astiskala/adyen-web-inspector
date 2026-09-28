@@ -17,6 +17,8 @@ interface ScanEvidence {
   readonly collected: ReturnType<HeaderCollector['getResult']>;
   readonly mainDocumentHeaders: CapturedHeader[];
   readonly latestVersion: string | null;
+  /** Publish timestamps from npm, keyed by version. */
+  readonly releaseDates?: Readonly<Record<string, string>>;
   readonly scannedAt: string;
 }
 
@@ -55,7 +57,7 @@ function buildFallbackRequests(pageData: PageExtractResult): CapturedRequest[] {
 
   for (const o of pageData.observedRequests ?? []) {
     const type = o.initiatorType === 'script' ? 'script' : 'other';
-    requests.push({ url: o.url, type, responseHeaders: [], statusCode: 0 });
+    requests.push({ url: o.url, type, responseHeaders: [], statusCode: o.responseStatus ?? 0 });
   }
 
   return requests;
@@ -71,6 +73,7 @@ export const assessScan = async (
     collected,
     mainDocumentHeaders,
     latestVersion,
+    releaseDates,
     scannedAt,
   } = evidence;
   const capturedRequests = mergeCapturedRequests(
@@ -84,6 +87,7 @@ export const assessScan = async (
     extractVersionFromScripts(scriptUrls) ??
     extractVersionFromRequests(capturedRequests);
   const detectedVersion = knownVersion ?? (await probeBundleVersion(pageData.pageUrl, scriptUrls));
+  const detectedReleasedAt = detectedVersion === null ? undefined : releaseDates?.[detectedVersion];
 
   // Enforce locale inference from captured requests if not already present
   const currentLocale = pageData.checkoutConfig?.locale ?? pageData.inferredConfig?.locale ?? '';
@@ -113,7 +117,11 @@ export const assessScan = async (
         (request) => request.type === 'main_frame' && request.statusCode > 0
       ),
     capturedRequests,
-    versionInfo: { detected: detectedVersion, latest: latestVersion },
+    versionInfo: {
+      detected: detectedVersion,
+      latest: latestVersion,
+      ...(detectedReleasedAt === undefined ? {} : { detectedReleasedAt }),
+    },
     analyticsData: collected.analyticsData,
     scannedAt,
   };

@@ -328,6 +328,96 @@ describe('callback-on-submit-filtering', () => {
   });
 });
 
+describe('callback-on-submit-state-data', () => {
+  const stateData = requireCheck(CALLBACK_CHECKS, 'callback-on-submit-state-data');
+  const runWith = (onSubmitSource: string | undefined): ReturnType<typeof stateData.run> =>
+    stateData.run(makeAdyenPayload({}, { onSubmitSource }));
+
+  it.each([
+    'async (state, component, actions) => { const result = await makePayment(state.data); actions.resolve(result); }',
+    'onSubmit: async (state, component, actions) => { await fetch("/payments", { body: JSON.stringify({ ...state.data, reference }) }); }',
+    'async onSubmit(s, component, actions) { const res = await api(s?.data); actions.resolve(res); }',
+    'state => submit(state.data)',
+    'onSubmit: state => submit(state.data)',
+    '($state, component, actions) => submit($state.data)',
+    'function (state, component, actions) { const body = { data: state.data }; post(body); }',
+  ])('passes when the complete state.data is forwarded: %s', (source) => {
+    expect(runWith(source).severity).toBe('pass');
+  });
+
+  it('warns when only selected state.data fields are forwarded', () => {
+    const payload = makeAdyenPayload(
+      {},
+      {
+        onSubmitSource:
+          'async (state, component, actions) => { const res = await post({ paymentMethod: state.data.paymentMethod, amount }); actions.resolve(res); }',
+      },
+      { analyticsData: makeAnalyticsData({ flavor: 'dropin' }) }
+    );
+    const result = stateData.run(payload);
+    expect(result.severity).toBe('warn');
+    expect(result.detail).toContain('state.data.paymentMethod');
+    expect(result.detail).toContain('browserInfo');
+    expect(result.docsUrl).toBe(
+      'https://docs.adyen.com/online-payments/build-your-integration/advanced-flow/?platform=Web&integration=Drop-in#make-a-payment'
+    );
+  });
+
+  it('lists every forwarded field when rebuilding state.data', () => {
+    const result = runWith(
+      '(state, component, actions) => { post({ paymentMethod: state.data.paymentMethod, browserInfo: state.data.browserInfo, type: state.data.paymentMethod.type }); }'
+    );
+    expect(result.detail).toContain(
+      'reads state.data.browserInfo, state.data.paymentMethod without'
+    );
+  });
+
+  it('links Components docs for non-Drop-in integrations', () => {
+    const result = runWith(
+      '(state, component, actions) => { post({ paymentMethod: state.data.paymentMethod }); }'
+    );
+    expect(result.docsUrl).toContain('integration=Components#make-a-payment');
+  });
+
+  it('does not treat member access on another object as the state parameter', () => {
+    expect(
+      runWith('(state, component, actions) => { post({ paymentMethod: store.state.data }); }')
+        .severity
+    ).toBe('info');
+  });
+
+  it('requests manual review when partial forwarding is found in truncated source', () => {
+    const source = `(state, component, actions) => { post({ paymentMethod: state.data.paymentMethod }); ${'x'.repeat(1200)}`;
+    const result = runWith(source);
+    expect(result).toMatchObject({ severity: 'notice', impact: 'manual' });
+    expect(result.detail).toContain('may be truncated');
+  });
+
+  it.each([
+    '(state, component, actions) => { submit(state); }',
+    '({ data }, component, actions) => submit(data)',
+    '(state, component, actions) => { if (state.isValid) submit(); }',
+    '(state, component, actions) => { log(state.data.paymentMethod.type); }',
+    'doSomething()',
+    'handler',
+    'function () { submit(arguments[0]); }',
+    '(state',
+  ])('reports uncertainty when forwarding cannot be classified: %s', (source) => {
+    expect(runWith(source).severity).toBe('info');
+  });
+
+  it('skips when config, source, or Advanced flow evidence is unavailable', () => {
+    expect(stateData.run(makeScanPayload()).severity).toBe('skip');
+    expect(runWith(undefined).severity).toBe('skip');
+    const sessions = makeAdyenPayload(
+      {},
+      { onSubmitSource: '(state) => submit(state.data.paymentMethod)' },
+      { capturedRequests: sessionsRequests }
+    );
+    expect(stateData.run(sessions).severity).toBe('skip');
+  });
+});
+
 describe('callback-on-payment-completed', () => {
   it('passes when callback is present at checkout level', () => {
     const payload = makeAdyenPayload(
