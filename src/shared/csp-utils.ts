@@ -4,7 +4,6 @@
 
 interface ParsedCsp {
   directives: Record<string, string[]>;
-  raw: string;
 }
 
 /**
@@ -24,7 +23,7 @@ export function parseCsp(headerValue: string): ParsedCsp {
       directives[directive.toLowerCase()] = values;
     }
   }
-  return { directives, raw: headerValue };
+  return { directives };
 }
 
 function sourceMatchesUrl(source: string, resource: URL, page: URL): boolean {
@@ -81,12 +80,13 @@ export function getEffectiveCspSources(
   return null;
 }
 
-export const cspAllowsUrl = (
+/** Returns true when the policy allows loading the URL for the resource type. */
+export function cspAllowsUrl(
   csp: ParsedCsp,
   directive: CspFetchDirective,
   url: string,
   pageUrl: string
-): boolean => {
+): boolean {
   const effective = getEffectiveCspSources(csp, directive);
   if (effective === null) return true;
 
@@ -97,4 +97,4 @@ export const cspAllowsUrl = (
   } catch {
     return false;
   }
-};
+}

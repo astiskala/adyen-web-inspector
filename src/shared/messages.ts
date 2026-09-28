@@ -18,7 +18,6 @@ export const MSG_SCAN_RESET = 'SCAN_RESET' as const;
 export const MSG_GET_RESULT = 'GET_RESULT' as const;
 
 // ─── Message Payloads ─────────────────────────────────────────────────────────
-export type ScanRequestSource = 'popup' | 'devtools';
 
 /** A mounted Drop-in, Component, or Adyen iframe was seen; SDK script tags alone do not count. */
 export interface CheckoutActivityDetectedMessage {
@@ -35,7 +34,6 @@ interface CheckoutActivityClearedMessage {
 interface ScanRequestMessage {
   readonly type: typeof MSG_SCAN_REQUEST;
   readonly tabId: number;
-  readonly source?: ScanRequestSource;
 }
 
 interface ScanCompleteMessage {

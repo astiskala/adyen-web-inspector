@@ -290,7 +290,7 @@ export interface CapturedRequest {
 
 // ─── Scan Payload ─────────────────────────────────────────────────────────────
 
-export interface VersionInfo {
+interface VersionInfo {
   readonly detected: string | null;
   readonly latest: string | null;
   /** ISO timestamp when the detected version was published to npm, when known. */

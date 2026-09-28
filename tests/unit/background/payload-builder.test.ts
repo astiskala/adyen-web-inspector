@@ -81,8 +81,8 @@ describe('probeMainDocumentHeaders', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     const headers = probeMainDocumentHeaders('https://merchant.example/checkout');
-    await vi.advanceTimersByTimeAsync(5_000);
-    await vi.advanceTimersByTimeAsync(5_000);
+    await vi.advanceTimersByTimeAsync(5000);
+    await vi.advanceTimersByTimeAsync(5000);
 
     await expect(headers).resolves.toEqual([]);
     expect(fetchMock).toHaveBeenCalledTimes(2);
@@ -166,7 +166,7 @@ describe('extractVersionFromBundles', () => {
     const version = extractVersionFromBundles('https://merchant.example/checkout', [
       'https://merchant.example/main.js',
     ]);
-    await vi.advanceTimersByTimeAsync(2_500);
+    await vi.advanceTimersByTimeAsync(2500);
 
     await expect(version).resolves.toBeNull();
   });

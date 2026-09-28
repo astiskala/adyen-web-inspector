@@ -18,6 +18,10 @@
     "allowUnreachableCode": false,
     "allowUnusedLabels": false,
     "noPropertyAccessFromIndexSignature": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "erasableSyntaxOnly": true,
+    "noUncheckedSideEffectImports": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "types": ["chrome"],
@@ -30,6 +34,7 @@
     "tests/**/*",
     "vite.config.ts",
     "vitest.config.ts",
+    "vitest.integration.config.ts",
     "playwright.config.ts"
   ],
   "exclude": ["node_modules", "dist"]

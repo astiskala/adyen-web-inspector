@@ -40,8 +40,9 @@ export function readPagePolicy(payload: ScanPayload): PagePolicy {
   if (!payload.mainDocumentHeadersAvailable) return { status: 'unavailable' };
 
   const policies = getAllHeaders(payload, 'content-security-policy')
-    .flatMap((value) => value.split(/\s*,\s*/))
-    .filter((value) => value.trim() !== '')
+    .flatMap((value) => value.split(','))
+    .map((value) => value.trim())
+    .filter((value) => value !== '')
     .map(parseCsp);
   if (policies.length === 0) return { status: 'absent' };
 

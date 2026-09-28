@@ -56,11 +56,7 @@ describe('ALL_CHECKS registry', () => {
     for (const payload of payloads) {
       for (const check of ALL_CHECKS) {
         const result = check.run(payload);
-        if (
-          result.severity === 'fail' ||
-          result.severity === 'warn' ||
-          result.severity === 'notice'
-        ) {
+        if (['fail', 'warn', 'notice'].includes(result.severity)) {
           expect(result.impact).toBe(getImpactLevel(result));
         } else {
           expect(result.impact).toBeUndefined();

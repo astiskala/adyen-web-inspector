@@ -1,5 +1,5 @@
 declare module '*.module.css' {
-  const styles: { [key: string]: string | undefined };
+  const styles: Record<string, string | undefined>;
   export default styles;
 }
 

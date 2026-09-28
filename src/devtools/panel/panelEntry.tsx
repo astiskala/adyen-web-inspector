@@ -4,7 +4,7 @@ import { Panel } from './Panel';
 
 document.body.classList.add('devtools-panel');
 
-const root = document.getElementById('root');
+const root = document.querySelector('#root');
 if (root) {
   render(<Panel />, root);
 }

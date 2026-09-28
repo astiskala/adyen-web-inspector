@@ -32,7 +32,7 @@ describe('repository documentation', () => {
 
     for (const document of documents) {
       const markdown = readFileSync(document, 'utf8');
-      for (const match of markdown.matchAll(/\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)) {
+      for (const match of markdown.matchAll(/\]\(([^)\s]+)(?:\s[^)]*)?\)/g)) {
         const destination = match[1];
         if (
           destination === undefined ||

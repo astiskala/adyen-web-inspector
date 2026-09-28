@@ -105,14 +105,15 @@ function scheduleDetection(delay = DETECTION_DEBOUNCE_MS): void {
   }, delay);
 }
 
+const INTERESTING_TAG_NAMES: ReadonlySet<string> = new Set(['script', 'iframe', 'link']);
+
 function isInterestingNode(node: Node): boolean {
   if (node.nodeType !== Node.ELEMENT_NODE) {
     return false;
   }
 
   const element = node as Element;
-  const tagName = element.tagName.toLowerCase();
-  if (tagName === 'script' || tagName === 'iframe' || tagName === 'link') {
+  if (INTERESTING_TAG_NAMES.has(element.tagName.toLowerCase())) {
     return true;
   }
 

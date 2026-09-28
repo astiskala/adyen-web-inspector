@@ -25,7 +25,7 @@ function stubChromeStorage(storage: StorageMock): void {
 }
 
 function packument(latest: string, time: Record<string, string> = {}): Response {
-  return new Response(JSON.stringify({ 'dist-tags': { latest }, time }));
+  return Response.json({ 'dist-tags': { latest }, time });
 }
 
 afterEach(() => {
@@ -150,7 +150,7 @@ describe('getAdyenWebReleaseInfo', () => {
     stubChromeStorage(storage);
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue(new Response(JSON.stringify({ 'dist-tags': { latest: '6.12.0' } })))
+      vi.fn().mockResolvedValue(Response.json({ 'dist-tags': { latest: '6.12.0' } }))
     );
 
     await expect(getAdyenWebReleaseInfo()).resolves.toEqual({
@@ -179,7 +179,7 @@ describe('getAdyenWebReleaseInfo', () => {
     async (body: unknown) => {
       const storage = createStorageMock();
       stubChromeStorage(storage);
-      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify(body))));
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json(body)));
 
       await expect(getAdyenWebReleaseInfo()).resolves.toBeNull();
       expect(storage.set).not.toHaveBeenCalled();

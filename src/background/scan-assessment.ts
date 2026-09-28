@@ -65,10 +65,11 @@ function buildFallbackRequests(pageData: PageExtractResult): CapturedRequest[] {
   return requests;
 }
 
-export const assessScan = async (
+/** Builds the scan payload from collected evidence and runs every check against it. */
+export async function assessScan(
   evidence: ScanEvidence,
   probeBundleVersion: (pageUrl: string, scriptUrls: string[]) => Promise<string | null>
-): Promise<ScanResult> => {
+): Promise<ScanResult> {
   const {
     tabId,
     page: pageData,
@@ -122,4 +123,4 @@ export const assessScan = async (
     standardCompliance: computeStandardCompliance(payload),
     payload,
   };
-};
+}

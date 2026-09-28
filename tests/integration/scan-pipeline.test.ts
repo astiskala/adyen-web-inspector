@@ -51,7 +51,7 @@ describe('Scan pipeline integration', () => {
     const payload = makeAdyenPayload();
     const { checks } = await runPipeline(payload);
 
-    expect(checks.length).toBe(ALL_CHECKS.length);
+    expect(checks).toHaveLength(ALL_CHECKS.length);
     for (const result of checks) {
       expect(result).toHaveProperty('id');
       expect(result).toHaveProperty('severity');

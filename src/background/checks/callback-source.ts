@@ -9,8 +9,10 @@ const PAYMENT_METHOD_SELECTOR_PATTERN =
 const ACTION_CODE_SELECTOR_PATTERN =
   /\bresultCode\b|\baction(?:\?\.)?\.type\b|\baction\s*\[\s*['"]type['"]\s*\]/;
 
+const WHITESPACE_CHARS: ReadonlySet<string | undefined> = new Set([' ', '\n', '\r', '\t', '\f']);
+
 function isWhitespaceChar(char: string | undefined): boolean {
-  return char === ' ' || char === '\n' || char === '\r' || char === '\t' || char === '\f';
+  return WHITESPACE_CHARS.has(char);
 }
 
 function skipWhitespace(source: string, start: number): number {
@@ -72,10 +74,6 @@ interface ParsedSwitchStatement {
 
 function parseSwitchStatement(source: string, switchStart: number): ParsedSwitchStatement {
   const conditionStart = source.indexOf('(', switchStart);
-  if (conditionStart === -1) {
-    return { malformed: false, nextSearchIndex: switchStart + 1 };
-  }
-
   const conditionEnd = findMatchingDelimiter(source, conditionStart, '(', ')');
   if (conditionEnd === -1) {
     return { malformed: true, nextSearchIndex: source.length };
@@ -112,11 +110,6 @@ function hasUnhandledSelectorIfStatement(source: string, selectorPattern: RegExp
 
   while (match !== null) {
     const conditionStart = source.indexOf('(', match.index);
-    if (conditionStart === -1) {
-      match = ifPattern.exec(source);
-      continue;
-    }
-
     const conditionEnd = findMatchingDelimiter(source, conditionStart, '(', ')');
     if (conditionEnd === -1) return false;
 
@@ -163,7 +156,11 @@ function hasUnhandledSelectorSwitchStatement(source: string, selectorPattern: Re
   return false;
 }
 
-export const detectUnhandledOnSubmitFilters = (source: string): UnhandledOnSubmitFilters => {
+/**
+ * Detects onSubmit branches that select specific payment methods or action
+ * codes without an else or default fallback.
+ */
+export function detectUnhandledOnSubmitFilters(source: string): UnhandledOnSubmitFilters {
   return {
     paymentMethod:
       hasUnhandledSelectorIfStatement(source, PAYMENT_METHOD_SELECTOR_PATTERN) ||
@@ -172,7 +169,7 @@ export const detectUnhandledOnSubmitFilters = (source: string): UnhandledOnSubmi
       hasUnhandledSelectorIfStatement(source, ACTION_CODE_SELECTOR_PATTERN) ||
       hasUnhandledSelectorSwitchStatement(source, ACTION_CODE_SELECTOR_PATTERN),
   };
-};
+}
 
 interface StateDataForwarding {
   /** `complete`: state.data is used as a whole; `partial`: only selected fields are read. */
@@ -180,7 +177,7 @@ interface StateDataForwarding {
   readonly fields: readonly string[];
 }
 
-const IDENTIFIER_PATTERN = /^[A-Za-z_$][\w$]*$/;
+const IDENTIFIER_PATTERN = /^[A-Z_$][\w$]*$/i;
 const NOT_MEMBER_ACCESS = String.raw`(?!\s*(?:\?\.|\.|\[))`;
 
 function escapeIdentifier(identifier: string): string {
@@ -189,7 +186,7 @@ function escapeIdentifier(identifier: string): string {
 
 function findCallbackBody(source: string): { param: string; body: string } | null {
   let trimmed = source.trimStart();
-  const propertyPrefix = /^[A-Za-z_$][\w$]*\s*:\s*/.exec(trimmed);
+  const propertyPrefix = /^[A-Z_$][\w$]*\s*:\s*/i.exec(trimmed);
   if (propertyPrefix !== null) trimmed = trimmed.slice(propertyPrefix[0].length);
   const bareArrow = /^(?:async\s+)?([A-Za-z_$][\w$]*)\s*=>/.exec(trimmed);
   if (bareArrow?.[1] !== undefined) {
@@ -215,7 +212,7 @@ function findCallbackBody(source: string): { param: string; body: string } | nul
  * selected fields such as `state.data.paymentMethod`. Destructured or
  * wholesale-forwarded `state` is `unknown`.
  */
-export const detectStateDataForwarding = (source: string): StateDataForwarding => {
+export function detectStateDataForwarding(source: string): StateDataForwarding {
   const callback = findCallbackBody(source);
   if (callback === null) return { kind: 'unknown', fields: [] };
 
@@ -238,13 +235,14 @@ export const detectStateDataForwarding = (source: string): StateDataForwarding =
         match[1] === undefined ? [] : [match[1]]
       )
     ),
-  ].sort((a, b) => a.localeCompare(b));
+  ].toSorted((a, b) => a.localeCompare(b));
   return fields.includes('paymentMethod')
     ? { kind: 'partial', fields }
     : { kind: 'unknown', fields: [] };
-};
+}
 
-export const detectsMultipleSubmissions = (source: string): boolean => {
+/** Returns true when callback source appears to guard against duplicate submissions. */
+export function detectsMultipleSubmissions(source: string): boolean {
   // Looks for common patterns like .disabled = true, setLoading(true), .setAttribute('disabled', ...), etc.
   const patterns = [
     /\.disabled\s*=\s*(?:true|1)/,
@@ -254,4 +252,4 @@ export const detectsMultipleSubmissions = (source: string): boolean => {
     /this\.isSubmitting\s*=\s*true/,
   ];
   return patterns.some((p) => p.test(source));
-};
+}

@@ -92,7 +92,7 @@ export function groupIssuesByImpact(checks: readonly CheckResult[]): ImpactGroup
   const issues = checks.filter(isIssue);
   return ISSUE_IMPACT_ORDER.map((impact) => ({
     impact,
-    checks: issues.filter((check) => getImpactLevel(check) === impact).sort(sortChecks),
+    checks: issues.filter((check) => getImpactLevel(check) === impact).toSorted(sortChecks),
   })).filter((group) => group.checks.length > 0);
 }
 
@@ -105,7 +105,7 @@ function buildFindingSection(
     issueGroups: groupIssuesByImpact(matching),
     successfulChecks: matching
       .filter((check) => check.severity === 'pass')
-      .sort((a, b) => a.title.localeCompare(b.title)),
+      .toSorted((a, b) => a.title.localeCompare(b.title)),
   };
 }
 
@@ -164,22 +164,21 @@ function buildRawConfigData(result: ScanResult): ExportRawConfigData {
   };
 }
 
-export const buildFindingProjection = (result: ScanResult): FindingProjection => ({
-  bestPractices: buildFindingSection(result.checks, BEST_PRACTICE_CATEGORIES),
-  security: buildFindingSection(result.checks, SECURITY_CATEGORIES),
-  skippedChecks: buildSkippedChecks(result),
-  network: buildNetworkData(result),
-  rawConfig: buildRawConfigData(result),
-});
+/** Projects a scan result into the sections shared by the DevTools panel and reports. */
+export function buildFindingProjection(result: ScanResult): FindingProjection {
+  return {
+    bestPractices: buildFindingSection(result.checks, BEST_PRACTICE_CATEGORIES),
+    security: buildFindingSection(result.checks, SECURITY_CATEGORIES),
+    skippedChecks: buildSkippedChecks(result),
+    network: buildNetworkData(result),
+    rawConfig: buildRawConfigData(result),
+  };
+}
 
 /** Builds the shared structured report data consumed by both JSON and PDF exports. */
 export function buildReportExportData(result: ScanResult): ReportExportData {
   const projection = buildFindingProjection(result);
-  const issues = buildIssueExportRows(result.checks, {
-    sortByImpact: true,
-    friendlyRemediation: true,
-    preferAdyenDocs: true,
-  });
+  const issues = buildIssueExportRows(result.checks);
 
   return {
     implementationAttributes: buildImplementationAttributes(result.payload),

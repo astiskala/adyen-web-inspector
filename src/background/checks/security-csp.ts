@@ -13,7 +13,7 @@ import { readCheckoutField } from '../../shared/scan-evidence.js';
 import { getHeader, isAdyenCheckoutResource } from '../../shared/utils.js';
 import { COMMON_DETAILS, SKIP_REASONS } from './constants.js';
 import { readPagePolicy, type PagePolicy } from './page-policy.js';
-import { createRegistry, type CheckContext } from './registry.js';
+import { createRegistry, type CheckContext, type CheckOutcome } from './registry.js';
 
 const CATEGORY = 'security' as const;
 const ADYEN_PCI_DSS_SCRIPT_SECURITY_DOC =
@@ -101,7 +101,6 @@ const STRINGS = {
 } as const;
 
 type EnforcedPolicy = Extract<PagePolicy, { status: 'enforced' }>;
-type CheckOutcome = ReturnType<CheckContext['skip']>;
 
 /** Skips a directive check when headers are unavailable or no policy is set. */
 function skipUnenforced(

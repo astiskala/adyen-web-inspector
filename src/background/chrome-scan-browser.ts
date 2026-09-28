@@ -58,13 +58,15 @@ async function extractFrames(tabId: number): Promise<FrameExtraction[]> {
       },
       world: 'MAIN',
     });
-  } catch (err: unknown) {
+  } catch (error: unknown) {
     let message: string;
-    if (err instanceof Error) {
-      message = err.message;
+    if (error instanceof Error) {
+      message = error.message;
     } else {
       const typeStr =
-        typeof err === 'object' && err !== null ? Object.prototype.toString.call(err) : typeof err;
+        typeof error === 'object' && error !== null
+          ? Object.prototype.toString.call(error)
+          : typeof error;
       message = `[${typeStr}]`;
     }
     throw new Error(`Page extraction script injection failed for tab ${tabId}: ${message}`);

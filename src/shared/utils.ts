@@ -2,15 +2,15 @@
  * Shared utility functions - Entry point for split utility modules.
  */
 
+import { ADYEN_HOST_SUFFIX, ADYEN_PAYMENTS_HOST_SUFFIX } from './constants.js';
+
+import type { CapturedHeader, ScanPayload, ScanResult } from './types.js';
+
 export * from './results.js';
 export * from './health.js';
 export * from './version-utils.js';
 export * from './csp-utils.js';
 export * from './export-utils.js';
-
-import { ADYEN_HOST_SUFFIX, ADYEN_PAYMENTS_HOST_SUFFIX } from './constants.js';
-
-import type { CapturedHeader, ScanPayload, ScanResult } from './types.js';
 
 /** Returns true for any non-null object. */
 export function isRecord(value: unknown): value is Record<string, unknown> {

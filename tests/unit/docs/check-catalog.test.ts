@@ -14,9 +14,13 @@ interface CatalogEntry {
 
 const CATALOG_PATH = resolve(process.cwd(), 'docs/architecture/check-catalog.md');
 
+function byText(a: string, b: string): number {
+  return a.localeCompare(b);
+}
+
 function parseCatalogEntries(markdown: string): CatalogEntry[] {
   const entries: CatalogEntry[] = [];
-  const rowPattern = /^\|\s*`([^`]+)`\s*\|\s*`([^`]+)`\s*\|\s*([^|]+)\|\s*([^|]+)\|/gm;
+  const rowPattern = /^\|\s*`([^`]+)`\s*\|\s*`([^`]+)`\s*\|([^|]+)\|([^|]+)\|/gm;
 
   let match = rowPattern.exec(markdown);
   while (match !== null) {
@@ -53,13 +57,13 @@ describe('check catalog documentation', () => {
     const totals = markdown.split('## Totals\n')[1]?.split('\n## ')[0] ?? '';
     const categoryCounts = new Map(
       [...totals.matchAll(/^\|\s*`([^`]+)`\s*\|\s*(\d+)\s*\|/gm)].map((match) => [
-        match[1],
+        match[1] ?? '',
         Number(match[2]),
       ])
     );
     const categories = [...new Set(ALL_CHECKS.map((check) => check.category))];
 
-    expect([...categoryCounts.keys()].sort()).toEqual(categories.sort());
+    expect([...categoryCounts.keys()].toSorted(byText)).toEqual(categories.toSorted(byText));
     for (const category of categories) {
       expect(categoryCounts.get(category)).toBe(
         ALL_CHECKS.filter((check) => check.category === category).length
@@ -101,7 +105,7 @@ describe('check catalog documentation', () => {
       .map((entry) => entry.id);
 
     expect(new Set(listed).size).toBe(listed.length);
-    expect(listed.sort()).toEqual(noticeIds.sort());
+    expect(listed.toSorted(byText)).toEqual(noticeIds.toSorted(byText));
 
     const lowIds = new Set(listIds(lowSection));
     for (const payload of [makeScanPayload(), makeAdyenPayload()]) {

@@ -17,7 +17,7 @@ function collectDocsUrls(): Set<string> {
 
   for (const file of readdirSync(checksDir)) {
     if (!file.endsWith('.ts')) continue;
-    const content = readFileSync(resolve(checksDir, file), 'utf-8');
+    const content = readFileSync(resolve(checksDir, file), 'utf8');
     for (const match of content.matchAll(urlPattern)) {
       const url = match[1];
       if (url !== undefined && url !== '') {
@@ -49,11 +49,11 @@ function isAllowedHost(url: string): boolean {
   }
 }
 
-const urlsToTest = Array.from(collectDocsUrls()).filter((url) => isAllowedHost(url));
+const urlsToTest = [...collectDocsUrls()].filter((url) => isAllowedHost(url));
 
 describe.skipIf(process.env['RUN_LINK_CHECKS'] === undefined)('Link Validation', () => {
   describe('Referenced Documentation Links', () => {
-    urlsToTest.forEach((url) => {
+    for (const url of urlsToTest) {
       it.concurrent(
         `should be reachable: ${url}`,
         async () => {
@@ -66,8 +66,8 @@ describe.skipIf(process.env['RUN_LINK_CHECKS'] === undefined)('Link Validation',
             expect(response.status).toBeLessThan(400);
           }
         },
-        10000
+        10_000
       );
-    });
+    }
   });
 });

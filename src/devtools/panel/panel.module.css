@@ -145,32 +145,12 @@
   background: var(--color-surface);
 }
 
-.checkSummary {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 8px 10px;
-  cursor: pointer;
-  list-style: none;
-}
-
 .checkSummaryStatic {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   gap: 12px;
   padding: 8px 10px;
-}
-
-.checkSummary::marker,
-.checkSummary::-webkit-details-marker {
-  display: none;
-  content: '';
-}
-
-.checkSummary:hover {
-  background: var(--color-surface-alt);
 }
 
 .checkSummaryTitle {
@@ -183,34 +163,6 @@
   font-size: 11px;
   text-transform: uppercase;
   flex-shrink: 0;
-}
-
-.summaryRight {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-.expandHint {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 1px 6px;
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
-  font-size: 10px;
-  color: var(--color-text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-}
-
-.expandChevron {
-  transition: transform 0.15s ease;
-}
-
-.checkCard[open] .expandChevron {
-  transform: rotate(180deg);
 }
 
 .checkBody {
@@ -241,25 +193,6 @@
 
 .overviewIssues {
   padding: 8px 12px 12px;
-}
-
-/* ── Key-value table ── */
-.kvTable {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 12px;
-}
-
-.kvTable td {
-  padding: 4px 8px;
-  border-bottom: 1px solid var(--color-border);
-  vertical-align: top;
-}
-
-.kvTable td:first-child {
-  width: 40%;
-  color: var(--color-text-secondary);
-  font-weight: 500;
 }
 
 /* ── Raw config ── */

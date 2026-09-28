@@ -161,7 +161,8 @@ import { extractLocaleFromUrl, isAdyenHost } from '../shared/utils.js';
 
     try {
       const openArgs = [method, url, ...args] as [string, string | URL, boolean, string?, string?];
-      return originalOpen.apply(this, openArgs);
+      originalOpen.apply(this, openArgs);
+      return;
     } catch {
       /* ignore */
     }
@@ -349,6 +350,4 @@ import { extractLocaleFromUrl, isAdyenHost } from '../shared/utils.js';
   } catch {
     /* ignore */
   }
-
-  (globalThis as PlainRecord)[CAPTURED_CONFIG_KEY + '__ready'] = true;
 })();

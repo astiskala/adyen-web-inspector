@@ -1,7 +1,4 @@
 import { defineConfig, devices } from '@playwright/test';
-import { resolve } from 'node:path';
-
-const EXTENSION_PATH = resolve(import.meta.dirname, 'dist');
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -32,5 +29,3 @@ export default defineConfig({
     timeout: 15_000,
   },
 });
-
-export { EXTENSION_PATH };

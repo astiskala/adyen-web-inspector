@@ -43,7 +43,7 @@ const SLOT_BY_SOURCE = {
 
 const SOURCES = ['captured', 'component', 'inferred'] as const satisfies readonly ConfigSource[];
 
-function isObserved<V>(value: V | undefined): value is V {
+function isObserved<V>(value: V | '' | undefined): value is V {
   return value !== undefined && value !== '';
 }
 

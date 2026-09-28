@@ -72,17 +72,19 @@ CI will run all validation steps automatically.
 
 ## Code Style
 
-This project uses [gts](https://github.com/google/gts) (Google TypeScript Style) as an ESLint/TypeScript baseline, with additional ESLint rules and a separate Prettier configuration.
+This project uses [gts](https://github.com/google/gts) (Google TypeScript Style) as an ESLint/TypeScript baseline, with the typescript-eslint strict and stylistic type-checked presets, the `unicorn`, `regexp`, and `sonarjs` recommended presets, additional project rules, and a separate Prettier configuration.
 
 Key conventions:
 
-- **TypeScript strict mode** — `strict: true`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noImplicitOverride`, `noPropertyAccessFromIndexSignature`.
+- **TypeScript strict mode** — `strict: true`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noImplicitOverride`, `noPropertyAccessFromIndexSignature`, `verbatimModuleSyntax`, `erasableSyntaxOnly`.
 - **Prefer `globalThis`** over `window` for globals.
 - **Use `node:` prefix** for Node.js built-in imports (e.g. `import {resolve} from 'node:path'`).
 - **CSS Modules** — access styles via a helper: `const s = (key: string) => styles[key] ?? ''` to satisfy `noPropertyAccessFromIndexSignature`.
 - **No nested ternaries** — use `if`/`else` or extract helper functions.
 - **`String#replaceAll()`** over regex-based `String#replace()`.
 - **`element.remove()`** over `parent.removeChild(element)`.
+- **`Array#toSorted()`** over in-place `Array#sort()`.
+- **Function declarations for exports** — not `export const fn = () => …`.
 - **Preact** — use `jsxImportSource: preact`, no manual `import {h}` needed.
 
 ### Pre-commit Hook
@@ -182,7 +184,7 @@ it('fails for live checkout over HTTP', () => {
 });
 ```
 
-**Coverage target:** 95% lines/functions/statements and 90% branches on `src/background/checks/**`, `src/background/scan-{assessment,orchestrator}.ts`, and `src/shared/{checkout-config-schema,scan-evidence,sdk-presence}.ts`, enforced in CI.
+**Coverage target:** check modules need 98% lines/statements, 100% functions, and 95% branches (`src/background/checks/**`), enforced in CI. Other areas have their own ratcheted thresholds in `vitest.config.ts`; raise them when coverage improves rather than lowering them to pass.
 
 ### 4. Update the check catalog
 
@@ -225,7 +227,7 @@ E2E tests build and load the extension (`dist/`) into a headless Chromium persis
 pnpm knip
 ```
 
-[knip](https://knip.dev) detects unused exports, unreferenced files, and redundant dependencies.
+[knip](https://knip.dev) detects unused exports, unreferenced files, and redundant dependencies. `pnpm knip` runs it twice: once over source and tests, and once in production mode (`knip --production`), which reports exports that only tests use.
 
 ---
 

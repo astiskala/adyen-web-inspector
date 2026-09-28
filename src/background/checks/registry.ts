@@ -15,7 +15,7 @@ import { getDefaultImpact } from '../../shared/results.js';
 /**
  * Result of a check runner before ID and Category are injected.
  */
-interface CheckOutcome {
+export interface CheckOutcome {
   readonly severity: Severity;
   readonly title: string;
   readonly detail?: string;
@@ -23,16 +23,23 @@ interface CheckOutcome {
   readonly docsUrl?: string;
 }
 
+type IssueOutcome = (
+  title: string,
+  detail?: string,
+  remediation?: string,
+  docsUrl?: string
+) => CheckOutcome;
+
 /**
  * Context provided to check runners.
  */
 export interface CheckContext {
-  pass(title: string, detail?: string): CheckOutcome;
-  fail(title: string, detail?: string, remediation?: string, docsUrl?: string): CheckOutcome;
-  warn(title: string, detail?: string, remediation?: string, docsUrl?: string): CheckOutcome;
-  notice(title: string, detail?: string, remediation?: string, docsUrl?: string): CheckOutcome;
-  info(title: string, detail?: string): CheckOutcome;
-  skip(title: string, detail: string): CheckOutcome;
+  readonly pass: (title: string, detail?: string) => CheckOutcome;
+  readonly fail: IssueOutcome;
+  readonly warn: IssueOutcome;
+  readonly notice: IssueOutcome;
+  readonly info: (title: string, detail?: string) => CheckOutcome;
+  readonly skip: (title: string, detail: string) => CheckOutcome;
 }
 
 type CheckRunner = (payload: ScanPayload, context: CheckContext) => CheckOutcome;

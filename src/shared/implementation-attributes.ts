@@ -12,7 +12,7 @@ import {
 import { checkoutConfigSources, listCheckoutFieldObservations } from './scan-evidence.js';
 import { detectSdkPresence } from './sdk-presence.js';
 import type { ScanPayload } from './types.js';
-import { extractHostname, isAdyenHost, isAdyenCheckoutResource } from './utils.js';
+import { extractHostname, isAdyenHost } from './utils.js';
 
 const API_FALLBACK_PATTERN = /\/v\d+\/(?:payments\/details|paymentMethods)\b/;
 
@@ -302,13 +302,6 @@ export function resolveRegion(payload: ScanPayload): RegionResolution {
   return { region: 'unknown', source: 'unknown' };
 }
 
-/**
- * Returns whether a URL identifies an Adyen-hosted checkout resource (CDN or otherwise).
- */
-export function isCdnCheckoutScriptUrl(url: string): boolean {
-  return isAdyenCheckoutResource(url);
-}
-
 function isCdnAdyenHost(host: string): boolean {
   return host.endsWith(ADYEN_CDN_HOST_SUFFIX);
 }
@@ -428,8 +421,8 @@ export function resolveIntegrationFlavor(payload: ScanPayload): IntegrationFlavo
   }
 
   const hasDropin =
-    payload.page.scripts.some((s) => /dropin/.test(s.src)) ||
-    payload.capturedRequests.some((r) => /dropin/.test(r.url));
+    payload.page.scripts.some((s) => s.src.includes('dropin')) ||
+    payload.capturedRequests.some((r) => r.url.includes('dropin'));
   if (hasDropin) {
     return {
       flavor: 'Drop-in',

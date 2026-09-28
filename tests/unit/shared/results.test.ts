@@ -1,11 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import {
-  ADYEN_WEB_BEST_PRACTICES_DOC,
-  getImpactLabel,
-  getImpactLevel,
-  getRecommendedDocsUrl,
-  getRemediationText,
-} from '../../../src/shared/results';
+import { getImpactLabel, getImpactLevel, getRemediationText } from '../../../src/shared/results';
 import type { CheckResult } from '../../../src/shared/types';
 
 function makeCheck(overrides: Partial<CheckResult> = {}): CheckResult {
@@ -17,28 +11,6 @@ function makeCheck(overrides: Partial<CheckResult> = {}): CheckResult {
     ...overrides,
   };
 }
-
-describe('getRecommendedDocsUrl', () => {
-  it('keeps explicit external docs when preferAdyenDocs is true', () => {
-    const check = makeCheck({
-      docsUrl: 'https://owasp.org/www-project-secure-headers/#referrer-policy',
-    });
-
-    expect(getRecommendedDocsUrl(check, true)).toBe(check.docsUrl);
-  });
-
-  it('falls back to Adyen best-practices docs when docsUrl is missing', () => {
-    const check = makeCheck();
-
-    expect(getRecommendedDocsUrl(check, true)).toBe(ADYEN_WEB_BEST_PRACTICES_DOC);
-  });
-
-  it('returns null when docsUrl is missing and preferAdyenDocs is false', () => {
-    const check = makeCheck();
-
-    expect(getRecommendedDocsUrl(check, false)).toBeNull();
-  });
-});
 
 describe('notice impact mapping', () => {
   it('maps low-impact notice checks to low impact labels', () => {
@@ -82,7 +54,47 @@ describe('notice impact mapping', () => {
   });
 });
 
+describe('getImpactLabel for non-issues', () => {
+  it.each([
+    ['pass', 'No impact'],
+    ['skip', 'Not applicable'],
+    ['info', 'Informational'],
+  ] as const)('labels %s results as %s', (severity, label) => {
+    expect(getImpactLabel(makeCheck({ severity }))).toBe(label);
+  });
+});
+
 describe('getRemediationText', () => {
+  it.each([
+    ['AdyenCheckout({ locale: "en-US" })', 'Update your AdyenCheckout configuration.'],
+    ['Content-Security-Policy: frame-src *', 'Update your Content-Security-Policy header'],
+    ['X-Frame-Options: DENY', 'Set this response header on the checkout page'],
+    ['<script src="adyen.js" integrity="sha384-x">', 'Update your markup'],
+  ])('frames the remediation example %s for readers', (remediation, prefix) => {
+    const check = makeCheck({ severity: 'warn', remediation });
+
+    expect(getRemediationText(check, { friendly: true })).toContain(prefix);
+    expect(getRemediationText(check)).toBe(remediation);
+  });
+
+  it.each([
+    [
+      { severity: 'fail' },
+      'Review this check and align your integration with Adyen best practices.',
+    ],
+    [
+      { severity: 'notice', impact: 'low' },
+      'Review this recommendation and align your integration with Adyen best practices.',
+    ],
+    [
+      { severity: 'notice' },
+      'Validate this area manually based on your page headers and Adyen setup.',
+    ],
+    [{ severity: 'pass' }, 'No remediation required.'],
+  ] as const)('uses plain default remediation for %o', (overrides, text) => {
+    expect(getRemediationText(makeCheck(overrides))).toBe(text);
+  });
+
   it('uses low-impact default remediation for automated notice checks', () => {
     const check = makeCheck({
       id: 'styling-css-custom-props',

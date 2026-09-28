@@ -122,13 +122,15 @@ async function handleScanRequest(senderTabId: number): Promise<void> {
     } else {
       clearBadge(senderTabId);
     }
-  } catch (err: unknown) {
+  } catch (error: unknown) {
     let errorMsg: string;
-    if (err instanceof Error) {
-      errorMsg = err.message;
+    if (error instanceof Error) {
+      errorMsg = error.message;
     } else {
       const typeStr =
-        typeof err === 'object' && err !== null ? Object.prototype.toString.call(err) : typeof err;
+        typeof error === 'object' && error !== null
+          ? Object.prototype.toString.call(error)
+          : typeof error;
       errorMsg = `[${typeStr}]`;
     }
     const response: BswToUiMessage = {
@@ -172,8 +174,12 @@ chrome.runtime.onMessage.addListener(
     if (message.type === MSG_GET_RESULT) {
       const tabId = message.tabId;
       getStoredResult(tabId)
-        .then((result) => sendResponse(result))
-        .catch(() => sendResponse(null));
+        .then((result) => {
+          sendResponse(result);
+        })
+        .catch(() => {
+          sendResponse(null);
+        });
       return true; // Keep message channel open for async response
     }
 

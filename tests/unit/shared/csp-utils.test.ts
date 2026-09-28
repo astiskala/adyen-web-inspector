@@ -51,7 +51,7 @@ const PARSE_DIRECTIVES_CASES: readonly ParseDirectivesCase[] = [
   },
   {
     name: 'returns empty directives for whitespace-only input',
-    header: '   ',
+    header: ' '.repeat(3),
     expectedDirectives: {},
   },
   {
@@ -85,17 +85,6 @@ describe('parseCsp', () => {
       expect(result.directives).toEqual(testCase.expectedDirectives);
     });
   }
-
-  it('preserves the raw header string', () => {
-    const header = "default-src 'none'; script-src https://example.com";
-    const result = parseCsp(header);
-    expect(result.raw).toBe(header);
-  });
-
-  it('preserves raw string for empty input', () => {
-    const result = parseCsp('');
-    expect(result.raw).toBe('');
-  });
 
   it('uses the first instance of a repeated directive', () => {
     const result = parseCsp("script-src 'self'; script-src https:");
@@ -166,6 +155,37 @@ describe('effective CSP sources', () => {
     ['img-src', "default-src 'self'; img-src data:", 'img-src'],
   ] as const)('resolves %s in "%s" to %s', (directive, header, expected) => {
     expect(getEffectiveCspSources(parseCsp(header), directive)?.directive).toBe(expected);
+  });
+
+  it.each([
+    ['https://checkoutshopper-test.adyen.com:443', true],
+    ['https://checkoutshopper-test.adyen.com:8443', false],
+    ['http://checkoutshopper-test.adyen.com', false],
+    ['checkoutshopper-test.adyen.com/checkoutshopper/', true],
+    ['checkoutshopper-test.adyen.com/other/', false],
+    ['*', true],
+    ['data:', false],
+  ])('matches the source %s against an HTTPS script: %s', (source, allowed) => {
+    expect(cspAllowsUrl(parseCsp(`script-src ${source}`), 'script-src', scriptUrl, pageUrl)).toBe(
+      allowed
+    );
+  });
+
+  it('matches explicit ports on plain HTTP resources', () => {
+    expect(
+      cspAllowsUrl(
+        parseCsp('img-src http://assets.example:80'),
+        'img-src',
+        'http://assets.example/logo.svg',
+        'http://merchant.example/'
+      )
+    ).toBe(true);
+  });
+
+  it('rejects resources when the page URL cannot be parsed', () => {
+    expect(cspAllowsUrl(parseCsp("script-src 'self'"), 'script-src', scriptUrl, 'not a url')).toBe(
+      false
+    );
   });
 
   it('returns null when a directive is unrestricted', () => {

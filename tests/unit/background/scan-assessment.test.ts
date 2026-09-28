@@ -85,7 +85,8 @@ describe('assessScan', () => {
       probe
     );
 
-    expect((await assessScan(evidence, probe)).payload.versionInfo.detected).toBe('6.23.0');
+    const fromProbe = await assessScan(evidence, probe);
+    expect(fromProbe.payload.versionInfo.detected).toBe('6.23.0');
     expect(fromScript.payload.versionInfo.detected).toBe('6.22.0');
     expect(fromRequest.payload.versionInfo.detected).toBe('6.21.0');
     expect(probe).not.toHaveBeenCalled();

@@ -8,6 +8,9 @@ import security from 'eslint-plugin-security';
 import sonarjs from 'eslint-plugin-sonarjs';
 import unicorn from 'eslint-plugin-unicorn';
 
+const typescriptEslint = gts.map((config) => config.plugins?.['@typescript-eslint']).find(Boolean);
+const presetRules = (configs) => Object.assign({}, ...configs.map((config) => config.rules ?? {}));
+
 const BASE_RESTRICTED_SYNTAX = [
   {
     selector: 'CallExpression[callee.name="String"]',
@@ -18,6 +21,15 @@ const BASE_RESTRICTED_SYNTAX = [
     selector:
       'CallExpression[callee.object.name=/^(it|test|describe)$/][callee.property.name="only"]',
     message: 'Focused tests must not be committed. Remove .only before merging.',
+  },
+  {
+    selector: 'CallExpression[callee.object.name="document"][callee.property.name=/^write(ln)?$/]',
+    message: 'Avoid document.write(). Use iframe.srcdoc or DOM APIs instead.',
+  },
+  {
+    selector:
+      'ExportNamedDeclaration > VariableDeclaration > VariableDeclarator > :matches(ArrowFunctionExpression, FunctionExpression)',
+    message: 'Export functions as function declarations.',
   },
 ];
 
@@ -42,7 +54,7 @@ const restrictGlobals = (names, message) => ['error', ...names.map((name) => ({ 
 
 export default defineConfig([
   {
-    ignores: ['dist/', 'coverage/', '*.cjs', 'vitest.integration.config.ts'],
+    ignores: ['dist/', 'coverage/', '*.cjs'],
   },
   ...gts,
   {
@@ -79,8 +91,15 @@ export default defineConfig([
       // Use the modern resolver interface; the legacy auto-detected `node`
       // resolver fails to load under ESLint 10's jiti config loader.
       'import-x/resolver-next': [createNodeResolver()],
+      react: { version: '18.3' },
     },
     rules: {
+      ...presetRules(typescriptEslint.configs['flat/strict-type-checked']),
+      ...presetRules(typescriptEslint.configs['flat/stylistic-type-checked']),
+      ...unicorn.configs.recommended.rules,
+      ...regexp.configs['flat/recommended'].rules,
+      ...sonarjs.configs.recommended.rules,
+
       // TypeScript safety
       '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/explicit-function-return-type': 'error',
@@ -130,10 +149,17 @@ export default defineConfig([
           'ts-nocheck': true,
         },
       ],
+      '@typescript-eslint/no-empty-function': ['error', { allow: ['arrowFunctions'] }],
+      '@typescript-eslint/non-nullable-type-assertion-style': 'off',
 
       // Import ordering and cycles
+      'import-x/first': 'error',
+      'import-x/newline-after-import': 'error',
       'import-x/no-cycle': 'error',
       'import-x/no-duplicates': 'error',
+      'import-x/no-mutable-exports': 'error',
+      'import-x/no-self-import': 'error',
+      'import-x/no-useless-path-segments': 'error',
 
       // Security
       'security/detect-bidi-characters': 'error',
@@ -146,7 +172,20 @@ export default defineConfig([
       'security/detect-pseudoRandomBytes': 'error',
 
       // React
+      'react/jsx-boolean-value': 'error',
       'react/jsx-child-element-spacing': 'error',
+      'react/jsx-key': 'error',
+      'react/jsx-no-comment-textnodes': 'error',
+      'react/jsx-no-duplicate-props': 'error',
+      'react/jsx-no-script-url': 'error',
+      'react/jsx-no-target-blank': 'error',
+      'react/jsx-no-useless-fragment': 'error',
+      'react/no-array-index-key': 'error',
+      'react/no-children-prop': 'error',
+      'react/no-danger': 'error',
+      'react/no-unstable-nested-components': 'error',
+      'react/self-closing-comp': 'error',
+      'react/void-dom-elements-no-children': 'error',
 
       // Regexp
       'regexp/prefer-d': 'error',
@@ -164,6 +203,17 @@ export default defineConfig([
       'unicorn/consistent-function-scoping': 'error',
       'unicorn/no-object-as-default-parameter': 'error',
       'unicorn/prefer-top-level-await': 'error',
+      'unicorn/empty-brace-spaces': 'off',
+      'unicorn/filename-case': 'off',
+      'unicorn/import-style': 'off',
+      'unicorn/no-array-callback-reference': 'off',
+      'unicorn/no-nested-ternary': 'off',
+      'unicorn/no-null': 'off',
+      'unicorn/no-useless-undefined': 'off',
+      'unicorn/number-literal-case': 'off',
+      'unicorn/prefer-split-limit': 'off',
+      'unicorn/prevent-abbreviations': 'off',
+      'unicorn/template-indent': 'off',
 
       // JSDoc
       'jsdoc/check-alignment': 'error',
@@ -186,6 +236,7 @@ export default defineConfig([
       // Core JavaScript
       eqeqeq: 'error',
       'no-console': 'error',
+      'no-void': 'error',
       'no-extend-native': 'error',
       'no-nested-ternary': 'error',
       'no-negated-condition': 'error',
@@ -258,6 +309,19 @@ export default defineConfig([
     },
   },
   {
+    files: ['src/content/config-interceptor.ts'],
+    rules: {
+      '@typescript-eslint/unbound-method': 'off',
+      'unicorn/no-this-outside-of-class': 'off',
+    },
+  },
+  {
+    files: ['vite.config.ts'],
+    rules: {
+      'unicorn/no-this-outside-of-class': 'off',
+    },
+  },
+  {
     files: ['src/popup/**/*.{ts,tsx}', 'src/devtools/**/*.{ts,tsx}', 'src/background/worker.ts'],
     rules: {
       'no-restricted-syntax': [
@@ -282,6 +346,15 @@ export default defineConfig([
           'ts-nocheck': true,
         },
       ],
+      '@typescript-eslint/require-await': 'off',
+      'sonarjs/no-clear-text-protocols': 'off',
+      'unicorn/prefer-https': 'off',
+    },
+  },
+  {
+    files: ['tests/e2e/**/*.ts'],
+    rules: {
+      'sonarjs/assertions-in-tests': 'off',
     },
   },
 ]);

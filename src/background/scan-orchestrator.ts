@@ -10,9 +10,9 @@ import { assessScan } from './scan-assessment.js';
 import type { FrameExtraction, ScanBrowser } from './scan-browser.js';
 
 const TAB_READY_TIMEOUT_MS = 15_000;
-const SPA_SETTLE_MS = 2_000;
+const SPA_SETTLE_MS = 2000;
 const PAGE_EXTRACT_RETRY_INTERVAL_MS = 500;
-const PAGE_EXTRACT_RETRY_TIMEOUT_MS = 4_000;
+const PAGE_EXTRACT_RETRY_TIMEOUT_MS = 4000;
 
 /**
  * Runs the full scan pipeline for a tab and persists the computed result

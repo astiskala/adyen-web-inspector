@@ -83,7 +83,8 @@ async function getServiceWorker(context: BrowserContext, extensionId: string): P
 
 async function getFixtureTab(worker: Worker, page: Page): Promise<FixtureTab> {
   const tab = await worker.evaluate(async (pageUrl) => {
-    const match = (await chrome.tabs.query({})).find((candidate) => candidate.url === pageUrl);
+    const tabs = await chrome.tabs.query({});
+    const match = tabs.find((candidate) => candidate.url === pageUrl);
     return match?.id === undefined ? null : { id: match.id, windowId: match.windowId };
   }, page.url());
   if (tab === null) throw new Error(`Fixture tab not found: ${page.url()}`);
@@ -123,60 +124,64 @@ export const test = base.extend<ExtensionFixtures>({
 
 export const expect = test.expect;
 
-export const requireCheck = (result: ScanResult, id: CheckId): CheckResult => {
+/** Returns the result for a check ID, failing the test when it is missing. */
+export function requireCheck(result: ScanResult, id: CheckId): CheckResult {
   const found = result.checks.find((entry) => entry.id === id);
   if (found === undefined) throw new Error(`Missing check ${id}`);
   return found;
-};
+}
 
-export const openFixture = async (context: BrowserContext, fixturePath: string): Promise<Page> => {
+/** Opens a fixture page and waits until its dummy checkout is ready. */
+export async function openFixture(context: BrowserContext, fixturePath: string): Promise<Page> {
   const page = await context.newPage();
   const url = new URL(fixturePath, FIXTURE_ORIGIN);
   await page.goto(url.href);
   if (url.pathname.endsWith('/dummy-merchant.html')) {
-    await page.locator('html[data-fixture-ready="true"]').waitFor({ timeout: 5_000 });
+    await page.locator('html[data-fixture-ready="true"]').waitFor({ timeout: 5000 });
   }
   if (url.pathname.endsWith('/dummy-iframe-merchant.html')) {
     await page
       .frameLocator('iframe[title="Merchant checkout"]')
       .locator('html[data-fixture-ready="true"]')
-      .waitFor({ timeout: 5_000 });
+      .waitFor({ timeout: 5000 });
   }
   return page;
-};
+}
 
-export const getBadgeText = async (
+/** Reads the extension badge text for a fixture page's tab. */
+export async function getBadgeText(
   context: BrowserContext,
   extensionId: string,
   page: Page
-): Promise<string> => {
+): Promise<string> {
   const worker = await getServiceWorker(context, extensionId);
   const { id } = await getFixtureTab(worker, page);
   return worker.evaluate((tabId) => chrome.action.getBadgeText({ tabId }), id);
-};
+}
 
-export const getStoredScanResult = async (
+/** Reads the stored scan result for a fixture page's tab. */
+export async function getStoredScanResult(
   context: BrowserContext,
   extensionId: string,
   page: Page
-): Promise<ScanResult | null> => {
+): Promise<ScanResult | null> {
   const worker = await getServiceWorker(context, extensionId);
   const { id } = await getFixtureTab(worker, page);
   return worker.evaluate(async (key) => {
     const stored = await chrome.storage.session.get(key);
     return (stored[key] as ScanResult | undefined) ?? null;
   }, `${STORAGE_SCAN_RESULT_PREFIX}${id}`);
-};
+}
 
 /**
  * Opens the popup as a background tab beside the fixture page. The popup inspects the active tab
  * of its own window, so opening it in the foreground would make it inspect itself.
  */
-export const openPopupFor = async (
+export async function openPopupFor(
   context: BrowserContext,
   extensionId: string,
   page: Page
-): Promise<Page> => {
+): Promise<Page> {
   const worker = await getServiceWorker(context, extensionId);
   const tab = await getFixtureTab(worker, page);
   const popupUrl = `chrome-extension://${extensionId}/popup/index.html`;
@@ -191,17 +196,17 @@ export const openPopupFor = async (
   const popup = await popupOpened;
   await popup.waitForURL(popupUrl);
   return popup;
-};
+}
 
 /**
  * Loads the built DevTools panel in a tab. Only the inspected tab ID is stubbed, because Chrome
  * provides `chrome.devtools` solely inside DevTools, which Playwright cannot open.
  */
-export const openDevtoolsPanelFor = async (
+export async function openDevtoolsPanelFor(
   context: BrowserContext,
   extensionId: string,
   page: Page
-): Promise<Page> => {
+): Promise<Page> {
   const worker = await getServiceWorker(context, extensionId);
   const { id } = await getFixtureTab(worker, page);
   const panel = await context.newPage();
@@ -210,14 +215,15 @@ export const openDevtoolsPanelFor = async (
   }, id);
   await panel.goto(`chrome-extension://${extensionId}/${DEVTOOLS_PANEL_PAGE}`);
   return panel;
-};
+}
 
-export const scanFixture = async (
+/** Opens a fixture page, runs a scan through the extension, and returns the result. */
+export async function scanFixture(
   context: BrowserContext,
   extensionId: string,
   fixturePath: string,
   duringScan?: (page: Page) => Promise<void>
-): Promise<ScanResult> => {
+): Promise<ScanResult> {
   const page = await openFixture(context, fixturePath);
   const popup = await openPopupFor(context, extensionId, page);
   try {
@@ -243,17 +249,17 @@ export const scanFixture = async (
           };
           chrome.runtime.onMessage.addListener(listener);
           chrome.runtime
-            .sendMessage({ type: 'SCAN_REQUEST', tabId: targetTabId, source: 'popup' })
+            .sendMessage({ type: 'SCAN_REQUEST', tabId: targetTabId })
             .catch((error: unknown) => {
               chrome.runtime.onMessage.removeListener(listener);
-              reject(error);
+              reject(error instanceof Error ? error : new Error('Scan request failed.'));
             });
         }),
       tabId
     );
     if (duringScan !== undefined) {
       await expect
-        .poll(() => getBadgeText(context, extensionId, page), { timeout: 5_000 })
+        .poll(() => getBadgeText(context, extensionId, page), { timeout: 5000 })
         .toBe('…');
       await duringScan(page);
     }
@@ -262,4 +268,4 @@ export const scanFixture = async (
     await popup.close();
     await page.close();
   }
-};
+}

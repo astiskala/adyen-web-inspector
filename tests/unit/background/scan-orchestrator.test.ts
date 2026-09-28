@@ -26,7 +26,7 @@ describe('runScan sequencing', () => {
       `waitForTabComplete:${TAB_ID}`,
       'extractFrames',
     ]);
-    expect(browser.sleeps[0]).toBe(2_000);
+    expect(browser.sleeps[0]).toBe(2000);
     expect(browser.calls.at(-1)).toBe('storeResult');
     expect(browser.stored).toEqual([result]);
     expect(result.payload.versionInfo.latest).toBe('6.40.0');
@@ -47,7 +47,7 @@ describe('runScan sequencing', () => {
     const result = await runScan(TAB_ID, browser);
 
     expect(browser.calls.filter((call) => call === 'extractFrames')).toHaveLength(3);
-    expect(browser.sleeps).toEqual([2_000, 500, 500]);
+    expect(browser.sleeps).toEqual([2000, 500, 500]);
     expect(result.payload.page.checkoutConfig).not.toBeNull();
   });
 
@@ -70,7 +70,7 @@ describe('runScan sequencing', () => {
     await runScan(TAB_ID, browser);
 
     expect(browser.calls.filter((call) => call === 'extractFrames')).toHaveLength(1);
-    expect(browser.sleeps).toEqual([2_000]);
+    expect(browser.sleeps).toEqual([2000]);
   });
 
   it('stops network capture and stores nothing when the tab never loads', async () => {
@@ -146,7 +146,8 @@ describe('runScan document headers', () => {
 
 async function scanFrames(...frames: (PageExtractResult | null)[]): Promise<PageExtractResult> {
   const browser = createFakeScanBrowser({ extractions: [framesOf(...frames)] });
-  return (await runScan(TAB_ID, browser)).payload.page;
+  const result = await runScan(TAB_ID, browser);
+  return result.payload.page;
 }
 
 describe('runScan frame selection', () => {
@@ -189,7 +190,9 @@ describe('runScan frame selection', () => {
       ],
     });
 
-    const { page } = (await runScan(TAB_ID, browser)).payload;
+    const {
+      payload: { page },
+    } = await runScan(TAB_ID, browser);
 
     expect(page.pageUrl).toBe('https://merchant.example/checkout');
     expect(page.isInsideIframe).toBe(false);
@@ -218,7 +221,9 @@ describe('runScan frame selection', () => {
       ],
     });
 
-    const { page } = (await runScan(TAB_ID, browser)).payload;
+    const {
+      payload: { page },
+    } = await runScan(TAB_ID, browser);
 
     expect(page.pageUrl).toBe('https://merchant.example/');
     expect(page.isInsideIframe).toBe(false);

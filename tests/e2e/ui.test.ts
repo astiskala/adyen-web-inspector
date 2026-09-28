@@ -61,9 +61,13 @@ test.describe('Popup', () => {
 
     await popup.getByRole('button', { name: 'Attempt Scan', exact: true }).click();
     await expect
-      .poll(async () => (await getStoredScanResult(context, extensionId, page))?.pageUrl, {
-        timeout: SCAN_TIMEOUT_MS,
-      })
+      .poll(
+        async () => {
+          const stored = await getStoredScanResult(context, extensionId, page);
+          return stored?.pageUrl;
+        },
+        { timeout: SCAN_TIMEOUT_MS }
+      )
       .toBe(page.url());
 
     const result = await requireStoredResult(context, extensionId, page);

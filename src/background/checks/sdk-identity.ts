@@ -7,12 +7,12 @@ import {
   detectImportMethod,
   detectIntegrationFlow,
   hasCheckoutActivity,
-  isCdnCheckoutScriptUrl,
   resolveIntegrationFlavor,
   type IntegrationFlow,
 } from '../../shared/implementation-attributes.js';
 import { readCheckoutField } from '../../shared/scan-evidence.js';
 import { detectSdkPresence } from '../../shared/sdk-presence.js';
+import { isAdyenCheckoutResource } from '../../shared/utils.js';
 import { createRegistry } from './registry.js';
 
 const STRINGS = {
@@ -146,7 +146,7 @@ export const SDK_IDENTITY_CHECKS = createRegistry(CATEGORY)
     'sdk-bundle-type',
     (payload, { skip, notice, pass }) => {
       const { adyenMetadata, scripts } = payload.page;
-      const isCdn = scripts.some((s) => isCdnCheckoutScriptUrl(s.src));
+      const isCdn = scripts.some((s) => isAdyenCheckoutResource(s.src));
 
       if (isCdn) {
         return skip(STRINGS.BUNDLE_TYPE_CDN_SKIP_TITLE, STRINGS.BUNDLE_TYPE_CDN_SKIP_REASON);

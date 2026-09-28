@@ -23,6 +23,15 @@ function makeResult(): ScanResult {
   });
 }
 
+async function clickButton(label: string): Promise<void> {
+  const button = [...host.querySelectorAll('button')].find((b) => b.textContent === label);
+  expect(button).toBeDefined();
+  await act(async () => {
+    button?.click();
+    await Promise.resolve();
+  });
+}
+
 async function mount(View: () => JSX.Element): Promise<void> {
   await act(async () => {
     render(h(View, {}), host);
@@ -66,7 +75,9 @@ describe('scan views', () => {
   it('keeps the popup version gate and shows a completed scan', async () => {
     getStorage.mockResolvedValue({ checkout_activity_3: true, adyen_version_3: '5.67.0' });
     await mount(Popup);
-    await vi.waitFor(() => expect(host.textContent).toContain('Adyen Web Version Outdated'));
+    await vi.waitFor(() => {
+      expect(host.textContent).toContain('Adyen Web Version Outdated');
+    });
 
     sendMessage.mockResolvedValue(makeResult());
     await act(async () => {
@@ -74,7 +85,43 @@ describe('scan views', () => {
       await Promise.resolve();
       await Promise.resolve();
     });
-    await vi.waitFor(() => expect(host.textContent).toContain('Re-run Scan'));
+    await vi.waitFor(() => {
+      expect(host.textContent).toContain('Re-run Scan');
+    });
+  });
+
+  it('offers a scan when the detector saw checkout activity on a supported version', async () => {
+    getStorage.mockResolvedValue({ checkout_activity_3: true, adyen_version_3: '6.31.0' });
+    await mount(Popup);
+
+    await vi.waitFor(() => {
+      expect(host.textContent).toContain('Adyen Web SDK detected');
+    });
+    expect(host.textContent).toContain('Run Scan');
+    expect(host.textContent).not.toContain('Export PDF');
+  });
+
+  it('offers an attempt scan when no checkout activity was detected', async () => {
+    await mount(Popup);
+
+    await vi.waitFor(() => {
+      expect(host.textContent).toContain('Adyen not detected');
+    });
+    expect(host.textContent).toContain('Attempt Scan');
+  });
+
+  it('shows the scan error view with a retry after a failed scan', async () => {
+    await mount(Popup);
+    await act(async () => {
+      listener?.({ type: 'SCAN_ERROR', tabId: 3 });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    await vi.waitFor(() => {
+      expect(host.textContent).toContain('Scan failed');
+    });
+    expect(host.textContent).toContain('Try Again');
   });
 
   it('groups popup failures and warnings with the shared impact labels', async () => {
@@ -97,8 +144,10 @@ describe('scan views', () => {
     );
     await mount(Popup);
 
-    await vi.waitFor(() => expect(host.textContent).toContain('Missing country'));
-    const headers = Array.from(host.querySelectorAll('[class*="priorityHeader"]')).map(
+    await vi.waitFor(() => {
+      expect(host.textContent).toContain('Missing country');
+    });
+    const headers = [...host.querySelectorAll('[class*="priorityHeader"]')].map(
       (header) => header.textContent
     );
     expect(headers).toEqual(['High impact1', 'High impact1', 'Medium impact1']);
@@ -110,24 +159,67 @@ describe('scan views', () => {
     );
     await mount(Panel);
 
-    await vi.waitFor(() =>
-      expect(host.textContent).toContain('Adyen Web SDK was not detected on this page.')
-    );
+    await vi.waitFor(() => {
+      expect(host.textContent).toContain('Adyen Web SDK was not detected on this page.');
+    });
     expect(host.textContent).not.toContain('Export JSON');
+  });
+
+  it('renders every DevTools panel tab for a detected result', async () => {
+    sendMessage.mockResolvedValue(
+      makeScanResult({
+        tabId: 3,
+        checks: [
+          {
+            id: 'auth-locale',
+            category: 'auth',
+            severity: 'warn',
+            title: 'Locale missing',
+            detail: 'No locale was configured.',
+            remediation: 'Set locale.',
+            docsUrl: 'https://docs.adyen.com/online-payments/build-your-integration/',
+          },
+          { id: 'security-https', category: 'security', severity: 'pass', title: 'HTTPS in use' },
+          {
+            id: '3p-no-sri',
+            category: 'third-party',
+            severity: 'skip',
+            title: 'Third-party SRI — No third-party scripts.',
+          },
+        ],
+      })
+    );
+    await mount(Panel);
+    await vi.waitFor(() => {
+      expect(host.textContent).toContain('Export JSON');
+    });
+
+    const tabs = [
+      ['Best Practices', 'No locale was configured.'],
+      ['Security', 'HTTPS in use'],
+      ['Skipped Checks', 'No third-party scripts.'],
+      ['Network', 'No Adyen requests captured.'],
+      ['Extracted Config', 'No inferred config captured.'],
+      ['Overview', 'Implementation Attributes'],
+    ] as const;
+    for (const [tab, text] of tabs) {
+      await clickButton(tab);
+      expect(host.textContent).toContain(text);
+    }
   });
 
   it('preserves DevTools context-invalidation wording after a rejected scan request', async () => {
     await mount(Panel);
     sendMessage.mockRejectedValueOnce(new Error('Extension context invalidated'));
-    const button = Array.from(host.querySelectorAll('button')).find(
-      (b) => b.textContent === 'Run Scan'
-    );
+    const button = [...host.querySelectorAll('button')].find((b) => b.textContent === 'Run Scan');
     expect(button).toBeDefined();
     await act(async () => {
       button?.click();
       await Promise.resolve();
       await Promise.resolve();
     });
-    await vi.waitFor(() => expect(host.textContent).toContain('Reload the extension'));
+    await vi.waitFor(() => {
+      expect(host.textContent).toContain('Reload the extension');
+    });
   });
 });

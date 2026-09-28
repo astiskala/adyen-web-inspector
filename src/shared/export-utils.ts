@@ -6,11 +6,12 @@ import type { CheckCategory, CheckId, CheckImpact, CheckResult, Severity } from 
 import {
   getImpactLabel,
   getImpactLevel,
-  getRecommendedDocsUrl,
   getRemediationText,
   isIssue,
   ISSUE_IMPACT_ORDER,
 } from './results.js';
+
+const ADYEN_WEB_BEST_PRACTICES_DOC = 'https://docs.adyen.com/online-payments/web-best-practices/';
 
 export interface ExportIssueRow {
   id: CheckId;
@@ -21,8 +22,10 @@ export interface ExportIssueRow {
   impactLevel: CheckImpact;
   detail: string | null;
   remediation: string;
-  docsUrl: string | null;
+  docsUrl: string;
 }
+
+const ISSUE_SEVERITY_ORDER: readonly Severity[] = ['fail', 'warn', 'notice'];
 
 function getImpactRank(impactLevel: CheckImpact): number {
   return ISSUE_IMPACT_ORDER.indexOf(impactLevel);
@@ -30,10 +33,7 @@ function getImpactRank(impactLevel: CheckImpact): number {
 
 /** Ranks issue severities for sorting: fail, then warn, then notice. */
 export function getIssueSeverityRank(severity: Severity): number {
-  if (severity === 'fail') return 0;
-  if (severity === 'warn') return 1;
-  if (severity === 'notice') return 2;
-  return 3;
+  return ISSUE_SEVERITY_ORDER.indexOf(severity);
 }
 
 function sortIssueRowsByImpact(a: ExportIssueRow, b: ExportIssueRow): number {
@@ -50,44 +50,26 @@ function sortIssueRowsByImpact(a: ExportIssueRow, b: ExportIssueRow): number {
   return a.title.localeCompare(b.title);
 }
 
-interface BuildIssueExportRowsOptions {
-  readonly sortByImpact?: boolean;
-  readonly friendlyRemediation?: boolean;
-  readonly preferAdyenDocs?: boolean;
-}
-
 /**
- * Converts issue-level checks into export rows used by reports.
- * Options control ordering and whether remediation/docs are normalised for readers.
+ * Converts issue-level checks into report rows sorted by impact, severity, then
+ * title, with reader-friendly remediation and an Adyen docs fallback.
  */
-export function buildIssueExportRows(
-  checks: readonly CheckResult[],
-  options: BuildIssueExportRowsOptions = {}
-): ExportIssueRow[] {
-  const rows = checks.filter(isIssue).map((check) => {
-    const impactLevel = getImpactLevel(check);
-    const normalizedImpact = impactLevel === 'none' ? 'low' : impactLevel;
-
-    return {
-      id: check.id,
-      category: check.category,
-      severity: check.severity,
-      title: check.title,
-      impact: getImpactLabel(check),
-      impactLevel: normalizedImpact,
-      detail: check.detail ?? null,
-      remediation: getRemediationText(check, {
-        ...(options.friendlyRemediation === undefined
-          ? {}
-          : { friendly: options.friendlyRemediation }),
-      }),
-      docsUrl: getRecommendedDocsUrl(check, options.preferAdyenDocs === true),
-    };
-  });
-
-  if (options.sortByImpact !== true) {
-    return rows;
-  }
-
-  return rows.sort(sortIssueRowsByImpact);
+export function buildIssueExportRows(checks: readonly CheckResult[]): ExportIssueRow[] {
+  return checks
+    .filter(isIssue)
+    .map((check) => {
+      const impactLevel = getImpactLevel(check);
+      return {
+        id: check.id,
+        category: check.category,
+        severity: check.severity,
+        title: check.title,
+        impact: getImpactLabel(check),
+        impactLevel: impactLevel === 'none' ? 'low' : impactLevel,
+        detail: check.detail ?? null,
+        remediation: getRemediationText(check, { friendly: true }),
+        docsUrl: check.docsUrl ?? ADYEN_WEB_BEST_PRACTICES_DOC,
+      };
+    })
+    .toSorted(sortIssueRowsByImpact);
 }

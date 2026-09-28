@@ -12,41 +12,15 @@ export interface PrintableReportMetadata {
   readonly browser: string;
 }
 
-function getChromeApi(): typeof chrome | null {
-  if (typeof chrome === 'undefined') {
-    return null;
-  }
-  return chrome;
-}
-
 /** Returns the session-storage key used for a pending PDF export handoff. */
 export function getPdfReportStorageKey(token: string): string {
   return `${PDF_REPORT_STORAGE_PREFIX}${token}`;
 }
 
-/** Builds the extension report page URL for the given export token. */
-export function buildPdfReportUrl(token: string): string {
-  const chromeApi = getChromeApi();
-  if (chromeApi === null) {
-    throw new Error('PDF export requires the extension runtime');
-  }
-
-  const url = new URL(chromeApi.runtime.getURL(PDF_REPORT_PAGE_PATH));
+function buildPdfReportUrl(token: string): string {
+  const url = new URL(chrome.runtime.getURL(PDF_REPORT_PAGE_PATH));
   url.searchParams.set(PDF_REPORT_TOKEN_PARAM, token);
   return url.toString();
-}
-
-async function openPdfReportTab(url: string): Promise<void> {
-  const chromeApi = getChromeApi();
-  if (chromeApi !== null) {
-    await chromeApi.tabs.create({ url });
-    return;
-  }
-
-  const popup = globalThis.open(url, '_blank');
-  if (popup === null) {
-    throw new Error('Unable to open PDF report tab');
-  }
 }
 
 /**
@@ -54,19 +28,14 @@ async function openPdfReportTab(url: string): Promise<void> {
  * render and print independently of the popup or DevTools lifecycle.
  */
 export async function exportPdf(result: ScanResult): Promise<void> {
-  const chromeApi = getChromeApi();
-  if (chromeApi === null) {
-    throw new Error('PDF export requires chrome.storage.session');
-  }
-
   const token = globalThis.crypto.randomUUID();
   const storageKey = getPdfReportStorageKey(token);
-  await chromeApi.storage.session.set({ [storageKey]: result });
+  await chrome.storage.session.set({ [storageKey]: result });
 
   try {
-    await openPdfReportTab(buildPdfReportUrl(token));
+    await chrome.tabs.create({ url: buildPdfReportUrl(token) });
   } catch (error) {
-    await chromeApi.storage.session.remove(storageKey).catch(() => {});
+    await chrome.storage.session.remove(storageKey).catch(() => {});
     throw error;
   }
 }
@@ -172,10 +141,7 @@ function buildIssueTableForSection(section: ExportCategorySection, emptyMessage:
     for (const issue of groupIssues) {
       const color = severityColor(issue.severity);
       const detail = issue.detail === null ? '' : `<br><small>${escapeHtml(issue.detail)}</small>`;
-      const docsLink =
-        issue.docsUrl === null
-          ? ''
-          : `<br><a class="docs-link" href="${escapeHtml(issue.docsUrl)}" target="_blank" rel="noopener noreferrer">Read documentation</a>`;
+      const docsLink = `<br><a class="docs-link" href="${escapeHtml(issue.docsUrl)}" target="_blank" rel="noopener noreferrer">Read documentation</a>`;
       rows.push(`
       <tr>
         <td style="color:${color};font-weight:600;text-transform:uppercase;white-space:nowrap">${escapeHtml(issue.severity)}</td>
@@ -259,9 +225,8 @@ function buildReportMetadataHtml(
 
 function buildNetworkHtml(network: ReturnType<typeof buildReportExportData>['network']): string {
   const reqs = network.capturedRequests;
-  const parts: string[] = [];
+  const parts: string[] = ['<h3 style="font-size:12px;margin:12px 0 6px">Captured Requests</h3>'];
 
-  parts.push('<h3 style="font-size:12px;margin:12px 0 6px">Captured Requests</h3>');
   if (reqs.length === 0) {
     parts.push('<p style="color:#6b7280">No Adyen requests captured.</p>');
   } else {
@@ -344,16 +309,8 @@ function buildComplianceHtml(compliance: StandardCompliance): string {
   </div>`;
 }
 
-const DEFAULT_REPORT_METADATA: PrintableReportMetadata = {
-  extensionVersion: 'Unknown',
-  browser: 'Unknown',
-};
-
 /** Builds the self-contained HTML document used by the printable export tab. */
-export function buildPrintableHtml(
-  result: ScanResult,
-  metadata: PrintableReportMetadata = DEFAULT_REPORT_METADATA
-): string {
+export function buildPrintableHtml(result: ScanResult, metadata: PrintableReportMetadata): string {
   const date = new Date(result.scannedAt).toLocaleString();
   const { score, passing, total, tier } = result.health;
   const tierColor = scoreColor(tier);

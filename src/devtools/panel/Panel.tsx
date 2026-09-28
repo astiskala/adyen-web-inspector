@@ -37,7 +37,7 @@ function getInspectedTabId(): number {
   return chrome.devtools.inspectedWindow.tabId;
 }
 
-const devtoolsTabAdapter = { source: 'devtools', getTabId: getInspectedTabId } as const;
+const devtoolsTabAdapter = { getTabId: getInspectedTabId } as const;
 
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) {
@@ -105,7 +105,9 @@ export function Panel(): JSX.Element {
     a.href = url;
     a.download = `adyen-inspector-${Date.now()}.json`;
     a.click();
-    globalThis.setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    globalThis.setTimeout(() => {
+      URL.revokeObjectURL(url);
+    }, 10_000);
   }
 
   function handleExportPdf(): void {

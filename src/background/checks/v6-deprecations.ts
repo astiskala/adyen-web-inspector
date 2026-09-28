@@ -16,7 +16,7 @@ import {
 import { readCheckoutField } from '../../shared/scan-evidence.js';
 import { parseVersion } from '../../shared/utils.js';
 import { SKIP_REASONS } from './constants.js';
-import { createRegistry, type CheckContext } from './registry.js';
+import { createRegistry, type CheckContext, type CheckOutcome } from './registry.js';
 
 const UPGRADE_DOCS_URL =
   'https://docs.adyen.com/online-payments/upgrade-your-integration/upgrade-to-web-v6';
@@ -123,7 +123,7 @@ function runDeprecationCheck(
   payload: ScanPayload,
   check: DeprecationCheck,
   { warn, skip, pass }: CheckContext
-): ReturnType<CheckContext['pass']> {
+): CheckOutcome {
   if (isPreV6(payload)) {
     return skip(check.skipTitle, 'SDK is running a pre-v6 version.');
   }

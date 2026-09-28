@@ -7,7 +7,6 @@ import {
   MSG_SCAN_RESET,
   MSG_SCAN_STARTED,
   type BswToUiMessage,
-  type ScanRequestSource,
 } from '../../shared/messages.js';
 import type { ScanResult } from '../../shared/types.js';
 import { isScanResult } from '../../shared/utils.js';
@@ -18,7 +17,6 @@ type ScanFailure =
   | { readonly kind: 'tab' };
 
 interface TabAdapter {
-  readonly source: ScanRequestSource;
   getTabId(): number | undefined | Promise<number | undefined>;
   readonly resetDelayMs?: number;
 }
@@ -43,7 +41,11 @@ function isScanLifecycleMessage(message: { readonly type: string }): message is 
   return SCAN_LIFECYCLE_TYPES.has(message.type);
 }
 
-export const useScanLifecycle = (adapter: TabAdapter): ScanState & { scan(): void } => {
+/**
+ * Tracks the stored scan result and scan progress for one tab, and exposes a
+ * scan trigger shared by the popup and DevTools panel.
+ */
+export function useScanLifecycle(adapter: TabAdapter): ScanState & { readonly scan: () => void } {
   const [state, setState] = useState<ScanState>(INITIAL_STATE);
   const generation = useRef(0);
   const mounted = useRef(false);
@@ -65,13 +67,13 @@ export const useScanLifecycle = (adapter: TabAdapter): ScanState & { scan(): voi
           error: null,
         });
       }
-    } catch (cause) {
+    } catch (error) {
       if (mounted.current && current === generation.current) {
         setState((previous) => ({
           ...previous,
           scanning: false,
           loading: false,
-          error: { kind: 'runtime', cause },
+          error: { kind: 'runtime', cause: error },
         }));
       }
     }
@@ -88,12 +90,12 @@ export const useScanLifecycle = (adapter: TabAdapter): ScanState & { scan(): voi
       let tabId: number | undefined;
       try {
         tabId = await adapter.getTabId();
-      } catch (cause) {
+      } catch (error) {
         if (mounted.current && current === generation.current) {
           setState((previous) => ({
             ...previous,
             scanning: false,
-            error: { kind: 'runtime', cause },
+            error: { kind: 'runtime', cause: error },
           }));
         }
         return;
@@ -108,13 +110,13 @@ export const useScanLifecycle = (adapter: TabAdapter): ScanState & { scan(): voi
       try {
         // chrome.runtime.sendMessage returns a promise; await handles rejected sends.
         // Synchronous context invalidation also reaches this request error path.
-        await chrome.runtime.sendMessage({ type: MSG_SCAN_REQUEST, tabId, source: adapter.source });
-      } catch (cause) {
+        await chrome.runtime.sendMessage({ type: MSG_SCAN_REQUEST, tabId });
+      } catch (error) {
         if (mounted.current && current === generation.current) {
           setState((previous) => ({
             ...previous,
             scanning: false,
-            error: { kind: 'request', cause },
+            error: { kind: 'request', cause: error },
           }));
         }
       }
@@ -131,12 +133,12 @@ export const useScanLifecycle = (adapter: TabAdapter): ScanState & { scan(): voi
       let tabId: number | undefined;
       try {
         tabId = await adapter.getTabId();
-      } catch (cause) {
+      } catch (error) {
         if (!mounted.current) return;
         setState((previous) => ({
           ...previous,
           scanning: false,
-          error: { kind: 'runtime', cause },
+          error: { kind: 'runtime', cause: error },
         }));
         return;
       }
@@ -191,4 +193,4 @@ export const useScanLifecycle = (adapter: TabAdapter): ScanState & { scan(): voi
   }, [adapter]);
 
   return { ...state, scan };
-};
+}

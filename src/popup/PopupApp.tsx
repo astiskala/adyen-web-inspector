@@ -22,7 +22,7 @@ function getActiveTabId(): Promise<number | undefined> {
   return chrome.tabs.query({ active: true, currentWindow: true }).then((tabs) => tabs[0]?.id);
 }
 
-const popupTabAdapter = { source: 'popup', getTabId: getActiveTabId, resetDelayMs: 400 } as const;
+const popupTabAdapter = { getTabId: getActiveTabId, resetDelayMs: 400 } as const;
 
 type IdleView =
   | { readonly state: 'ready' | 'not-detected' }

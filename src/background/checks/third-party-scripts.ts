@@ -2,7 +2,7 @@
  * Category 8 — Third-party Script checks.
  */
 
-import type { ScanPayload, ScriptTag, Severity } from '../../shared/types.js';
+import type { ScanPayload, ScriptTag } from '../../shared/types.js';
 import {
   AD_PIXEL_PATTERNS,
   ANALYTICS_PATTERNS,
@@ -11,7 +11,7 @@ import {
 } from '../../shared/constants.js';
 import { extractHostname } from '../../shared/utils.js';
 import { COMMON_DETAILS } from './constants.js';
-import { createRegistry, type CheckContext } from './registry.js';
+import { createRegistry, type CheckContext, type CheckOutcome } from './registry.js';
 
 const CATEGORY = 'third-party' as const;
 const ADYEN_PCI_SCRIPT_SECURITY_DOC =
@@ -25,18 +25,10 @@ const THIRD_PARTY_SCRIPT_PATTERNS = [
 
 type ThirdPartyPattern = Readonly<{ name: string; pattern: RegExp }>;
 
-interface CheckOutcome {
-  readonly severity: Severity;
-  readonly title: string;
-  readonly detail?: string;
-  readonly remediation?: string;
-  readonly docsUrl?: string;
-}
-
 interface PatternCheckOptions {
   readonly patterns: readonly ThirdPartyPattern[];
   readonly detectedTitlePrefix: string;
-  readonly detectionSeverity: 'notice' | 'warn' | 'fail';
+  readonly detectionSeverity: 'notice' | 'warn';
   readonly detail?: string;
   readonly remediation: string;
   readonly docsUrl: string;
@@ -72,9 +64,6 @@ function runPatternCheck(
   }
 
   const title = `${options.detectedTitlePrefix}: ${found.join(', ')}.`;
-  if (options.detectionSeverity === 'fail') {
-    return context.fail(title, options.detail, options.remediation, options.docsUrl);
-  }
   if (options.detectionSeverity === 'warn') {
     return context.warn(title, options.detail, options.remediation, options.docsUrl);
   }

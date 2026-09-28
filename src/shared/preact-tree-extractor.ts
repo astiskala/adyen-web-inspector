@@ -14,7 +14,7 @@ function hasPreactComponent(node: unknown): node is PreactVNode {
 }
 
 function getCoreOptions(vnode: PreactVNode): unknown {
-  const options = vnode.__c?.props?.['core']?.['options'];
+  const options = vnode.__c?.props?.core?.options;
   if (options !== undefined) {
     return options;
   }

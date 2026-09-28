@@ -64,22 +64,22 @@ function extractInferredConfig(g: GlobalWithAdyen): CheckoutConfig | null {
 }
 
 function extractScripts(): ScriptTag[] {
-  return Array.from(document.querySelectorAll<HTMLScriptElement>('script[src]')).map((s) => {
+  return [...document.querySelectorAll<HTMLScriptElement>('script[src]')].map((s) => {
     const tag: { src: string; integrity?: string; crossorigin?: string; blockingMode?: string } = {
       src: s.src,
     };
     const integrity = s.getAttribute('integrity');
     const crossorigin = s.getAttribute('crossorigin');
-    const blockingMode = s.getAttribute('data-blockingmode');
+    const blockingMode = s.dataset['blockingmode'];
     if (integrity !== null && integrity !== '') tag.integrity = integrity;
     if (crossorigin !== null && crossorigin !== '') tag.crossorigin = crossorigin;
-    if (blockingMode !== null && blockingMode !== '') tag.blockingMode = blockingMode;
+    if (blockingMode !== undefined && blockingMode !== '') tag.blockingMode = blockingMode;
     return tag;
   });
 }
 
 function extractLinks(): LinkTag[] {
-  return Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel][href]')).map((l) => {
+  return [...document.querySelectorAll<HTMLLinkElement>('link[rel][href]')].map((l) => {
     const tag: { href: string; rel: string; integrity?: string; crossorigin?: string } = {
       href: l.href,
       rel: l.rel,
@@ -101,7 +101,7 @@ const NEW_CARD_FORM_SELECTOR =
   '.adyen-checkout__card__form:not(.adyen-checkout__card__form--oneClick)';
 
 function extractIframes(): IframeInfo[] {
-  return Array.from(document.querySelectorAll<HTMLIFrameElement>('iframe')).map((f) => {
+  return [...document.querySelectorAll<HTMLIFrameElement>('iframe')].map((f) => {
     const info: { name?: string; src?: string; referrerpolicy?: string } = {};
     const name = f.getAttribute('name');
     const src = f.getAttribute('src');
@@ -182,7 +182,7 @@ function findAllVnodeRoots(): ElementWithVnode[] {
   }
 
   function walkNode(el: Element): void {
-    if (scanned > 10000 || roots.length >= 20) return;
+    if (scanned > 10_000 || roots.length >= 20) return;
     scanned++;
 
     if (isVnodeRoot(el)) {
@@ -190,12 +190,12 @@ function findAllVnodeRoots(): ElementWithVnode[] {
     }
 
     if (el.shadowRoot !== null) {
-      for (const child of Array.from(el.shadowRoot.children)) {
+      for (const child of el.shadowRoot.children) {
         walkNode(child);
       }
     }
 
-    for (const child of Array.from(el.children)) {
+    for (const child of el.children) {
       walkNode(child);
     }
   }
@@ -208,15 +208,15 @@ function findAllVnodeRoots(): ElementWithVnode[] {
  * Finds Adyen checkout elements including inside Shadow DOMs.
  */
 function findAdyenElements(): Element[] {
-  const results = Array.from(document.querySelectorAll('[class*="adyen-checkout"]'));
+  const results = [...document.querySelectorAll('[class*="adyen-checkout"]')];
 
   function findShadowHosts(el: Element, depth: number): void {
     if (depth > 6) return;
     if (el.shadowRoot !== null) {
-      const adyenInShadow = Array.from(el.shadowRoot.querySelectorAll('[class*="adyen-checkout"]'));
+      const adyenInShadow = [...el.shadowRoot.querySelectorAll('[class*="adyen-checkout"]')];
       results.push(...adyenInShadow);
     }
-    for (const child of Array.from(el.children)) {
+    for (const child of el.children) {
       findShadowHosts(child, depth + 1);
     }
   }
@@ -290,7 +290,7 @@ const ADYEN_API_KEY_PATTERN = /AQ[A-Za-z0-9+/]+==-[A-Za-z0-9+/]+=-[A-Za-z0-9+/]+
 function detectApiKeyExposure(g: GlobalWithAdyen): boolean {
   // Scan inline <script> tag contents
   const scripts = document.querySelectorAll<HTMLScriptElement>('script:not([src])');
-  for (const script of Array.from(scripts)) {
+  for (const script of scripts) {
     if (ADYEN_API_KEY_PATTERN.test(script.textContent)) {
       return true;
     }
@@ -313,7 +313,6 @@ function detectApiKeyExposure(g: GlobalWithAdyen): boolean {
 
 /** Adyen CDN stylesheet host patterns — rules from these sheets are not overrides. */
 const ADYEN_CDN_HREF_PATTERN = /checkoutshopper[-.]|adyen\.com/i;
-const ADYEN_CHECKOUT_CLASS_PATTERN = /\.adyen-checkout__/;
 
 /**
  * When Adyen Web is loaded via npm, the SDK's own CSS is bundled into a
@@ -336,7 +335,7 @@ function safeGetCssRules(sheet: CSSStyleSheet): CSSRuleList | null {
 /** Counts --adyen-sdk-* custom properties declared in a single style rule. */
 function countAdyenCustomProps(style: CSSStyleDeclaration): number {
   let count = 0;
-  for (const prop of Array.from(style)) {
+  for (const prop of style) {
     if (prop.startsWith('--adyen-sdk-')) count++;
   }
   return count;
@@ -350,9 +349,9 @@ interface StyleAccumulator {
 
 /** Recursively walks CSS rules including nested @media/@supports/@layer blocks. */
 function walkCssRules(rules: CSSRuleList, acc: StyleAccumulator): void {
-  for (const rule of Array.from(rules)) {
+  for (const rule of rules) {
     if (rule instanceof CSSStyleRule) {
-      if (ADYEN_CHECKOUT_CLASS_PATTERN.test(rule.selectorText)) {
+      if (rule.selectorText.includes('.adyen-checkout__')) {
         acc.overrideCount++;
         if (acc.overrideSelectors.length < 5) {
           acc.overrideSelectors.push(rule.selectorText);
@@ -383,7 +382,7 @@ function isAdyenOwnStylesheet(sheet: CSSStyleSheet, rules: CSSRuleList): boolean
 function extractAdyenStyles(): AdyenStyleInfo {
   const acc: StyleAccumulator = { overrideCount: 0, overrideSelectors: [], customPropertyCount: 0 };
 
-  for (const sheet of Array.from(document.styleSheets)) {
+  for (const sheet of document.styleSheets) {
     const rules = safeGetCssRules(sheet);
     if (rules === null) continue;
     if (isAdyenOwnStylesheet(sheet, rules)) continue;

@@ -15,10 +15,7 @@ interface ParsedVersion {
 export function parseVersion(version: string): ParsedVersion | null {
   const match = /^(\d+)\.(\d+)\.(\d+)/.exec(version);
   if (!match) return null;
-  const [, majorText, minorText, patchText] = match;
-  if (majorText === undefined || minorText === undefined || patchText === undefined) {
-    return null;
-  }
+  const [, majorText = '', minorText = '', patchText = ''] = match;
   return {
     major: Number.parseInt(majorText, 10),
     minor: Number.parseInt(minorText, 10),

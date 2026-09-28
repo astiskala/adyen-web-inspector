@@ -1,5 +1,4 @@
 import type { JSX } from 'preact';
-import { useEffect, useState } from 'preact/hooks';
 import { groupIssuesByImpact, type ImpactGroupChecks } from '~shared/export-report';
 import type { CheckResult } from '~shared/types';
 import { getRemediationText, IMPACT_LABELS, isIssue } from '~shared/utils';
@@ -9,7 +8,6 @@ const s = (key: string): string => styles[key] ?? '';
 
 interface Props {
   readonly checks: readonly CheckResult[];
-  readonly expandWarningsByDefault?: boolean;
 }
 
 interface IssueItemProps {
@@ -83,24 +81,10 @@ function byTitle(a: CheckResult, b: CheckResult): number {
 /**
  * Renders issue checks grouped by severity and impact with expandable details.
  */
-export function IssueList({ checks, expandWarningsByDefault = false }: Props): JSX.Element {
+export function IssueList({ checks }: Props): JSX.Element {
   const failures = checks.filter((c) => c.severity === 'fail');
   const warnings = checks.filter((c) => c.severity === 'warn');
-  const notices = checks.filter((c) => c.severity === 'notice').sort(byTitle);
-  const [warningsExpanded, setWarningsExpanded] = useState(expandWarningsByDefault);
-
-  useEffect(() => {
-    if (expandWarningsByDefault) {
-      setWarningsExpanded(true);
-    }
-  }, [expandWarningsByDefault]);
-
-  function handleWarningsToggle(event: Event): void {
-    if (!(event.currentTarget instanceof HTMLDetailsElement)) {
-      return;
-    }
-    setWarningsExpanded(event.currentTarget.open);
-  }
+  const notices = checks.filter((c) => c.severity === 'notice').toSorted(byTitle);
 
   if (failures.length === 0 && warnings.length === 0 && notices.length === 0) {
     return <div class={s('empty')}>No issues detected — everything looks good!</div>;
@@ -125,7 +109,7 @@ export function IssueList({ checks, expandWarningsByDefault = false }: Props): J
         </details>
       )}
       {warnings.length > 0 && (
-        <details class={s('section')} open={warningsExpanded} onToggle={handleWarningsToggle}>
+        <details class={s('section')}>
           <summary class={s('sectionHeader')}>
             <span>Warnings</span>
             <span class={`${s('badge')} ${s('badgeWarn')}`}>{warnings.length}</span>

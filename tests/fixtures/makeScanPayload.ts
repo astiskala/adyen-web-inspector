@@ -7,8 +7,9 @@ import type {
   CapturedHeader,
   CapturedRequest,
   ScanResult,
-  VersionInfo,
 } from '../../src/shared/types';
+
+type VersionInfo = ScanPayload['versionInfo'];
 
 /** Default minimal PageExtractResult with all Adyen-related fields set as safe defaults. */
 export function makePageExtract(overrides: Partial<PageExtractResult> = {}): PageExtractResult {

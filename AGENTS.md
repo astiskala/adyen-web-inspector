@@ -35,7 +35,7 @@ Adyen Web Inspector is a Chrome Manifest V3 extension that analyses adyen-web (D
 
 ### TypeScript
 
-- **Strict mode** is fully enabled: `strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noImplicitOverride`, `noPropertyAccessFromIndexSignature`, `noUnusedLocals`, `noUnusedParameters`, `noFallthroughCasesInSwitch`, `allowUnreachableCode: false`, `allowUnusedLabels: false`.
+- **Strict mode** is fully enabled: `strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noImplicitOverride`, `noPropertyAccessFromIndexSignature`, `noUnusedLocals`, `noUnusedParameters`, `noFallthroughCasesInSwitch`, `allowUnreachableCode: false`, `allowUnusedLabels: false`, `verbatimModuleSyntax`, `isolatedModules`, `erasableSyntaxOnly`, `noUncheckedSideEffectImports`.
 - Use `globalThis` instead of `window`.
 - Use `node:` prefix for Node.js built-ins (e.g. `import {resolve} from 'node:path'`).
 - When a property is `string | undefined` via `exactOptionalPropertyTypes`, use spread to conditionally include it: `...(val === undefined ? {} : {key: val})`.
@@ -44,12 +44,13 @@ Adyen Web Inspector is a Chrome Manifest V3 extension that analyses adyen-web (D
 
 - `jsxImportSource` is set to `preact` in tsconfig — no manual `import {h}` needed.
 - Hooks come from `preact/hooks`.
-- CSS Modules are typed as `{[key: string]: string | undefined}`. Access via a helper: `const s = (key: string) => styles[key] ?? ''`.
+- CSS Modules are typed as `Record<string, string | undefined>`. Access via a helper: `const s = (key: string) => styles[key] ?? ''`.
 - Never use array index as a JSX key — use a stable identifier like `check.id`.
 
 ### Linting (gts / ESLint)
 
 - `--max-warnings=0` enforced on ESLint gate.
+- On top of gts, ESLint applies the typescript-eslint `strict-type-checked` and `stylistic-type-checked` presets and the `unicorn`, `regexp`, and `sonarjs` recommended presets. The few opted-out rules are listed next to each plugin's rules in `eslint.config.js`; scoped overrides cover the config interceptor, the Vite plugin, and tests.
 - `noInlineConfig: true` on source files (tests are excluded — they may use `eslint-disable` and `@ts-expect-error` with description).
 - `@typescript-eslint/ban-ts-comment` blocks `@ts-ignore` and `@ts-nocheck`; `@ts-expect-error` is only allowed in test files with a description.
 - `eslint-plugin-import-x` enforces no import cycles and no duplicate imports.
@@ -61,8 +62,11 @@ Adyen Web Inspector is a Chrome Manifest V3 extension that analyses adyen-web (D
 - No `void` operator — use `.catch(() => {})` for fire-and-forget promises.
 - `Number.parseInt()` over global `parseInt()`.
 - No multiple `Array#push()` calls — use spread: `arr.push(...items)`.
+- `Array#toSorted()` over in-place `Array#sort()`.
+- Export functions as function declarations, not `export const fn = () => …`.
+- Empty functions are allowed only as arrows (for `.catch(() => {})`).
 - Functions used as callbacks should be declared at module scope, not inside component render functions.
-- `knip` enforces no unused exports; remove dead code instead of suppressing.
+- `knip` enforces no unused exports; remove dead code instead of suppressing. `pnpm knip` also runs `knip --production`, which ignores tests, so an export used only by tests is reported as unused.
 - Architecture seams are lint-enforced (see **Key Seams**): checks may not read raw checkout config slots, import CSP parsing primitives (outside `page-policy.ts`), or use `chrome`, `fetch`, `setTimeout`, or `Date.now`; the Scan (`scan-orchestrator.ts`, `scan-assessment.ts`) may not use `chrome`, `fetch`, `setTimeout`, or `Date.now`; popup, DevTools, and the worker may not reference the `'sdk-detected'` check ID.
 - Markdown files are linted with `markdownlint-cli2`; JSDoc descriptions must be complete sentences (`jsdoc/require-description-complete-sentence`).
 
@@ -175,7 +179,7 @@ Check-specific guidance:
 - Framework: Vitest with jsdom
 - Fixtures: `tests/fixtures/makeScanPayload.ts` — use `makeScanPayload()`, `makeAdyenPayload()`, `makePageExtract()`, `makeCheckoutConfig()`, `makeAdyenMetadata()`, `makeRequest()`, `makeHeader()`, `makeScanResult()`.
 - Scan tests: drive `runScan()` through `createFakeScanBrowser()` and `framesOf()` from `tests/fixtures/fakeScanBrowser.ts`; assert on the returned `ScanResult` and the recorded port calls.
-- Coverage threshold: **95% lines/functions/statements and 90% branches** on `src/background/checks/**`, `src/background/scan-{assessment,orchestrator}.ts`, and `src/shared/{checkout-config-schema,scan-evidence,sdk-presence}.ts`.
+- Coverage thresholds are ratcheted per area in `vitest.config.ts`: **100%** on `src/background/scan-{assessment,orchestrator}.ts` and `src/background/{header-collector,npm-registry}.ts`; **98% lines/statements, 100% functions, 95% branches** on `src/background/checks/**`; **98% lines/statements/branches, 100% functions** on `src/shared/{checkout-config-schema,scan-evidence,sdk-presence}.ts`; **95% lines/functions/statements, 88% branches** on `src/shared/**`. The config interceptor, popup, and DevTools panel have regression floors. Raise a floor when coverage improves; never lower one to pass.
 
 ### Integration Tests
 

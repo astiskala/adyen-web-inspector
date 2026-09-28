@@ -75,7 +75,7 @@ describe('useScanLifecycle', () => {
   it('loads a result, starts a scan and reloads after completion', async () => {
     const result = makeResult();
     sendMessage.mockResolvedValue(result);
-    await mount({ source: 'popup', getTabId: async () => 3 });
+    await mount({ getTabId: async () => 3 });
 
     expect(session.result).toEqual(result);
     expect(session.loading).toBe(false);
@@ -84,7 +84,7 @@ describe('useScanLifecycle', () => {
       await Promise.resolve();
       await Promise.resolve();
     });
-    expect(sendMessage).toHaveBeenCalledWith({ type: 'SCAN_REQUEST', tabId: 3, source: 'popup' });
+    expect(sendMessage).toHaveBeenCalledWith({ type: 'SCAN_REQUEST', tabId: 3 });
     expect(session.scanning).toBe(true);
 
     await dispatch({ type: 'SCAN_STARTED', tabId: 12 });
@@ -98,7 +98,7 @@ describe('useScanLifecycle', () => {
 
   it('waits for the popup reset delay before reloading, but clears the prior result at once', async () => {
     sendMessage.mockResolvedValue(makeResult());
-    await mount({ source: 'popup', getTabId: async () => 3, resetDelayMs: 400 });
+    await mount({ getTabId: async () => 3, resetDelayMs: 400 });
     vi.useFakeTimers();
     sendMessage.mockResolvedValue(null);
 
@@ -115,7 +115,7 @@ describe('useScanLifecycle', () => {
 
   it('clears the inspected tab without a reset reload', async () => {
     sendMessage.mockResolvedValue(makeResult());
-    await mount({ source: 'devtools', getTabId: () => 3 });
+    await mount({ getTabId: () => 3 });
 
     await dispatch({ type: 'SCAN_RESET', tabId: 3 });
     expect(session.result).toBeNull();
@@ -124,7 +124,7 @@ describe('useScanLifecycle', () => {
   });
 
   it('cancels a pending popup reset reload when another scan starts', async () => {
-    await mount({ source: 'popup', getTabId: async () => 3, resetDelayMs: 400 });
+    await mount({ getTabId: async () => 3, resetDelayMs: 400 });
     vi.useFakeTimers();
 
     await dispatch({ type: 'SCAN_RESET', tabId: 3 });
@@ -143,7 +143,7 @@ describe('useScanLifecycle', () => {
         resolveResult = resolve;
       })
     );
-    await mount({ source: 'popup', getTabId: async () => 3, resetDelayMs: 400 });
+    await mount({ getTabId: async () => 3, resetDelayMs: 400 });
     await dispatch({ type: 'SCAN_RESET', tabId: 3 });
 
     expect(resolveResult).toBeDefined();
@@ -155,7 +155,7 @@ describe('useScanLifecycle', () => {
   });
 
   it('uses the inspected tab adapter, ignores other tabs and preserves scan errors', async () => {
-    await mount({ source: 'devtools', getTabId: () => 4 });
+    await mount({ getTabId: () => 4 });
     await dispatch({ type: 'SCAN_STARTED', tabId: 3 });
     expect(session.scanning).toBe(false);
     await dispatch({ type: 'SCAN_STARTED', tabId: 4 });
@@ -166,7 +166,7 @@ describe('useScanLifecycle', () => {
   });
 
   it('surfaces request errors and cleans up the listener on unmount', async () => {
-    await mount({ source: 'devtools', getTabId: () => 4 });
+    await mount({ getTabId: () => 4 });
     sendMessage.mockRejectedValueOnce(new Error('Extension context invalidated'));
     await act(async () => {
       session.scan();

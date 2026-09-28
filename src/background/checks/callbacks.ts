@@ -2,7 +2,7 @@
  * Category 5 — Integration Flow & Callback checks.
  */
 
-import type { CheckoutConfig, ScanPayload, Severity } from '../../shared/types.js';
+import type { CheckoutConfig, ScanPayload } from '../../shared/types.js';
 import { CALLBACK_SOURCE_LIMIT, type CALLBACK_KEYS } from '../../shared/checkout-config-schema.js';
 import {
   collectIntegrationFlowSignals,
@@ -22,7 +22,7 @@ import {
   detectsMultipleSubmissions,
 } from './callback-source.js';
 import { SKIP_REASONS } from './constants.js';
-import { createRegistry, type CheckContext } from './registry.js';
+import { createRegistry, type CheckContext, type CheckOutcome } from './registry.js';
 
 const CATEGORY = 'callbacks' as const;
 const FLOW_DOCS = {
@@ -46,15 +46,6 @@ const FLOW_DOCS = {
 
 type CallbackKey = (typeof CALLBACK_KEYS)[number];
 type CallbackSourceKey = 'onSubmitSource' | 'beforeSubmitSource';
-
-/** Simplified outcome for internal helpers. */
-interface CheckOutcome {
-  readonly severity: Severity;
-  readonly title: string;
-  readonly detail?: string;
-  readonly remediation?: string;
-  readonly docsUrl?: string;
-}
 
 const UNSUPPORTED_CUSTOM_BUTTON_METHODS = ['paypal', 'klarna', 'clicktopay'];
 
@@ -381,7 +372,7 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
       );
     }
 
-    if (!/actions\.(resolve|reject)\(/.test(onSubmitSource)) {
+    if (!/actions\.(?:resolve|reject)\(/.test(onSubmitSource)) {
       return info('Could not determine onSubmit fallback coverage from callback source.');
     }
 
@@ -528,11 +519,11 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
       return skip(STRINGS.ACTIONS_PATTERN_SKIP_TITLE, STRINGS.NO_SOURCE_SKIP_REASON);
     }
 
-    if (/actions\.(resolve|reject)\(/.test(onSubmitSource)) {
+    if (/actions\.(?:resolve|reject)\(/.test(onSubmitSource)) {
       return pass(STRINGS.ACTIONS_PATTERN_PASS_TITLE);
     }
 
-    if (/component\.(setStatus|handleAction)\(/.test(onSubmitSource)) {
+    if (/component\.(?:setStatus|handleAction)\(/.test(onSubmitSource)) {
       return warn(
         STRINGS.ACTIONS_PATTERN_WARN_TITLE,
         STRINGS.ACTIONS_PATTERN_WARN_DETAIL,

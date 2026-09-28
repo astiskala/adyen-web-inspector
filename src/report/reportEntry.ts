@@ -44,8 +44,8 @@ function renderReportHtml(html: string): void {
   const parsed = new DOMParser().parseFromString(html, 'text/html');
   document.title = parsed.title;
   document.documentElement.lang = parsed.documentElement.lang || 'en';
-  document.head.replaceChildren(...Array.from(parsed.head.childNodes));
-  document.body.replaceChildren(...Array.from(parsed.body.childNodes));
+  document.head.replaceChildren(...parsed.head.childNodes);
+  document.body.replaceChildren(...parsed.body.childNodes);
 }
 
 function triggerPrint(): void {

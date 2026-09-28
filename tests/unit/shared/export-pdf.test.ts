@@ -1,14 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   buildPrintableHtml,
-  buildPdfReportUrl,
   exportPdf,
   getPdfReportStorageKey,
   PDF_REPORT_TOKEN_PARAM,
 } from '../../../src/shared/export-pdf';
 import type { PrintableReportMetadata } from '../../../src/shared/export-pdf';
 import type { CheckResult, ScanResult } from '../../../src/shared/types';
-import { makeScanPayload } from '../../fixtures/makeScanPayload';
+import { makePageExtract, makeScanPayload } from '../../fixtures/makeScanPayload';
 
 interface MockChrome {
   runtime: {
@@ -85,18 +84,6 @@ afterEach(() => {
 describe('PDF export handoff', () => {
   const token = '00000000-0000-0000-0000-000000000000';
 
-  it('builds the report URL with the expected token parameter', () => {
-    const chromeMock = makeChromeMock();
-    stubChrome(chromeMock);
-
-    const url = new URL(buildPdfReportUrl(token));
-
-    expect(url.protocol).toBe('chrome-extension:');
-    expect(url.host).toBe('test-id');
-    expect(url.pathname).toBe('/report/report.html');
-    expect(url.searchParams.get(PDF_REPORT_TOKEN_PARAM)).toBe(token);
-  });
-
   it('stores the result and opens the report page in a new tab', async () => {
     const chromeMock = makeChromeMock();
     stubChrome(chromeMock);
@@ -109,7 +96,7 @@ describe('PDF export handoff', () => {
       [getPdfReportStorageKey(token)]: result,
     });
     expect(chromeMock.tabs.create).toHaveBeenCalledWith({
-      url: `chrome-extension://test-id/report/report.html?token=${token}`,
+      url: `chrome-extension://test-id/report/report.html?${PDF_REPORT_TOKEN_PARAM}=${token}`,
     });
   });
 
@@ -173,9 +160,7 @@ describe('buildPrintableHtml', () => {
     const html = buildPrintableHtml(result, metadata);
     const doc = new DOMParser().parseFromString(html, 'text/html');
 
-    const headings = Array.from(doc.querySelectorAll('h2')).map((heading) =>
-      heading.textContent.trim()
-    );
+    const headings = [...doc.querySelectorAll('h2')].map((heading) => heading.textContent.trim());
     expect(headings).toEqual([
       'Implementation Attributes',
       'Best Practices',
@@ -194,12 +179,63 @@ describe('buildPrintableHtml', () => {
     expect(doc.body.textContent).toContain('Checkout page is not served over HTTPS.');
   });
 
+  it('renders unmet criteria, captured traffic, extracted config and empty sections', () => {
+    const result: ScanResult = {
+      ...makeResult(),
+      health: { score: 0, passing: 0, failing: 1, warnings: 0, total: 1, tier: 'critical' },
+      standardCompliance: { compliant: false, reasons: ['Not using Drop-in.'] },
+      checks: [
+        makeCheck({
+          id: 'security-https',
+          category: 'security',
+          severity: 'fail',
+          title: 'Checkout page is not served over HTTPS.',
+          detail: 'Page protocol is "http:".',
+        }),
+      ],
+      payload: makeScanPayload({
+        capturedRequests: [
+          {
+            url: 'https://checkoutshopper-live.adyen.com/checkoutshopper/v1/sessions',
+            type: 'other',
+            responseHeaders: [],
+            statusCode: 0,
+          },
+        ],
+        page: makePageExtract({
+          checkoutConfig: { clientKey: 'live_CLIENTKEY', environment: 'live' },
+          componentConfig: { countryCode: 'NL' },
+        }),
+      }),
+    };
+
+    const doc = new DOMParser().parseFromString(buildPrintableHtml(result, metadata), 'text/html');
+    const text = doc.body.textContent;
+
+    expect(text).toContain('Standard Drop-in criteria not met');
+    expect(text).toContain('Not using Drop-in.');
+    expect(text).toContain('Page protocol is "http:".');
+    expect(text).toContain('Region');
+    expect(text).toContain('No best-practice issues identified.');
+    expect(text).toContain('No successful security checks recorded.');
+    expect(text).toContain('No checks were skipped.');
+    expect(text).toContain('checkoutshopper-live.adyen.com/checkoutshopper/v1/sessions');
+    expect(text).toContain('live_CLIENTKEY');
+    expect(text).toContain('No inferred config captured.');
+    expect(
+      [...doc.querySelectorAll('.docs-link')].map((link) => link.getAttribute('href'))
+    ).toEqual([
+      'https://docs.adyen.com/standard',
+      'https://docs.adyen.com/online-payments/web-best-practices/',
+    ]);
+  });
+
   it('includes inspected URL, extension version, and browser details', () => {
     const result = makeResult();
     const html = buildPrintableHtml(result, metadata);
     const doc = new DOMParser().parseFromString(html, 'text/html');
     const bodyText = doc.body.textContent;
-    const bodyChildren = Array.from(doc.body.children);
+    const bodyChildren = [...doc.body.children];
 
     expect(bodyText).toContain('Inspected URL');
     expect(bodyText).toContain('https://example.com/checkout');

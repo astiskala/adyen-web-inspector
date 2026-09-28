@@ -15,7 +15,6 @@
     "build": "vite build",
     "clean": "rm -rf dist coverage test-results playwright-report tsconfig.tsbuildinfo",
     "icons:generate": "./scripts/generate-icons.sh",
-    "store-assets:generate": "./scripts/generate-store-assets.sh",
     "package:chrome": "./scripts/package-chrome.sh",
     "typecheck": "tsc --noEmit",
     "lint": "pnpm lint:code && pnpm lint:gha && pnpm lint:md",
@@ -33,7 +32,7 @@
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:e2e": "pnpm build && playwright test",
     "depcruise": "depcruise src --config .dependency-cruiser.cjs",
-    "knip": "knip",
+    "knip": "knip && knip --production",
     "validate": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm depcruise && pnpm knip && pnpm test:coverage && pnpm test:integration",
     "prepare": "husky"
   },

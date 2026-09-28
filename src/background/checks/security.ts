@@ -90,6 +90,13 @@ const STRINGS = {
 
 const CATEGORY = 'security' as const;
 
+const ACCEPTED_REFERRER_POLICIES: ReadonlySet<string> = new Set([
+  'strict-origin-when-cross-origin',
+  'no-referrer',
+  'same-origin',
+]);
+const DISABLED_XSS_PROTECTION_VALUES: ReadonlySet<string | null> = new Set([null, '', '0']);
+
 interface SriAttributableResource {
   readonly integrity?: string;
   readonly crossorigin?: string;
@@ -179,12 +186,7 @@ export const SECURITY_CHECKS = createRegistry(CATEGORY)
         return skip('Referrer-Policy check skipped.', SKIP_REASONS.HEADERS_UNAVAILABLE);
       }
       const value = getHeader(payload, 'Referrer-Policy');
-      const recommended = 'strict-origin-when-cross-origin';
-      if (
-        value !== null &&
-        value !== '' &&
-        (value === recommended || value === 'no-referrer' || value === 'same-origin')
-      ) {
+      if (value !== null && ACCEPTED_REFERRER_POLICIES.has(value)) {
         return pass(`Referrer-Policy is set to "${value}".`);
       }
       return notice(
@@ -224,7 +226,7 @@ export const SECURITY_CHECKS = createRegistry(CATEGORY)
         return skip('X-XSS-Protection check skipped.', SKIP_REASONS.HEADERS_UNAVAILABLE);
       }
       const value = getHeader(payload, 'X-XSS-Protection');
-      if (value === null || value === '' || value === '0') {
+      if (DISABLED_XSS_PROTECTION_VALUES.has(value)) {
         return pass(STRINGS.XSS_PASS_TITLE);
       }
       return notice(
@@ -260,7 +262,7 @@ export const SECURITY_CHECKS = createRegistry(CATEGORY)
     const { iframes } = payload.page;
     const adyenIframes = iframes.filter(
       (f: IframeInfo) =>
-        f.src !== undefined && f.src !== '' && /\.(adyen\.com|adyenpayments\.com)/.test(f.src)
+        f.src !== undefined && f.src !== '' && /\.(?:adyen\.com|adyenpayments\.com)/.test(f.src)
     );
     if (adyenIframes.length === 0) return info(STRINGS.IFRAME_RP_NO_ADYEN_INFO_TITLE);
 

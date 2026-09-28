@@ -5,10 +5,10 @@
 import type { CapturedHeader, CapturedRequest } from '../shared/types.js';
 import { extractHostname, parseVersion } from '../shared/utils.js';
 
-const SCRIPT_FETCH_TIMEOUT_MS = 2_500;
+const SCRIPT_FETCH_TIMEOUT_MS = 2500;
 const SCRIPT_FETCH_LIMIT = 4;
 const SCRIPT_TEXT_SCAN_LIMIT = 1_500_000;
-const HEADER_PROBE_TIMEOUT_MS = 5_000;
+const HEADER_PROBE_TIMEOUT_MS = 5000;
 
 /** Patterns to extract a semver version from Adyen CDN URLs. */
 const CDN_VERSION_PATTERNS = [/checkoutshopper-sdk[./](\d+\.\d+\.\d+)/, /\/sdk\/(\d+\.\d+\.\d+)\//];
@@ -41,9 +41,9 @@ async function fetchHeaders(url: string, method: 'HEAD' | 'GET'): Promise<Captur
     });
 
     const headers: CapturedHeader[] = [];
-    response.headers.forEach((value, name) => {
+    for (const [name, value] of response.headers.entries()) {
       headers.push({ name, value });
-    });
+    }
     return headers;
   } catch {
     return [];
@@ -68,7 +68,7 @@ export async function extractVersionFromBundles(
   const sameHostScripts = scriptUrls
     .map((url) => ({ url, host: extractHostname(url), score: getScriptPriority(url) }))
     .filter((item) => item.host === pageHost)
-    .sort((a, b) => b.score - a.score)
+    .toSorted((a, b) => b.score - a.score)
     .map((item) => item.url);
 
   const uniqueScripts = [...new Set(sameHostScripts)].slice(0, SCRIPT_FETCH_LIMIT);

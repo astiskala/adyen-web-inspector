@@ -38,11 +38,21 @@ async function loadInterceptor(): Promise<void> {
 
   // Create a proper XHR mock
   const openMock = vi.fn();
-  // @ts-expect-error - mock XHR
-  globalThis.XMLHttpRequest = function (): void {};
+  globalThis.XMLHttpRequest = vi.fn() as unknown as typeof XMLHttpRequest;
   globalThis.XMLHttpRequest.prototype.open = openMock;
 
   await import('../../../src/content/config-interceptor.js');
+}
+
+class Card {
+  readonly options: unknown;
+  constructor(_checkout: unknown, options: unknown) {
+    this.options = options;
+  }
+}
+
+function Dropin(_checkout: unknown, options: unknown): { options: unknown } {
+  return { options };
 }
 
 function installAdyenCheckoutFactory(factory: CheckoutFactory): void {
@@ -191,6 +201,38 @@ describe('config-interceptor', () => {
     });
   });
 
+  describe('AdyenWeb namespace', () => {
+    it('wraps the checkout factory and component constructors it exposes', async () => {
+      const g = globalThis as unknown as Record<string, unknown>;
+      g['AdyenWeb'] = {
+        AdyenCheckout: async (): Promise<unknown> => ({
+          create: (): void => {},
+          options: { clientKey: 'test_NS' },
+        }),
+        Card,
+        Dropin,
+        version: '6.31.0',
+      };
+      const namespace = g['AdyenWeb'] as Record<string, unknown>;
+
+      await (namespace['AdyenCheckout'] as CheckoutFactory)({ countryCode: 'NL' });
+      const card = new (namespace['Card'] as typeof Card)({}, { locale: 'nl-NL' });
+      const dropin = (namespace['Dropin'] as typeof Dropin)({}, { onSubmit: (): void => {} });
+
+      expect(card).toBeInstanceOf(Card);
+      expect(card.options).toEqual({ locale: 'nl-NL' });
+      expect(dropin.options).toHaveProperty('onSubmit');
+      expect(namespace['Card']).not.toBe(Card);
+      expect(namespace['version']).toBe('6.31.0');
+      expect(getCapturedConfig()).toMatchObject({
+        countryCode: 'NL',
+        clientKey: 'test_NS',
+        locale: 'nl-NL',
+        onSubmit: 'component',
+      });
+    });
+  });
+
   describe('Network interception', () => {
     it('captures environment from fetch URL (live)', async () => {
       await globalThis.fetch(
@@ -250,7 +292,7 @@ describe('config-interceptor', () => {
 
   describe('JSON.parse interception', () => {
     it('keeps parsed bootstrap fields separate from directly captured checkout options', async () => {
-      JSON.parse(JSON.stringify({ countryCode: 'NL' }));
+      JSON.parse('{"countryCode":"NL"}');
       installAdyenCheckoutFactory(async () => ({
         create: (): void => {},
         options: { clientKey: 'test_DIRECT' },

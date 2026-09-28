@@ -4,9 +4,6 @@
 
 import type { CheckImpact, CheckResult, Severity } from './types.js';
 
-export const ADYEN_WEB_BEST_PRACTICES_DOC =
-  'https://docs.adyen.com/online-payments/web-best-practices/';
-
 /** Impact buckets in priority order, used to group and sort issues. */
 export const ISSUE_IMPACT_ORDER: readonly CheckImpact[] = ['high', 'medium', 'low', 'manual'];
 
@@ -18,9 +15,11 @@ export const IMPACT_LABELS: Readonly<Record<CheckImpact, string>> = {
   manual: 'Manual verification',
 };
 
+const ISSUE_SEVERITIES: ReadonlySet<Severity> = new Set(['fail', 'warn', 'notice']);
+
 /** Returns true when a check result is an issue (fail, warn, or notice). */
 export function isIssue(check: CheckResult): boolean {
-  return check.severity === 'fail' || check.severity === 'warn' || check.severity === 'notice';
+  return ISSUE_SEVERITIES.has(check.severity);
 }
 
 /**
@@ -54,21 +53,6 @@ export function getImpactLabel(check: CheckResult): string {
   return 'Informational';
 }
 
-/**
- * Returns the best docs URL for a check result.
- * When preferAdyenDocs is true, explicit check docs are preserved and checks
- * without docs fall back to the general Adyen best-practices page.
- */
-export function getRecommendedDocsUrl(check: CheckResult, preferAdyenDocs: boolean): string | null {
-  if (check.docsUrl !== undefined) {
-    return check.docsUrl;
-  }
-  if (preferAdyenDocs) {
-    return ADYEN_WEB_BEST_PRACTICES_DOC;
-  }
-  return null;
-}
-
 function formatFriendlyRemediation(text: string): string {
   if (text.startsWith('AdyenCheckout(')) {
     return `Update your AdyenCheckout configuration. Example: ${text}`;
@@ -76,7 +60,7 @@ function formatFriendlyRemediation(text: string): string {
   if (text.startsWith('Content-Security-Policy:')) {
     return `Update your Content-Security-Policy header on the checkout response. Example: ${text}`;
   }
-  if (/^[A-Za-z-]+:\s+/.test(text)) {
+  if (/^[A-Z-]+:\s+/i.test(text)) {
     return `Set this response header on the checkout page: ${text}`;
   }
   if (text.startsWith('<script') || text.startsWith('<link') || text.startsWith('<iframe')) {

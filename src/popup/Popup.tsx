@@ -4,7 +4,7 @@ import './popup.css';
 
 document.body.classList.add('popup-body');
 
-const root = document.getElementById('root');
+const root = document.querySelector('#root');
 if (root) {
   render(<Popup />, root);
 }
