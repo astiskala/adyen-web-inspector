@@ -68,11 +68,15 @@ function extractInferredConfig(g: GlobalWithAdyen): CheckoutConfig | null {
 
 function extractScripts(): ScriptTag[] {
   return Array.from(document.querySelectorAll<HTMLScriptElement>('script[src]')).map((s) => {
-    const tag: { src: string; integrity?: string; crossorigin?: string } = { src: s.src };
+    const tag: { src: string; integrity?: string; crossorigin?: string; blockingMode?: string } = {
+      src: s.src,
+    };
     const integrity = s.getAttribute('integrity');
     const crossorigin = s.getAttribute('crossorigin');
+    const blockingMode = s.getAttribute('data-blockingmode');
     if (integrity !== null && integrity !== '') tag.integrity = integrity;
     if (crossorigin !== null && crossorigin !== '') tag.crossorigin = crossorigin;
+    if (blockingMode !== null && blockingMode !== '') tag.blockingMode = blockingMode;
     return tag;
   });
 }
@@ -93,6 +97,10 @@ function extractLinks(): LinkTag[] {
 
 function hasDropinDOM(): boolean {
   return document.querySelector('.adyen-checkout__dropin') !== null;
+}
+
+function hasCardDOM(): boolean {
+  return document.querySelector('.adyen-checkout__card') !== null;
 }
 
 function extractIframes(): IframeInfo[] {
@@ -414,6 +422,7 @@ function extract(): PageExtractResult {
       : {}),
     ...(mountCount > 0 ? { componentMountCount: mountCount } : {}),
     ...(hasDropinDOM() ? { hasDropinDOM: true } : {}),
+    ...(hasCardDOM() ? { hasCardDOM: true } : {}),
     ...(apiKeyDetected ? { apiKeyDetected: true } : {}),
     adyenStyles: extractAdyenStyles(),
     isInsideIframe: globalThis.self !== globalThis.top,

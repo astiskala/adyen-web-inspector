@@ -9,6 +9,7 @@ import {
   SESSION_REPLAY_PATTERNS,
   TAG_MANAGER_PATTERNS,
 } from '../../shared/constants.js';
+import { extractHostname } from '../../shared/utils.js';
 import { COMMON_DETAILS } from './constants.js';
 import { createRegistry, type CheckContext } from './registry.js';
 
@@ -155,6 +156,26 @@ export const THIRD_PARTY_CHECKS = createRegistry(CATEGORY)
       `Without Subresource Integrity (SRI), third-party scripts can be altered by upstream compromises without browser detection. PCI DSS requirement 6.4.3 requires a method to assure the integrity of each script on the payment page. ${COMMON_DETAILS.PCI_COMPLIANCE_NOTICE}`,
       'Add integrity and crossorigin attributes to each third-party script tag on the payment page.',
       ADYEN_PCI_SCRIPT_SECURITY_DOC
+    );
+  })
+  .add('3p-cookiebot-auto-blocking', (payload, { skip, pass, warn }) => {
+    const { page } = payload;
+    if (page.hasCardDOM !== true && page.hasDropinDOM !== true) {
+      return skip('Cookiebot card-field check skipped.', 'No mounted Card or Drop-in detected.');
+    }
+
+    const isAutoBlocking = page.scripts.some(
+      (script) =>
+        script.blockingMode?.trim().toLowerCase() === 'auto' &&
+        extractHostname(script.src)?.toLowerCase() === 'consent.cookiebot.com'
+    );
+    if (!isAutoBlocking) return pass('No Cookiebot auto-blocking script tag detected.');
+
+    return warn(
+      'Cookiebot automatic blocking may prevent Adyen card fields from loading.',
+      'Automatic blocking can prevent card fields inside Adyen-managed iframes from loading until the shopper gives consent.',
+      'Remove data-blockingmode="auto" from the Cookiebot script tag on the checkout page so the card fields can load regardless of cookie consent.',
+      'https://docs.adyen.com/online-payments/web-best-practices/#prevent-cookiebot-from-blocking-card-fields'
     );
   })
   .getChecks();

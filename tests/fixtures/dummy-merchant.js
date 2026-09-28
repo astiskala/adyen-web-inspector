@@ -143,6 +143,11 @@ async function runScenario() {
       'https://checkoutshopper-test.cdn.adyen.com/checkoutshopper/sdk/6.31.0/adyen.js'
     );
     await globalThis.fetch('https://checkout-live.adyen.com/v71/paymentMethods');
+  } else if (scenario === 'india-live-http') {
+    await mountCheckout(
+      { ...baseConfig, environment: 'live-in', clientKey: 'live_dummy' },
+      'dropin'
+    );
   } else if (scenario === 'regional-cdn') {
     await mountCheckout({ ...baseConfig, environment: 'live-us', clientKey: 'live_dummy' }, 'card');
     await loadExternalScript(
@@ -232,6 +237,12 @@ async function runScenario() {
       'https://connect.facebook.net/en_US/fbevents.js',
     ];
     await Promise.all(urls.map(loadExternalScript));
+  } else if (scenario === 'cookiebot-auto-card') {
+    await mountCheckout(baseConfig, 'card');
+    const script = globalThis.document.createElement('script');
+    script.src = 'https://consent.cookiebot.com/uc.js';
+    script.setAttribute('data-blockingmode', 'auto');
+    globalThis.document.head.append(script);
   } else if (scenario === 'inferred-only') {
     globalThis.JSON.parse('{"environment":"test","countryCode":"NL"}');
   } else if (scenario === 'advanced-actions') {

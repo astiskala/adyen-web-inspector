@@ -82,6 +82,34 @@ describe('selectPageExtractResult', () => {
     expect(result.isInsideIframe).toBe(false);
   });
 
+  it('reports an embedded checkout even when the top frame scores higher', () => {
+    const top = makeFrame(0, makePageExtract({ checkoutConfig: makeCheckoutConfig() }));
+    const child = makeFrame(
+      4,
+      makePageExtract({ hasDropinDOM: true, pageUrl: 'https://merchant.example/embedded' })
+    );
+
+    const result = selectPageExtractResult([top, child], 1);
+
+    expect(result.pageUrl).toBe(top.result?.pageUrl);
+    expect(result.isInsideIframe).toBe(true);
+  });
+
+  it('does not confuse hosted card fields with a merchant checkout iframe', () => {
+    const top = makeFrame(0, makePageExtract({ checkoutConfig: makeCheckoutConfig() }));
+    const cardField = makeFrame(
+      4,
+      makePageExtract({
+        hasCardDOM: true,
+        pageUrl: 'https://checkoutshopper-test.adyenpayments.com/card.html',
+      })
+    );
+
+    const result = selectPageExtractResult([top, cardField], 1);
+    expect(result.isInsideIframe).toBe(false);
+    expect(result.hasCardDOM).toBeUndefined();
+  });
+
   it('throws when no frame returned an extraction result', () => {
     expect(() => selectPageExtractResult([makeFrame(0)], 9)).toThrow(
       'Page extraction returned no frame results for tab 9'

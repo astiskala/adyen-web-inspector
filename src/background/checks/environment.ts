@@ -36,10 +36,11 @@ const STRINGS = {
 
   IFRAME_WARN_TITLE: 'Checkout appears to be rendered inside an <iframe>.',
   IFRAME_WARN_DETAIL:
-    'Embedding checkout in an iframe may cause issues with redirects, cookies, and payment methods that require navigation to another domain.',
+    'Redirect payment flows can fail when checkout runs in an iframe on a different domain from its parent: the frame cannot redirect the top-level page. Embedding checkout can also affect cookies and other payment methods.',
   IFRAME_WARN_REMEDIATION:
-    'Render Drop-in or Components directly in the top-level page. If an iframe is unavoidable, host it on the same domain as the parent page.',
-  IFRAME_WARN_URL: 'https://docs.adyen.com/online-payments/web-best-practices/#iframe',
+    'Render Drop-in or Components in the top-level page for redirect-based payment methods and 3DS. If an iframe is unavoidable, host it on the same domain as its parent. For Drop-in, set redirectFromTopWhenInIframe to true if redirects should navigate the top-level window, and test the return flow.',
+  IFRAME_WARN_URL:
+    'https://docs.adyen.com/online-payments/web-best-practices/#avoid-iframe-elements',
   IFRAME_PASS_TITLE: 'Checkout is not embedded inside an iframe.',
 
   REGION_MISMATCH_WARN_TITLE: 'CDN region does not match configured region.',

@@ -7,6 +7,7 @@ const tagManager = requireCheck(THIRD_PARTY_CHECKS, '3p-tag-manager');
 const sessionReplay = requireCheck(THIRD_PARTY_CHECKS, '3p-session-replay');
 const adPixels = requireCheck(THIRD_PARTY_CHECKS, '3p-ad-pixels');
 const noSri = requireCheck(THIRD_PARTY_CHECKS, '3p-no-sri');
+const cookiebotAutoBlocking = requireCheck(THIRD_PARTY_CHECKS, '3p-cookiebot-auto-blocking');
 
 function makeScriptPage(srcs: string[]): ReturnType<typeof makePageExtract> {
   return makePageExtract({
@@ -129,5 +130,63 @@ describe('3p-no-sri', () => {
       }),
     });
     expect(noSri.run(payload).severity).toBe('pass');
+  });
+});
+
+describe('3p-cookiebot-auto-blocking', () => {
+  const autoScript = { src: 'https://consent.cookiebot.com/uc.js', blockingMode: 'auto' };
+
+  it('warns when Cookiebot automatic blocking could affect Card fields', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({ hasCardDOM: true, scripts: [autoScript] }),
+    });
+    const result = cookiebotAutoBlocking.run(payload);
+    expect(result.severity).toBe('warn');
+    expect(result.detail).toContain('card fields');
+    expect(result.remediation).toContain('data-blockingmode="auto"');
+    expect(result.docsUrl).toBe(
+      'https://docs.adyen.com/online-payments/web-best-practices/#prevent-cookiebot-from-blocking-card-fields'
+    );
+  });
+
+  it('warns when Drop-in is present before a card is selected', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({ hasDropinDOM: true, scripts: [autoScript] }),
+    });
+    expect(cookiebotAutoBlocking.run(payload).severity).toBe('warn');
+  });
+
+  it('skips when neither Card nor Drop-in is mounted', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({ adyenMetadata: { version: '6.31.0' }, scripts: [autoScript] }),
+    });
+    expect(cookiebotAutoBlocking.run(payload).severity).toBe('skip');
+  });
+
+  it('passes for Cookiebot without automatic blocking', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({
+        hasCardDOM: true,
+        scripts: [{ src: autoScript.src }],
+      }),
+    });
+    expect(cookiebotAutoBlocking.run(payload).severity).toBe('pass');
+  });
+
+  it('passes for a script on an unrelated host even when configured to block automatically', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({
+        hasCardDOM: true,
+        scripts: [
+          { src: 'https://consent.cookiebot.com.evil.example/uc.js', blockingMode: 'auto' },
+        ],
+      }),
+    });
+    expect(cookiebotAutoBlocking.run(payload).severity).toBe('pass');
+  });
+
+  it('passes when no scripts are present', () => {
+    const payload = makeScanPayload({ page: makePageExtract({ hasDropinDOM: true }) });
+    expect(cookiebotAutoBlocking.run(payload).severity).toBe('pass');
   });
 });

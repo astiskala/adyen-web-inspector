@@ -182,11 +182,18 @@ describe('env-not-iframe', () => {
     expect(envNotIframe.run(payload).severity).toBe('pass');
   });
 
-  it('warns when page is inside iframe', () => {
+  it('warns when page is inside iframe with actionable redirect guidance', () => {
     const payload = makeScanPayload({
       page: makePageExtract({ isInsideIframe: true }),
     });
-    expect(envNotIframe.run(payload).severity).toBe('warn');
+    const result = envNotIframe.run(payload);
+    expect(result.severity).toBe('warn');
+    expect(result.detail).toContain('redirect');
+    expect(result.detail).toContain('different domain');
+    expect(result.remediation).toContain('redirectFromTopWhenInIframe');
+    expect(result.docsUrl).toBe(
+      'https://docs.adyen.com/online-payments/web-best-practices/#avoid-iframe-elements'
+    );
   });
 });
 

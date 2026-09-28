@@ -40,6 +40,19 @@ describe('Security Checks', () => {
       expect(securityHttps.run(makeScanPayload({ page })).severity).toBe('fail');
     });
 
+    it('fails when India live environment is served over http', () => {
+      const page = makePageExtract({
+        pageProtocol: 'http:',
+        checkoutConfig: makeCheckoutConfig({ environment: 'live-in', clientKey: 'live_XXXX' }),
+      });
+      expect(securityHttps.run(makeScanPayload({ page })).severity).toBe('fail');
+    });
+
+    it('passes when India live environment is served over https', () => {
+      const payload = makeAdyenPayload({}, { environment: 'live-in', clientKey: 'live_XXXX' });
+      expect(securityHttps.run(payload).severity).toBe('pass');
+    });
+
     it('skips when test environment', () => {
       const payload = makeScanPayload({
         page: makePageExtract({ pageProtocol: 'http:', pageUrl: 'http://example.com' }),
@@ -227,6 +240,20 @@ describe('Security Checks', () => {
         {
           mainDocumentHeaders: [makeHeader('strict-transport-security', 'max-age=31536000')],
         }
+      );
+      expect(hsts.run(payload).severity).toBe('pass');
+    });
+
+    it('returns notice when missing on India live', () => {
+      const payload = makeAdyenPayload({}, { clientKey: 'live_XXXX', environment: 'live-in' });
+      expect(hsts.run(payload).severity).toBe('notice');
+    });
+
+    it('passes when present on India live', () => {
+      const payload = makeAdyenPayload(
+        {},
+        { clientKey: 'live_XXXX', environment: 'live-in' },
+        { mainDocumentHeaders: [makeHeader('strict-transport-security', 'max-age=31536000')] }
       );
       expect(hsts.run(payload).severity).toBe('pass');
     });

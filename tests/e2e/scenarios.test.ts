@@ -42,6 +42,7 @@ test('Sessions Drop-in exposes configuration and meets frontend criteria', async
   expect(check(result, 'callback-on-payment-failed')?.severity).toBe('pass');
   expect(check(result, 'callback-before-submit')?.severity).toBe('info');
   expect(check(result, 'risk-df-iframe')?.severity).toBe('pass');
+  expect(check(result, '3p-cookiebot-auto-blocking')?.severity).toBe('pass');
   expect(check(result, 'security-csp-present')?.severity).toBe('warn');
   expect(check(result, 'security-api-key-exposed')?.severity).toBe('pass');
   expect(result.standardCompliance.compliant).toBe(true);
@@ -95,6 +96,21 @@ test('Live config with test key and test CDN flags independent environment and s
   expect(result.health.tier).toBe('critical');
 });
 
+test('India live checkout on HTTP is subject to HTTPS and HSTS checks', async ({
+  context,
+  extensionId,
+}) => {
+  const result = await scanFixture(
+    context,
+    extensionId,
+    'dummy-merchant.html?scenario=india-live-http'
+  );
+
+  expect(result.payload.page.checkoutConfig?.environment).toBe('live-in');
+  expect(check(result, 'security-https')?.severity).toBe('fail');
+  expect(check(result, 'security-hsts')?.severity).toBe('notice');
+});
+
 test('Loaded SDK without a mounted checkout does not imply checkout activity', async ({
   context,
   extensionId,
@@ -134,6 +150,7 @@ test('Checkout inside a merchant iframe keeps frame config and warns about embed
   expect(result.payload.page.checkoutConfig?.hasSession).toBe(true);
   expect(result.payload.page.pageUrl).toContain('scenario=sessions-dropin');
   expect(check(result, 'env-not-iframe')?.severity).toBe('warn');
+  expect(check(result, 'env-not-iframe')?.remediation).toContain('redirectFromTopWhenInIframe');
   expect(check(result, 'sdk-detected')?.severity).toBe('info');
   expect(result.standardCompliance.compliant).toBe(true);
 });
@@ -206,6 +223,26 @@ test('Known third-party scripts on checkout produce inventory and replay finding
   expect(check(result, '3p-session-replay')?.severity).toBe('warn');
   expect(check(result, '3p-ad-pixels')?.severity).toBe('warn');
   expect(check(result, '3p-no-sri')?.severity).toBe('notice');
+});
+
+test('Cookiebot auto-blocking on a Card checkout warns about inaccessible card fields', async ({
+  context,
+  extensionId,
+}) => {
+  const result = await scanFixture(
+    context,
+    extensionId,
+    'dummy-merchant.html?scenario=cookiebot-auto-card'
+  );
+
+  expect(result.payload.page.hasCardDOM).toBe(true);
+  expect(result.payload.page.scripts).toContainEqual(
+    expect.objectContaining({
+      src: 'https://consent.cookiebot.com/uc.js',
+      blockingMode: 'auto',
+    })
+  );
+  expect(check(result, '3p-cookiebot-auto-blocking')?.severity).toBe('warn');
 });
 
 test('Inferred-only checkout fields never count as verified checkout options', async ({

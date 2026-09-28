@@ -78,6 +78,7 @@ export type CheckId =
   | '3p-session-replay'
   | '3p-ad-pixels'
   | '3p-no-sri'
+  | '3p-cookiebot-auto-blocking'
   // API Key Exposure
   | 'security-api-key-exposed'
   // Styling
@@ -148,6 +149,7 @@ export interface ScriptTag {
   readonly src: string;
   readonly integrity?: string;
   readonly crossorigin?: string;
+  readonly blockingMode?: string;
 }
 
 export interface LinkTag {
@@ -192,6 +194,7 @@ export interface PageExtractResult {
   readonly componentMountCount?: number;
   /** True when a `.adyen-checkout__dropin` element is present in the DOM. */
   readonly hasDropinDOM?: boolean;
+  readonly hasCardDOM?: boolean;
   readonly scripts: ScriptTag[];
   readonly links: LinkTag[];
   readonly iframes: IframeInfo[];

@@ -4,6 +4,7 @@
 
 import type { CheckoutConfig, PageExtractResult, ScanResult } from '../shared/types.js';
 import { STORAGE_SCAN_RESULT_PREFIX } from '../shared/constants.js';
+import { extractHostname, isAdyenHost } from '../shared/utils.js';
 import { HeaderCollector } from './header-collector.js';
 import { getLatestAdyenWebVersion } from './npm-registry.js';
 import { assessScan } from './scan-assessment.js';
@@ -228,6 +229,18 @@ export function selectPageExtractResult(
     selected.result.adyenMetadata ??
     frameResults.find((result) => result.adyenMetadata !== null)?.adyenMetadata ??
     null;
+  const merchantFrames = framesWithResults.filter((frame) => {
+    const host = extractHostname(frame.result.pageUrl);
+    return host === null || !isAdyenHost(host);
+  });
+  const checkoutInChildFrame = merchantFrames.some(
+    (frame) =>
+      frame.frameId !== 0 &&
+      (frame.result.checkoutConfigComplete === true ||
+        frame.result.hasDropinDOM === true ||
+        frame.result.hasCardDOM === true ||
+        (frame.result.componentMountCount ?? 0) > 0)
+  );
 
   return {
     ...selected.result,
@@ -235,11 +248,17 @@ export function selectPageExtractResult(
     checkoutConfig,
     inferredConfig,
     componentConfig,
-    ...(frameResults.some((result) => result.hasDropinDOM === true) ? { hasDropinDOM: true } : {}),
+    ...(merchantFrames.some((frame) => frame.result.hasDropinDOM === true)
+      ? { hasDropinDOM: true }
+      : {}),
+    ...(merchantFrames.some((frame) => frame.result.hasCardDOM === true)
+      ? { hasCardDOM: true }
+      : {}),
     ...(frameResults.some((result) => result.apiKeyDetected === true)
       ? { apiKeyDetected: true }
       : {}),
-    isInsideIframe: selected.frameId !== 0,
+    isInsideIframe:
+      (selected.frameId !== 0 && merchantFrames.includes(selected)) || checkoutInChildFrame,
   };
 }
 

@@ -20,8 +20,8 @@ Each check implementation owns its outcomes and exceptional impact policy. Missi
 | `callbacks`         |          11 | `callbacks.ts`                         |
 | `risk`              |           2 | `risk-module.ts`                       |
 | `security`          |          14 | `security.ts`, `security-csp.ts`       |
-| `third-party`       |           4 | `third-party-scripts.ts`               |
-| **Total**           |      **51** | `ALL_CHECKS`                           |
+| `third-party`       |           5 | `third-party-scripts.ts`               |
+| **Total**           |      **52** | `ALL_CHECKS`                           |
 
 ## Adyen Uplift Scope
 
@@ -83,7 +83,7 @@ Current manual-review notice checks:
 | `environment`       | `env-region-mismatch`                      | Ensure CDN asset region matches configured region.                                                                                               | `pass`, `warn`, `skip`                   |
 | `environment`       | `env-region`                               | Determine region from config/network evidence (or unknown/test skip).                                                                            | `info`, `skip`                           |
 | `environment`       | `env-key-mismatch`                         | Ensure client key prefix environment aligns with observed API environment.                                                                       | `pass`, `fail`, `skip`                   |
-| `environment`       | `env-not-iframe`                           | Warn if all-frame extraction finds checkout embedded inside an iframe.                                                                           | `pass`, `warn`                           |
+| `environment`       | `env-not-iframe`                           | Warn when merchant checkout is embedded in any accessible frame; cross-domain redirects may fail.                                                | `pass`, `warn`                           |
 | `auth`              | `auth-client-key`                          | Detect deprecated origin keys (`pub.v2.`) and enforce client-key usage.                                                                          | `pass`, `warn`, `skip`                   |
 | `auth`              | `auth-country-code`                        | Check captured `countryCode`; incomplete or inferred-only config requires manual verification.                                                   | `pass`, `fail`, `warn`, `notice`, `skip` |
 | `auth`              | `auth-locale`                              | Check captured `locale` against translations; incomplete or inferred-only config requires manual verification.                                   | `pass`, `warn`, `notice`, `skip`         |
@@ -118,6 +118,7 @@ Current manual-review notice checks:
 | `third-party`       | `3p-session-replay`                        | Detect session replay/screen recording tools on checkout pages.                                                                                  | `pass`, `warn`                           |
 | `third-party`       | `3p-ad-pixels`                             | Detect advertising/conversion pixels on checkout pages.                                                                                          | `pass`, `warn`                           |
 | `third-party`       | `3p-no-sri`                                | Detect known third-party scripts missing SRI for PCI integrity review.                                                                           | `pass`, `notice`                         |
+| `third-party`       | `3p-cookiebot-auto-blocking`               | Warn when Cookiebot auto-blocking could prevent Card or Drop-in card fields from loading.                                                        | `pass`, `warn`, `skip`                   |
 | `sdk-identity`      | `styling-css-custom-props`                 | Detect CSS class overrides and recommend CSS custom properties for Adyen Web v6+ styling as a low-impact improvement.                            | `pass`, `notice`, `skip`                 |
 | `version-lifecycle` | `v6-deprecated-properties`                 | On v6, detect deprecated config properties (`setStatusAutomatically`, `installmentOptions`, `showBrandsUnderCardNumber`, `showFormInstruction`). | `pass`, `warn`, `skip`                   |
 | `version-lifecycle` | `v6-deprecated-callbacks`                  | On v6, detect deprecated event handlers (`onValid`, `onOrderCreated`, `onShippingChange`, `onShopperDetails`).                                   | `pass`, `warn`, `skip`                   |

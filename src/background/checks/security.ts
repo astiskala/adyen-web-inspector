@@ -2,7 +2,7 @@
  * Security: SRI and HTTP response header checks.
  */
 
-import type { ScriptTag, LinkTag, IframeInfo } from '../../shared/types.js';
+import type { ScriptTag, LinkTag, IframeInfo, ScanPayload } from '../../shared/types.js';
 import { resolveEnvironment } from '../../shared/implementation-attributes.js';
 import { getHeader, isAdyenCheckoutResource } from '../../shared/utils.js';
 import { createRegistry } from './registry.js';
@@ -103,10 +103,14 @@ function hasMissingSriAttributes(resource: SriAttributableResource): boolean {
   );
 }
 
+function isLiveEnvironment(payload: ScanPayload): boolean {
+  const environment = resolveEnvironment(payload).env;
+  return environment === 'live' || environment === 'live-in';
+}
+
 export const SECURITY_CHECKS = createRegistry(CATEGORY)
   .add('security-https', (payload, { pass, fail, skip }) => {
-    const isLive = resolveEnvironment(payload).env === 'live';
-    if (!isLive) {
+    if (!isLiveEnvironment(payload)) {
       return skip(STRINGS.HTTPS_SKIP_TITLE, STRINGS.HTTPS_SKIP_REASON);
     }
 
@@ -243,7 +247,7 @@ export const SECURITY_CHECKS = createRegistry(CATEGORY)
   .add(
     'security-hsts',
     (payload, { pass, notice, skip }) => {
-      if (resolveEnvironment(payload).env !== 'live') {
+      if (!isLiveEnvironment(payload)) {
         return skip(STRINGS.HSTS_SKIP_TITLE, STRINGS.HSTS_SKIP_REASON);
       }
       if (payload.mainDocumentHeadersAvailable === false) {
