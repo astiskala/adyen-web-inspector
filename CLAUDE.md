@@ -4,8 +4,8 @@ See [AGENTS.md](./AGENTS.md) for full project conventions, architecture, and cod
 
 ## Quick Reference
 
-- **Validate**: `pnpm validate` (typecheck → lint → format → depcruise → knip → test:coverage)
-- **Test**: `pnpm test` (unit), `pnpm test:e2e` (E2E, needs build first)
+- **Validate**: `pnpm validate` (typecheck → lint → format:check → depcruise → knip → test:coverage → test:integration)
+- **Test**: `pnpm test` (unit), `pnpm test:integration` (integration), `pnpm test:e2e` (builds first, then E2E)
 - **Build**: `pnpm build`
 
 ## Key Rules

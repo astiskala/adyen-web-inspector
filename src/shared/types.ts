@@ -97,9 +97,9 @@ export interface CheckResult {
   readonly title: string;
   /** Optional technical detail, shown on expansion. */
   readonly detail?: string;
-  /** Optional remediation guidance with code snippet. */
+  /** Optional remediation guidance, sometimes with an example. */
   readonly remediation?: string;
-  /** Link to official Adyen docs. */
+  /** Optional reference link (Adyen or other relevant documentation). */
   readonly docsUrl?: string;
 }
 
@@ -115,7 +115,7 @@ export interface Check {
 
 export interface AdyenWebMetadata {
   readonly version?: string;
-  /** e.g. 'auto', 'umd', 'esm' */
+  /** For example, 'auto', 'umd', or 'esm'. */
   readonly bundleType?: string;
   readonly variants?: string[];
 }
@@ -180,14 +180,15 @@ export interface AdyenStyleInfo {
 
 export interface PageExtractResult {
   readonly adyenMetadata: AdyenWebMetadata | null;
-  /** Serialised checkout config object (best-effort, may be null) */
+  /** Selected fields captured from checkout/component runtime objects; null if unavailable. */
   readonly checkoutConfig: CheckoutConfig | null;
+  /** True when the selected frame directly captured AdyenCheckout options; only then can missing options be treated as absent. */
   readonly checkoutConfigComplete?: boolean;
-  /** Configuration inferred from partial sources like network signals. */
+  /** Partial configuration inferred from URL or parsed-object signals. */
   readonly inferredConfig: CheckoutConfig | null;
-  /** Config extracted from mounted Adyen component Preact trees (works for NPM bundles). */
+  /** Config found in mounted Adyen Preact trees (including bundled integrations). */
   readonly componentConfig: CheckoutConfig | null;
-  /** Count of distinct mounted Adyen component trees found in the DOM. */
+  /** Number of vnode mount points whose trees exposed Adyen core options. */
   readonly componentMountCount?: number;
   /** True when a `.adyen-checkout__dropin` element is present in the DOM. */
   readonly hasDropinDOM?: boolean;
@@ -230,9 +231,9 @@ export interface CheckoutConfig {
   readonly onPaymentFailed?: CallbackSource;
   readonly onError?: CallbackSource;
   readonly beforeSubmit?: CallbackSource;
-  /** Captured source of onSubmit as string for static analysis */
+  /** First 1,200 characters of captured onSubmit function source, if available. */
   readonly onSubmitSource?: string;
-  /** Captured source of beforeSubmit as string for static analysis */
+  /** First 1,200 characters of captured beforeSubmit function source, if available. */
   readonly beforeSubmitSource?: string;
   /** True when a session object was detected in the checkout configuration (Sessions flow indicator). */
   readonly hasSession?: boolean;

@@ -24,6 +24,7 @@ export default defineConfig({
   ],
   webServer: {
     command: 'npx serve tests/fixtures -p 4321 --no-clipboard',
+    env: { NO_UPDATE_CHECK: '1' },
     url: 'http://localhost:4321',
     reuseExistingServer: true,
     timeout: 15_000,

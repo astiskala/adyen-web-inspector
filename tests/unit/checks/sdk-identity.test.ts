@@ -207,7 +207,7 @@ describe('sdk-flavor', () => {
     expect(result.detail).toContain('DOM');
   });
 
-  it('reports not mounted when SDK is loaded but no checkout activity', () => {
+  it('reports unobserved checkout activity when SDK metadata is present alone', () => {
     const payload = makeScanPayload({
       page: makePageExtract({
         adyenMetadata: makeAdyenMetadata(),
@@ -215,11 +215,11 @@ describe('sdk-flavor', () => {
     });
     const result = sdkFlavor.run(payload);
     expect(result.severity).toBe('info');
-    expect(result.title).toBe('No Adyen Web checkout was mounted on this page.');
+    expect(result.title).toBe('No active Adyen Web checkout was identified on this page.');
     expect(result.detail).toContain('Navigate to the page');
   });
 
-  it('reports not mounted when CDN script loaded but no checkout activity', () => {
+  it('reports unobserved checkout activity when only an SDK script is loaded', () => {
     const payload = makeScanPayload({
       page: makePageExtract({
         scripts: [
@@ -229,10 +229,10 @@ describe('sdk-flavor', () => {
     });
     const result = sdkFlavor.run(payload);
     expect(result.severity).toBe('info');
-    expect(result.title).toBe('No Adyen Web checkout was mounted on this page.');
+    expect(result.title).toBe('No active Adyen Web checkout was identified on this page.');
   });
 
-  it('does not report not-mounted when SDK loaded with Adyen iframes but no config', () => {
+  it('does not report unobserved activity when SDK loaded with Adyen iframes but no config', () => {
     const payload = makeScanPayload({
       page: makePageExtract({
         adyenMetadata: makeAdyenMetadata(),
@@ -240,11 +240,11 @@ describe('sdk-flavor', () => {
       }),
     });
     const result = sdkFlavor.run(payload);
-    // Should NOT say not-mounted, should say Unknown since there is activity but no flavor signal
-    expect(result.title).not.toContain('No Adyen Web checkout was mounted');
+    // Activity is visible, but there is no signal identifying the integration flavor.
+    expect(result.title).not.toContain('No active Adyen Web checkout was identified');
   });
 
-  it('does not report not-mounted when SDK loaded with API calls but no config', () => {
+  it('does not report unobserved activity when SDK loaded with API calls but no config', () => {
     const payload = makeScanPayload({
       page: makePageExtract({
         adyenMetadata: makeAdyenMetadata(),
@@ -254,7 +254,7 @@ describe('sdk-flavor', () => {
       ],
     });
     const result = sdkFlavor.run(payload);
-    expect(result.title).not.toContain('No Adyen Web checkout was mounted');
+    expect(result.title).not.toContain('No active Adyen Web checkout was identified');
   });
 
   it('reports Unknown when no SDK, no dropin, no config, and no analytics', () => {

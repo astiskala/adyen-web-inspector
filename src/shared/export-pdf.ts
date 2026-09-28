@@ -319,11 +319,11 @@ function buildRawConfigHtml(
   const h3Style = 'font-size:12px;margin:12px 0 6px';
 
   return `
-    <h3 style="${h3Style}">Raw Checkout Config</h3>
+    <h3 style="${h3Style}">Captured Checkout Fields</h3>
     <pre style="${preStyle}">${escapeHtml(configText)}</pre>
-    <h3 style="${h3Style}">Component Config (NPM)</h3>
+    <h3 style="${h3Style}">Mounted Component Fields</h3>
     <pre style="${preStyle}">${escapeHtml(componentText)}</pre>
-    <h3 style="${h3Style}">Inferred Checkout Config</h3>
+    <h3 style="${h3Style}">Inferred Checkout Fields</h3>
     <pre style="${preStyle}">${escapeHtml(inferredText)}</pre>
     <h3 style="${h3Style}">SDK Metadata</h3>
     <pre style="${preStyle}">${escapeHtml(metaText)}</pre>
@@ -457,7 +457,7 @@ export function buildPrintableHtml(
   <h2>Network</h2>
   ${buildNetworkHtml(reportData.network)}
 
-  <h2>Raw Config</h2>
+  <h2>Extracted Config</h2>
   ${buildRawConfigHtml(reportData.rawConfig)}
 
   <div class="footer">

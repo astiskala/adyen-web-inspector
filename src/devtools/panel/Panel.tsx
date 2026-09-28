@@ -22,7 +22,7 @@ const TABS = [
   'Security',
   'Skipped Checks',
   'Network',
-  'Raw Config',
+  'Extracted Config',
 ] as const;
 type TabName = (typeof TABS)[number];
 const CONTEXT_INVALIDATED_ERROR_TEXT = 'Extension context invalidated';
@@ -118,7 +118,7 @@ export function Panel(): JSX.Element {
     if (activeTab === 'Best Practices') return <BestPracticesTab result={result} />;
     if (activeTab === 'Security') return <SecurityTab result={result} />;
     if (activeTab === 'Network') return <NetworkTab result={result} />;
-    if (activeTab === 'Raw Config') return <RawConfigTab result={result} />;
+    if (activeTab === 'Extracted Config') return <RawConfigTab result={result} />;
     return <SkippedChecksTab result={result} />;
   }
 

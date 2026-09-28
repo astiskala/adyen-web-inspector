@@ -6,18 +6,18 @@ Adyen Web Inspector is a Chrome Manifest V3 extension that inspects `adyen-web` 
 
 ## Features
 
-- Detects SDK version, flavor, environment, region, and import method.
-- Runs checks across SDK setup, callbacks, auth, risk, security, and third-party scripts.
-- Provides actionable findings with remediation and documentation links.
-- Shows a health score with tiering (`excellent`, `good`, `issues`, `critical`).
-- Exports scan results as JSON and PDF.
+- Infers SDK version, integration flavor and flow, environment, region, and visible script origin; unavailable signals remain unknown.
+- Runs browser-visible checks across SDK setup, callbacks, auth, risk, security, and third-party scripts.
+- Provides findings with remediation and documentation links, including items requiring manual review.
+- Shows a health score with tiering (`excellent`, `issues`, `critical`); `info`, `notice`, and `skip` results do not affect the score.
+- Exports scan results as JSON and printable PDF reports.
 
 ## Getting Started
 
 ### Prerequisites
 
 - Node.js 24+
-- pnpm 9+
+- pnpm 10.33.2 (pinned in `package.json`)
 
 ### Install
 
@@ -44,21 +44,31 @@ Then load `dist/` in Chrome:
 pnpm build
 ```
 
+## Using the extension
+
+1. Open a checkout page and click the extension icon. The passive badge detects mounted Adyen elements; click **Run Scan** to inspect the current tab (or **Attempt Scan** if detection missed it).
+2. For detailed results, open Chrome DevTools and select the **Adyen Inspector** panel. Run or re-run a scan there to view the overview, findings, skipped checks, observed network requests, and extracted config.
+3. Use **Export JSON** in DevTools to download the full scan result, including captured configuration fields and observed URLs. Use **Export PDF** in the popup or panel to open a printable report; save it as PDF in the browser print dialog.
+
+The popup hides scan controls when it detects an SDK version below v6; the DevTools panel can still run scans for inspection. Scans are snapshots of browser-visible signals, not proof of server-side settings or payment success. Findings marked for manual review require independent verification. Treat exported results as sensitive if the inspected page exposes sensitive URLs or configuration.
+
 ## Quality Commands
 
 ```bash
 pnpm typecheck
 pnpm lint
 pnpm lint:md
-pnpm format
 pnpm format:check
 pnpm test
+pnpm test:integration
+pnpm depcruise
+pnpm knip
 pnpm test:e2e
 pnpm validate
 ```
 
-`pnpm lint` runs ESLint for TypeScript files and markdownlint for Markdown files.
-`pnpm validate` runs the local quality gate: typecheck, lint, format check, dependency-cruiser, knip, unit coverage, and integration tests. CI also runs build and E2E tests.
+`pnpm lint` runs ESLint, checks GitHub Actions are pinned, and runs markdownlint. `pnpm format:check` checks formatting without rewriting files (`pnpm format` writes changes). `pnpm test:e2e` builds before running Playwright; CI also installs Chromium.
+`pnpm validate` runs typecheck, lint, format check, dependency-cruiser, knip, unit coverage, and integration tests. CI also runs build and E2E tests.
 Contributor workflow and coding conventions: [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## Architecture
@@ -66,7 +76,8 @@ Contributor workflow and coding conventions: [CONTRIBUTING.md](CONTRIBUTING.md)
 ### Main components
 
 - `src/background/worker.ts`: service worker message routing and badge state.
-- `src/background/scan-orchestrator.ts`: scan pipeline and payload assembly.
+- `src/background/scan-orchestrator.ts`: scan lifecycle, frame extraction, and persistence.
+- `src/background/scan-assessment.ts`: payload assembly and assessment.
 - `src/background/checks/*`: pure check modules.
 - `src/content/config-interceptor.ts`: MAIN-world config capture (CDN and NPM).
 - `src/content/detector.ts`: passive page-level Adyen detection.

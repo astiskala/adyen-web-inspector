@@ -6,7 +6,7 @@ import { resolve } from 'node:path';
  * Validate that all documentation links referenced in check source files are reachable.
  *
  * These tests make live HTTP requests and are skipped by default.
- * Run with: RUN_LINK_CHECKS=1 pnpm test
+ * Run with `RUN_LINK_CHECKS=1 pnpm test` to check external links.
  */
 
 function collectDocsUrls(): Set<string> {

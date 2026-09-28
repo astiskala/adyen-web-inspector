@@ -1,7 +1,7 @@
 /**
  * Page-world extractor — executed via chrome.scripting.executeScript with world: "MAIN".
- * Runs in the page's JS context to read globals, DOM state, and config.
- * Must return a plain serialisable object (no class instances, no functions).
+ * Reads page globals, DOM state, and config in each accessible frame, then
+ * serialises a plain result onto a page global for the background scan to read.
  */
 
 import {

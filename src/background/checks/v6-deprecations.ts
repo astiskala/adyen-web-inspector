@@ -1,5 +1,5 @@
 /**
- * v6 Upgrade Deprecation checks.
+ * Adyen Web v6 upgrade deprecation checks.
  *
  * Detects configuration properties and event handlers that were removed or
  * renamed in Adyen Web v6. Warns merchants who may not have cleaned up their
@@ -74,7 +74,7 @@ const DEPRECATED_CALLBACKS: readonly DeprecatedItem[] = [
   },
 ];
 
-/** Standard (non-deprecated) config fields that prove config interception is working. */
+/** Non-deprecated fields used as evidence that checkout config was captured. */
 const KNOWN_PROPERTIES: readonly ConfigKey[] = [
   'clientKey',
   'environment',

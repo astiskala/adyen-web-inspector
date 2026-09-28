@@ -7,7 +7,7 @@ Thank you for your interest in contributing! This guide will help you get set up
 ## Prerequisites
 
 - **Node.js** ≥ 24
-- **pnpm** ≥ 9
+- **pnpm** 10.33.2 (pinned in `package.json`)
 - **Chrome** (or Chromium) for manual testing and E2E tests
 
 ## Setup
@@ -45,7 +45,7 @@ pnpm validate
 ```
 
 This runs (in order): `typecheck` → `lint` → `format:check` → `depcruise` → `knip` → `test:coverage` → `test:integration`.
-`lint` includes TypeScript linting and Markdown linting.
+`lint` includes ESLint, a pinned-GitHub-Actions check, and Markdown linting. Documentation consistency tests run with the unit tests in `test:coverage`.
 
 ### 4. Commit
 
@@ -72,7 +72,7 @@ CI will run all validation steps automatically.
 
 ## Code Style
 
-This project uses [gts](https://github.com/google/gts) (Google TypeScript Style) which configures ESLint and Prettier.
+This project uses [gts](https://github.com/google/gts) (Google TypeScript Style) as an ESLint/TypeScript baseline, with additional ESLint rules and a separate Prettier configuration.
 
 Key conventions:
 
@@ -112,7 +112,7 @@ Run `pnpm depcruise` to verify.
 
 ## Writing a Check
 
-Every check is a **pure function** — synchronous, no side effects, independently testable.
+Every check is a **pure function** — synchronous, no side effects, independently testable. Checks should distinguish verified absence from partial or inferred evidence; skip when evidence is insufficient and use `notice` when a finding needs manual verification rather than claiming an unverified failure.
 
 ### 1. Create the check
 
@@ -120,8 +120,8 @@ Add or extend a file in `src/background/checks/`. Each check implements:
 
 ```typescript
 interface Check {
-  id: string;
-  category: CheckCategory;
+  readonly id: CheckId;
+  readonly category: CheckCategory;
   run(payload: ScanPayload): CheckResult;
 }
 ```
@@ -141,18 +141,31 @@ export const SECURITY_CHECKS = createRegistry('security')
 
 ### 2. Register the check
 
-Add it to the module's exported array (e.g. `SECURITY_CHECKS` or `CSP_CHECKS`) and ensure it's included in `src/background/checks/index.ts` → `ALL_CHECKS`.
+Add it to the module's exported array (e.g. `SECURITY_CHECKS` or `CSP_CHECKS`), add its ID to `CheckId` in `src/shared/types.ts`, and ensure the array is included in `src/background/checks/index.ts` → `ALL_CHECKS`.
 
 ### 3. Write tests
 
 Create or update a test file in `tests/unit/checks/`. Use the fixture factories from `tests/fixtures/makeScanPayload.ts`:
 
 ```typescript
-import { makeScanPayload, makeAdyenPayload, makePageExtract } from '../../fixtures/makeScanPayload';
+import { SECURITY_CHECKS } from '../../../src/background/checks/security';
+import {
+  makeCheckoutConfig,
+  makePageExtract,
+  makeScanPayload,
+} from '../../fixtures/makeScanPayload';
+import { requireCheck } from './requireCheck';
 
-it('fails when ...', () => {
-  const payload = makeScanPayload({ ... });
-  expect(myCheck.run(payload).severity).toBe('fail');
+const httpsCheck = requireCheck(SECURITY_CHECKS, 'security-https');
+
+it('fails for live checkout over HTTP', () => {
+  const payload = makeScanPayload({
+    page: makePageExtract({
+      pageProtocol: 'http:',
+      checkoutConfig: makeCheckoutConfig({ environment: 'live' }),
+    }),
+  });
+  expect(httpsCheck.run(payload).severity).toBe('fail');
 });
 ```
 
@@ -161,7 +174,7 @@ it('fails when ...', () => {
 ### 4. Update the check catalog
 
 Add the check to `docs/architecture/check-catalog.md`.
-`tests/unit/docs/check-catalog.test.ts` enforces this catalog against `ALL_CHECKS` and will fail if docs drift.
+`tests/unit/docs/check-catalog.test.ts` checks the catalog's inventory, category counts, and notice lists against `ALL_CHECKS`. `tests/unit/docs/documentation.test.ts` checks local links, documented pnpm commands, README health tiers, and manifest/package version parity. Both run in the standard unit-test gate.
 
 ---
 
@@ -177,13 +190,19 @@ pnpm test:coverage     # With V8 coverage report
 
 Tests live in `tests/unit/` and use [Vitest](https://vitest.dev) with a `jsdom` environment.
 
+### Integration tests
+
+```bash
+pnpm test:integration  # Cross-module scan pipeline
+```
+
 ### E2E tests
 
 ```bash
-pnpm test:e2e          # Playwright + Chromium
+pnpm test:e2e          # Build, then Playwright + Chromium
 ```
 
-E2E tests load the built extension (`dist/`) into a Chromium persistent context and verify popup/panel rendering against fixture pages.
+E2E tests build and load the extension (`dist/`) into a Chromium persistent context and verify popup/panel rendering against fixture pages. Install Playwright Chromium first if it is not already available.
 
 ### Dead code
 
@@ -201,14 +220,15 @@ GitHub Actions runs the full validation pipeline on every push and PR:
 
 1. `pnpm install --frozen-lockfile`
 2. `pnpm typecheck`
-3. `pnpm lint`
+3. `pnpm lint` (ESLint, pinned GitHub Actions, Markdown)
 4. `pnpm format:check`
 5. `pnpm depcruise`
 6. `pnpm knip`
 7. `pnpm test:coverage`
-8. `pnpm build`
-9. `pnpm test:e2e`
-10. Upload `dist/` as artifact
+8. `pnpm test:integration`
+9. `pnpm build`
+10. `pnpm test:e2e` (rebuilds before running Playwright)
+11. Upload `dist/` as artifact
 
 ---
 

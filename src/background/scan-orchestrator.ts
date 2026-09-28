@@ -190,7 +190,7 @@ function mergeFrameConfigs(
   return merged;
 }
 
-/** Selects the frame containing the strongest Adyen checkout signals. */
+/** Selects the strongest frame and merges observed configs/metadata across accessible frames. */
 export function selectPageExtractResult(
   results: readonly chrome.scripting.InjectionResult<PageExtractResult | null>[],
   tabId: number

@@ -40,7 +40,7 @@ const FLOW_DOCS = {
 type CheckoutConfig = NonNullable<ScanPayload['page']['checkoutConfig']>;
 type CallbackValue = CheckoutConfig[keyof CheckoutConfig];
 
-/** Simplified outcome for internal helpers */
+/** Simplified outcome for internal helpers. */
 interface CheckOutcome {
   readonly severity: Severity;
   readonly title: string;

@@ -184,7 +184,7 @@ function detectEnvFromHost(host: string): AdyenEnvironment | null {
 
 /**
  * Returns true for CDN and checkoutshopper asset-serving hosts.
- * These encode the environment in their subdomain (e.g. checkoutshopper-live.cdn.adyen.com).
+ * Their subdomains encode the environment (for example, checkoutshopper-live.cdn.adyen.com).
  * Excludes API/checkout hosts so CDN-based env detection stays separate from API-based detection.
  */
 function isCheckoutshopperHost(host: string): boolean {
@@ -290,7 +290,7 @@ export function resolveRegion(payload: ScanPayload): RegionResolution {
 }
 
 /**
- * Returns whether a script URL points to an Adyen checkout CDN asset.
+ * Returns whether a URL identifies an Adyen-hosted checkout resource (CDN or otherwise).
  */
 export function isCdnCheckoutScriptUrl(url: string): boolean {
   return isAdyenCheckoutResource(url);
@@ -390,7 +390,7 @@ export function detectIntegrationFlow(payload: ScanPayload): IntegrationFlow {
 }
 
 /**
- * Infers region from CDN requests (e.g. checkoutshopper-live-us.cdn.adyen.com).
+ * Infers region from CDN requests such as checkoutshopper-live-us.cdn.adyen.com.
  */
 export function detectRegionFromCdnRequests(payload: ScanPayload): AdyenRegion {
   for (const req of payload.capturedRequests) {

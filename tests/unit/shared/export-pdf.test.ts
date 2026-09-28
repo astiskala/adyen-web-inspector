@@ -182,7 +182,7 @@ describe('buildPrintableHtml', () => {
       'Successful Checks',
       'Skipped Checks',
       'Network',
-      'Raw Config',
+      'Extracted Config',
     ]);
 
     const successfulChecksHeading = doc.querySelector('h2:nth-of-type(4)');

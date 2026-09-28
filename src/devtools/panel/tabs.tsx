@@ -259,7 +259,7 @@ export function NetworkTab({ result }: Props): JSX.Element {
 }
 
 /**
- * Raw JSON view of extracted checkout configuration and SDK metadata.
+ * JSON view of selected captured/inferred checkout fields and SDK metadata.
  */
 export function RawConfigTab({ result }: Props): JSX.Element {
   const {
@@ -281,15 +281,15 @@ export function RawConfigTab({ result }: Props): JSX.Element {
   return (
     <div class={s('tabContent')}>
       <div class={s('section')}>
-        <h3 class={s('sectionTitle')}>Raw Checkout Config</h3>
+        <h3 class={s('sectionTitle')}>Captured Checkout Fields</h3>
         <pre class={s('codeBlock')}>{configText}</pre>
       </div>
       <div class={s('section')}>
-        <h3 class={s('sectionTitle')}>Component Config (NPM)</h3>
+        <h3 class={s('sectionTitle')}>Mounted Component Fields</h3>
         <pre class={s('codeBlock')}>{componentText}</pre>
       </div>
       <div class={s('section')}>
-        <h3 class={s('sectionTitle')}>Inferred Checkout Config (Network)</h3>
+        <h3 class={s('sectionTitle')}>Inferred Checkout Fields</h3>
         <pre class={s('codeBlock')}>{inferredText}</pre>
       </div>
       <div class={s('section')}>

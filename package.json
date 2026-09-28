@@ -5,9 +5,10 @@
   "private": true,
   "type": "module",
   "license": "MIT",
+  "packageManager": "pnpm@10.33.2",
   "engines": {
     "node": ">=24",
-    "pnpm": ">=9"
+    "pnpm": ">=10 <11"
   },
   "scripts": {
     "dev": "vite build --watch",

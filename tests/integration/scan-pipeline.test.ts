@@ -1,8 +1,8 @@
 /**
  * Integration tests for the scan pipeline.
  *
- * These tests exercise the full cross-module flow:
- *   ScanPayload → ALL_CHECKS → health score → standard compliance
+ * These tests exercise the full cross-module flow.
+ * ScanPayload → ALL_CHECKS → health score → standard compliance.
  *
  * Unlike unit tests (which test individual checks in isolation), these verify
  * that modules compose correctly and produce coherent end-to-end results.

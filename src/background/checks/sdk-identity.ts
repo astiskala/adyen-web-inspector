@@ -18,19 +18,19 @@ import { createRegistry } from './registry.js';
 const STRINGS = {
   DETECTED_INFO_TITLE: 'Adyen Web SDK detected on this page.',
   DETECTED_FAIL_TITLE: 'Adyen Web SDK was not detected on this page.',
-  DETECTED_FAIL_DETAIL: 'No window.AdyenWebMetadata or CDN script tag was found.',
+  DETECTED_FAIL_DETAIL: 'No AdyenWebMetadata or Adyen-hosted checkout script tag was found.',
   DETECTED_FAIL_REMEDIATION:
     'Verify that the Adyen Web SDK is correctly loaded on this page. If using an npm import, enable exposeLibraryMetadata in your AdyenCheckout configuration so the inspector can detect the SDK. If using a CDN script tag, confirm the script URL is from an Adyen-hosted domain.',
   DETECTED_FAIL_URL: 'https://docs.adyen.com/online-payments/build-your-integration/',
 
   FLAVOR_ANALYTICS_DETAIL: 'Detected from Adyen checkout analytics data.',
-  FLAVOR_DROPIN_DETAIL: 'Detected based on CDN resource URL patterns.',
+  FLAVOR_DROPIN_DETAIL: 'Detected based on Drop-in resource URL patterns.',
   FLAVOR_DROPIN_DOM_DETAIL: 'Detected based on Drop-in DOM element present on the page.',
   FLAVOR_CONFIG_DETAIL:
     'Detected based on checkout config presence (analytics disabled or unavailable).',
-  FLAVOR_NO_CHECKOUT_TITLE: 'No Adyen Web checkout was mounted on this page.',
+  FLAVOR_NO_CHECKOUT_TITLE: 'No active Adyen Web checkout was identified on this page.',
   FLAVOR_NO_CHECKOUT_DETAIL:
-    'The Adyen Web SDK JavaScript is loaded, but no Drop-in or Component appears to have been initialised. Navigate to the page where checkout is rendered and scan again.',
+    'The Adyen Web SDK JavaScript is loaded, but no Drop-in or Component activity was observed. Navigate to the page where checkout is rendered and scan again.',
   FLAVOR_UNKNOWN_DETAIL:
     'Could not determine the integration flavor from analytics, URL patterns, or page config.',
 

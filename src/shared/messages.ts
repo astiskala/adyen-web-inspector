@@ -1,6 +1,7 @@
 /**
  * Message type definitions for communication between extension components.
- * Background Service Worker ↔ Popup ↔ DevTools Panel
+ * Content scripts send detection messages to the background service worker;
+ * the popup and DevTools panel request scans and receive result notifications.
  */
 
 import type { ScanResult } from './types.js';
@@ -65,13 +66,13 @@ interface GetResultMessage {
 
 // ─── Union Types ──────────────────────────────────────────────────────────────
 
-/** Messages sent from content script to background service worker */
+/** Messages sent from the content script to the background service worker. */
 export type ContentToBswMessage = AdyenDetectedMessage | AdyenNotDetectedMessage;
 
-/** Messages sent from popup/devtools to background service worker */
+/** Messages sent from the popup or DevTools to the background service worker. */
 type UiToBswMessage = ScanRequestMessage | GetResultMessage;
 
-/** Messages sent from background service worker to popup/devtools */
+/** Messages sent from the background service worker to the popup or DevTools. */
 export type BswToUiMessage =
   ScanStartedMessage | ScanCompleteMessage | ScanErrorMessage | ScanResetMessage;
 

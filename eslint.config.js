@@ -141,6 +141,7 @@ export default defineConfig([
       'jsdoc/no-multi-asterisks': 'error',
       'jsdoc/no-types': 'error',
       'jsdoc/require-description': 'error',
+      'jsdoc/require-description-complete-sentence': 'error',
       'jsdoc/require-jsdoc': [
         'error',
         {

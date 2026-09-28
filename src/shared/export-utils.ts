@@ -1,5 +1,5 @@
 /**
- * Logic for building issue export rows (e.g. for PDF export).
+ * Logic for building issue export rows for JSON and PDF reports.
  */
 
 import type { CheckCategory, CheckId, CheckResult, Severity } from './types.js';

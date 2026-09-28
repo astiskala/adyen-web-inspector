@@ -63,7 +63,7 @@ export const ALL_ADYEN_DOMAINS = [
 
 export const CLIENT_KEY_TEST_PREFIX = 'test_';
 export const CLIENT_KEY_LIVE_PREFIX = 'live_';
-/** Legacy origin key prefix — should be migrated to client key */
+/** Legacy origin key prefix — should be migrated to client key. */
 export const ORIGIN_KEY_PREFIX = 'pub.v2.';
 
 // ─── Environment URLs ─────────────────────────────────────────────────────────
@@ -99,7 +99,7 @@ export const ENVIRONMENT_REGION_MAP: Record<string, AdyenRegion> = {
 
 /**
  * Locales available in Adyen Web translations.
- * Source (pinned): https://github.com/Adyen/adyen-web/tree/522975889a4287fe9c81cc138fcf3457e6bd5a6e/packages/server/translations
+ * @see https://github.com/Adyen/adyen-web/tree/522975889a4287fe9c81cc138fcf3457e6bd5a6e/packages/server/translations
  */
 export const ADYEN_WEB_TRANSLATION_LOCALES = [
   'ar',

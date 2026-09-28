@@ -1,20 +1,17 @@
 /**
- * MAIN-world config interceptor — injected at document_start before any page
- * scripts run. It uses several complementary mechanisms to capture the Adyen Web
- * SDK runtime configuration:
+ * MAIN-world config interceptor — runs at document_start on matching pages,
+ * before the on-demand scan. It captures selected browser-visible checkout
+ * settings through complementary mechanisms:
  *
- * 1. **Global property traps** — for UMD/ESM CDN loads that expose
- *    `AdyenCheckout` or `AdyenWeb`.
+ * 1. Global AdyenCheckout/AdyenWeb property traps wrap exposed factories and
+ *    component constructors; promise results can expose instance options.
+ * 2. Wrapped page fetch and XMLHttpRequest.open calls inspect Adyen request
+ *    URLs for environment, locale, countryCode, and clientKey signals. They do
+ *    not read request bodies or initiate additional network requests.
+ * 3. Wrapped JSON.parse inspects parsed objects for config-shaped fields.
  *
- * 2. **Network interception (fetch/XHR)** — for all integrations (including
- *    bundled/NPM), we intercept SDK initialization requests to extract
- *    configuration fields like clientKey and environment.
- *
- * 3. **JSON bootstrapping** — we intercept JSON.parse to find large objects
- *    that look like Adyen configurations.
- *
- * The captured config is published on a well-known global for the
- * page-extractor to read.
+ * Directly captured settings and inferred values are published separately on
+ * page globals for the on-demand page extractor to read.
  */
 
 import type { CallbackSource, CheckoutConfig } from '../shared/types.js';

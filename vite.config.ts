@@ -6,11 +6,6 @@ import { dirname, relative, resolve } from 'node:path';
 const root = import.meta.dirname;
 
 /**
- * Vite plugin that moves HTML outputs from dist/src/… to dist/… so that
- * file paths match what manifest.json expects (e.g. popup/index.html).
- * Also adjusts relative asset references to account for the new depth.
- */
-/**
  * Wraps MAIN-world scripts in a block scope so that re-injection via
  * chrome.scripting.executeScript doesn't cause "Identifier already declared"
  * errors from top-level const/let declarations.
@@ -41,6 +36,10 @@ function wrapMainWorldScriptsInBlock(): Plugin {
   };
 }
 
+/**
+ * Moves HTML outputs from dist/src/… to dist/… to match manifest paths such as
+ * popup/index.html, and adjusts relative asset references for the new depth.
+ */
 function chromeExtensionHtmlFlatten(): Plugin {
   return {
     name: 'chrome-extension-html-flatten',

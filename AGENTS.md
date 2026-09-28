@@ -12,22 +12,22 @@ Adyen Web Inspector is a Chrome Manifest V3 extension that analyses adyen-web (D
 
 ## Build & Test Commands
 
-| Command                 | Purpose                                                                 |
-| ----------------------- | ----------------------------------------------------------------------- |
-| `pnpm install`          | Install dependencies                                                    |
-| `pnpm dev`              | Build in watch mode (`dist/`)                                           |
-| `pnpm build`            | Production build                                                        |
-| `pnpm typecheck`        | TypeScript type check (`tsc --noEmit`)                                  |
-| `pnpm lint`             | ESLint + Markdown lint                                                  |
-| `pnpm lint:fix`         | ESLint + Markdown lint with auto-fix                                    |
-| `pnpm lint:md`          | Markdown lint (`markdownlint-cli2`)                                     |
-| `pnpm format`           | Prettier write                                                          |
-| `pnpm format:check`     | Prettier check                                                          |
-| `pnpm test`             | Unit tests (Vitest)                                                     |
-| `pnpm test:coverage`    | Unit tests with V8 coverage                                             |
-| `pnpm test:integration` | Integration tests (cross-module pipeline)                               |
-| `pnpm test:e2e`         | E2E tests (Playwright + Chromium)                                       |
-| `pnpm validate`         | Local quality gate: typecheck + lint + format + depcruise + knip + test |
+| Command                 | Purpose                                                               |
+| ----------------------- | --------------------------------------------------------------------- |
+| `pnpm install`          | Install dependencies (pnpm 10.33.2 pinned in `package.json`)          |
+| `pnpm dev`              | Build in watch mode (`dist/`)                                         |
+| `pnpm build`            | Production build                                                      |
+| `pnpm typecheck`        | TypeScript type check (`tsc --noEmit`)                                |
+| `pnpm lint`             | ESLint + pinned Actions check + Markdown lint                         |
+| `pnpm lint:fix`         | ESLint + Markdown lint with auto-fix                                  |
+| `pnpm lint:md`          | Markdown lint (`markdownlint-cli2`)                                   |
+| `pnpm format`           | Prettier write                                                        |
+| `pnpm format:check`     | Prettier check                                                        |
+| `pnpm test`             | Unit tests (Vitest)                                                   |
+| `pnpm test:coverage`    | Unit tests with V8 coverage                                           |
+| `pnpm test:integration` | Integration tests (cross-module pipeline)                             |
+| `pnpm test:e2e`         | E2E tests (Playwright + Chromium)                                     |
+| `pnpm validate`         | Typecheck, lint, format check, depcruise, knip, coverage, integration |
 
 ---
 
@@ -63,7 +63,7 @@ Adyen Web Inspector is a Chrome Manifest V3 extension that analyses adyen-web (D
 - No multiple `Array#push()` calls — use spread: `arr.push(...items)`.
 - Functions used as callbacks should be declared at module scope, not inside component render functions.
 - `knip` enforces no unused exports; remove dead code instead of suppressing.
-- Markdown files are linted with `markdownlint-cli2`.
+- Markdown files are linted with `markdownlint-cli2`; JSDoc descriptions must be complete sentences (`jsdoc/require-description-complete-sentence`).
 
 ### CSS Modules
 
@@ -127,8 +127,8 @@ Every check in `src/background/checks/` is a **pure function** — synchronous, 
 
 ```typescript
 interface Check {
-  id: string;
-  category: CheckCategory;
+  readonly id: CheckId;
+  readonly category: CheckCategory;
   run(payload: ScanPayload): CheckResult;
 }
 ```
@@ -139,7 +139,7 @@ Check-specific guidance:
 - Register all new checks in `src/background/checks/index.ts` and add the new ID to `CheckId` in `src/shared/types.ts`.
 - Prefer `createRegistry()` context helpers in check runners: `pass()`, `fail()`, `warn()`, `notice()`, `skip()`, `info()`.
 - Severity set is: `pass`, `warn`, `fail`, `notice`, `info`, `skip`. Use `notice` for "cannot verify automatically" outcomes.
-- Keep `docs/architecture/check-catalog.md` in sync with code changes. Drift is enforced by `tests/unit/docs/check-catalog.test.ts` (runs in `pnpm test` and `pnpm validate`).
+- Keep `docs/architecture/check-catalog.md` in sync with code changes. `tests/unit/docs/check-catalog.test.ts` enforces check IDs/categories, totals, severities, and notice-list completeness; `tests/unit/docs/documentation.test.ts` checks local Markdown links, documented pnpm commands, README health tiers, and manifest/package version parity. Both run in `pnpm test` and `pnpm validate`.
 
 ---
 

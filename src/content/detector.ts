@@ -1,6 +1,6 @@
 /**
- * Passive content script — runs on every page navigation at document_idle.
- * Performs lightweight detection only. No DOM traversal, no network calls.
+ * Passive content script — runs on matching pages at document_idle.
+ * Uses lightweight DOM queries and mutation/route listeners; no network calls.
  * Sends ADYEN_DETECTED or ADYEN_NOT_DETECTED to the background service worker.
  */
 import type {

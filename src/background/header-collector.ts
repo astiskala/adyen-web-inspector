@@ -1,8 +1,8 @@
 /**
- * Header collector — intercepts response headers during a scan.
- * Also captures Adyen checkout analytics POST request bodies to extract
- * SDK metadata such as flavor, version, buildType, and locale.
- * Registered per-scan and torn down after the page load completes.
+ * Header collector — observes response headers during a scan.
+ * Also reads Adyen checkout analytics POST bodies and retains only selected
+ * SDK metadata fields such as flavor, version, buildType, and locale.
+ * Registered per scan and torn down after page extraction.
  */
 
 import type { AnalyticsData, CapturedHeader, CapturedRequest } from '../shared/types.js';
