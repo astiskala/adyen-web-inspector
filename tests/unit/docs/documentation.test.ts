@@ -77,15 +77,19 @@ describe('repository documentation', () => {
     expect(unknown).toEqual([]);
   });
 
-  it('keeps manifest and package versions in sync', () => {
+  it('keeps manifest, Sonar and package versions in sync', () => {
     const { version: packageVersion } = JSON.parse(
       readFileSync(resolve(ROOT, 'package.json'), 'utf8')
     ) as { version: string };
     const { version: manifestVersion } = JSON.parse(
       readFileSync(resolve(ROOT, 'public/manifest.json'), 'utf8')
     ) as { version: string };
+    const sonarVersion = /^sonar\.projectVersion=(.+)$/m.exec(
+      readFileSync(resolve(ROOT, 'sonar-project.properties'), 'utf8')
+    )?.[1];
 
     expect(manifestVersion).toBe(packageVersion);
+    expect(sonarVersion).toBe(packageVersion);
   });
 
   it('lists the health tiers actually produced by the scoring logic', () => {

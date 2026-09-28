@@ -169,7 +169,7 @@ Check-specific guidance:
 - Register all new checks in `src/background/checks/index.ts` and add the new ID to `CheckId` in `src/shared/types.ts`.
 - Prefer `createRegistry()` context helpers in check runners: `pass()`, `fail()`, `warn()`, `notice()`, `skip()`, `info()`.
 - Severity set is: `pass`, `warn`, `fail`, `notice`, `info`, `skip`. Use `notice` for "cannot verify automatically" outcomes.
-- Keep `docs/architecture/check-catalog.md` in sync with code changes. `tests/unit/docs/check-catalog.test.ts` enforces check IDs/categories, totals, severities, and notice-list completeness; `tests/unit/docs/documentation.test.ts` checks local Markdown links, documented pnpm commands, README health tiers, and manifest/package version parity. Both run in `pnpm test` and `pnpm validate`.
+- Keep `docs/architecture/check-catalog.md` in sync with code changes. `tests/unit/docs/check-catalog.test.ts` enforces check IDs/categories, totals, severities, and notice-list completeness; `tests/unit/docs/documentation.test.ts` checks local Markdown links, documented pnpm commands, README health tiers, and manifest/Sonar/package version parity. Both run in `pnpm test` and `pnpm validate`.
 
 ---
 
@@ -239,7 +239,7 @@ When adding a new UI component:
 
 To publish a new version:
 
-1. **Bump version in both files** — `package.json` **and** `public/manifest.json` must have the same version. The Chrome Web Store rejects uploads where the manifest version is not greater than the currently published version.
+1. **Bump the version in all three files** — `package.json`, `public/manifest.json`, and `sonar.projectVersion` in `sonar-project.properties` must match (the documentation tests enforce this). The Chrome Web Store rejects uploads where the manifest version is not greater than the currently published version.
 2. **Commit** with message `chore: bump version to X.Y.Z`.
 3. **Push** to `main`.
 4. **Tag** the commit: `git tag vX.Y.Z && git push origin vX.Y.Z`.

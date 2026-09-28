@@ -189,7 +189,7 @@ it('fails for live checkout over HTTP', () => {
 ### 4. Update the check catalog
 
 Add the check to `docs/architecture/check-catalog.md`.
-`tests/unit/docs/check-catalog.test.ts` checks the catalog's inventory, category counts, and notice lists against `ALL_CHECKS`. `tests/unit/docs/documentation.test.ts` checks local links, documented pnpm commands, README health tiers, and manifest/package version parity. Both run in the standard unit-test gate.
+`tests/unit/docs/check-catalog.test.ts` checks the catalog's inventory, category counts, and notice lists against `ALL_CHECKS`. `tests/unit/docs/documentation.test.ts` checks local links, documented pnpm commands, README health tiers, and manifest/Sonar/package version parity. Both run in the standard unit-test gate.
 
 ---
 
@@ -244,8 +244,11 @@ GitHub Actions runs the full validation pipeline on every push and PR:
 7. `pnpm test:coverage`
 8. `pnpm test:integration`
 9. `pnpm build`
-10. `pnpm test:e2e` (rebuilds before running Playwright)
-11. Upload `dist/` as artifact
+10. `pnpm exec playwright install chromium`
+11. `pnpm exec playwright test` (E2E against the build from step 9)
+12. Upload `dist/` as artifact
+
+A separate weekly workflow (`.github/workflows/links.yml`, also runnable on demand) checks that the documentation links in check modules are reachable, because those tests make live requests and are skipped in the normal test run.
 
 ---
 
