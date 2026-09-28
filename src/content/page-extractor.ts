@@ -4,11 +4,8 @@
  * serialises a plain result onto a page global for the background scan to read.
  */
 
-import {
-  findCoreOptions,
-  extractFieldsFromOptions,
-  mergeConfigs,
-} from '../shared/preact-tree-extractor.js';
+import { mergeCheckoutConfigs, readCheckoutOptions } from '../shared/checkout-config-schema.js';
+import { findCoreOptions } from '../shared/preact-tree-extractor.js';
 import type {
   AdyenStyleInfo,
   AdyenWebMetadata,
@@ -255,7 +252,7 @@ function processMountPoints(mountPoints: Set<ElementWithVnode>): {
   merged: CheckoutConfig | null;
   findCount: number;
 } {
-  let merged: CheckoutConfig | null = null;
+  const configs: CheckoutConfig[] = [];
   let findCount = 0;
 
   for (const mount of mountPoints) {
@@ -263,12 +260,11 @@ function processMountPoints(mountPoints: Set<ElementWithVnode>): {
     const options = findCoreOptions(vnode, 0);
     if (options !== null && options !== undefined) {
       findCount++;
-      const extracted = extractFieldsFromOptions(options);
-      merged = merged === null ? extracted : mergeConfigs(merged, extracted);
+      configs.push(readCheckoutOptions(options, 'checkout') ?? {});
     }
   }
 
-  return { merged, findCount };
+  return { merged: mergeCheckoutConfigs(configs), findCount };
 }
 
 function extractComponentConfig(): ComponentExtraction {

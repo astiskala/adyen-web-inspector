@@ -10,12 +10,7 @@ import {
   STORAGE_NPM_CACHE_KEY,
 } from '../shared/constants.js';
 import { isRecord } from '../shared/utils.js';
-
-interface AdyenWebReleaseInfo {
-  readonly latest: string;
-  /** ISO publish timestamps keyed by stable version, limited to supported majors. */
-  readonly releaseDates: Readonly<Record<string, string>>;
-}
+import type { AdyenWebReleaseInfo } from './scan-browser.js';
 
 interface NpmCacheEntry {
   readonly version: string;

@@ -9,6 +9,7 @@ function makeResult(): ScanResult {
     tabId: 1,
     pageUrl: 'https://example.com/checkout',
     scannedAt: '2026-03-18T00:00:00.000Z',
+    sdkPresence: { detected: true, source: 'metadata' },
     checks: [],
     health: {
       score: 92,

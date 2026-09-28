@@ -29,6 +29,7 @@ const CONTEXT_INVALIDATED_ERROR_TEXT = 'Extension context invalidated';
 const CONTEXT_INVALIDATED_UI_MESSAGE =
   'Extension context is invalidated. Reload the extension and reopen the Adyen Inspector panel.';
 const RUNTIME_ERROR_UI_MESSAGE = 'Unable to communicate with the extension runtime.';
+const SDK_NOT_DETECTED_MESSAGE = 'Adyen Web SDK was not detected on this page.';
 
 function getInspectedTabId(): number {
   // chrome.devtools.inspectedWindow.tabId is synchronous and throws only if context is invalidated
@@ -122,11 +123,7 @@ export function Panel(): JSX.Element {
     return <SkippedChecksTab result={result} />;
   }
 
-  const sdkDetectedCheck =
-    result === null ? undefined : result.checks.find((check) => check.id === 'sdk-detected');
-  const sdkNotDetected = result !== null && sdkDetectedCheck?.severity === 'fail';
-  const sdkNotDetectedMessage =
-    sdkDetectedCheck?.title ?? 'Adyen Web SDK was not detected on this page.';
+  const sdkNotDetected = result !== null && !result.sdkPresence.detected;
   const showScanButton = !sdkNotDetected;
 
   let scanButtonText = 'Run Scan';
@@ -146,7 +143,7 @@ export function Panel(): JSX.Element {
   } else if (sdkNotDetected) {
     bodyContent = (
       <div class={s('tabContent')}>
-        <div class={s('emptyState')}>{sdkNotDetectedMessage}</div>
+        <div class={s('emptyState')}>{SDK_NOT_DETECTED_MESSAGE}</div>
       </div>
     );
   } else {

@@ -9,9 +9,11 @@
 
 import type { CheckoutConfig, ScanPayload } from '../../shared/types.js';
 import {
-  hasVerifiedCheckoutConfig,
-  resolveCapturedCheckoutConfig,
-} from '../../shared/scan-evidence.js';
+  CALLBACK_KEYS,
+  DEPRECATED_CALLBACK_KEYS,
+  STRING_OPTION_KEYS,
+} from '../../shared/checkout-config-schema.js';
+import { readCheckoutField } from '../../shared/scan-evidence.js';
 import { parseVersion } from '../../shared/utils.js';
 import { SKIP_REASONS } from './constants.js';
 import { createRegistry, type CheckContext } from './registry.js';
@@ -50,59 +52,52 @@ const DEPRECATED_PROPERTIES: readonly DeprecatedItem[] = [
   },
 ];
 
-const DEPRECATED_CALLBACKS: readonly DeprecatedItem[] = [
-  {
-    key: 'onValid',
+const DEPRECATED_CALLBACK_GUIDANCE: Record<
+  (typeof DEPRECATED_CALLBACK_KEYS)[number],
+  Omit<DeprecatedItem, 'key'>
+> = {
+  onValid: {
     label: 'onValid',
     remediation: 'Remove it; this event listener is no longer used.',
   },
-  {
-    key: 'onOrderCreated',
+  onOrderCreated: {
     label: 'onOrderCreated',
     remediation: 'Rename to onOrderUpdated.',
   },
-  {
-    key: 'onShippingChange',
+  onShippingChange: {
     label: 'onShippingChange (PayPal)',
     remediation: 'Replace with onShippingAddressChange() and onShippingOptionsChange().',
   },
-  {
-    key: 'onShopperDetails',
+  onShopperDetails: {
     label: 'onShopperDetails (PayPal)',
     remediation:
       'Rename to onAuthorized({authorizedEvent, billingAddress, deliveryAddress}, actions).',
   },
-];
+};
+
+const DEPRECATED_CALLBACKS: readonly DeprecatedItem[] = DEPRECATED_CALLBACK_KEYS.map((key) => ({
+  key,
+  ...DEPRECATED_CALLBACK_GUIDANCE[key],
+}));
 
 /** Non-deprecated fields used as evidence that checkout config was captured. */
-const KNOWN_PROPERTIES: readonly ConfigKey[] = [
-  'clientKey',
-  'environment',
-  'locale',
-  'countryCode',
+const KNOWN_FIELDS: readonly ConfigKey[] = [
+  ...STRING_OPTION_KEYS,
   'riskEnabled',
   'analyticsEnabled',
   'hasSession',
+  ...CALLBACK_KEYS,
 ];
 
-const KNOWN_CALLBACKS: readonly ConfigKey[] = [
-  'onSubmit',
-  'onAdditionalDetails',
-  'onPaymentCompleted',
-  'onPaymentFailed',
-  'onError',
-  'beforeSubmit',
-];
-
-function hasAnyKnownField(config: CheckoutConfig, keys: readonly ConfigKey[]): boolean {
-  return keys.some((key) => config[key] !== undefined);
+function isCaptured(payload: ScanPayload, key: ConfigKey): boolean {
+  return readCheckoutField(payload, key, { includeInferred: false }).state === 'present';
 }
 
-function canVerifyConfig(payload: ScanPayload, config: CheckoutConfig | null): boolean {
+function canVerifyAbsence(payload: ScanPayload, items: readonly DeprecatedItem[]): boolean {
   return (
-    config !== null &&
-    hasVerifiedCheckoutConfig(payload) &&
-    (hasAnyKnownField(config, KNOWN_PROPERTIES) || hasAnyKnownField(config, KNOWN_CALLBACKS))
+    items.every(
+      (item) => readCheckoutField(payload, item.key, { includeInferred: false }).state === 'absent'
+    ) && KNOWN_FIELDS.some((key) => isCaptured(payload, key))
   );
 }
 
@@ -132,10 +127,9 @@ function runDeprecationCheck(
   if (isPreV6(payload)) {
     return skip(check.skipTitle, 'SDK is running a pre-v6 version.');
   }
-  const config = resolveCapturedCheckoutConfig(payload);
-  const found = check.items.filter((item) => config?.[item.key] !== undefined);
+  const found = check.items.filter((item) => isCaptured(payload, item.key));
   if (found.length === 0) {
-    return canVerifyConfig(payload, config)
+    return canVerifyAbsence(payload, check.items)
       ? pass(check.passTitle)
       : skip(check.skipTitle, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
   }

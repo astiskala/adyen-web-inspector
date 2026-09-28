@@ -150,7 +150,7 @@ describe('buildIssueExportRows', () => {
       const row = first(buildIssueExportRows([check]));
 
       expect(row.impactLevel).toBe('manual');
-      expect(row.impact).toBe('Manual verification needed');
+      expect(row.impact).toBe('Manual verification');
     });
 
     it('maps PCI review notice severity to manual impact', () => {
@@ -161,7 +161,7 @@ describe('buildIssueExportRows', () => {
       const row = first(buildIssueExportRows([check]));
 
       expect(row.impactLevel).toBe('manual');
-      expect(row.impact).toBe('Manual verification needed');
+      expect(row.impact).toBe('Manual verification');
     });
   });
 

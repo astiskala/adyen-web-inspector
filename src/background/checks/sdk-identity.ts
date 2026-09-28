@@ -11,8 +11,8 @@ import {
   resolveIntegrationFlavor,
   type IntegrationFlow,
 } from '../../shared/implementation-attributes.js';
-import { hasVerifiedCheckoutConfig, observeCheckoutField } from '../../shared/scan-evidence.js';
-import { isAdyenCheckoutResource } from '../../shared/utils.js';
+import { readCheckoutField } from '../../shared/scan-evidence.js';
+import { detectSdkPresence } from '../../shared/sdk-presence.js';
 import { createRegistry } from './registry.js';
 
 const STRINGS = {
@@ -88,9 +88,7 @@ const CATEGORY = 'sdk-identity' as const;
 
 export const SDK_IDENTITY_CHECKS = createRegistry(CATEGORY)
   .add('sdk-detected', (payload, { info, fail }) => {
-    const { adyenMetadata, scripts } = payload.page;
-    const hasAdyenScript = scripts.some((s) => isAdyenCheckoutResource(s.src));
-    if (adyenMetadata !== null || hasAdyenScript) {
+    if (detectSdkPresence(payload.page).detected) {
       return info(STRINGS.DETECTED_INFO_TITLE);
     }
     return fail(
@@ -179,30 +177,27 @@ export const SDK_IDENTITY_CHECKS = createRegistry(CATEGORY)
     { noticeImpact: 'low' }
   )
   .add('sdk-analytics', (payload, { skip, warn, pass }) => {
-    const sdkLoaded =
-      payload.page.adyenMetadata !== null ||
-      payload.page.scripts.some((s) => isAdyenCheckoutResource(s.src));
-    if (!sdkLoaded || !hasCheckoutActivity(payload)) {
+    if (!detectSdkPresence(payload.page).detected || !hasCheckoutActivity(payload)) {
       return skip(STRINGS.ANALYTICS_SKIP_TITLE, STRINGS.ANALYTICS_SKIP_REASON);
     }
 
-    const analytics = observeCheckoutField(payload, 'analyticsEnabled');
-    if (analytics.value === false && analytics.source !== 'inferred') {
+    const analytics = readCheckoutField(payload, 'analyticsEnabled');
+    if (analytics.state === 'unobserved') {
+      return skip(
+        STRINGS.ANALYTICS_SKIP_TITLE,
+        'Analytics setting could not be verified in partial config.'
+      );
+    }
+    if (analytics.state === 'present' && analytics.source === 'inferred') {
+      return skip(STRINGS.ANALYTICS_SKIP_TITLE, 'Analytics setting was only inferred.');
+    }
+    if (analytics.state === 'present' && !analytics.value) {
       return warn(
         STRINGS.ANALYTICS_WARN_TITLE,
         STRINGS.ANALYTICS_WARN_DETAIL,
         STRINGS.ANALYTICS_WARN_REMEDIATION,
         STRINGS.ANALYTICS_WARN_URL
       );
-    }
-    if (analytics.value === undefined && !hasVerifiedCheckoutConfig(payload)) {
-      return skip(
-        STRINGS.ANALYTICS_SKIP_TITLE,
-        'Analytics setting could not be verified in partial config.'
-      );
-    }
-    if (analytics.source === 'inferred') {
-      return skip(STRINGS.ANALYTICS_SKIP_TITLE, 'Analytics setting was only inferred.');
     }
 
     return pass(STRINGS.ANALYTICS_PASS_TITLE, STRINGS.ANALYTICS_PASS_DETAIL);

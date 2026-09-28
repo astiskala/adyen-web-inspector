@@ -40,13 +40,14 @@ The extension requests `host_permissions: ["<all_urls>"]` because it needs to in
 
 - The config interceptor (`config-interceptor.ts`) runs in all matching frames in the MAIN world at `document_start`, including before a scan. It wraps Adyen globals and page `fetch`, `XMLHttpRequest.open`, and `JSON.parse` to capture checkout settings and infer values from request URLs/parsed objects. It attaches a handler to promises returned by wrapped checkout factories; it does **not** wrap `Promise.prototype.then`. It stores selected fields on page globals, does not read request bodies or initiate network requests, and does not modify the DOM.
 - The page-world extractor (`page-extractor.ts`) runs via `chrome.scripting.executeScript` with `world: "MAIN"` during a scan — it reads globals, DOM elements, stylesheets, and resource timing in accessible frames but does not modify the page DOM.
-- The passive detector (`detector.ts`) uses lightweight DOM selectors and route/mutation listeners to detect checkout mounts before a scan; it does not execute remote code or make network calls.
+- The passive detector (`detector.ts`) uses lightweight DOM selectors and route/mutation listeners to report checkout activity (mounted Drop-in, Components, or Adyen iframes) before a scan; it does not execute remote code or make network calls.
+- Content scripts are bundled at build time into self-contained classic scripts; the build fails if a bundle would need to load another module, and no content script loads code at runtime.
 - No `eval()`, `new Function()`, or `document.write()` is used anywhere in the codebase.
 - CSP is not relaxed in the manifest — the extension runs with Chrome's default extension CSP.
 
 ### Storage
 
-- Per-tab scan results are stored in `chrome.storage.session`.
+- Per-tab scan results and the detector's checkout activity flag are stored in `chrome.storage.session` and cleared on tab close or navigation start.
 - Latest npm version cache is stored in `chrome.storage.local` with a 24-hour TTL.
 
 ### Dependencies

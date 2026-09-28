@@ -61,7 +61,7 @@ describe('notice impact mapping', () => {
     });
 
     expect(getImpactLevel(check)).toBe('manual');
-    expect(getImpactLabel(check)).toBe('Manual verification needed');
+    expect(getImpactLabel(check)).toBe('Manual verification');
   });
 
   it('uses check-owned impact when a new result supplies it', () => {
@@ -78,7 +78,7 @@ describe('notice impact mapping', () => {
     });
 
     expect(getImpactLevel(check)).toBe('manual');
-    expect(getImpactLabel(check)).toBe('Manual verification needed');
+    expect(getImpactLabel(check)).toBe('Manual verification');
   });
 });
 

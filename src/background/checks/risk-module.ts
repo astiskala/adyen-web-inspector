@@ -4,10 +4,7 @@
 
 import { DF_IFRAME_NAME, DF_IFRAME_URL_PATTERN } from '../../shared/constants.js';
 import { hasCheckoutActivity } from '../../shared/implementation-attributes.js';
-import {
-  hasVerifiedCheckoutConfig,
-  resolveCapturedCheckoutConfig,
-} from '../../shared/scan-evidence.js';
+import { readCheckoutField } from '../../shared/scan-evidence.js';
 import { SKIP_REASONS } from './constants.js';
 import { createRegistry } from './registry.js';
 
@@ -72,13 +69,13 @@ export const RISK_CHECKS = createRegistry(CATEGORY)
   .add(
     'risk-module-not-disabled',
     (payload, { skip, warn, pass }) => {
-      const config = resolveCapturedCheckoutConfig(payload);
+      const risk = readCheckoutField(payload, 'riskEnabled', { includeInferred: false });
 
-      if (!config) {
+      if (risk.state === 'unobserved' && risk.reason === 'no-config') {
         return skip(STRINGS.MODULE_SKIP_TITLE, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
       }
 
-      if (config.riskEnabled === false) {
+      if (risk.state === 'present' && !risk.value) {
         return warn(
           STRINGS.MODULE_WARN_TITLE,
           STRINGS.MODULE_WARN_DETAIL,
@@ -86,7 +83,7 @@ export const RISK_CHECKS = createRegistry(CATEGORY)
           STRINGS.MODULE_WARN_URL
         );
       }
-      if (config.riskEnabled === undefined && !hasVerifiedCheckoutConfig(payload)) {
+      if (risk.state === 'unobserved') {
         return skip(
           STRINGS.MODULE_SKIP_TITLE,
           'Risk setting was not visible in partial checkout configuration.'

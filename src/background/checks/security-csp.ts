@@ -9,17 +9,11 @@ import {
   type AdyenWebEnvironmentOrigins,
 } from '../../shared/constants.js';
 import { resolveEnvironment } from '../../shared/implementation-attributes.js';
-import { observeCheckoutField } from '../../shared/scan-evidence.js';
-import {
-  cspAllowsUrl,
-  getAllHeaders,
-  getEffectiveCspSources,
-  getHeader,
-  isAdyenCheckoutResource,
-  parseCsp,
-} from '../../shared/utils.js';
+import { readCheckoutField } from '../../shared/scan-evidence.js';
+import { getHeader, isAdyenCheckoutResource } from '../../shared/utils.js';
 import { COMMON_DETAILS, SKIP_REASONS } from './constants.js';
-import { createRegistry } from './registry.js';
+import { readPagePolicy, type PagePolicy } from './page-policy.js';
+import { createRegistry, type CheckContext } from './registry.js';
 
 const CATEGORY = 'security' as const;
 const ADYEN_PCI_DSS_SCRIPT_SECURITY_DOC =
@@ -106,21 +100,18 @@ const STRINGS = {
   REPORTING_NONE_INFO_DETAIL: `Configure CSP violation reporting by adding the report-to directive. See: ${ADYEN_PCI_DSS_REPORTING_DOC}`,
 } as const;
 
-function getCspPolicies(payload: ScanPayload): ReturnType<typeof parseCsp>[] {
-  return getAllHeaders(payload, 'content-security-policy')
-    .flatMap((value) => value.split(/\s*,\s*/))
-    .filter((value) => value.trim() !== '')
-    .map(parseCsp);
-}
+type EnforcedPolicy = Extract<PagePolicy, { status: 'enforced' }>;
+type CheckOutcome = ReturnType<CheckContext['skip']>;
 
-function allowsAnySources(values: readonly string[]): boolean {
-  return values.includes('*') || values.includes('https:');
-}
-
-type EffectiveSources = NonNullable<ReturnType<typeof getEffectiveCspSources>>;
-
-function isRestrictiveSources(effective: EffectiveSources | null): effective is EffectiveSources {
-  return effective !== null && !allowsAnySources(effective.sources);
+/** Skips a directive check when headers are unavailable or no policy is set. */
+function skipUnenforced(
+  policy: Exclude<PagePolicy, EnforcedPolicy>,
+  title: string,
+  { skip }: CheckContext
+): CheckOutcome {
+  return policy.status === 'unavailable'
+    ? skip(title, SKIP_REASONS.HEADERS_UNAVAILABLE)
+    : skip(title, STRINGS.NO_CSP_SKIP_REASON);
 }
 
 function isAdyenWebEnvironment(name: string): name is keyof typeof ADYEN_WEB_ENVIRONMENT_URLS {
@@ -132,9 +123,9 @@ function isAdyenWebEnvironment(name: string): name is keyof typeof ADYEN_WEB_ENV
  * unknown environment names fall back to the default live endpoints.
  */
 function resolveAdyenWebUrls(payload: ScanPayload): AdyenWebEnvironmentOrigins | null {
-  const { value: environment } = observeCheckoutField(payload, 'environment');
-  if (environment !== undefined) {
-    const name = environment.toLowerCase();
+  const environment = readCheckoutField(payload, 'environment');
+  if (environment.state === 'present') {
+    const name = environment.value.toLowerCase();
     return isAdyenWebEnvironment(name)
       ? ADYEN_WEB_ENVIRONMENT_URLS[name]
       : ADYEN_WEB_ENVIRONMENT_URLS.live;
@@ -151,9 +142,9 @@ const CDN_TRANSLATION_LANGUAGES = new Set(
 
 /** Adyen Web bundles en-US and fetches other supported translations from the CDN. */
 function fetchesCdnTranslations(payload: ScanPayload): boolean {
-  const { value: locale } = observeCheckoutField(payload, 'locale');
-  if (locale === undefined) return false;
-  const language = locale.slice(0, 2).toLowerCase();
+  const locale = readCheckoutField(payload, 'locale');
+  if (locale.state !== 'present') return false;
+  const language = locale.value.slice(0, 2).toLowerCase();
   return language !== 'en' && CDN_TRANSLATION_LANGUAGES.has(language);
 }
 
@@ -167,22 +158,20 @@ function describeBlockedUrls(blocked: readonly RequiredCspUrl[]): string {
 }
 
 function findBlockedUrls(
-  payload: ScanPayload,
-  policies: ReturnType<typeof getCspPolicies>,
+  policy: EnforcedPolicy,
   directive: 'connect-src' | 'img-src',
   required: readonly RequiredCspUrl[]
 ): RequiredCspUrl[] {
-  return required.filter(({ url }) =>
-    policies.some((policy) => !cspAllowsUrl(policy, directive, url, payload.pageUrl))
-  );
+  return required.filter(({ url }) => !policy.allows(directive, url));
 }
 
 export const CSP_CHECKS = createRegistry(CATEGORY)
   .add('security-csp-present', (payload, { pass, warn, skip }) => {
-    if (!payload.mainDocumentHeadersAvailable) {
+    const policy = readPagePolicy(payload);
+    if (policy.status === 'unavailable') {
       return skip('CSP presence check skipped.', SKIP_REASONS.HEADERS_UNAVAILABLE);
     }
-    if (getCspPolicies(payload).length > 0) {
+    if (policy.status === 'enforced') {
       return pass(STRINGS.CSP_PRESENT_PASS_TITLE);
     }
     return warn(
@@ -192,13 +181,11 @@ export const CSP_CHECKS = createRegistry(CATEGORY)
       STRINGS.CSP_PRESENT_WARN_URL
     );
   })
-  .add('security-csp-script-src', (payload, { skip, pass, warn }) => {
-    if (!payload.mainDocumentHeadersAvailable) {
-      return skip(STRINGS.SCRIPT_SRC_SKIP_TITLE, SKIP_REASONS.HEADERS_UNAVAILABLE);
-    }
-    const policies = getCspPolicies(payload);
-    if (policies.length === 0) {
-      return skip(STRINGS.SCRIPT_SRC_SKIP_TITLE, STRINGS.NO_CSP_SKIP_REASON);
+  .add('security-csp-script-src', (payload, context) => {
+    const { skip, pass, warn } = context;
+    const policy = readPagePolicy(payload);
+    if (policy.status !== 'enforced') {
+      return skipUnenforced(policy, STRINGS.SCRIPT_SRC_SKIP_TITLE, context);
     }
 
     const adyenScripts = payload.page.scripts.filter((script) =>
@@ -208,12 +195,9 @@ export const CSP_CHECKS = createRegistry(CATEGORY)
       return skip(STRINGS.SCRIPT_SRC_SKIP_TITLE, 'No Adyen-hosted checkout scripts detected.');
     }
 
-    const allAllowed = policies.every((policy) =>
-      adyenScripts.every((script) =>
-        cspAllowsUrl(policy, 'script-src', script.src, payload.pageUrl)
-      )
-    );
-    if (allAllowed) return pass(STRINGS.SCRIPT_SRC_PASS_TITLE);
+    if (adyenScripts.every((script) => policy.allows('script-src', script.src))) {
+      return pass(STRINGS.SCRIPT_SRC_PASS_TITLE);
+    }
 
     return warn(
       STRINGS.SCRIPT_SRC_WARN_TITLE,
@@ -222,17 +206,14 @@ export const CSP_CHECKS = createRegistry(CATEGORY)
       STRINGS.SCRIPT_SRC_WARN_URL
     );
   })
-  .add('security-csp-frame-src', (payload, { skip, warn, pass }) => {
-    if (!payload.mainDocumentHeadersAvailable) {
-      return skip(STRINGS.FRAME_SRC_SKIP_TITLE, SKIP_REASONS.HEADERS_UNAVAILABLE);
-    }
-    const policies = getCspPolicies(payload);
-    if (policies.length === 0) {
-      return skip(STRINGS.FRAME_SRC_SKIP_TITLE, STRINGS.NO_CSP_SKIP_REASON);
+  .add('security-csp-frame-src', (payload, context) => {
+    const { warn, pass } = context;
+    const policy = readPagePolicy(payload);
+    if (policy.status !== 'enforced') {
+      return skipUnenforced(policy, STRINGS.FRAME_SRC_SKIP_TITLE, context);
     }
 
-    const effectiveSources = policies.map((policy) => getEffectiveCspSources(policy, 'frame-src'));
-    const restrictive = effectiveSources.find(isRestrictiveSources);
+    const restrictive = policy.restrictive('frame-src');
     if (restrictive !== undefined) {
       return warn(
         STRINGS.FRAME_SRC_STRICT_WARN_TITLE,
@@ -245,9 +226,9 @@ export const CSP_CHECKS = createRegistry(CATEGORY)
     }
 
     if (
-      effectiveSources.some(
-        (effective) => effective === null || effective.directive === 'default-src'
-      )
+      policy
+        .governing('frame-src')
+        .some((governing) => governing === null || governing.directive === 'default-src')
     ) {
       return warn(
         STRINGS.FRAME_SRC_MISSING_WARN_TITLE,
@@ -259,13 +240,11 @@ export const CSP_CHECKS = createRegistry(CATEGORY)
 
     return pass(STRINGS.FRAME_SRC_PASS_TITLE);
   })
-  .add('security-csp-connect-src', (payload, { skip, pass, warn }) => {
-    if (!payload.mainDocumentHeadersAvailable) {
-      return skip(STRINGS.CONNECT_SRC_SKIP_TITLE, SKIP_REASONS.HEADERS_UNAVAILABLE);
-    }
-    const policies = getCspPolicies(payload);
-    if (policies.length === 0) {
-      return skip(STRINGS.CONNECT_SRC_SKIP_TITLE, STRINGS.NO_CSP_SKIP_REASON);
+  .add('security-csp-connect-src', (payload, context) => {
+    const { skip, pass, warn } = context;
+    const policy = readPagePolicy(payload);
+    if (policy.status !== 'enforced') {
+      return skipUnenforced(policy, STRINGS.CONNECT_SRC_SKIP_TITLE, context);
     }
     const urls = resolveAdyenWebUrls(payload);
     if (urls === null) {
@@ -279,7 +258,7 @@ export const CSP_CHECKS = createRegistry(CATEGORY)
         ? [{ url: `${urls.cdn}sdk/`, purpose: 'translations' }]
         : []),
     ];
-    const blocked = findBlockedUrls(payload, policies, 'connect-src', required);
+    const blocked = findBlockedUrls(policy, 'connect-src', required);
     if (blocked.length === 0) return pass(STRINGS.CONNECT_SRC_PASS_TITLE);
 
     return warn(
@@ -291,13 +270,11 @@ export const CSP_CHECKS = createRegistry(CATEGORY)
   })
   .add(
     'security-csp-img-src',
-    (payload, { skip, pass, warn }) => {
-      if (!payload.mainDocumentHeadersAvailable) {
-        return skip(STRINGS.IMG_SRC_SKIP_TITLE, SKIP_REASONS.HEADERS_UNAVAILABLE);
-      }
-      const policies = getCspPolicies(payload);
-      if (policies.length === 0) {
-        return skip(STRINGS.IMG_SRC_SKIP_TITLE, STRINGS.NO_CSP_SKIP_REASON);
+    (payload, context) => {
+      const { skip, pass, warn } = context;
+      const policy = readPagePolicy(payload);
+      if (policy.status !== 'enforced') {
+        return skipUnenforced(policy, STRINGS.IMG_SRC_SKIP_TITLE, context);
       }
       const urls = resolveAdyenWebUrls(payload);
       if (urls === null) {
@@ -305,7 +282,7 @@ export const CSP_CHECKS = createRegistry(CATEGORY)
       }
 
       const required = [{ url: `${urls.cdn}images/logos/card.svg`, purpose: 'logos' }];
-      const blocked = findBlockedUrls(payload, policies, 'img-src', required);
+      const blocked = findBlockedUrls(policy, 'img-src', required);
       if (blocked.length === 0) return pass(STRINGS.IMG_SRC_PASS_TITLE);
 
       return warn(
@@ -317,19 +294,14 @@ export const CSP_CHECKS = createRegistry(CATEGORY)
     },
     { warnImpact: 'low' }
   )
-  .add('security-csp-form-action', (payload, { skip, pass, warn }) => {
-    if (!payload.mainDocumentHeadersAvailable) {
-      return skip(STRINGS.FORM_ACTION_SKIP_TITLE, SKIP_REASONS.HEADERS_UNAVAILABLE);
-    }
-    const policies = getCspPolicies(payload);
-    if (policies.length === 0) {
-      return skip(STRINGS.FORM_ACTION_SKIP_TITLE, STRINGS.NO_CSP_SKIP_REASON);
+  .add('security-csp-form-action', (payload, context) => {
+    const { pass, warn } = context;
+    const policy = readPagePolicy(payload);
+    if (policy.status !== 'enforced') {
+      return skipUnenforced(policy, STRINGS.FORM_ACTION_SKIP_TITLE, context);
     }
 
-    const effectiveSources = policies.map((policy) =>
-      getEffectiveCspSources(policy, 'form-action')
-    );
-    if (effectiveSources.some(isRestrictiveSources)) {
+    if (policy.restrictive('form-action') !== undefined) {
       return warn(
         STRINGS.FORM_ACTION_WARN_TITLE,
         STRINGS.FORM_ACTION_WARN_DETAIL,
@@ -337,18 +309,17 @@ export const CSP_CHECKS = createRegistry(CATEGORY)
         ADYEN_PCI_DSS_EXTERNAL_SOURCES_DOC
       );
     }
-    if (effectiveSources.every((effective) => effective === null)) {
+    if (policy.governing('form-action').every((governing) => governing === null)) {
       return pass(STRINGS.FORM_ACTION_UNSET_PASS_TITLE);
     }
     return pass(STRINGS.FORM_ACTION_PASS_TITLE);
   })
   .add('security-csp-frame-ancestors', (payload, { pass, warn, skip }) => {
-    if (!payload.mainDocumentHeadersAvailable) {
+    const policy = readPagePolicy(payload);
+    if (policy.status === 'unavailable') {
       return skip('CSP frame-ancestors check skipped.', SKIP_REASONS.HEADERS_UNAVAILABLE);
     }
-    const hasFrameAncestors = getCspPolicies(payload).some(
-      (policy) => policy.directives['frame-ancestors'] !== undefined
-    );
+    const hasFrameAncestors = policy.status === 'enforced' && policy.declares('frame-ancestors');
     const hasXfo = getHeader(payload, 'x-frame-options') !== null;
 
     if (hasFrameAncestors || hasXfo) {
@@ -367,18 +338,18 @@ export const CSP_CHECKS = createRegistry(CATEGORY)
     );
   })
   .add('security-csp-reporting', (payload, { info, pass, warn, skip }) => {
-    if (!payload.mainDocumentHeadersAvailable) {
+    const policy = readPagePolicy(payload);
+    if (policy.status === 'unavailable') {
       return skip('CSP reporting check skipped.', SKIP_REASONS.HEADERS_UNAVAILABLE);
     }
-    const policies = getCspPolicies(payload);
     const reportingEndpoints = getHeader(payload, 'reporting-endpoints');
 
-    if (policies.length === 0) {
+    if (policy.status === 'absent') {
       return info(STRINGS.REPORTING_SKIP_INFO_TITLE);
     }
 
-    const hasReportTo = policies.some((policy) => policy.directives['report-to'] !== undefined);
-    const hasReportUri = policies.some((policy) => policy.directives['report-uri'] !== undefined);
+    const hasReportTo = policy.declares('report-to');
+    const hasReportUri = policy.declares('report-uri');
 
     if (hasReportTo && Boolean(reportingEndpoints)) {
       return pass(STRINGS.REPORTING_PASS_TITLE);

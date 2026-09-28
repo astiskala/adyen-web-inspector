@@ -1,6 +1,7 @@
 import type { JSX } from 'preact';
-import type { ScanResult, CheckImpact, CheckResult } from '~shared/types';
+import type { ScanResult, CheckResult } from '~shared/types';
 import { buildFindingProjection, type ImpactGroupChecks } from '~shared/export-report';
+import { IMPACT_LABELS } from '~shared/results';
 import { IdentityCard } from '../../popup/components/IdentityCard';
 import { HealthScore } from '../../popup/components/HealthScore';
 import { IssueList } from '../../popup/components/IssueList';
@@ -8,12 +9,6 @@ import { StandardComplianceBadge } from '../../popup/components/StandardComplian
 import styles from './panel.module.css';
 
 const s = (key: string): string => styles[key] ?? '';
-const IMPACT_GROUP_LABEL: Record<CheckImpact, string> = {
-  high: 'High impact',
-  medium: 'Medium impact',
-  low: 'Low impact',
-  manual: 'Manual verification',
-};
 
 interface Props {
   readonly result: ScanResult;
@@ -83,7 +78,7 @@ function BestPracticeImpactSection({ impact, checks }: ImpactGroupChecks): JSX.E
   return (
     <div class={s('impactGroupSection')}>
       <h3 class={s('impactGroupTitle')}>
-        {IMPACT_GROUP_LABEL[impact]}
+        {IMPACT_LABELS[impact]}
         <span class={s('impactGroupCount')}>{checks.length}</span>
       </h3>
       <div class={s('checkList')}>

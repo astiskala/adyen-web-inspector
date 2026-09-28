@@ -237,7 +237,7 @@ export const NPM_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 export const STORAGE_SCAN_RESULT_PREFIX = 'scan_result_';
 export const STORAGE_NPM_CACHE_KEY = 'npm_cache_adyen_web';
-export const STORAGE_DETECTED_PREFIX = 'adyen_detected_';
+export const STORAGE_CHECKOUT_ACTIVITY_PREFIX = 'checkout_activity_';
 export const STORAGE_VERSION_PREFIX = 'adyen_version_';
 
 // ─── Version Gates ────────────────────────────────────────────────────────────

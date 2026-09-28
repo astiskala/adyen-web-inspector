@@ -17,6 +17,8 @@ export default defineConfig({
         'src/background/checks/**',
         'src/background/npm-registry.ts',
         'src/background/payload-builder.ts',
+        'src/background/scan-assessment.ts',
+        'src/background/scan-orchestrator.ts',
         'src/shared/**',
       ],
       exclude: ['src/shared/export-pdf.ts', 'src/shared/types.ts', 'src/shared/base.css'],
@@ -38,6 +40,18 @@ export default defineConfig({
           functions: 90,
           branches: 85,
           statements: 90,
+        },
+        'src/shared/{checkout-config-schema,scan-evidence,sdk-presence}.ts': {
+          lines: 95,
+          functions: 95,
+          branches: 90,
+          statements: 95,
+        },
+        'src/background/scan-{assessment,orchestrator}.ts': {
+          lines: 95,
+          functions: 95,
+          branches: 90,
+          statements: 95,
         },
         'src/background/npm-registry.ts': {
           lines: 95,

@@ -2,7 +2,7 @@ import type { JSX } from 'preact';
 import { useState, useEffect } from 'preact/hooks';
 import {
   MIN_SUPPORTED_MAJOR_VERSION,
-  STORAGE_DETECTED_PREFIX,
+  STORAGE_CHECKOUT_ACTIVITY_PREFIX,
   STORAGE_VERSION_PREFIX,
 } from '~shared/constants';
 import { parseVersion } from '~shared/utils';
@@ -28,18 +28,18 @@ type IdleView =
   | { readonly state: 'ready' | 'not-detected' }
   | { readonly state: 'version-outdated'; readonly version: string };
 
-/** Resolves the view for a tab without a scan result from the detector's session flags. */
+/** Resolves the view for a tab without a scan result from the detector's checkout activity flags. */
 async function getIdleView(): Promise<IdleView> {
   const tabId = await getActiveTabId();
   if (tabId === undefined) return { state: 'not-detected' };
 
-  const detectedKey = `${STORAGE_DETECTED_PREFIX}${tabId}`;
+  const activityKey = `${STORAGE_CHECKOUT_ACTIVITY_PREFIX}${tabId}`;
   const versionKey = `${STORAGE_VERSION_PREFIX}${tabId}`;
   const stored: Record<string, unknown> = await chrome.storage.session.get([
-    detectedKey,
+    activityKey,
     versionKey,
   ]);
-  if (stored[detectedKey] !== true) return { state: 'not-detected' };
+  if (stored[activityKey] !== true) return { state: 'not-detected' };
 
   const version = stored[versionKey];
   if (typeof version === 'string') {
@@ -97,9 +97,7 @@ export function Popup(): JSX.Element {
   }
 
   const isDetected = state === 'detected' && result !== null;
-  const sdkDetectedCheck =
-    result === null ? undefined : result.checks.find((check) => check.id === 'sdk-detected');
-  const sdkNotDetected = isDetected && sdkDetectedCheck?.severity === 'fail';
+  const sdkNotDetected = isDetected && !result.sdkPresence.detected;
   const showScanControls = (state === 'ready' || state === 'detected') && !sdkNotDetected;
   let scanButtonText = 'Run Scan';
   if (scanning) {

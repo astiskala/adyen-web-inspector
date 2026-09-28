@@ -14,7 +14,9 @@
  * page globals for the on-demand page extractor to read.
  */
 
+import { applyCapturedOptions, readCheckoutOptions } from '../shared/checkout-config-schema.js';
 import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
+import { extractLocaleFromUrl, isAdyenHost } from '../shared/utils.js';
 
 (function configInterceptor(): void {
   const CAPTURED_CONFIG_KEY = '__adyenWebInspectorCapturedConfig';
@@ -26,37 +28,9 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
   type PlainRecord = Record<string, unknown>;
   type SdkCallable = (this: unknown, ...args: unknown[]) => unknown;
 
-  const CALLBACK_KEYS = [
-    'onSubmit',
-    'onAdditionalDetails',
-    'onPaymentCompleted',
-    'onPaymentFailed',
-    'onError',
-    'beforeSubmit',
-    // v6 deprecated callbacks
-    'onValid',
-    'onOrderCreated',
-    'onShippingChange',
-    'onShopperDetails',
-  ] as const;
-  const STRING_CONFIG_KEYS = ['clientKey', 'environment', 'locale', 'countryCode'] as const;
-  const BOOLEAN_CONFIG_KEYS = [
-    'redirectFromTopWhenInIframe',
-    'setStatusAutomatically',
-    'showBrandsUnderCardNumber',
-    'showFormInstruction',
-  ] as const;
   const ADYEN_INSTANCE_MARKER = '__adyenInstance';
-  const LOCALE_FROM_URL_PATTERN = /\/translations\/([^/]+)\.json$/;
   const LIVE_ENVIRONMENT_PATTERN = /(?:^|\.|-)(live(?:-[a-z]{2,4})?)(?:\.|$)/;
   const TEST_ENVIRONMENT_PATTERN = /(?:^|\.|-)(test)(?:\.|$)/;
-
-  /** Inlined from shared/utils — config-interceptor must be dependency-free. */
-  function extractLocaleFromUrl(url: string): string | null {
-    const match = LOCALE_FROM_URL_PATTERN.exec(url);
-    const locale = match?.[1];
-    return typeof locale === 'string' && locale !== '' ? locale : null;
-  }
 
   if ((globalThis as PlainRecord)[CAPTURED_CONFIG_KEY + '__installed'] === true) {
     return;
@@ -64,172 +38,38 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
   (globalThis as PlainRecord)[CAPTURED_CONFIG_KEY + '__installed'] = true;
 
   // ---------------------------------------------------------------------------
-  // Configuration extraction
-  // ---------------------------------------------------------------------------
-
-  function hasCallback(value: unknown): boolean {
-    return typeof value === 'boolean' ? value : typeof value === 'function';
-  }
-
-  function copyStringFields(source: PlainRecord, target: PlainRecord): void {
-    for (const key of STRING_CONFIG_KEYS) {
-      if (typeof source[key] === 'string') {
-        target[key] = source[key];
-      }
-    }
-  }
-
-  function copyRiskFields(source: PlainRecord, target: PlainRecord): void {
-    const riskConfig = source['risk'];
-    if (typeof riskConfig === 'object' && riskConfig !== null) {
-      const enabled = (riskConfig as PlainRecord)['enabled'];
-      if (typeof enabled === 'boolean') {
-        target['riskEnabled'] = enabled;
-        return;
-      }
-    }
-
-    const legacyRisk = source['riskEnabled'];
-    if (typeof legacyRisk === 'boolean') {
-      target['riskEnabled'] = legacyRisk;
-    } else if (typeof legacyRisk === 'function') {
-      target['riskEnabled'] = true;
-    }
-  }
-
-  function copyAnalyticsFields(source: PlainRecord, target: PlainRecord): void {
-    if (typeof source['analytics'] === 'object' && source['analytics'] !== null) {
-      const enabled = (source['analytics'] as PlainRecord)['enabled'];
-      if (typeof enabled === 'boolean') {
-        target['analyticsEnabled'] = enabled;
-      }
-    }
-  }
-
-  function copySessionFields(source: PlainRecord, target: PlainRecord): void {
-    if (
-      source['session'] !== null &&
-      source['session'] !== undefined &&
-      typeof source['session'] === 'object'
-    ) {
-      target['hasSession'] = true;
-    }
-  }
-
-  function copyBooleanConfigFields(source: PlainRecord, target: PlainRecord): void {
-    for (const key of BOOLEAN_CONFIG_KEYS) {
-      if (typeof source[key] === 'boolean') {
-        target[key] = source[key];
-      }
-    }
-  }
-
-  function copyInstallmentOptionsField(source: PlainRecord, target: PlainRecord): void {
-    if (
-      source['installmentOptions'] !== null &&
-      source['installmentOptions'] !== undefined &&
-      typeof source['installmentOptions'] === 'object'
-    ) {
-      target['installmentOptions'] = true;
-    }
-  }
-
-  function extractFields(raw: unknown, source: CallbackSource): Partial<CheckoutConfig> | null {
-    if (raw === null || typeof raw !== 'object') {
-      return null;
-    }
-    const r = raw as PlainRecord;
-    const c: PlainRecord = {};
-
-    copyStringFields(r, c);
-    copyRiskFields(r, c);
-    copyAnalyticsFields(r, c);
-    copySessionFields(r, c);
-    copyBooleanConfigFields(r, c);
-    copyInstallmentOptionsField(r, c);
-
-    for (const key of CALLBACK_KEYS) {
-      if (hasCallback(r[key])) {
-        c[key] = source;
-      }
-    }
-
-    if (typeof r['onSubmit'] === 'function') {
-      try {
-        c['onSubmitSource'] = (r['onSubmit'] as () => void).toString().slice(0, 1200);
-      } catch {
-        /* ignore */
-      }
-    }
-
-    if (typeof r['beforeSubmit'] === 'function') {
-      try {
-        c['beforeSubmitSource'] = (r['beforeSubmit'] as () => void).toString().slice(0, 1200);
-      } catch {
-        /* ignore */
-      }
-    }
-
-    return Object.keys(c).length > 0 ? c : null;
-  }
-
-  // ---------------------------------------------------------------------------
   // Merging & Publishing
   // ---------------------------------------------------------------------------
 
-  let captured: Partial<CheckoutConfig> | null = null;
-  let inferred: Partial<CheckoutConfig> | null = null;
+  let captured: CheckoutConfig | null = null;
+  let inferred: CheckoutConfig | null = null;
 
-  function mergeAndPublish(incoming: Partial<CheckoutConfig> | null): void {
-    if (incoming === null) {
-      return;
-    }
-
-    if (captured === null) {
-      captured = incoming;
-    } else {
-      const safe = Object.fromEntries(
-        Object.entries(incoming).filter(([k]) => {
-          const isProtected =
-            (CALLBACK_KEYS as readonly string[]).includes(k) &&
-            captured?.[k as keyof typeof captured] === 'checkout';
-          return !isProtected;
-        })
-      ) as Partial<CheckoutConfig>;
-      captured = { ...captured, ...safe };
-    }
-
+  function publish(key: string, config: CheckoutConfig): void {
     try {
-      (globalThis as PlainRecord)[CAPTURED_CONFIG_KEY] = structuredClone(captured);
+      (globalThis as PlainRecord)[key] = structuredClone(config);
     } catch {
       /* ignore */
     }
   }
 
-  function mergeAndPublishInferred(incoming: Partial<CheckoutConfig> | null): void {
-    if (incoming === null) {
+  function mergeAndPublishInferred(incoming: CheckoutConfig | null): void {
+    if (incoming === null || Object.keys(incoming).length === 0) {
       return;
     }
-
-    if (inferred === null) {
-      inferred = incoming;
-    } else {
-      inferred = { ...inferred, ...incoming };
-    }
-
-    try {
-      (globalThis as PlainRecord)[CAPTURED_INFERRED_CONFIG_KEY] = structuredClone(inferred);
-    } catch {
-      /* ignore */
-    }
+    inferred = { ...inferred, ...incoming };
+    publish(CAPTURED_INFERRED_CONFIG_KEY, inferred);
   }
 
   function captureConfig(raw: unknown, source: CallbackSource): void {
     try {
+      const fields = readCheckoutOptions(raw, source);
       // Options passed straight to AdyenCheckout are the full checkout config, so absent fields are known absent.
-      const complete =
-        source === 'checkout' && raw !== null && typeof raw === 'object' && !Array.isArray(raw);
-      mergeAndPublish(extractFields(raw, source) ?? (complete ? {} : null));
+      const complete = source === 'checkout' && fields !== null && !Array.isArray(raw);
+      if (fields === null || (Object.keys(fields).length === 0 && !complete)) {
+        return;
+      }
+      captured = applyCapturedOptions(captured, fields);
+      publish(CAPTURED_CONFIG_KEY, captured);
       if (complete) (globalThis as PlainRecord)[DIRECT_CONFIG_KEY] = true;
     } catch {
       /* ignore */
@@ -243,12 +83,7 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
   function tryCaptureFromUrl(url: string): void {
     try {
       const u = new URL(url, globalThis.location.href);
-      const isAdyenDomain =
-        u.hostname === 'adyen.com' ||
-        u.hostname.endsWith('.adyen.com') ||
-        u.hostname === 'adyenpayments.com' ||
-        u.hostname.endsWith('.adyenpayments.com');
-      if (!isAdyenDomain) {
+      if (!isAdyenHost(u.hostname)) {
         return;
       }
 
@@ -293,7 +128,7 @@ import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
     const result = originalParse.call(JSON, text, reviver) as unknown;
     if (result !== null && typeof result === 'object') {
       try {
-        mergeAndPublishInferred(extractFields(result, 'checkout'));
+        mergeAndPublishInferred(readCheckoutOptions(result, 'checkout'));
       } catch {
         return result;
       }

@@ -10,6 +10,14 @@ export const ADYEN_WEB_BEST_PRACTICES_DOC =
 /** Impact buckets in priority order, used to group and sort issues. */
 export const ISSUE_IMPACT_ORDER: readonly CheckImpact[] = ['high', 'medium', 'low', 'manual'];
 
+/** Display labels for impact groups, shared by the popup, DevTools panel, and reports. */
+export const IMPACT_LABELS: Readonly<Record<CheckImpact, string>> = {
+  high: 'High impact',
+  medium: 'Medium impact',
+  low: 'Low impact',
+  manual: 'Manual verification',
+};
+
 /** Returns true when a check result is an issue (fail, warn, or notice). */
 export function isIssue(check: CheckResult): boolean {
   return check.severity === 'fail' || check.severity === 'warn' || check.severity === 'notice';
@@ -40,10 +48,7 @@ export function getImpactLevel(check: CheckResult): CheckImpact | 'none' {
  */
 export function getImpactLabel(check: CheckResult): string {
   const impactLevel = getImpactLevel(check);
-  if (impactLevel === 'high') return 'High impact';
-  if (impactLevel === 'medium') return 'Medium impact';
-  if (impactLevel === 'low') return 'Low impact';
-  if (impactLevel === 'manual') return 'Manual verification needed';
+  if (impactLevel !== 'none') return IMPACT_LABELS[impactLevel];
   if (check.severity === 'pass') return 'No impact';
   if (check.severity === 'skip') return 'Not applicable';
   return 'Informational';

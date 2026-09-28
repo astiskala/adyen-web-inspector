@@ -9,6 +9,8 @@ import {
   SESSIONS_API_PATTERN,
   ADYEN_CDN_HOST_SUFFIX,
 } from './constants.js';
+import { checkoutConfigSources, listCheckoutFieldObservations } from './scan-evidence.js';
+import { detectSdkPresence } from './sdk-presence.js';
 import type { ScanPayload } from './types.js';
 import { extractHostname, isAdyenHost, isAdyenCheckoutResource } from './utils.js';
 
@@ -33,6 +35,14 @@ const ANALYTICS_FLAVOR_MAP: Record<string, ImplementationFlavor> = {
 type EnvironmentSource = 'config' | 'client-key' | 'network' | 'unknown';
 type RegionSource = 'config' | 'network' | 'unknown';
 export type IntegrationFlow = 'sessions' | 'advanced' | 'unknown';
+
+/** Display labels for integration flows, shared by every view. */
+export const INTEGRATION_FLOW_LABELS: Readonly<Record<IntegrationFlow, string>> = {
+  sessions: 'Sessions',
+  advanced: 'Advanced',
+  unknown: 'Unknown',
+};
+
 type ImportMethod = 'CDN' | 'Adyen' | 'Unknown';
 type ImplementationFlavor = 'Drop-in' | 'Components' | 'Custom' | 'Unknown';
 type IntegrationFlavorSource =
@@ -136,8 +146,21 @@ function detectEnvironmentFromConfig(environment: string | undefined): AdyenEnvi
   return parseConfigEnvironment(environment).env;
 }
 
-function detectRegionFromConfig(environment: string | undefined): AdyenRegion {
-  return parseConfigEnvironment(environment).region;
+function detectRegionFromConfig(environment: string | undefined): AdyenRegion | null {
+  const { region } = parseConfigEnvironment(environment);
+  return region === 'unknown' ? null : region;
+}
+
+/** Resolves the first observation that yields a value, strongest source first. */
+function firstResolved<V, R>(
+  observations: readonly { readonly value: V }[],
+  resolve: (value: V) => R | null
+): R | null {
+  for (const { value } of observations) {
+    const resolved = resolve(value);
+    if (resolved !== null) return resolved;
+  }
+  return null;
 }
 
 function isAdyenApiRequest(url: string): boolean {
@@ -235,25 +258,18 @@ export function detectEnvironmentFromRequests(payload: ScanPayload): AdyenEnviro
  * Priority: checkout config, client key, then network traffic.
  */
 export function resolveEnvironment(payload: ScanPayload): EnvironmentResolution {
-  const envFromConfig = detectEnvironmentFromConfig(payload.page.checkoutConfig?.environment);
+  const envFromConfig = firstResolved(
+    listCheckoutFieldObservations(payload, 'environment'),
+    detectEnvironmentFromConfig
+  );
   if (envFromConfig !== null) {
     return { env: envFromConfig, source: 'config' };
   }
 
-  const envFromComponent = detectEnvironmentFromConfig(payload.page.componentConfig?.environment);
-  if (envFromComponent !== null) {
-    return { env: envFromComponent, source: 'config' };
-  }
-
-  const envFromInferred = detectEnvironmentFromConfig(payload.page.inferredConfig?.environment);
-  if (envFromInferred !== null) {
-    return { env: envFromInferred, source: 'config' };
-  }
-
-  const envFromKey =
-    detectEnvironmentFromClientKey(payload.page.checkoutConfig?.clientKey) ??
-    detectEnvironmentFromClientKey(payload.page.componentConfig?.clientKey) ??
-    detectEnvironmentFromClientKey(payload.page.inferredConfig?.clientKey);
+  const envFromKey = firstResolved(
+    listCheckoutFieldObservations(payload, 'clientKey'),
+    detectEnvironmentFromClientKey
+  );
   if (envFromKey !== null) {
     return { env: envFromKey, source: 'client-key' };
   }
@@ -270,15 +286,11 @@ export function resolveEnvironment(payload: ScanPayload): EnvironmentResolution 
  * Resolves region from checkout config first, then captured request hosts.
  */
 export function resolveRegion(payload: ScanPayload): RegionResolution {
-  let regionFromConfig = detectRegionFromConfig(payload.page.checkoutConfig?.environment);
-  if (regionFromConfig === 'unknown') {
-    regionFromConfig = detectRegionFromConfig(payload.page.componentConfig?.environment);
-  }
-  if (regionFromConfig === 'unknown') {
-    regionFromConfig = detectRegionFromConfig(payload.page.inferredConfig?.environment);
-  }
-
-  if (regionFromConfig !== 'unknown') {
+  const regionFromConfig = firstResolved(
+    listCheckoutFieldObservations(payload, 'environment'),
+    detectRegionFromConfig
+  );
+  if (regionFromConfig !== null) {
     return { region: regionFromConfig, source: 'config' };
   }
 
@@ -335,7 +347,7 @@ export function detectImportMethod(scripts: ScanPayload['page']['scripts']): Imp
 export function hasCheckoutActivity(payload: ScanPayload): boolean {
   const { page, capturedRequests, analyticsData } = payload;
 
-  if (page.checkoutConfig || page.componentConfig || page.inferredConfig) return true;
+  if (checkoutConfigSources(payload).size > 0) return true;
   if (analyticsData !== null) return true;
 
   if (
@@ -363,15 +375,11 @@ export function collectIntegrationFlowSignals(payload: ScanPayload): Integration
     hasSessionsRequest: payload.capturedRequests.some((request) =>
       SESSIONS_API_PATTERN.test(request.url)
     ),
-    hasSessionConfig:
-      Boolean(payload.page.checkoutConfig?.hasSession) ||
-      Boolean(payload.page.componentConfig?.hasSession) ||
-      Boolean(payload.page.inferredConfig?.hasSession),
+    hasSessionConfig: listCheckoutFieldObservations(payload, 'hasSession').some(
+      (observation) => observation.value
+    ),
     hasAnalyticsSessionId: Boolean(payload.analyticsData?.sessionId),
-    hasCheckoutConfig:
-      payload.page.checkoutConfig !== null ||
-      payload.page.componentConfig !== null ||
-      payload.page.inferredConfig !== null,
+    hasCheckoutConfig: checkoutConfigSources(payload).size > 0,
     hasAnalyticsData: payload.analyticsData !== null,
   };
 }
@@ -436,17 +444,15 @@ export function resolveIntegrationFlavor(payload: ScanPayload): IntegrationFlavo
     };
   }
 
-  if (payload.page.checkoutConfig || payload.page.inferredConfig) {
+  const configSources = checkoutConfigSources(payload);
+  if (configSources.has('captured') || configSources.has('inferred')) {
     return {
       flavor: 'Components',
       source: 'checkout-config',
     };
   }
 
-  const sdkLoaded =
-    payload.page.adyenMetadata !== null ||
-    payload.page.scripts.some((s) => isAdyenCheckoutResource(s.src));
-  if (sdkLoaded && !hasCheckoutActivity(payload)) {
+  if (detectSdkPresence(payload.page).detected && !hasCheckoutActivity(payload)) {
     return {
       flavor: 'Unknown',
       source: 'sdk-loaded-no-checkout',

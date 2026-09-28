@@ -23,6 +23,7 @@ export function isScanResult(value: unknown): value is ScanResult {
     isRecord(value) &&
     typeof value['pageUrl'] === 'string' &&
     typeof value['scannedAt'] === 'string' &&
+    isRecord(value['sdkPresence']) &&
     Array.isArray(value['checks']) &&
     isRecord(value['health']) &&
     isRecord(value['payload'])

@@ -1,20 +1,16 @@
 /**
  * Passive content script — runs on matching pages at document_idle.
  * Uses lightweight DOM queries and mutation/route listeners; no network calls.
- * Sends ADYEN_DETECTED or ADYEN_NOT_DETECTED to the background service worker.
+ * Reports checkout activity (a mounted Drop-in, Component, or Adyen iframe) to
+ * the background service worker. SDK presence is established by a scan.
  */
-import type {
-  AdyenDetectedMessage,
-  AdyenNotDetectedMessage,
-  ContentToBswMessage,
+import {
+  MSG_CHECKOUT_ACTIVITY_CLEARED,
+  MSG_CHECKOUT_ACTIVITY_DETECTED,
+  type ContentToBswMessage,
 } from '../shared/messages.js';
 
-// Content scripts are executed as classic scripts in Chrome, so this file must
-// stay self-contained and avoid runtime imports that would emit ESM syntax.
-const MSG_ADYEN_DETECTED: AdyenDetectedMessage['type'] = 'ADYEN_DETECTED';
-const MSG_ADYEN_NOT_DETECTED: AdyenNotDetectedMessage['type'] = 'ADYEN_NOT_DETECTED';
-
-interface DetectionResult {
+interface CheckoutActivity {
   found: boolean;
   version?: string;
 }
@@ -46,7 +42,7 @@ function extractVersionFromScripts(): string | undefined {
   return undefined;
 }
 
-function detectAdyen(): DetectionResult {
+function detectCheckoutActivity(): CheckoutActivity {
   // Only report "found" when a Drop-in or Component is actually mounted on the page.
   // SDK script tags alone (including datacollection.js / risk module) do NOT count.
 
@@ -71,12 +67,12 @@ function detectAdyen(): DetectionResult {
   return { found: false };
 }
 
-function buildStateKey(result: DetectionResult): string {
+function buildStateKey(result: CheckoutActivity): string {
   return `${result.found ? '1' : '0'}:${result.version ?? ''}`;
 }
 
 function sendDetectionResult(force = false): void {
-  const result = detectAdyen();
+  const result = detectCheckoutActivity();
   const stateKey = buildStateKey(result);
   if (!force && stateKey === lastSentState) {
     return;
@@ -86,13 +82,13 @@ function sendDetectionResult(force = false): void {
 
   const message: ContentToBswMessage = result.found
     ? {
-        type: MSG_ADYEN_DETECTED,
+        type: MSG_CHECKOUT_ACTIVITY_DETECTED,
         tabId: 0,
         ...(result.version === undefined || result.version === ''
           ? {}
           : { version: result.version }),
       }
-    : { type: MSG_ADYEN_NOT_DETECTED, tabId: 0 };
+    : { type: MSG_CHECKOUT_ACTIVITY_CLEARED, tabId: 0 };
 
   chrome.runtime.sendMessage(message).catch(() => {
     // Background service worker may not be ready yet — safe to ignore

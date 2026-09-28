@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { buildFindingProjection, buildReportExportData } from '../../../src/shared/export-report';
+import {
+  buildFindingProjection,
+  buildReportExportData,
+  groupIssuesByImpact,
+} from '../../../src/shared/export-report';
 import type { CheckResult, ScanResult } from '../../../src/shared/types';
 import { makeScanPayload, makeScanResult } from '../../fixtures/makeScanPayload';
 
@@ -102,6 +106,22 @@ describe('buildFindingProjection', () => {
     expect(projection.bestPractices.successfulChecks).toEqual([]);
     expect(buildReportExportData(result).security.issues.map((issue) => issue.title)).toEqual([
       'SRI warning',
+    ]);
+  });
+
+  it('groups any set of issues by impact and ignores non-issues', () => {
+    const groups = groupIssuesByImpact([
+      makeCheck({ id: 'auth-locale', severity: 'warn', title: 'Zulu warning' }),
+      makeCheck({ id: 'security-sri-css', severity: 'warn', title: 'Alpha', impact: 'high' }),
+      makeCheck({ id: 'security-hsts', severity: 'notice', title: 'Header', impact: 'low' }),
+      makeCheck({ id: 'auth-country-code', severity: 'pass', title: 'Passed' }),
+      makeCheck({ id: 'sdk-flavor', severity: 'info', title: 'Flavor' }),
+    ]);
+
+    expect(groups.map((group) => [group.impact, group.checks.map((c) => c.title)])).toEqual([
+      ['high', ['Alpha']],
+      ['medium', ['Zulu warning']],
+      ['low', ['Header']],
     ]);
   });
 

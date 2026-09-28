@@ -8,6 +8,38 @@ import security from 'eslint-plugin-security';
 import sonarjs from 'eslint-plugin-sonarjs';
 import unicorn from 'eslint-plugin-unicorn';
 
+const BASE_RESTRICTED_SYNTAX = [
+  {
+    selector: 'CallExpression[callee.name="String"]',
+    message:
+      'Avoid String() constructor. Use template literals for coercion, or explicit type guards for errors.',
+  },
+  {
+    selector:
+      'CallExpression[callee.object.name=/^(it|test|describe)$/][callee.property.name="only"]',
+    message: 'Focused tests must not be committed. Remove .only before merging.',
+  },
+];
+
+const BASE_RESTRICTED_IMPORT_PATHS = [
+  { name: 'fs', message: 'Use node:fs instead.' },
+  { name: 'path', message: 'Use node:path instead.' },
+];
+
+// ─── Architecture seams (see AGENTS.md → Key Seams) ─────────────────────────
+
+const RAW_CONFIG_SLOT =
+  '/^(checkoutConfig|componentConfig|inferredConfig|checkoutConfigComplete)$/';
+const RAW_CONFIG_MESSAGE =
+  'Read checkout configuration through readCheckoutField() in shared/scan-evidence.ts; it owns source precedence and the absence rule.';
+const PURE_CHECK_MESSAGE = 'Checks are pure: no chrome.* APIs, network, or clock.';
+const SCAN_PORT_MESSAGE =
+  'The Scan reaches the browser, network, and clock only through the ScanBrowser port.';
+const SDK_PRESENCE_MESSAGE =
+  'Read ScanResult.sdkPresence instead of inferring SDK presence from the sdk-detected check.';
+
+const restrictGlobals = (names, message) => ['error', ...names.map((name) => ({ name, message }))];
+
 export default defineConfig([
   {
     ignores: ['dist/', 'coverage/', '*.cjs', 'vitest.integration.config.ts'],
@@ -158,27 +190,80 @@ export default defineConfig([
       'no-nested-ternary': 'error',
       'no-negated-condition': 'error',
       'max-nested-callbacks': ['error', 4],
+      'no-restricted-syntax': ['error', ...BASE_RESTRICTED_SYNTAX],
+      'no-restricted-imports': ['error', { paths: BASE_RESTRICTED_IMPORT_PATHS }],
+    },
+  },
+  {
+    files: ['src/background/checks/**/*.ts'],
+    rules: {
       'no-restricted-syntax': [
         'error',
+        ...BASE_RESTRICTED_SYNTAX,
         {
-          selector: 'CallExpression[callee.name="String"]',
-          message:
-            'Avoid String() constructor. Use template literals for coercion, or explicit type guards for errors.',
+          selector: `MemberExpression[property.name=${RAW_CONFIG_SLOT}]`,
+          message: RAW_CONFIG_MESSAGE,
         },
         {
-          selector:
-            'CallExpression[callee.object.name=/^(it|test|describe)$/][callee.property.name="only"]',
-          message: 'Focused tests must not be committed. Remove .only before merging.',
+          selector: `ObjectPattern > Property[key.name=${RAW_CONFIG_SLOT}]`,
+          message: RAW_CONFIG_MESSAGE,
         },
       ],
+      'no-restricted-globals': restrictGlobals(
+        ['chrome', 'fetch', 'setTimeout'],
+        PURE_CHECK_MESSAGE
+      ),
+      'no-restricted-properties': [
+        'error',
+        { object: 'Date', property: 'now', message: PURE_CHECK_MESSAGE },
+        { object: 'globalThis', property: 'chrome', message: PURE_CHECK_MESSAGE },
+        { object: 'globalThis', property: 'fetch', message: PURE_CHECK_MESSAGE },
+      ],
+    },
+  },
+  {
+    files: ['src/background/checks/**/*.ts'],
+    ignores: ['src/background/checks/page-policy.ts'],
+    rules: {
       'no-restricted-imports': [
         'error',
         {
-          paths: [
-            { name: 'fs', message: 'Use node:fs instead.' },
-            { name: 'path', message: 'Use node:path instead.' },
+          paths: BASE_RESTRICTED_IMPORT_PATHS,
+          patterns: [
+            {
+              group: ['**/shared/utils.js', '**/shared/csp-utils.js'],
+              importNames: ['parseCsp', 'cspAllowsUrl', 'getEffectiveCspSources'],
+              message:
+                'Read the Content-Security-Policy through readPagePolicy() in checks/page-policy.ts.',
+            },
           ],
         },
+      ],
+    },
+  },
+  {
+    files: ['src/background/scan-orchestrator.ts', 'src/background/scan-assessment.ts'],
+    rules: {
+      'no-restricted-globals': restrictGlobals(
+        ['chrome', 'fetch', 'setTimeout'],
+        SCAN_PORT_MESSAGE
+      ),
+      'no-restricted-properties': [
+        'error',
+        { object: 'Date', property: 'now', message: SCAN_PORT_MESSAGE },
+        { object: 'globalThis', property: 'chrome', message: SCAN_PORT_MESSAGE },
+        { object: 'globalThis', property: 'fetch', message: SCAN_PORT_MESSAGE },
+        { object: 'globalThis', property: 'setTimeout', message: SCAN_PORT_MESSAGE },
+      ],
+    },
+  },
+  {
+    files: ['src/popup/**/*.{ts,tsx}', 'src/devtools/**/*.{ts,tsx}', 'src/background/worker.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        ...BASE_RESTRICTED_SYNTAX,
+        { selector: "Literal[value='sdk-detected']", message: SDK_PRESENCE_MESSAGE },
       ],
     },
   },

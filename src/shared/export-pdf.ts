@@ -1,7 +1,7 @@
 import type { ScanResult, StandardCompliance } from './types';
-import type { ExportIssueRow } from './utils';
 import { buildReportExportData, type ExportCategorySection } from './export-report';
-import { ISSUE_IMPACT_ORDER } from './results';
+import { INTEGRATION_FLOW_LABELS } from './implementation-attributes';
+import { IMPACT_LABELS, ISSUE_IMPACT_ORDER } from './results';
 
 const PDF_REPORT_STORAGE_PREFIX = 'pdf-report:' as const;
 const PDF_REPORT_PAGE_PATH = 'report/report.html' as const;
@@ -86,15 +86,6 @@ function scoreColor(tier: string): string {
   return severityColor('fail');
 }
 
-type IssueImpactGroup = ExportIssueRow['impactLevel'];
-
-const ISSUE_IMPACT_GROUP_LABEL: Record<IssueImpactGroup, string> = {
-  high: 'High Impact',
-  medium: 'Medium Impact',
-  low: 'Low Impact',
-  manual: 'Manual Verification',
-};
-
 function escapeHtml(str: string): string {
   return str
     .replaceAll('&', '&amp;')
@@ -111,13 +102,6 @@ interface ImplementationAttribute {
 function buildAttributes(
   implementationAttributes: ReturnType<typeof buildReportExportData>['implementationAttributes']
 ): ImplementationAttribute[] {
-  let flowLabel = 'Unknown';
-  if (implementationAttributes.flow === 'sessions') {
-    flowLabel = 'Sessions';
-  } else if (implementationAttributes.flow === 'advanced') {
-    flowLabel = 'Advanced';
-  }
-
   return [
     { label: 'SDK Version', value: implementationAttributes.sdkVersion },
     {
@@ -132,7 +116,7 @@ function buildAttributes(
       : [{ label: 'Region', value: implementationAttributes.region }]),
     { label: 'Integration Flavor', value: implementationAttributes.flavor },
     { label: 'Import Method', value: implementationAttributes.importMethod },
-    { label: 'Integration Flow', value: flowLabel },
+    { label: 'Integration Flow', value: INTEGRATION_FLOW_LABELS[implementationAttributes.flow] },
   ];
 }
 
@@ -182,7 +166,7 @@ function buildIssueTableForSection(section: ExportCategorySection, emptyMessage:
 
     rows.push(`
       <tr class="impact-row">
-        <td colspan="3">${escapeHtml(ISSUE_IMPACT_GROUP_LABEL[impactGroup])} (${groupIssues.length})</td>
+        <td colspan="3">${escapeHtml(IMPACT_LABELS[impactGroup])} (${groupIssues.length})</td>
       </tr>`);
 
     for (const issue of groupIssues) {

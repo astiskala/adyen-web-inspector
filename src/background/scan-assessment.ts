@@ -5,16 +5,18 @@ import type {
   ScanPayload,
   ScanResult,
 } from '../shared/types.js';
-import { calculateHealthScore, extractLocaleFromUrl } from '../shared/utils.js';
+import { calculateHealthScore } from '../shared/utils.js';
+import { withRequestDerivedLocale } from '../shared/scan-evidence.js';
+import { detectSdkPresence } from '../shared/sdk-presence.js';
 import { computeStandardCompliance } from '../shared/standard-compliance.js';
-import type { HeaderCollector } from './header-collector.js';
 import { extractVersionFromRequests, extractVersionFromScripts } from './payload-builder.js';
 import { ALL_CHECKS } from './checks/index.js';
+import type { CollectedNetwork } from './scan-browser.js';
 
 interface ScanEvidence {
   readonly tabId: number;
   readonly page: PageExtractResult;
-  readonly collected: ReturnType<HeaderCollector['getResult']>;
+  readonly collected: CollectedNetwork;
   readonly mainDocumentHeaders: CapturedHeader[];
   readonly latestVersion: string | null;
   /** Publish timestamps from npm, keyed by version. */
@@ -89,27 +91,10 @@ export const assessScan = async (
   const detectedVersion = knownVersion ?? (await probeBundleVersion(pageData.pageUrl, scriptUrls));
   const detectedReleasedAt = detectedVersion === null ? undefined : releaseDates?.[detectedVersion];
 
-  // Enforce locale inference from captured requests if not already present
-  const currentLocale = pageData.checkoutConfig?.locale ?? pageData.inferredConfig?.locale ?? '';
-  let enrichedInferredConfig = pageData.inferredConfig;
-
-  if (currentLocale === '') {
-    for (const req of capturedRequests) {
-      const localeFromUrl = extractLocaleFromUrl(req.url);
-      if (localeFromUrl !== null) {
-        enrichedInferredConfig = {
-          ...(enrichedInferredConfig ?? {}),
-          locale: localeFromUrl,
-        };
-        break;
-      }
-    }
-  }
-
   const payload: ScanPayload = {
     tabId,
     pageUrl: pageData.pageUrl,
-    page: { ...pageData, inferredConfig: enrichedInferredConfig },
+    page: withRequestDerivedLocale(pageData, capturedRequests),
     mainDocumentHeaders,
     mainDocumentHeadersAvailable:
       mainDocumentHeaders.length > 0 ||
@@ -131,6 +116,7 @@ export const assessScan = async (
     tabId,
     pageUrl: payload.pageUrl,
     scannedAt: payload.scannedAt,
+    sdkPresence: detectSdkPresence(payload.page),
     checks,
     health: calculateHealthScore(checks),
     standardCompliance: computeStandardCompliance(payload),

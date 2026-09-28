@@ -7,7 +7,7 @@ This catalog documents the checks registered in:
 - `src/background/checks/index.ts`
 - `src/shared/types.ts` (`CheckId`, `CheckCategory`)
 
-Each check implementation owns its outcomes and exceptional impact policy. Missing fields can only be treated as absent from checkout options when `checkoutConfigComplete` records a direct AdyenCheckout capture.
+Each check implementation owns its outcomes and exceptional impact policy. Checks read checkout configuration through `readCheckoutField()` in `src/shared/scan-evidence.ts`, which reports each field as present, absent, or unobserved. A field is absent only when some inspected frame directly captured AdyenCheckout options (`checkoutConfigComplete`) and no source shows the field. CSP checks read the enforced policy through `readPagePolicy()` in `src/background/checks/page-policy.ts`.
 
 ## Totals
 
@@ -37,7 +37,7 @@ Automated browser signals cover the co-badged card SDK minimum
 
 - `pass`: requirement or recommendation is met.
 - `info`: informational signal; no direct failure.
-- `notice`: non-blocking finding. Render as `Low impact` for automated recommendations, or `Manual review` when human or PCI/compliance validation is still required.
+- `notice`: non-blocking finding. Render as `Low impact` for automated recommendations, or `Manual verification` when human or PCI/compliance validation is still required. Every view takes these labels from `IMPACT_LABELS` in `src/shared/results.ts`.
 - `warn`: important risk or best-practice gap.
 - `fail`: high-confidence issue requiring remediation.
 - `skip`: check not applicable or insufficient data.
@@ -45,7 +45,7 @@ Automated browser signals cover the co-badged card SDK minimum
 ## Notice Presentation
 
 - `Low impact`: automated non-blocking recommendation with a clear remediation path. The check's `noticeImpact` policy records this.
-- `Manual review`: default for other `notice` outcomes. Use this when the extension cannot verify acceptability automatically, or when PCI/script-inventory review is still required.
+- `Manual verification`: default for other `notice` outcomes. Use this when the extension cannot verify acceptability automatically, or when PCI/script-inventory review is still required.
 
 Current low-impact notice checks:
 
@@ -136,7 +136,7 @@ Current manual-review notice checks:
 
 When adding, removing, or renaming a check:
 
-1. Update the check implementation in `src/background/checks/`.
+1. Update the check implementation in `src/background/checks/`. Read checkout configuration with `readCheckoutField()` and CSP with `readPagePolicy()`; ESLint rejects direct reads of the raw config slots and CSP primitives.
 2. Update `src/shared/types.ts` (`CheckId` and, if needed, `CheckCategory`).
 3. Ensure `src/background/checks/index.ts` exports the check through `ALL_CHECKS`.
 4. Add or update tests in `tests/unit/checks/`.

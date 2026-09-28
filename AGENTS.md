@@ -63,6 +63,7 @@ Adyen Web Inspector is a Chrome Manifest V3 extension that analyses adyen-web (D
 - No multiple `Array#push()` calls — use spread: `arr.push(...items)`.
 - Functions used as callbacks should be declared at module scope, not inside component render functions.
 - `knip` enforces no unused exports; remove dead code instead of suppressing.
+- Architecture seams are lint-enforced (see **Key Seams**): checks may not read raw checkout config slots, import CSP parsing primitives (outside `page-policy.ts`), or use `chrome`, `fetch`, `setTimeout`, or `Date.now`; the Scan (`scan-orchestrator.ts`, `scan-assessment.ts`) may not use `chrome`, `fetch`, `setTimeout`, or `Date.now`; popup, DevTools, and the worker may not reference the `'sdk-detected'` check ID.
 - Markdown files are linted with `markdownlint-cli2`; JSDoc descriptions must be complete sentences (`jsdoc/require-description-complete-sentence`).
 
 ### CSS Modules
@@ -88,18 +89,36 @@ Allowed types: `feat`, `fix`, `chore`, `docs`, `style`, `refactor`, `test`, `ci`
 
 ### Key Runtime Components
 
-| Component                 | Entry                                  | Role                                          |
-| ------------------------- | -------------------------------------- | --------------------------------------------- |
-| Background service worker | `src/background/worker.ts`             | Message routing, badge updates, scan dispatch |
-| Scan orchestrator         | `src/background/scan-orchestrator.ts`  | Coordinates the scan pipeline                 |
-| Header collector          | `src/background/header-collector.ts`   | Captures response headers during scans        |
-| Check modules             | `src/background/checks/`               | Pure `Check` implementations                  |
-| Config interceptor        | `src/content/config-interceptor.ts`    | MAIN-world SDK config capture (CDN + NPM)     |
-| Content script            | `src/content/detector.ts`              | Lightweight always-on Adyen detection         |
-| Page extractor            | `src/content/page-extractor.ts`        | MAIN-world extraction of page globals/config  |
-| Popup                     | `src/popup/Popup.tsx` → `PopupApp.tsx` | Quick health summary + scan trigger           |
-| DevTools panel            | `src/devtools/panel/`                  | Full inspection UI                            |
-| Shared contracts          | `src/shared/types.ts`                  | Core interfaces and types used across layers  |
+| Component                 | Entry                                   | Role                                            |
+| ------------------------- | --------------------------------------- | ----------------------------------------------- |
+| Background service worker | `src/background/worker.ts`              | Message routing, badge updates, scan dispatch   |
+| Scan orchestrator         | `src/background/scan-orchestrator.ts`   | Scan sequencing through the browser port        |
+| Scan browser port         | `src/background/scan-browser.ts`        | Port types the Scan needs from the browser      |
+| Chrome scan adapter       | `src/background/chrome-scan-browser.ts` | Chrome adapter for the port; stored results     |
+| Header collector          | `src/background/header-collector.ts`    | Captures response headers during scans          |
+| Check modules             | `src/background/checks/`                | Pure `Check` implementations                    |
+| Config interceptor        | `src/content/config-interceptor.ts`     | MAIN-world SDK config capture (CDN + NPM)       |
+| Content script            | `src/content/detector.ts`               | Lightweight always-on checkout activity signal  |
+| Page extractor            | `src/content/page-extractor.ts`         | MAIN-world extraction of page globals/config    |
+| Popup                     | `src/popup/Popup.tsx` → `PopupApp.tsx`  | Quick health summary + scan trigger             |
+| DevTools panel            | `src/devtools/panel/`                   | Full inspection UI                              |
+| Shared contracts          | `src/shared/types.ts`                   | Core interfaces and types used across layers    |
+| Config field schema       | `src/shared/checkout-config-schema.ts`  | Raw options → `CheckoutConfig` for all captures |
+| Configuration evidence    | `src/shared/scan-evidence.ts`           | Present / absent / unobserved per config field  |
+| SDK presence              | `src/shared/sdk-presence.ts`            | SDK presence verdict stored on `ScanResult`     |
+| Finding projection        | `src/shared/export-report.ts`           | Impact grouping for popup, panel, and reports   |
+
+### Key Seams
+
+Each seam names the gate that enforces it.
+
+- **Content-script build**: `vite.config.ts` builds each content script as its own self-contained IIFE after the main build, so content scripts may import from `shared/` without emitting ESM chunk imports. _Build_: fails if a content-script bundle contains `import`/`export` statements.
+- **Config field schema**: both capture paths (AdyenCheckout interception and the mounted Preact tree) map raw options through `readCheckoutOptions()` in `src/shared/checkout-config-schema.ts`. Add new captured fields there, never in a capture path. _depcruise_ `config-schema-inline-safe`: the schema may depend on `shared/types.ts` only, because it is inlined into every content script.
+- **Configuration evidence**: checks read checkout options with `readCheckoutField()`, which applies source precedence (captured → component → inferred) and the absence rule, and returns `present`, `absent`, or `unobserved`. _ESLint_: checks may not read `checkoutConfig`, `componentConfig`, `inferredConfig`, or `checkoutConfigComplete` directly.
+- **Scan browser port**: `runScan(tabId, browser)` takes a `ScanBrowser` (`src/background/scan-browser.ts`). Production passes `chromeScanBrowser`; unit tests use `createFakeScanBrowser()` from `tests/fixtures/fakeScanBrowser.ts` with a virtual clock. _depcruise_ `scan-through-browser-port`, `scan-orchestrator-no-network-probes`, `scan-port-types-only`, `chrome-adapter-wired-by-worker`, `browser-io-behind-chrome-adapter`; _ESLint_: the Scan may not use `chrome`, `fetch`, `setTimeout`, or `Date.now`.
+- **SDK presence**: views and the badge read `ScanResult.sdkPresence`; they must not infer it from the `sdk-detected` check's severity. _ESLint_: popup, DevTools, and the worker may not reference `'sdk-detected'`.
+- **Page policy**: CSP checks read the enforced policy through `readPagePolicy()` in `src/background/checks/page-policy.ts`; every enforced policy must allow a resource. _ESLint_: other checks may not import `parseCsp`, `cspAllowsUrl`, or `getEffectiveCspSources`.
+- **Finding projection**: every issue view groups issues with `groupIssuesByImpact()` and labels them with `IMPACT_LABELS`; flow labels come from `INTEGRATION_FLOW_LABELS`.
 
 ### Module Boundaries
 
@@ -110,6 +129,11 @@ Enforced by dependency-cruiser. **Do not violate these:**
 - `content/` → can import from `content/` and `shared/`
 - `background/checks/` → can import from `background/checks/` and `shared/`
 - `shared/` → no imports from other layers
+- `background/scan-{orchestrator,assessment}.ts` → cannot import the Chrome adapter, header collector, npm registry, or worker; the orchestrator also cannot import `payload-builder.ts`
+- `background/scan-browser.ts` → can import `shared/types.ts` only
+- `background/chrome-scan-browser.ts` → imported only by `background/worker.ts`
+- `background/{header-collector,npm-registry}.ts` → imported only by `background/chrome-scan-browser.ts`
+- `shared/checkout-config-schema.ts` → can import `shared/types.ts` only
 
 ### Layer Responsibilities
 
@@ -147,10 +171,11 @@ Check-specific guidance:
 
 ### Unit Tests
 
-- Location: `tests/unit/` (subdirectories: `checks/`, `content/`, `shared/`, `docs/`)
+- Location: `tests/unit/` (subdirectories: `background/`, `checks/`, `content/`, `devtools/`, `popup/`, `shared/`, `docs/`)
 - Framework: Vitest with jsdom
-- Fixtures: `tests/fixtures/makeScanPayload.ts` — use `makeScanPayload()`, `makeAdyenPayload()`, `makePageExtract()`, `makeCheckoutConfig()`, `makeAdyenMetadata()`, `makeRequest()`, `makeHeader()`.
-- Coverage threshold: **95% lines/functions/statements and 90% branches** on `src/background/checks/**`.
+- Fixtures: `tests/fixtures/makeScanPayload.ts` — use `makeScanPayload()`, `makeAdyenPayload()`, `makePageExtract()`, `makeCheckoutConfig()`, `makeAdyenMetadata()`, `makeRequest()`, `makeHeader()`, `makeScanResult()`.
+- Scan tests: drive `runScan()` through `createFakeScanBrowser()` and `framesOf()` from `tests/fixtures/fakeScanBrowser.ts`; assert on the returned `ScanResult` and the recorded port calls.
+- Coverage threshold: **95% lines/functions/statements and 90% branches** on `src/background/checks/**`, `src/background/scan-{assessment,orchestrator}.ts`, and `src/shared/{checkout-config-schema,scan-evidence,sdk-presence}.ts`.
 
 ### Integration Tests
 
@@ -185,9 +210,16 @@ macOS has a **case-insensitive** filesystem. This means `popup.tsx` and `Popup.t
 When adding a new check:
 
 1. Add or extend a file in `src/background/checks/`
-2. Register it in the module's exported array and in `index.ts` → `ALL_CHECKS`
-3. Add tests in `tests/unit/checks/` covering pass/fail/warn/skip states
-4. Update the check registry in `docs/architecture/check-catalog.md`
+2. Read checkout configuration with `readCheckoutField()` and choose a severity for each evidence state (`present`, `absent`, `unobserved`); read CSP with `readPagePolicy()`
+3. Register it in the module's exported array and in `index.ts` → `ALL_CHECKS`
+4. Add tests in `tests/unit/checks/` covering pass/fail/warn/skip states
+5. Update the check registry in `docs/architecture/check-catalog.md`
+
+When capturing a new checkout option:
+
+1. Add the field to `CheckoutConfig` in `src/shared/types.ts`
+2. Map it in `readCheckoutOptions()` in `src/shared/checkout-config-schema.ts` (both capture paths pick it up)
+3. Add a case to `tests/unit/shared/checkout-config-schema.test.ts`
 
 When adding a new UI component:
 

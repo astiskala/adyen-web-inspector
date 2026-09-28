@@ -49,6 +49,56 @@ const LAYER_BOUNDARY_RULES = [
   },
 ];
 
+// Seams introduced by the architecture deepening (see AGENTS.md → Key Seams).
+const SEAM_RULES = [
+  {
+    name: 'scan-through-browser-port',
+    comment:
+      'The Scan (orchestrator and assessment) reaches the browser only through the ScanBrowser port',
+    severity: 'error',
+    from: { path: '^src/background/scan-(orchestrator|assessment)\\.ts$' },
+    to: {
+      path: '^src/background/(chrome-scan-browser|header-collector|npm-registry|worker)\\.ts$',
+    },
+  },
+  {
+    name: 'scan-orchestrator-no-network-probes',
+    comment: 'Document and bundle fetches are port operations; the orchestrator must not call them',
+    severity: 'error',
+    from: { path: '^src/background/scan-orchestrator\\.ts$' },
+    to: { path: '^src/background/payload-builder\\.ts$' },
+  },
+  {
+    name: 'scan-port-types-only',
+    comment: 'The ScanBrowser port declares types only and depends on shared types alone',
+    severity: 'error',
+    from: { path: '^src/background/scan-browser\\.ts$' },
+    to: { path: '^src/', pathNot: '^src/shared/types\\.ts$' },
+  },
+  {
+    name: 'chrome-adapter-wired-by-worker',
+    comment: 'Only the service worker selects the Chrome adapter for the ScanBrowser port',
+    severity: 'error',
+    from: { path: '^src/', pathNot: '^src/background/worker\\.ts$' },
+    to: { path: '^src/background/chrome-scan-browser\\.ts$' },
+  },
+  {
+    name: 'browser-io-behind-chrome-adapter',
+    comment: 'Network capture and npm lookups are browser I/O owned by the Chrome adapter',
+    severity: 'error',
+    from: { path: '^src/', pathNot: '^src/background/chrome-scan-browser\\.ts$' },
+    to: { path: '^src/background/(header-collector|npm-registry)\\.ts$' },
+  },
+  {
+    name: 'config-schema-inline-safe',
+    comment:
+      'The config field schema is inlined into every content script, so it may depend on shared types only',
+    severity: 'error',
+    from: { path: '^src/shared/checkout-config-schema\\.ts$' },
+    to: { path: '^src/', pathNot: '^src/shared/types\\.ts$' },
+  },
+];
+
 const strictRulesWithoutOrphans = recommendedStrict.forbidden.filter(
   (rule) => rule.name !== 'no-orphans'
 );
@@ -67,7 +117,7 @@ const noOrphansRule = {
 
 /** @type {import('dependency-cruiser').IConfiguration} */
 module.exports = {
-  forbidden: [noOrphansRule, ...strictRulesWithoutOrphans, ...LAYER_BOUNDARY_RULES],
+  forbidden: [noOrphansRule, ...strictRulesWithoutOrphans, ...LAYER_BOUNDARY_RULES, ...SEAM_RULES],
   options: {
     ...recommendedStrict.options,
     doNotFollow: {

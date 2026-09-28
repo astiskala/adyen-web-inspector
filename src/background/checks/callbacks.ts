@@ -2,16 +2,19 @@
  * Category 5 — Integration Flow & Callback checks.
  */
 
-import type { ScanPayload, Severity } from '../../shared/types.js';
+import type { CheckoutConfig, ScanPayload, Severity } from '../../shared/types.js';
+import { CALLBACK_SOURCE_LIMIT, type CALLBACK_KEYS } from '../../shared/checkout-config-schema.js';
 import {
   collectIntegrationFlowSignals,
   detectIntegrationFlow,
+  INTEGRATION_FLOW_LABELS,
   resolveIntegrationFlavor,
   type IntegrationFlow,
 } from '../../shared/implementation-attributes.js';
 import {
-  hasVerifiedCheckoutConfig,
-  resolveCapturedCheckoutConfig,
+  hasCapturedCheckoutConfig,
+  readCheckoutField,
+  type CheckoutFieldEvidence,
 } from '../../shared/scan-evidence.js';
 import {
   detectStateDataForwarding,
@@ -41,8 +44,8 @@ const FLOW_DOCS = {
   },
 } as const;
 
-type CheckoutConfig = NonNullable<ScanPayload['page']['checkoutConfig']>;
-type CallbackValue = CheckoutConfig[keyof CheckoutConfig];
+type CallbackKey = (typeof CALLBACK_KEYS)[number];
+type CallbackSourceKey = 'onSubmitSource' | 'beforeSubmitSource';
 
 /** Simplified outcome for internal helpers. */
 interface CheckOutcome {
@@ -55,21 +58,39 @@ interface CheckOutcome {
 
 const UNSUPPORTED_CUSTOM_BUTTON_METHODS = ['paypal', 'klarna', 'clicktopay'];
 
-// Must match the callback source capture limit in the content scripts; a source this long may be truncated.
-const CAPTURED_SOURCE_MAX_LENGTH = 1200;
+const CAPTURED_ONLY = { includeInferred: false } as const;
 
 function flowLabel(flow: IntegrationFlow): string {
-  if (flow === 'sessions') return 'Sessions flow';
-  if (flow === 'advanced') return 'Advanced flow';
-  return 'Unknown';
+  const label = INTEGRATION_FLOW_LABELS[flow];
+  return flow === 'unknown' ? label : `${label} flow`;
 }
 
-function isCallbackPresent(value: CallbackValue): boolean {
-  return value === 'checkout' || value === 'component';
+function readCallback(payload: ScanPayload, key: CallbackKey): CheckoutFieldEvidence<CallbackKey> {
+  return readCheckoutField(payload, key, CAPTURED_ONLY);
 }
 
-function isComponentOnly(value: CallbackValue): boolean {
-  return value === 'component';
+function readCallbackSource(payload: ScanPayload, key: CallbackSourceKey): string {
+  const evidence = readCheckoutField(payload, key, CAPTURED_ONLY);
+  return evidence.state === 'present' ? evidence.value : '';
+}
+
+function isConfigMissing<K extends keyof CheckoutConfig>(
+  evidence: CheckoutFieldEvidence<K>
+): boolean {
+  return evidence.state === 'unobserved' && evidence.reason === 'no-config';
+}
+
+function componentLevelWarning(
+  label: CallbackKey,
+  docsUrl: string,
+  { warn }: CheckContext
+): CheckOutcome {
+  return warn(
+    `${label} is handled at the component level.`,
+    `${label} was detected on a component rather than AdyenCheckout. Registering callbacks at the AdyenCheckout level ensures they apply to all payment methods.`,
+    `Move ${label} from your component configuration to the AdyenCheckout initialisation.`,
+    docsUrl
+  );
 }
 
 function joinSignals(signals: readonly string[]): string {
@@ -218,8 +239,7 @@ const STRINGS = {
 } as const;
 
 interface AdvancedRequiredCallbackOptions {
-  readonly label: string;
-  readonly readCallback: (config: CheckoutConfig) => CallbackValue;
+  readonly key: CallbackKey;
   readonly presentTitle: string;
   readonly missingTitle: string;
   readonly missingDetail?: string;
@@ -229,43 +249,33 @@ interface AdvancedRequiredCallbackOptions {
 function runAdvancedRequiredCallbackCheck(
   payload: ScanPayload,
   options: AdvancedRequiredCallbackOptions,
-  { pass, fail, skip, warn }: CheckContext
+  context: CheckContext
 ): CheckOutcome {
-  const config = resolveCapturedCheckoutConfig(payload);
+  const { pass, fail, skip } = context;
+  const label = options.key;
+  const evidence = readCallback(payload, label);
 
-  if (!config) {
-    return skip(`${options.label} check skipped.`, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
+  if (isConfigMissing(evidence)) {
+    return skip(`${label} check skipped.`, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
+  }
+  if (detectIntegrationFlow(payload) === 'sessions') {
+    return skip(`${label} check skipped.`, STRINGS.SESSIONS_FLOW_SKIP_REASON);
   }
 
-  const flow = detectIntegrationFlow(payload);
-  if (flow === 'sessions') {
-    return skip(`${options.label} check skipped.`, STRINGS.SESSIONS_FLOW_SKIP_REASON);
-  }
-
-  const value = options.readCallback(config);
   const docsUrl = getFlowSensitiveCallbackDocsUrl(payload, 'advanced');
-
-  if (isCallbackPresent(value)) {
-    if (isComponentOnly(value)) {
-      return warn(
-        `${options.label} is handled at the component level.`,
-        `${options.label} was detected on a component rather than AdyenCheckout. Registering callbacks at the AdyenCheckout level ensures they apply to all payment methods.`,
-        `Move ${options.label} from your component configuration to the AdyenCheckout initialisation.`,
-        docsUrl
-      );
-    }
-    return pass(options.presentTitle);
+  if (evidence.state === 'present') {
+    return evidence.value === 'component'
+      ? componentLevelWarning(label, docsUrl, context)
+      : pass(options.presentTitle);
   }
-
-  if (!hasVerifiedCheckoutConfig(payload)) {
-    return skip(`${options.label} check skipped.`, STRINGS.CALLBACK_ABSENCE_UNVERIFIED_REASON);
+  if (evidence.state === 'unobserved') {
+    return skip(`${label} check skipped.`, STRINGS.CALLBACK_ABSENCE_UNVERIFIED_REASON);
   }
   return fail(options.missingTitle, options.missingDetail, options.remediation, docsUrl);
 }
 
 interface FlowSensitiveOutcomeCallbackOptions {
-  readonly label: string;
-  readonly readCallback: (config: CheckoutConfig) => CallbackValue;
+  readonly key: CallbackKey;
   readonly presentTitle: string;
   readonly missingTitle: string;
   readonly missingSessionsDetail: string;
@@ -277,32 +287,25 @@ interface FlowSensitiveOutcomeCallbackOptions {
 function runFlowSensitiveOutcomeCallbackCheck(
   payload: ScanPayload,
   options: FlowSensitiveOutcomeCallbackOptions,
-  { pass, fail, skip, warn }: CheckContext
+  context: CheckContext
 ): CheckOutcome {
-  const config = resolveCapturedCheckoutConfig(payload);
+  const { pass, fail, skip, warn } = context;
+  const label = options.key;
+  const evidence = readCallback(payload, label);
 
-  if (!config) {
-    return skip(`${options.label} check skipped.`, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
+  if (isConfigMissing(evidence)) {
+    return skip(`${label} check skipped.`, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
   }
 
   const flow = detectIntegrationFlow(payload);
-  const value = options.readCallback(config);
   const docsUrl = getFlowSensitiveCallbackDocsUrl(payload, flow);
-
-  if (isCallbackPresent(value)) {
-    if (isComponentOnly(value)) {
-      return warn(
-        `${options.label} is handled at the component level.`,
-        `${options.label} was detected on a component rather than AdyenCheckout. Registering callbacks at the AdyenCheckout level ensures they apply to all payment methods.`,
-        `Move ${options.label} from your component configuration to the AdyenCheckout initialisation.`,
-        docsUrl
-      );
-    }
-    return pass(options.presentTitle);
+  if (evidence.state === 'present') {
+    return evidence.value === 'component'
+      ? componentLevelWarning(label, docsUrl, context)
+      : pass(options.presentTitle);
   }
-
-  if (!hasVerifiedCheckoutConfig(payload)) {
-    return skip(`${options.label} check skipped.`, STRINGS.CALLBACK_ABSENCE_UNVERIFIED_REASON);
+  if (evidence.state === 'unobserved') {
+    return skip(`${label} check skipped.`, STRINGS.CALLBACK_ABSENCE_UNVERIFIED_REASON);
   }
   if (flow === 'sessions') {
     return fail(
@@ -330,8 +333,7 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
     return runAdvancedRequiredCallbackCheck(
       payload,
       {
-        label: 'onSubmit',
-        readCallback: (config) => config.onSubmit,
+        key: 'onSubmit',
         presentTitle: STRINGS.ON_SUBMIT_PASS_TITLE,
         missingTitle: STRINGS.ON_SUBMIT_FAIL_TITLE,
         missingDetail: STRINGS.ON_SUBMIT_FAIL_DETAIL,
@@ -341,8 +343,7 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
     );
   })
   .add('callback-on-submit-filtering', (payload, { skip, warn, notice, info }) => {
-    const config = resolveCapturedCheckoutConfig(payload);
-    if (!config) {
+    if (!hasCapturedCheckoutConfig(payload)) {
       return skip('onSubmit filtering check skipped.', SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
     }
 
@@ -351,11 +352,11 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
       return skip('onSubmit filtering check skipped.', STRINGS.SESSIONS_FLOW_SKIP_REASON);
     }
 
-    const onSubmitSource = config.onSubmitSource ?? '';
+    const onSubmitSource = readCallbackSource(payload, 'onSubmitSource');
     if (onSubmitSource === '') {
       return skip('onSubmit filtering check skipped.', STRINGS.NO_SOURCE_SKIP_REASON);
     }
-    if (onSubmitSource.length >= CAPTURED_SOURCE_MAX_LENGTH) {
+    if (onSubmitSource.length >= CALLBACK_SOURCE_LIMIT) {
       return notice(
         STRINGS.SUBMIT_FILTER_NOTICE_TITLE,
         'Captured callback source may be truncated, so complete handling cannot be verified.'
@@ -392,14 +393,13 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
     );
   })
   .add('callback-on-submit-state-data', (payload, { skip, pass, warn, notice, info }) => {
-    const config = resolveCapturedCheckoutConfig(payload);
-    if (!config) {
+    if (!hasCapturedCheckoutConfig(payload)) {
       return skip(STRINGS.STATE_DATA_SKIP_TITLE, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
     }
     if (detectIntegrationFlow(payload) === 'sessions') {
       return skip(STRINGS.STATE_DATA_SKIP_TITLE, STRINGS.SESSIONS_FLOW_SKIP_REASON);
     }
-    const onSubmitSource = config.onSubmitSource ?? '';
+    const onSubmitSource = readCallbackSource(payload, 'onSubmitSource');
     if (onSubmitSource === '') {
       return skip(STRINGS.STATE_DATA_SKIP_TITLE, STRINGS.NO_SOURCE_SKIP_REASON);
     }
@@ -410,7 +410,7 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
 
     const fields = forwarding.fields.map((field) => `state.data.${field}`).join(', ');
     const detail = `onSubmit reads ${fields} without passing state.data as a whole. Adyen Web adds fields such as browserInfo, origin, riskData, and billing or shopper details to state.data depending on the payment method; dropping them can break native 3DS2 and weaken risk checks.`;
-    if (onSubmitSource.length >= CAPTURED_SOURCE_MAX_LENGTH) {
+    if (onSubmitSource.length >= CALLBACK_SOURCE_LIMIT) {
       return notice(
         STRINGS.STATE_DATA_NOTICE_TITLE,
         `${detail} The captured callback source may be truncated, so later code could still forward the complete object.`,
@@ -429,8 +429,7 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
     return runAdvancedRequiredCallbackCheck(
       payload,
       {
-        label: 'onAdditionalDetails',
-        readCallback: (config) => config.onAdditionalDetails,
+        key: 'onAdditionalDetails',
         presentTitle: STRINGS.ON_ADD_DETAILS_PASS_TITLE,
         missingTitle: STRINGS.ON_ADD_DETAILS_FAIL_TITLE,
         missingDetail: STRINGS.ON_ADD_DETAILS_FAIL_DETAIL,
@@ -443,8 +442,7 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
     return runFlowSensitiveOutcomeCallbackCheck(
       payload,
       {
-        label: 'onPaymentCompleted',
-        readCallback: (config) => config.onPaymentCompleted,
+        key: 'onPaymentCompleted',
         presentTitle: STRINGS.ON_PAYMENT_COMPLETED_PASS_TITLE,
         missingTitle: STRINGS.ON_PAYMENT_COMPLETED_MISSING_TITLE,
         missingSessionsDetail: STRINGS.ON_PAYMENT_COMPLETED_SESSIONS_DETAIL,
@@ -459,8 +457,7 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
     return runFlowSensitiveOutcomeCallbackCheck(
       payload,
       {
-        label: 'onPaymentFailed',
-        readCallback: (config) => config.onPaymentFailed,
+        key: 'onPaymentFailed',
         presentTitle: STRINGS.ON_PAYMENT_FAILED_PASS_TITLE,
         missingTitle: STRINGS.ON_PAYMENT_FAILED_MISSING_TITLE,
         missingSessionsDetail: STRINGS.ON_PAYMENT_FAILED_SESSIONS_DETAIL,
@@ -471,25 +468,20 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
       context
     );
   })
-  .add('callback-on-error', (payload, { pass, fail, skip, warn }) => {
-    const config = resolveCapturedCheckoutConfig(payload);
+  .add('callback-on-error', (payload, context) => {
+    const { pass, fail, skip } = context;
+    const evidence = readCallback(payload, 'onError');
+    const docsUrl = getFlowSensitiveCallbackDocsUrl(payload, 'advanced');
 
-    if (!config) {
+    if (isConfigMissing(evidence)) {
       return skip(STRINGS.ON_ERROR_SKIP_TITLE, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
     }
-
-    if (isCallbackPresent(config.onError)) {
-      if (isComponentOnly(config.onError)) {
-        return warn(
-          'onError is handled at the component level.',
-          'onError was detected on a component rather than AdyenCheckout. Registering callbacks at the AdyenCheckout level ensures they apply to all payment methods.',
-          'Move onError from your component configuration to the AdyenCheckout initialisation.',
-          getFlowSensitiveCallbackDocsUrl(payload, 'advanced')
-        );
-      }
-      return pass(STRINGS.ON_ERROR_PASS_TITLE);
+    if (evidence.state === 'present') {
+      return evidence.value === 'component'
+        ? componentLevelWarning('onError', docsUrl, context)
+        : pass(STRINGS.ON_ERROR_PASS_TITLE);
     }
-    if (!hasVerifiedCheckoutConfig(payload)) {
+    if (evidence.state === 'unobserved') {
       return skip(STRINGS.ON_ERROR_SKIP_TITLE, STRINGS.CALLBACK_ABSENCE_UNVERIFIED_REASON);
     }
 
@@ -497,34 +489,32 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
       STRINGS.ON_ERROR_FAIL_TITLE,
       STRINGS.ON_ERROR_FAIL_DETAIL,
       STRINGS.ON_ERROR_FAIL_REMEDIATION,
-      getFlowSensitiveCallbackDocsUrl(payload, 'advanced')
+      docsUrl
     );
   })
-  .add('callback-before-submit', (payload, { pass, info, skip, warn }) => {
-    const config = resolveCapturedCheckoutConfig(payload);
-    if (!config) {
+  .add('callback-before-submit', (payload, context) => {
+    const { pass, info, skip } = context;
+    const evidence = readCallback(payload, 'beforeSubmit');
+
+    if (isConfigMissing(evidence)) {
       return skip(STRINGS.BEFORE_SUBMIT_SKIP_TITLE, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
     }
-
-    if (isCallbackPresent(config.beforeSubmit)) {
-      if (isComponentOnly(config.beforeSubmit)) {
-        return warn(
-          'beforeSubmit is handled at the component level.',
-          'beforeSubmit was detected on a component rather than AdyenCheckout. Registering callbacks at the AdyenCheckout level ensures they apply to all payment methods.',
-          'Move beforeSubmit from your component configuration to the AdyenCheckout initialisation.',
-          getFlowSensitiveCallbackDocsUrl(payload, 'advanced')
-        );
-      }
-      return pass(STRINGS.BEFORE_SUBMIT_PASS_TITLE);
+    if (evidence.state === 'present') {
+      return evidence.value === 'component'
+        ? componentLevelWarning(
+            'beforeSubmit',
+            getFlowSensitiveCallbackDocsUrl(payload, 'advanced'),
+            context
+          )
+        : pass(STRINGS.BEFORE_SUBMIT_PASS_TITLE);
     }
-    if (!hasVerifiedCheckoutConfig(payload)) {
+    if (evidence.state === 'unobserved') {
       return skip(STRINGS.BEFORE_SUBMIT_SKIP_TITLE, STRINGS.CALLBACK_ABSENCE_UNVERIFIED_REASON);
     }
     return info(STRINGS.BEFORE_SUBMIT_INFO_TITLE);
   })
   .add('callback-actions-pattern', (payload, { skip, pass, warn, info }) => {
-    const config = resolveCapturedCheckoutConfig(payload);
-    if (!config) {
+    if (!hasCapturedCheckoutConfig(payload)) {
       return skip(STRINGS.ACTIONS_PATTERN_SKIP_TITLE, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
     }
 
@@ -533,7 +523,7 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
       return skip(STRINGS.ACTIONS_PATTERN_SKIP_TITLE, STRINGS.SESSIONS_FLOW_SKIP_REASON);
     }
 
-    const onSubmitSource = config.onSubmitSource ?? '';
+    const onSubmitSource = readCallbackSource(payload, 'onSubmitSource');
     if (onSubmitSource === '') {
       return skip(STRINGS.ACTIONS_PATTERN_SKIP_TITLE, STRINGS.NO_SOURCE_SKIP_REASON);
     }
@@ -554,13 +544,12 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
     return info(STRINGS.ACTIONS_PATTERN_INFO_TITLE);
   })
   .add('callback-multiple-submissions', (payload, { skip, info, notice }) => {
-    const config = resolveCapturedCheckoutConfig(payload);
-    if (!config) {
+    if (!hasCapturedCheckoutConfig(payload)) {
       return skip('Multiple submissions check skipped.', SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
     }
 
-    const onSubmitSource = config.onSubmitSource ?? '';
-    const beforeSubmitSource = config.beforeSubmitSource ?? '';
+    const onSubmitSource = readCallbackSource(payload, 'onSubmitSource');
+    const beforeSubmitSource = readCallbackSource(payload, 'beforeSubmitSource');
     const combinedSource = `${onSubmitSource}\n${beforeSubmitSource}`;
 
     if (combinedSource.trim() === '') {
@@ -582,8 +571,7 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
     );
   })
   .add('callback-custom-pay-button-compatibility', (payload, { skip, pass, warn }) => {
-    const config = resolveCapturedCheckoutConfig(payload);
-    if (!config) {
+    if (!hasCapturedCheckoutConfig(payload)) {
       return skip(
         'Custom pay button compatibility check skipped.',
         SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED
@@ -591,8 +579,8 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
     }
 
     const flow = detectIntegrationFlow(payload);
-    const hasBeforeSubmit = isCallbackPresent(config.beforeSubmit);
-    const onSubmitSource = config.onSubmitSource ?? '';
+    const hasBeforeSubmit = readCallback(payload, 'beforeSubmit').state === 'present';
+    const onSubmitSource = readCallbackSource(payload, 'onSubmitSource');
     const hasSelectiveOnSubmit =
       flow === 'advanced' && detectUnhandledOnSubmitFilters(onSubmitSource).paymentMethod;
 

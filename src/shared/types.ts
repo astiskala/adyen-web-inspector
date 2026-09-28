@@ -327,10 +327,17 @@ export interface StandardCompliance {
   readonly reasons: readonly string[];
 }
 
+/** Whether Adyen Web is loaded on the page; distinct from checkout activity. */
+export interface SdkPresence {
+  readonly detected: boolean;
+  readonly source: 'metadata' | 'adyen-script' | 'none';
+}
+
 export interface ScanResult {
   readonly tabId: number;
   readonly pageUrl: string;
   readonly scannedAt: string;
+  readonly sdkPresence: SdkPresence;
   readonly checks: CheckResult[];
   readonly health: HealthScore;
   readonly standardCompliance: StandardCompliance;

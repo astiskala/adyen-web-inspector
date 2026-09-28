@@ -76,12 +76,15 @@ Contributor workflow and coding conventions: [CONTRIBUTING.md](CONTRIBUTING.md)
 ### Main components
 
 - `src/background/worker.ts`: service worker message routing and badge state.
-- `src/background/scan-orchestrator.ts`: scan lifecycle, frame extraction, and persistence.
+- `src/background/scan-orchestrator.ts`: scan sequencing and frame selection, driven through the browser port in `scan-browser.ts`.
+- `src/background/chrome-scan-browser.ts`: Chrome adapter for the browser port (tabs, scripting, webRequest, storage).
 - `src/background/scan-assessment.ts`: payload assembly and assessment.
 - `src/background/checks/*`: pure check modules.
 - `src/content/config-interceptor.ts`: MAIN-world config capture (CDN and NPM).
-- `src/content/detector.ts`: passive page-level Adyen detection.
+- `src/content/detector.ts`: passive checkout activity detection.
 - `src/content/page-extractor.ts`: on-demand page-world extraction.
+- `src/shared/checkout-config-schema.ts`: the single mapping from raw Adyen Web options to checkout configuration fields.
+- `src/shared/scan-evidence.ts`: checkout configuration evidence (present, absent, or unobserved per field).
 - `src/popup/*`: compact summary UI.
 - `src/devtools/*`: full analysis panel UI.
 - `src/shared/*`: types, constants, shared helpers, export logic.
@@ -90,12 +93,14 @@ Contributor workflow and coding conventions: [CONTRIBUTING.md](CONTRIBUTING.md)
 
 1. Start per-tab network/header collection.
 2. Wait for the tab to be ready and allow SPA settle time.
-3. Extract page data in `world: "MAIN"`.
+3. Extract page data in `world: "MAIN"` in every accessible frame, retrying briefly while the SDK is still loading, then select the checkout frame and merge configuration across frames.
 4. Merge collected requests with fallback request discovery.
 5. Resolve SDK version signals and latest npm version.
 6. Build `ScanPayload`.
 7. Run all checks.
-8. Persist and broadcast `ScanResult`.
+8. Persist and broadcast `ScanResult`, including its SDK presence verdict.
+
+The scan runs every browser operation through the `ScanBrowser` port, so steps 1–8 are unit-tested with an in-memory adapter; E2E tests cover the Chrome adapter.
 
 ## Additional Docs
 

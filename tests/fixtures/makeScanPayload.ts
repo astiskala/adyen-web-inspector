@@ -112,6 +112,7 @@ export function makeScanResult(overrides: Partial<ScanResult> = {}): ScanResult 
     tabId: 1,
     pageUrl: 'https://example.com/checkout',
     scannedAt: '2026-09-28T00:00:00.000Z',
+    sdkPresence: { detected: true, source: 'metadata' },
     checks: [],
     health: { score: 100, passing: 0, failing: 0, warnings: 0, total: 0, tier: 'excellent' },
     standardCompliance: { compliant: false, reasons: [] },

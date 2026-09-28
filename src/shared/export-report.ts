@@ -84,17 +84,25 @@ function sortChecks(a: CheckResult, b: CheckResult): number {
   );
 }
 
+/**
+ * Groups issues by impact in priority order, sorted by severity then title
+ * within each group. Empty groups are omitted and non-issues are ignored.
+ */
+export function groupIssuesByImpact(checks: readonly CheckResult[]): ImpactGroupChecks[] {
+  const issues = checks.filter(isIssue);
+  return ISSUE_IMPACT_ORDER.map((impact) => ({
+    impact,
+    checks: issues.filter((check) => getImpactLevel(check) === impact).sort(sortChecks),
+  })).filter((group) => group.checks.length > 0);
+}
+
 function buildFindingSection(
   checks: readonly CheckResult[],
   categories: ReadonlySet<CheckCategory>
 ): FindingSection {
   const matching = checks.filter((check) => categories.has(check.category));
-  const issues = matching.filter(isIssue);
   return {
-    issueGroups: ISSUE_IMPACT_ORDER.map((impact) => ({
-      impact,
-      checks: issues.filter((check) => getImpactLevel(check) === impact).sort(sortChecks),
-    })).filter((group) => group.checks.length > 0),
+    issueGroups: groupIssuesByImpact(matching),
     successfulChecks: matching
       .filter((check) => check.severity === 'pass')
       .sort((a, b) => a.title.localeCompare(b.title)),

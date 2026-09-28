@@ -8,6 +8,7 @@
 import type { AnalyticsData, CapturedHeader, CapturedRequest } from '../shared/types.js';
 import { ALL_ADYEN_DOMAINS, ANALYTICS_URL_PATTERNS } from '../shared/constants.js';
 import { extractHostname } from '../shared/utils.js';
+import type { CollectedNetwork } from './scan-browser.js';
 
 const ANALYTICS_KEYS = [
   'flavor',
@@ -25,12 +26,6 @@ function isAnalyticsEntry(
   entry: readonly [AnalyticsKey, string] | null
 ): entry is readonly [AnalyticsKey, string] {
   return entry !== null;
-}
-
-interface HeaderCollectorResult {
-  mainDocumentHeaders: CapturedHeader[];
-  capturedRequests: CapturedRequest[];
-  analyticsData: AnalyticsData | null;
 }
 
 export class HeaderCollector {
@@ -79,7 +74,7 @@ export class HeaderCollector {
     chrome.webRequest.onBeforeRequest.removeListener(this.bodyListener);
   }
 
-  getResult(): HeaderCollectorResult {
+  getResult(): CollectedNetwork {
     return {
       mainDocumentHeaders: [...this.mainDocumentHeaders],
       capturedRequests: [...this.capturedRequests],

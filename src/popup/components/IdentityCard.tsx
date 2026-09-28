@@ -2,7 +2,7 @@ import type { JSX } from 'preact';
 import type { ScanResult } from '../../shared/types.js';
 import {
   buildImplementationAttributes,
-  type IntegrationFlow,
+  INTEGRATION_FLOW_LABELS,
 } from '../../shared/implementation-attributes.js';
 import styles from './IdentityCard.module.css';
 
@@ -16,12 +16,6 @@ function envBadgeClass(env: string): string {
   if (env === 'test') return s('badgeTest');
   if (env === 'live') return s('badgeLive');
   return s('badgeUnknown');
-}
-
-function normalizeFlow(flow: IntegrationFlow): string {
-  if (flow === 'sessions') return 'Sessions';
-  if (flow === 'advanced') return 'Advanced';
-  return 'Unknown';
 }
 
 /**
@@ -51,7 +45,7 @@ export function IdentityCard({ result }: Props): JSX.Element {
       )}
       <div class={s('row')}>
         <span class={s('label')}>Flow</span>
-        <span class={s('value')}>{normalizeFlow(attrs.flow)}</span>
+        <span class={s('value')}>{INTEGRATION_FLOW_LABELS[attrs.flow]}</span>
       </div>
       <div class={s('row')}>
         <span class={s('label')}>Flavor</span>

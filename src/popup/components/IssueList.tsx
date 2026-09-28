@@ -1,7 +1,8 @@
 import type { JSX } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
+import { groupIssuesByImpact, type ImpactGroupChecks } from '~shared/export-report';
 import type { CheckResult } from '~shared/types';
-import { getImpactLevel, getRemediationText, isIssue } from '~shared/utils';
+import { getRemediationText, IMPACT_LABELS, isIssue } from '~shared/utils';
 import styles from './IssueList.module.css';
 
 const s = (key: string): string => styles[key] ?? '';
@@ -10,15 +11,6 @@ interface Props {
   readonly checks: readonly CheckResult[];
   readonly expandWarningsByDefault?: boolean;
 }
-
-type ImpactPriority = 'high' | 'medium' | 'low';
-
-const IMPACT_PRIORITY_ORDER: readonly ImpactPriority[] = ['high', 'medium', 'low'];
-const IMPACT_PRIORITY_LABEL: Record<ImpactPriority, string> = {
-  high: 'High Impact',
-  medium: 'Medium Impact',
-  low: 'Low Impact',
-};
 
 interface IssueItemProps {
   readonly check: CheckResult;
@@ -62,22 +54,29 @@ function IssueItem({ check, dotClass }: IssueItemProps): JSX.Element {
   );
 }
 
-function getImpactPriority(check: CheckResult): ImpactPriority {
-  const impact = getImpactLevel(check);
-  if (impact === 'high' || impact === 'low') {
-    return impact;
-  }
-  return 'medium';
+interface ImpactGroupProps {
+  readonly group: ImpactGroupChecks;
+  readonly badgeClass: string;
+  readonly dotClass: string;
 }
 
-function sortChecksByPriorityThenTitle(a: CheckResult, b: CheckResult): number {
-  const aPriority = getImpactPriority(a);
-  const bPriority = getImpactPriority(b);
-  const aRank = IMPACT_PRIORITY_ORDER.indexOf(aPriority);
-  const bRank = IMPACT_PRIORITY_ORDER.indexOf(bPriority);
-  if (aRank !== bRank) {
-    return aRank - bRank;
-  }
+function ImpactGroup({ group, badgeClass, dotClass }: ImpactGroupProps): JSX.Element {
+  return (
+    <div>
+      <div class={s('priorityHeader')}>
+        <span>{IMPACT_LABELS[group.impact]}</span>
+        <span class={`${s('badge')} ${badgeClass}`}>{group.checks.length}</span>
+      </div>
+      <ul class={s('list')}>
+        {group.checks.map((c) => (
+          <IssueItem key={c.id} check={c} dotClass={dotClass} />
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function byTitle(a: CheckResult, b: CheckResult): number {
   return a.title.localeCompare(b.title);
 }
 
@@ -85,11 +84,9 @@ function sortChecksByPriorityThenTitle(a: CheckResult, b: CheckResult): number {
  * Renders issue checks grouped by severity and impact with expandable details.
  */
 export function IssueList({ checks, expandWarningsByDefault = false }: Props): JSX.Element {
-  const failures = checks.filter((c) => c.severity === 'fail').sort(sortChecksByPriorityThenTitle);
-  const warnings = checks.filter((c) => c.severity === 'warn').sort(sortChecksByPriorityThenTitle);
-  const notices = checks
-    .filter((c) => c.severity === 'notice')
-    .sort((a, b) => a.title.localeCompare(b.title));
+  const failures = checks.filter((c) => c.severity === 'fail');
+  const warnings = checks.filter((c) => c.severity === 'warn');
+  const notices = checks.filter((c) => c.severity === 'notice').sort(byTitle);
   const [warningsExpanded, setWarningsExpanded] = useState(expandWarningsByDefault);
 
   useEffect(() => {
@@ -97,24 +94,6 @@ export function IssueList({ checks, expandWarningsByDefault = false }: Props): J
       setWarningsExpanded(true);
     }
   }, [expandWarningsByDefault]);
-
-  const issueGroups: Record<ImpactPriority, CheckResult[]> = {
-    high: [],
-    medium: [],
-    low: [],
-  };
-  for (const failure of failures) {
-    issueGroups[getImpactPriority(failure)].push(failure);
-  }
-
-  const warningGroups: Record<ImpactPriority, CheckResult[]> = {
-    high: [],
-    medium: [],
-    low: [],
-  };
-  for (const warning of warnings) {
-    warningGroups[getImpactPriority(warning)].push(warning);
-  }
 
   function handleWarningsToggle(event: Event): void {
     if (!(event.currentTarget instanceof HTMLDetailsElement)) {
@@ -135,26 +114,14 @@ export function IssueList({ checks, expandWarningsByDefault = false }: Props): J
             <span>Issues</span>
             <span class={`${s('badge')} ${s('badgeFail')}`}>{failures.length}</span>
           </summary>
-          {IMPACT_PRIORITY_ORDER.map((priority) => {
-            const items = issueGroups[priority];
-            if (items.length === 0) {
-              return null;
-            }
-
-            return (
-              <div key={priority}>
-                <div class={s('priorityHeader')}>
-                  <span>{IMPACT_PRIORITY_LABEL[priority]}</span>
-                  <span class={`${s('badge')} ${s('badgeFail')}`}>{items.length}</span>
-                </div>
-                <ul class={s('list')}>
-                  {items.map((c) => (
-                    <IssueItem key={c.id} check={c} dotClass={s('dot') + ' ' + s('dotFail')} />
-                  ))}
-                </ul>
-              </div>
-            );
-          })}
+          {groupIssuesByImpact(failures).map((group) => (
+            <ImpactGroup
+              key={group.impact}
+              group={group}
+              badgeClass={s('badgeFail')}
+              dotClass={s('dot') + ' ' + s('dotFail')}
+            />
+          ))}
         </details>
       )}
       {warnings.length > 0 && (
@@ -163,26 +130,14 @@ export function IssueList({ checks, expandWarningsByDefault = false }: Props): J
             <span>Warnings</span>
             <span class={`${s('badge')} ${s('badgeWarn')}`}>{warnings.length}</span>
           </summary>
-          {IMPACT_PRIORITY_ORDER.map((priority) => {
-            const items = warningGroups[priority];
-            if (items.length === 0) {
-              return null;
-            }
-
-            return (
-              <div key={priority}>
-                <div class={s('priorityHeader')}>
-                  <span>{IMPACT_PRIORITY_LABEL[priority]}</span>
-                  <span class={`${s('badge')} ${s('badgeWarn')}`}>{items.length}</span>
-                </div>
-                <ul class={s('list')}>
-                  {items.map((c) => (
-                    <IssueItem key={c.id} check={c} dotClass={s('dot') + ' ' + s('dotWarn')} />
-                  ))}
-                </ul>
-              </div>
-            );
-          })}
+          {groupIssuesByImpact(warnings).map((group) => (
+            <ImpactGroup
+              key={group.impact}
+              group={group}
+              badgeClass={s('badgeWarn')}
+              dotClass={s('dot') + ' ' + s('dotWarn')}
+            />
+          ))}
         </details>
       )}
       {notices.length > 0 && (

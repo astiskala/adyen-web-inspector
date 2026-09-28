@@ -4,22 +4,22 @@
  */
 
 import {
-  MSG_ADYEN_DETECTED,
-  MSG_ADYEN_NOT_DETECTED,
+  MSG_CHECKOUT_ACTIVITY_CLEARED,
+  MSG_CHECKOUT_ACTIVITY_DETECTED,
   MSG_GET_RESULT,
   MSG_SCAN_RESET,
   MSG_SCAN_COMPLETE,
   MSG_SCAN_ERROR,
   MSG_SCAN_STARTED,
   MSG_SCAN_REQUEST,
-  type AdyenDetectedMessage,
-  type AdyenNotDetectedMessage,
+  type CheckoutActivityDetectedMessage,
   type BswToUiMessage,
   type ExtensionMessage,
 } from '../shared/messages.js';
-import { runScan, getStoredResult } from './scan-orchestrator.js';
+import { chromeScanBrowser, getStoredResult } from './chrome-scan-browser.js';
+import { runScan } from './scan-orchestrator.js';
 import {
-  STORAGE_DETECTED_PREFIX,
+  STORAGE_CHECKOUT_ACTIVITY_PREFIX,
   STORAGE_SCAN_RESULT_PREFIX,
   STORAGE_VERSION_PREFIX,
 } from '../shared/constants.js';
@@ -62,7 +62,7 @@ function clearTabSessionState(tabId: number): Promise<void> {
   return chrome.storage.session
     .remove([
       `${STORAGE_SCAN_RESULT_PREFIX}${tabId}`,
-      `${STORAGE_DETECTED_PREFIX}${tabId}`,
+      `${STORAGE_CHECKOUT_ACTIVITY_PREFIX}${tabId}`,
       `${STORAGE_VERSION_PREFIX}${tabId}`,
     ])
     .catch(() => {});
@@ -74,11 +74,14 @@ const scanInFlight = new Set<number>();
 
 // ─── Message Handlers ─────────────────────────────────────────────────────────
 
-function handleAdyenDetected(msg: AdyenDetectedMessage, senderTabId: number): void {
+function handleCheckoutActivityDetected(
+  msg: CheckoutActivityDetectedMessage,
+  senderTabId: number
+): void {
   setBadgeDetected(senderTabId);
   chrome.storage.session
     .set({
-      [`${STORAGE_DETECTED_PREFIX}${senderTabId}`]: true,
+      [`${STORAGE_CHECKOUT_ACTIVITY_PREFIX}${senderTabId}`]: true,
       ...(msg.version === undefined
         ? {}
         : { [`${STORAGE_VERSION_PREFIX}${senderTabId}`]: msg.version }),
@@ -86,10 +89,13 @@ function handleAdyenDetected(msg: AdyenDetectedMessage, senderTabId: number): vo
     .catch(() => {});
 }
 
-function handleAdyenNotDetected(_msg: AdyenNotDetectedMessage, senderTabId: number): void {
+function handleCheckoutActivityCleared(senderTabId: number): void {
   clearBadge(senderTabId);
   chrome.storage.session
-    .remove([`${STORAGE_DETECTED_PREFIX}${senderTabId}`, `${STORAGE_VERSION_PREFIX}${senderTabId}`])
+    .remove([
+      `${STORAGE_CHECKOUT_ACTIVITY_PREFIX}${senderTabId}`,
+      `${STORAGE_VERSION_PREFIX}${senderTabId}`,
+    ])
     .catch(() => {});
 }
 
@@ -104,17 +110,14 @@ async function handleScanRequest(senderTabId: number): Promise<void> {
   });
 
   try {
-    const result = await runScan(senderTabId);
+    const result = await runScan(senderTabId, chromeScanBrowser);
     const response: BswToUiMessage = {
       type: MSG_SCAN_COMPLETE,
       tabId: senderTabId,
       result,
     };
     sendUiMessage(response);
-    const sdkDetected = !result.checks.some(
-      (c) => c.id === 'sdk-detected' && c.severity === 'fail'
-    );
-    if (sdkDetected) {
+    if (result.sdkPresence.detected) {
       setBadgeHealth(senderTabId, result.health);
     } else {
       clearBadge(senderTabId);
@@ -150,13 +153,13 @@ chrome.runtime.onMessage.addListener(
   ) => {
     const senderTabId = sender.tab?.id;
 
-    if (message.type === MSG_ADYEN_DETECTED && senderTabId !== undefined) {
-      handleAdyenDetected(message, senderTabId);
+    if (message.type === MSG_CHECKOUT_ACTIVITY_DETECTED && senderTabId !== undefined) {
+      handleCheckoutActivityDetected(message, senderTabId);
       return false;
     }
 
-    if (message.type === MSG_ADYEN_NOT_DETECTED && senderTabId !== undefined) {
-      handleAdyenNotDetected(message, senderTabId);
+    if (message.type === MSG_CHECKOUT_ACTIVITY_CLEARED && senderTabId !== undefined) {
+      handleCheckoutActivityCleared(senderTabId);
       return false;
     }
 

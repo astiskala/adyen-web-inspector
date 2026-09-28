@@ -119,6 +119,27 @@ describe('assessScan', () => {
     });
   });
 
+  it('drops URL-less requests, types non-stylesheet links and trusts main-frame status codes', async () => {
+    const url = 'https://example.com/checkout';
+    const result = await assessScan(
+      makeEvidence({
+        page: makePageExtract({ links: [{ href: 'https://example.com/icon.png', rel: 'icon' }] }),
+        collected: {
+          mainDocumentHeaders: [],
+          capturedRequests: [makeRequest(''), makeRequest(url, { type: 'main_frame' })],
+          analyticsData: null,
+        },
+      }),
+      vi.fn().mockResolvedValue(null)
+    );
+
+    expect(result.payload.capturedRequests.map((request) => request.url)).not.toContain('');
+    expect(result.payload.capturedRequests).toContainEqual(
+      expect.objectContaining({ url: 'https://example.com/icon.png', type: 'other' })
+    );
+    expect(result.payload.mainDocumentHeadersAvailable).toBe(true);
+  });
+
   it('preserves captured requests, fills missing signals and evaluates the assembled payload', async () => {
     const url = 'https://example.com/checkout';
     const script = 'https://checkoutshopper-test.adyen.com/checkoutshopper/sdk/6.30.0/adyen.js';
@@ -164,6 +185,7 @@ describe('assessScan', () => {
     expect(result.payload.mainDocumentHeadersAvailable).toBe(true);
     expect(result.checks).toHaveLength(ALL_CHECKS.length);
     expect(result.checks.find((check) => check.id === 'sdk-detected')?.severity).toBe('info');
+    expect(result.sdkPresence).toEqual({ detected: true, source: 'metadata' });
     expect(result.health.total).toBeGreaterThan(0);
     expect(result.standardCompliance).toEqual({ compliant: true, reasons: [] });
   });

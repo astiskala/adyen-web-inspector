@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  MSG_ADYEN_DETECTED,
-  MSG_ADYEN_NOT_DETECTED,
+  MSG_CHECKOUT_ACTIVITY_CLEARED,
+  MSG_CHECKOUT_ACTIVITY_DETECTED,
   MSG_GET_RESULT,
   MSG_SCAN_COMPLETE,
   MSG_SCAN_ERROR,
@@ -13,8 +13,8 @@ import {
 describe('shared message constants', () => {
   it('remain stable and unique across extension layers', () => {
     const messageTypes = [
-      MSG_ADYEN_DETECTED,
-      MSG_ADYEN_NOT_DETECTED,
+      MSG_CHECKOUT_ACTIVITY_DETECTED,
+      MSG_CHECKOUT_ACTIVITY_CLEARED,
       MSG_SCAN_REQUEST,
       MSG_SCAN_STARTED,
       MSG_SCAN_COMPLETE,
@@ -24,8 +24,8 @@ describe('shared message constants', () => {
     ];
 
     expect(messageTypes).toEqual([
-      'ADYEN_DETECTED',
-      'ADYEN_NOT_DETECTED',
+      'CHECKOUT_ACTIVITY_DETECTED',
+      'CHECKOUT_ACTIVITY_CLEARED',
       'SCAN_REQUEST',
       'SCAN_STARTED',
       'SCAN_COMPLETE',

@@ -105,14 +105,27 @@ Module boundaries are enforced by [dependency-cruiser](https://github.com/sverwe
 - `content/` cannot import from `background/`, `popup/`, or `devtools/`
 - `shared/` cannot import from any other layer
 - Check modules (`background/checks/`) may only import from `shared/` and `background/checks/`
+- The Scan (`scan-orchestrator.ts`, `scan-assessment.ts`) reaches the browser only through the `ScanBrowser` port in `scan-browser.ts`; only the service worker imports the Chrome adapter (`chrome-scan-browser.ts`), and only the Chrome adapter imports the header collector and npm registry
+- The config field schema (`shared/checkout-config-schema.ts`) and the port (`scan-browser.ts`) may import `shared/types.ts` only
 
 Run `pnpm depcruise` to verify.
+
+ESLint enforces the seams that dependency-cruiser cannot see:
+
+- Checks read checkout configuration through `readCheckoutField()` (`shared/scan-evidence.ts`), never through the raw `checkoutConfig`, `componentConfig`, or `inferredConfig` slots.
+- Checks read CSP through `readPagePolicy()` (`background/checks/page-policy.ts`).
+- Checks and the Scan do not use `chrome`, `fetch`, `setTimeout`, or `Date.now`.
+- Popup, DevTools, and the worker read `ScanResult.sdkPresence` and do not reference the `sdk-detected` check.
+
+The build fails if a content-script bundle contains ESM `import`/`export` statements, because Chrome runs content scripts as classic scripts.
 
 ---
 
 ## Writing a Check
 
 Every check is a **pure function** — synchronous, no side effects, independently testable. Checks should distinguish verified absence from partial or inferred evidence; skip when evidence is insufficient and use `notice` when a finding needs manual verification rather than claiming an unverified failure.
+
+Read checkout configuration with `readCheckoutField(payload, key)`. It returns `present` (with the value and its source: `captured`, `component`, or `inferred`), `absent` (proven by directly captured AdyenCheckout options), or `unobserved` (with reason `no-config` or `partial-config`). Pass `{ includeInferred: false }` when inferred values must not count. Each check decides the severity for each state; only `absent` may justify a missing-field failure.
 
 ### 1. Create the check
 
@@ -169,7 +182,7 @@ it('fails for live checkout over HTTP', () => {
 });
 ```
 
-**Coverage target:** 95% lines/functions/statements and 90% branches on `src/background/checks/**`, enforced in CI.
+**Coverage target:** 95% lines/functions/statements and 90% branches on `src/background/checks/**`, `src/background/scan-{assessment,orchestrator}.ts`, and `src/shared/{checkout-config-schema,scan-evidence,sdk-presence}.ts`, enforced in CI.
 
 ### 4. Update the check catalog
 
@@ -189,6 +202,8 @@ pnpm test:coverage     # With V8 coverage report
 ```
 
 Tests live in `tests/unit/` and use [Vitest](https://vitest.dev) with a `jsdom` environment.
+
+Scan tests drive `runScan()` through the in-memory `ScanBrowser` adapter in `tests/fixtures/fakeScanBrowser.ts` (`createFakeScanBrowser()`, `framesOf()`). It records port calls and uses a virtual clock, so settle, retry, and header-fallback behaviour is tested without Chrome.
 
 ### Integration tests
 

@@ -64,7 +64,7 @@ afterEach(() => {
 
 describe('scan views', () => {
   it('keeps the popup version gate and shows a completed scan', async () => {
-    getStorage.mockResolvedValue({ adyen_detected_3: true, adyen_version_3: '5.67.0' });
+    getStorage.mockResolvedValue({ checkout_activity_3: true, adyen_version_3: '5.67.0' });
     await mount(Popup);
     await vi.waitFor(() => expect(host.textContent).toContain('Adyen Web Version Outdated'));
 
@@ -75,6 +75,45 @@ describe('scan views', () => {
       await Promise.resolve();
     });
     await vi.waitFor(() => expect(host.textContent).toContain('Re-run Scan'));
+  });
+
+  it('groups popup failures and warnings with the shared impact labels', async () => {
+    getStorage.mockResolvedValue({ checkout_activity_3: true });
+    sendMessage.mockResolvedValue(
+      makeScanResult({
+        tabId: 3,
+        checks: [
+          { id: 'auth-country-code', category: 'auth', severity: 'fail', title: 'Missing country' },
+          {
+            id: 'risk-df-iframe',
+            category: 'risk',
+            severity: 'warn',
+            impact: 'high',
+            title: 'No fingerprint',
+          },
+          { id: 'auth-locale', category: 'auth', severity: 'warn', title: 'Locale missing' },
+        ],
+      })
+    );
+    await mount(Popup);
+
+    await vi.waitFor(() => expect(host.textContent).toContain('Missing country'));
+    const headers = Array.from(host.querySelectorAll('[class*="priorityHeader"]')).map(
+      (header) => header.textContent
+    );
+    expect(headers).toEqual(['High impact1', 'High impact1', 'Medium impact1']);
+  });
+
+  it('uses the scan verdict for SDK presence in the DevTools panel', async () => {
+    sendMessage.mockResolvedValue(
+      makeScanResult({ tabId: 3, sdkPresence: { detected: false, source: 'none' } })
+    );
+    await mount(Panel);
+
+    await vi.waitFor(() =>
+      expect(host.textContent).toContain('Adyen Web SDK was not detected on this page.')
+    );
+    expect(host.textContent).not.toContain('Export JSON');
   });
 
   it('preserves DevTools context-invalidation wording after a rejected scan request', async () => {
