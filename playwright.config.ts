@@ -23,10 +23,9 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'npx serve tests/fixtures -p 4321 --no-clipboard',
-    env: { NO_UPDATE_CHECK: '1' },
+    command: 'node tests/e2e/fixture-server.mjs',
     url: 'http://localhost:4321',
-    reuseExistingServer: true,
+    reuseExistingServer: false,
     timeout: 15_000,
   },
 });

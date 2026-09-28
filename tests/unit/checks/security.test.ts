@@ -83,6 +83,32 @@ describe('Security Checks', () => {
       expect(sriScript.run(payload).severity).toBe('pass');
     });
 
+    it('accepts SRI on the CDN script path documented for v6 integrations', () => {
+      const payload = makeScanPayload({
+        page: makePageExtract({
+          scripts: [
+            {
+              src: 'https://checkoutshopper-test.cdn.adyen.com/sdk/6.31.0/adyen.js',
+              integrity: 'sha384-ABC',
+              crossorigin: 'anonymous',
+            },
+          ],
+        }),
+      });
+      expect(sriScript.run(payload).severity).toBe('pass');
+    });
+
+    it('does not trust a non-Adyen host with a matching SDK path', () => {
+      const payload = makeScanPayload({
+        page: makePageExtract({
+          scripts: [
+            { src: 'https://checkoutshopper-test.cdn.adyen.com.example.org/sdk/6.31.0/adyen.js' },
+          ],
+        }),
+      });
+      expect(sriScript.run(payload).severity).toBe('skip');
+    });
+
     it('returns fail when Adyen CDN script is missing SRI', () => {
       const payload = makeScanPayload({
         page: makePageExtract({

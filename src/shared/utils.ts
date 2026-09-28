@@ -32,7 +32,8 @@ export function isAdyenHost(host: string): boolean {
   );
 }
 
-const CHECKOUTSHOPPER_RESOURCE_PATTERN = /checkoutshopper-sdk|\/checkoutshopper\//i;
+const CHECKOUTSHOPPER_RESOURCE_PATTERN =
+  /checkoutshopper-sdk|\/checkoutshopper\/|\/sdk\/\d+\.\d+\.\d+\/adyen\.js(?:[?#]|$)/i;
 
 /** Determines if a URL refers to an Adyen Checkout resource (SDK script/CSS). */
 export function isAdyenCheckoutResource(url: string): boolean {

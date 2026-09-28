@@ -41,6 +41,15 @@ describe('sdk-detected', () => {
     expect(result.severity).toBe('info');
   });
 
+  it('detects the documented CDN script path without exposed metadata', () => {
+    const payload = makeScanPayload({
+      page: makePageExtract({
+        scripts: [{ src: 'https://checkoutshopper-test.cdn.adyen.com/sdk/6.31.0/adyen.js' }],
+      }),
+    });
+    expect(sdkDetected.run(payload).severity).toBe('info');
+  });
+
   it('returns fail when no SDK or CDN script found', () => {
     const payload = makeScanPayload();
     const result = sdkDetected.run(payload);

@@ -163,7 +163,10 @@ Check-specific guidance:
 
 - Location: `tests/e2e/`
 - Framework: Playwright with Chromium persistent context loading the built extension
-- Fixture pages: `tests/fixtures/*.html`
+- Fixture pages: `tests/fixtures/*.html`; `tests/e2e/fixture-server.mjs` serves them on port 4321 and supplies scenario-specific security headers.
+- `tests/e2e/scenarios.test.ts` scans offline dummy merchant scenarios using `scanFixture()` from `tests/e2e/fixtures.ts`; external script/API requests are fulfilled locally and the npm version cache is seeded for deterministic results.
+- Keep a meaningful browser-result assertion for each registered check ID in `scenarios.test.ts`. Use the optional `duringScan` callback on `scanFixture()` for traffic that must occur during a scan (such as analytics POSTs).
+- `dummy-adyen-web.js` simulates both the legacy `checkout.create()` path and v6 `AdyenWeb.Dropin`/`Card` constructors; the fixture server stubs `/api/sessions`, `/api/paymentMethods`, `/api/payments`, and `/api/payments/details` without real Adyen requests or credentials.
 
 ---
 
