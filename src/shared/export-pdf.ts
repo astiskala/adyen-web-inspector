@@ -1,7 +1,13 @@
-import type { ScanResult, StandardCompliance } from './types';
-import { buildReportExportData, type ExportCategorySection } from './export-report';
-import { INTEGRATION_FLOW_LABELS } from './implementation-attributes';
-import { IMPACT_LABELS, ISSUE_IMPACT_ORDER } from './results';
+import { STATUS_COLORS } from './constants.js';
+import type { ScanResult, StandardCompliance } from './types.js';
+import {
+  buildRawConfigSections,
+  buildReportExportData,
+  type ExportCategorySection,
+} from './export-report.js';
+import { STANDARD_COMPLIANCE_COPY } from './standard-compliance.js';
+import { INTEGRATION_FLOW_LABELS } from './implementation-attributes.js';
+import { IMPACT_LABELS, ISSUE_IMPACT_ORDER } from './results.js';
 
 const PDF_REPORT_STORAGE_PREFIX = 'pdf-report:' as const;
 const PDF_REPORT_PAGE_PATH = 'report/report.html' as const;
@@ -41,11 +47,10 @@ export async function exportPdf(result: ScanResult): Promise<void> {
 }
 
 function severityColor(severity: string): string {
-  if (severity === 'fail') return '#e53935';
-  if (severity === 'warn') return '#f59e0b';
-  if (severity === 'notice') return '#2563eb';
-  if (severity === 'pass') return '#16a34a';
-  if (severity === 'info') return '#2563eb';
+  if (severity === 'fail') return STATUS_COLORS.fail;
+  if (severity === 'warn') return STATUS_COLORS.warn;
+  if (severity === 'pass') return STATUS_COLORS.pass;
+  if (severity === 'notice' || severity === 'info') return STATUS_COLORS.info;
   return '#6b7280';
 }
 
@@ -177,7 +182,7 @@ function buildSuccessfulChecksTableForCategory(
   const rows = checks
     .map(
       (check) =>
-        `<tr><td style="color:#16a34a;font-weight:600;text-transform:uppercase;white-space:nowrap;width:80px">PASS</td><td>${escapeHtml(check.title)}</td></tr>`
+        `<tr><td style="color:${STATUS_COLORS.pass};font-weight:600;text-transform:uppercase;white-space:nowrap;width:80px">PASS</td><td>${escapeHtml(check.title)}</td></tr>`
     )
     .join('');
 
@@ -249,42 +254,24 @@ function buildNetworkHtml(network: ReturnType<typeof buildReportExportData>['net
 function buildRawConfigHtml(
   rawConfig: ReturnType<typeof buildReportExportData>['rawConfig']
 ): string {
-  const config = rawConfig.checkoutConfig;
-  const component = rawConfig.componentConfig;
-  const inferred = rawConfig.inferredCheckoutConfig;
-  const metadata = rawConfig.sdkMetadata;
-
-  const configText = config ? JSON.stringify(config, null, 2) : 'No config captured.';
-  const componentText = component
-    ? JSON.stringify(component, null, 2)
-    : 'No component config captured.';
-  const inferredText = inferred
-    ? JSON.stringify(inferred, null, 2)
-    : 'No inferred config captured.';
-  const metaText = JSON.stringify(metadata ?? null, null, 2);
-
   const preStyle =
     'font-family:monospace;font-size:11px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:4px;padding:10px;white-space:pre-wrap;word-break:break-all;overflow:auto;max-height:400px';
   const h3Style = 'font-size:12px;margin:12px 0 6px';
 
-  return `
-    <h3 style="${h3Style}">Captured Checkout Fields</h3>
-    <pre style="${preStyle}">${escapeHtml(configText)}</pre>
-    <h3 style="${h3Style}">Mounted Component Fields</h3>
-    <pre style="${preStyle}">${escapeHtml(componentText)}</pre>
-    <h3 style="${h3Style}">Inferred Checkout Fields</h3>
-    <pre style="${preStyle}">${escapeHtml(inferredText)}</pre>
-    <h3 style="${h3Style}">SDK Metadata</h3>
-    <pre style="${preStyle}">${escapeHtml(metaText)}</pre>
-  `;
+  return buildRawConfigSections(rawConfig)
+    .map(
+      ({ title, text }) =>
+        `<h3 style="${h3Style}">${escapeHtml(title)}</h3><pre style="${preStyle}">${escapeHtml(text)}</pre>`
+    )
+    .join('');
 }
 
 function buildComplianceHtml(compliance: StandardCompliance): string {
   const icon = compliance.compliant ? '\u2713' : '\u2717';
-  const iconColor = compliance.compliant ? '#16a34a' : '#e53935';
+  const iconColor = compliance.compliant ? STATUS_COLORS.pass : STATUS_COLORS.fail;
   const label = compliance.compliant
-    ? 'Standard Drop-in frontend criteria met'
-    : 'Standard Drop-in criteria not met';
+    ? STANDARD_COMPLIANCE_COPY.metLabel
+    : STANDARD_COMPLIANCE_COPY.unmetLabel;
 
   const reasonsList =
     !compliance.compliant && compliance.reasons.length > 0
@@ -295,8 +282,8 @@ function buildComplianceHtml(compliance: StandardCompliance): string {
 
   const caveat =
     '<div style="margin-top:6px;font-size:11px;color:#6b7280;line-height:1.4">' +
-    'This is not a compliance determination. Server-side API version, webhooks, account setup, security, testing, and go-live requirements require manual review. ' +
-    'See the <a class="docs-link" href="https://docs.adyen.com/standard" target="_blank" rel="noopener noreferrer">Standard integration checklist</a>.' +
+    `${escapeHtml(STANDARD_COMPLIANCE_COPY.caveat)} ` +
+    `See the <a class="docs-link" href="${STANDARD_COMPLIANCE_COPY.checklistUrl}" target="_blank" rel="noopener noreferrer">${escapeHtml(STANDARD_COMPLIANCE_COPY.checklistLabel)}</a>.` +
     '</div>';
 
   return `<div style="border:1px solid #e5e7eb;border-radius:6px;padding:10px 16px;margin-bottom:20px">

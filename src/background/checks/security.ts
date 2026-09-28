@@ -2,7 +2,7 @@
  * Security: SRI and HTTP response header checks.
  */
 
-import type { ScriptTag, LinkTag, IframeInfo, ScanPayload } from '../../shared/types.js';
+import type { ScanPayload } from '../../shared/types.js';
 import { resolveEnvironment } from '../../shared/implementation-attributes.js';
 import { getHeader, isAdyenCheckoutResource } from '../../shared/utils.js';
 import { SKIP_REASONS } from './constants.js';
@@ -137,7 +137,7 @@ export const SECURITY_CHECKS = createRegistry(CATEGORY)
   // SRI Checks
   .add('security-sri-script', (payload, { pass, fail, skip }) => {
     const { scripts } = payload.page;
-    const adyenScripts = scripts.filter((s: ScriptTag) => isAdyenCheckoutResource(s.src));
+    const adyenScripts = scripts.filter((s) => isAdyenCheckoutResource(s.src));
 
     if (adyenScripts.length === 0) {
       return skip(STRINGS.SRI_SCRIPT_SKIP_TITLE, STRINGS.SRI_SCRIPT_SKIP_REASON);
@@ -159,7 +159,7 @@ export const SECURITY_CHECKS = createRegistry(CATEGORY)
     'security-sri-css',
     (payload, { pass, warn, skip }) => {
       const { links } = payload.page;
-      const adyenLinks = links.filter((l: LinkTag) => isAdyenCheckoutResource(l.href));
+      const adyenLinks = links.filter((l) => isAdyenCheckoutResource(l.href));
 
       if (adyenLinks.length === 0) {
         return skip(STRINGS.SRI_CSS_SKIP_TITLE, STRINGS.SRI_CSS_SKIP_REASON);
@@ -261,13 +261,13 @@ export const SECURITY_CHECKS = createRegistry(CATEGORY)
   .add('security-iframe-referrerpolicy', (payload, { pass, info }) => {
     const { iframes } = payload.page;
     const adyenIframes = iframes.filter(
-      (f: IframeInfo) =>
+      (f) =>
         f.src !== undefined && f.src !== '' && /\.(?:adyen\.com|adyenpayments\.com)/.test(f.src)
     );
     if (adyenIframes.length === 0) return info(STRINGS.IFRAME_RP_NO_ADYEN_INFO_TITLE);
 
     const missing = adyenIframes.filter(
-      (f: IframeInfo) => f.referrerpolicy === undefined || f.referrerpolicy === ''
+      (f) => f.referrerpolicy === undefined || f.referrerpolicy === ''
     );
     if (missing.length === 0) return pass(STRINGS.IFRAME_RP_PASS_TITLE);
 

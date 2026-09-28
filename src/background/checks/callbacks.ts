@@ -586,7 +586,7 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
     const capturedVariants = payload.analyticsData?.variants ?? [];
     const detectedUnsupported = UNSUPPORTED_CUSTOM_BUTTON_METHODS.filter(
       (u) =>
-        capturedVariants.some((v: string) => v.toLowerCase().includes(u)) ||
+        capturedVariants.some((v) => v.toLowerCase().includes(u)) ||
         payload.capturedRequests.some((r) => r.url.toLowerCase().includes(u))
     );
 

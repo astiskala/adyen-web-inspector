@@ -47,16 +47,6 @@ body {
   min-height: 80px;
 }
 
-.devtools-panel {
-  width: 100vw;
-  min-height: 100vh;
-}
-
-.devtools-panel #root {
-  width: 100%;
-  height: 100vh;
-}
-
 button {
   font: inherit;
 }

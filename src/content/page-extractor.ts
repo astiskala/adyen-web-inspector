@@ -5,6 +5,7 @@
  */
 
 import { mergeCheckoutConfigs, readCheckoutOptions } from '../shared/checkout-config-schema.js';
+import { PAGE_GLOBALS } from '../shared/constants.js';
 import { findCoreOptions } from '../shared/preact-tree-extractor.js';
 import type {
   AdyenStyleInfo,
@@ -20,14 +21,14 @@ import type {
 type GlobalWithAdyen = typeof globalThis & {
   AdyenWebMetadata?: AdyenWebMetadata;
   /** Published by config-interceptor.ts (MAIN-world, document_start). */
-  __adyenWebInspectorCapturedConfig?: CheckoutConfig;
-  __adyenWebInspectorDirectCheckoutConfigCaptured?: boolean;
+  [PAGE_GLOBALS.capturedConfig]?: CheckoutConfig;
+  [PAGE_GLOBALS.directConfigCaptured]?: boolean;
   /** Published by config-interceptor.ts (MAIN-world, document_start). */
-  __adyenWebInspectorCapturedInferredConfig?: CheckoutConfig;
+  [PAGE_GLOBALS.inferredConfig]?: CheckoutConfig;
   /** Published by config-interceptor.ts (MAIN-world, document_start). */
-  __adyenWebInspectorCheckoutInitCount?: number;
+  [PAGE_GLOBALS.checkoutInitCount]?: number;
   /** Published by this script for retrieval after all-frame file injection. */
-  __adyenWebInspectorPageExtractResultJson?: string;
+  [PAGE_GLOBALS.pageExtractResultJson]?: string;
 };
 
 interface ElementWithVnode extends Element {
@@ -44,11 +45,11 @@ function extractMetadata(g: GlobalWithAdyen): AdyenWebMetadata | null {
  * component constructor calls, so no static analysis is needed here.
  */
 function extractCheckoutConfig(g: GlobalWithAdyen): CheckoutConfig | null {
-  const captured = g.__adyenWebInspectorCapturedConfig;
+  const captured = g[PAGE_GLOBALS.capturedConfig];
   if (
     captured &&
     typeof captured === 'object' &&
-    (Object.keys(captured).length > 0 || g.__adyenWebInspectorDirectCheckoutConfigCaptured === true)
+    (Object.keys(captured).length > 0 || g[PAGE_GLOBALS.directConfigCaptured] === true)
   ) {
     return captured;
   }
@@ -56,7 +57,7 @@ function extractCheckoutConfig(g: GlobalWithAdyen): CheckoutConfig | null {
 }
 
 function extractInferredConfig(g: GlobalWithAdyen): CheckoutConfig | null {
-  const inferred = g.__adyenWebInspectorCapturedInferredConfig;
+  const inferred = g[PAGE_GLOBALS.inferredConfig];
   if (inferred && typeof inferred === 'object' && Object.keys(inferred).length > 0) {
     return inferred;
   }
@@ -297,8 +298,8 @@ function detectApiKeyExposure(g: GlobalWithAdyen): boolean {
   }
 
   // Scan captured config objects
-  const capturedConfig = g.__adyenWebInspectorCapturedConfig;
-  const inferredConfig = g.__adyenWebInspectorCapturedInferredConfig;
+  const capturedConfig = g[PAGE_GLOBALS.capturedConfig];
+  const inferredConfig = g[PAGE_GLOBALS.inferredConfig];
 
   if (capturedConfig !== undefined && ADYEN_API_KEY_PATTERN.test(JSON.stringify(capturedConfig))) {
     return true;
@@ -409,17 +410,15 @@ function extract(): PageExtractResult {
   return {
     adyenMetadata: metadata,
     checkoutConfig,
-    ...(g.__adyenWebInspectorDirectCheckoutConfigCaptured === true
-      ? { checkoutConfigComplete: true }
-      : {}),
+    ...(g[PAGE_GLOBALS.directConfigCaptured] === true ? { checkoutConfigComplete: true } : {}),
     inferredConfig,
     componentConfig,
     scripts: extractScripts(),
     links: extractLinks(),
     iframes: extractIframes(),
     observedRequests: extractObservedRequests(),
-    ...(typeof g.__adyenWebInspectorCheckoutInitCount === 'number'
-      ? { checkoutInitCount: g.__adyenWebInspectorCheckoutInitCount }
+    ...(typeof g[PAGE_GLOBALS.checkoutInitCount] === 'number'
+      ? { checkoutInitCount: g[PAGE_GLOBALS.checkoutInitCount] }
       : {}),
     ...(mountCount > 0 ? { componentMountCount: mountCount } : {}),
     ...(hasElement('.adyen-checkout__dropin') ? { hasDropinDOM: true } : {}),
@@ -436,5 +435,5 @@ function extract(): PageExtractResult {
 
 // This function is injected by executeScript and must be self-contained.
 const pageExtractResult = extract();
-(globalThis as GlobalWithAdyen).__adyenWebInspectorPageExtractResultJson =
+(globalThis as GlobalWithAdyen)[PAGE_GLOBALS.pageExtractResultJson] =
   JSON.stringify(pageExtractResult);

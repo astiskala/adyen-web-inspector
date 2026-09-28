@@ -2,8 +2,9 @@
  * Chrome adapter for the Scan browser port.
  */
 
-import { STORAGE_SCAN_RESULT_PREFIX } from '../shared/constants.js';
+import { PAGE_GLOBALS, STORAGE_SCAN_RESULT_PREFIX } from '../shared/constants.js';
 import type { PageExtractResult, ScanResult } from '../shared/types.js';
+import { describeError } from '../shared/utils.js';
 import { HeaderCollector } from './header-collector.js';
 import { getAdyenWebReleaseInfo } from './npm-registry.js';
 import { extractVersionFromBundles, probeMainDocumentHeaders } from './payload-builder.js';
@@ -40,6 +41,12 @@ async function waitForTabComplete(tabId: number, timeoutMs: number): Promise<voi
   });
 }
 
+/** Injected into each frame, so it must stay self-contained. */
+function readPageGlobalString(key: string): string | null {
+  const value: unknown = Reflect.get(globalThis, key);
+  return typeof value === 'string' ? value : null;
+}
+
 async function extractFrames(tabId: number): Promise<FrameExtraction[]> {
   let serializedResults: chrome.scripting.InjectionResult<string | null>[];
   try {
@@ -48,28 +55,17 @@ async function extractFrames(tabId: number): Promise<FrameExtraction[]> {
       files: ['page-extractor.js'],
       world: 'MAIN',
     });
-    serializedResults = await chrome.scripting.executeScript<[], string | null>({
+    serializedResults = await chrome.scripting.executeScript<[string], string | null>({
       target: { tabId, allFrames: true },
-      func: () => {
-        const extractionGlobal = globalThis as typeof globalThis & {
-          __adyenWebInspectorPageExtractResultJson?: string;
-        };
-        return extractionGlobal.__adyenWebInspectorPageExtractResultJson ?? null;
-      },
+      func: readPageGlobalString,
+      args: [PAGE_GLOBALS.pageExtractResultJson],
       world: 'MAIN',
     });
   } catch (error: unknown) {
-    let message: string;
-    if (error instanceof Error) {
-      message = error.message;
-    } else {
-      const typeStr =
-        typeof error === 'object' && error !== null
-          ? Object.prototype.toString.call(error)
-          : typeof error;
-      message = `[${typeStr}]`;
-    }
-    throw new Error(`Page extraction script injection failed for tab ${tabId}: ${message}`);
+    throw new Error(
+      `Page extraction script injection failed for tab ${tabId}: ${describeError(error)}`,
+      { cause: error }
+    );
   }
 
   return serializedResults.map((frame) => ({

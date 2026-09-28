@@ -240,12 +240,35 @@ export const STORAGE_NPM_CACHE_KEY = 'npm_cache_adyen_web';
 export const STORAGE_CHECKOUT_ACTIVITY_PREFIX = 'checkout_activity_';
 export const STORAGE_VERSION_PREFIX = 'adyen_version_';
 
+// ─── Page Globals ─────────────────────────────────────────────────────────────
+
+/**
+ * Page globals the MAIN-world config interceptor publishes captures on, the
+ * page extractor reads, and the Chrome adapter collects the extraction from.
+ */
+export const PAGE_GLOBALS = {
+  capturedConfig: '__adyenWebInspectorCapturedConfig',
+  inferredConfig: '__adyenWebInspectorCapturedInferredConfig',
+  directConfigCaptured: '__adyenWebInspectorDirectCheckoutConfigCaptured',
+  checkoutInitCount: '__adyenWebInspectorCheckoutInitCount',
+  interceptorInstalled: '__adyenWebInspectorCapturedConfig__installed',
+  pageExtractResultJson: '__adyenWebInspectorPageExtractResultJson',
+} as const;
+
 // ─── Version Gates ────────────────────────────────────────────────────────────
 
 /** Minimum major version required for full inspection. Versions below this are blocked. */
 export const MIN_SUPPORTED_MAJOR_VERSION = 6;
 
 // ─── UI Constants ─────────────────────────────────────────────────────────────
+
+/** Status colours for the badge and printed report, matching the light palette in base.css. */
+export const STATUS_COLORS = {
+  pass: '#188038',
+  warn: '#f29900',
+  fail: '#d93025',
+  info: '#1a73e8',
+} as const;
 
 export const DEVTOOLS_PANEL_TITLE = 'Adyen Inspector';
 export const DEVTOOLS_PANEL_ICON_PATH = '';

@@ -1,9 +1,10 @@
 import type { JSX } from 'preact';
 import { useState } from 'preact/hooks';
-import { useScanLifecycle } from '../../popup/components/useScanLifecycle';
-import { buildJsonExport } from '~shared/export-json';
-import { buildPrintableReportMetadata } from '~shared/export-metadata';
-import { exportPdf } from '~shared/export-pdf';
+import { useScanLifecycle } from '../../popup/components/useScanLifecycle.js';
+import { buildJsonExport } from '../../shared/export-json.js';
+import { buildPrintableReportMetadata } from '../../shared/export-metadata.js';
+import { exportPdf } from '../../shared/export-pdf.js';
+import { describeError } from '../../shared/utils.js';
 import {
   OverviewTab,
   BestPracticesTab,
@@ -11,7 +12,7 @@ import {
   NetworkTab,
   RawConfigTab,
   SkippedChecksTab,
-} from './tabs';
+} from './tabs.js';
 import styles from './panel.module.css';
 
 const s = (key: string): string => styles[key] ?? '';
@@ -39,41 +40,8 @@ function getInspectedTabId(): number {
 
 const devtoolsTabAdapter = { getTabId: getInspectedTabId } as const;
 
-function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-  if (typeof error === 'string') {
-    return error;
-  }
-  if (typeof error === 'object' && error !== null) {
-    try {
-      const serialized = JSON.stringify(error);
-      if (typeof serialized === 'string') {
-        return serialized;
-      }
-    } catch {
-      // Ignore serialization issues and fall back to object tag.
-    }
-    return Object.prototype.toString.call(error);
-  }
-  if (error === undefined) {
-    return 'undefined';
-  }
-  if (typeof error === 'number' || typeof error === 'boolean' || typeof error === 'bigint') {
-    return `${error}`;
-  }
-  if (typeof error === 'symbol') {
-    return error.description ?? 'Symbol';
-  }
-  if (typeof error === 'function') {
-    return error.name === '' ? '[function]' : `[function ${error.name}]`;
-  }
-  return 'Unknown runtime error';
-}
-
 function isContextInvalidated(error: unknown): boolean {
-  return getErrorMessage(error).includes(CONTEXT_INVALIDATED_ERROR_TEXT);
+  return describeError(error).includes(CONTEXT_INVALIDATED_ERROR_TEXT);
 }
 
 function getPanelErrorMessage(error: ReturnType<typeof useScanLifecycle>['error']): string {

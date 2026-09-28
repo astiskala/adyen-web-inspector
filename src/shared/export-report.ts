@@ -155,6 +155,34 @@ function buildNetworkData(result: ScanResult): ExportNetworkData {
   return { capturedRequests };
 }
 
+interface RawConfigSection {
+  readonly title: string;
+  readonly text: string;
+}
+
+function formatConfig(config: object | null, emptyMessage: string): string {
+  return config === null ? emptyMessage : JSON.stringify(config, null, 2);
+}
+
+/** Titles and pretty-printed contents of each extracted config source, shared by every view. */
+export function buildRawConfigSections(rawConfig: ExportRawConfigData): RawConfigSection[] {
+  return [
+    {
+      title: 'Captured Checkout Fields',
+      text: formatConfig(rawConfig.checkoutConfig, 'No config captured.'),
+    },
+    {
+      title: 'Mounted Component Fields',
+      text: formatConfig(rawConfig.componentConfig, 'No component config captured.'),
+    },
+    {
+      title: 'Inferred Checkout Fields',
+      text: formatConfig(rawConfig.inferredCheckoutConfig, 'No inferred config captured.'),
+    },
+    { title: 'SDK Metadata', text: JSON.stringify(rawConfig.sdkMetadata, null, 2) },
+  ];
+}
+
 function buildRawConfigData(result: ScanResult): ExportRawConfigData {
   return {
     checkoutConfig: result.payload.page.checkoutConfig,

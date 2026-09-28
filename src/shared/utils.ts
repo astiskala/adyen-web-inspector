@@ -4,13 +4,20 @@
 
 import { ADYEN_HOST_SUFFIX, ADYEN_PAYMENTS_HOST_SUFFIX } from './constants.js';
 
-import type { CapturedHeader, ScanPayload, ScanResult } from './types.js';
+import type { ScanPayload, ScanResult } from './types.js';
 
 export * from './results.js';
 export * from './health.js';
 export * from './version-utils.js';
 export * from './csp-utils.js';
 export * from './export-utils.js';
+
+/** Describes a thrown value: an Error's message, a string as-is, otherwise its type tag. */
+export function describeError(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'string') return error;
+  return Object.prototype.toString.call(error);
+}
 
 /** Returns true for any non-null object. */
 export function isRecord(value: unknown): value is Record<string, unknown> {
@@ -63,17 +70,14 @@ export function isAdyenCheckoutResource(url: string): boolean {
 /** Case-insensitive lookup of a response header from the main document headers. */
 export function getHeader(payload: ScanPayload, name: string): string | null {
   const lower = name.toLowerCase();
-  return (
-    payload.mainDocumentHeaders.find((h: CapturedHeader) => h.name.toLowerCase() === lower)
-      ?.value ?? null
-  );
+  return payload.mainDocumentHeaders.find((h) => h.name.toLowerCase() === lower)?.value ?? null;
 }
 
 /** Returns all values for a given header name (case-insensitive). */
 export function getAllHeaders(payload: ScanPayload, name: string): string[] {
   const lower = name.toLowerCase();
   return payload.mainDocumentHeaders
-    .filter((h: CapturedHeader) => h.name.toLowerCase() === lower)
+    .filter((h) => h.name.toLowerCase() === lower)
     .map((h) => h.value);
 }
 

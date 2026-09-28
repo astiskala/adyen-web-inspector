@@ -1,7 +1,7 @@
 import type { JSX } from 'preact';
-import { groupIssuesByImpact, type ImpactGroupChecks } from '~shared/export-report';
-import type { CheckResult } from '~shared/types';
-import { getRemediationText, IMPACT_LABELS, isIssue } from '~shared/utils';
+import { groupIssuesByImpact, type ImpactGroupChecks } from '../../shared/export-report.js';
+import type { CheckResult } from '../../shared/types.js';
+import { getRemediationText, IMPACT_LABELS, isIssue } from '../../shared/results.js';
 import styles from './IssueList.module.css';
 
 const s = (key: string): string => styles[key] ?? '';

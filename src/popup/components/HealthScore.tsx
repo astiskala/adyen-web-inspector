@@ -1,5 +1,5 @@
 import type { JSX } from 'preact';
-import type { ScanResult } from '~shared/types';
+import type { ScanResult } from '../../shared/types.js';
 import styles from './HealthScore.module.css';
 
 const s = (key: string): string => styles[key] ?? '';

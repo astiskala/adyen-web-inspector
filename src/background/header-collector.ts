@@ -84,12 +84,10 @@ export class HeaderCollector {
 
   private onHeadersReceived(details: chrome.webRequest.OnHeadersReceivedDetails): void {
     const { url, type, responseHeaders, statusCode } = details;
-    const headers: CapturedHeader[] = (responseHeaders ?? []).map(
-      (h: chrome.webRequest.HttpHeader) => ({
-        name: h.name,
-        value: h.value ?? '',
-      })
-    );
+    const headers: CapturedHeader[] = (responseHeaders ?? []).map((h) => ({
+      name: h.name,
+      value: h.value ?? '',
+    }));
 
     if (type === 'main_frame') {
       this.mainDocumentHeaders = headers;

@@ -5,7 +5,6 @@ import { dirname, relative, resolve } from 'node:path';
 
 const root = import.meta.dirname;
 const OUT_DIR = resolve(root, 'dist');
-const alias = { '~shared': resolve(root, 'src/shared') };
 
 /** Fails the build if a content script would need ESM loading, which Chrome does not provide. */
 async function assertClassicScript(file: string): Promise<void> {
@@ -47,7 +46,6 @@ function buildContentScripts(): Plugin {
         await build({
           configFile: false,
           logLevel: 'warn',
-          resolve: { alias },
           build: {
             outDir: OUT_DIR,
             emptyOutDir: false,
@@ -157,5 +155,4 @@ export default defineConfig({
       },
     },
   },
-  resolve: { alias },
 });

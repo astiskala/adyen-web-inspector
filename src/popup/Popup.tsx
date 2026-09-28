@@ -1,6 +1,6 @@
 import { render } from 'preact';
-import { Popup } from './PopupApp';
-import './popup.css';
+import '../shared/base.css';
+import { Popup } from './PopupApp.js';
 
 document.body.classList.add('popup-body');
 

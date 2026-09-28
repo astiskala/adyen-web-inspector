@@ -33,6 +33,15 @@ const BASE_RESTRICTED_SYNTAX = [
   },
 ];
 
+const SOURCE_RESTRICTED_SYNTAX = [
+  ...BASE_RESTRICTED_SYNTAX,
+  {
+    selector:
+      ':matches(ImportDeclaration, ExportAllDeclaration, ExportNamedDeclaration)[source.value=/^\\.{1,2}\\/(?!.*\\.(?:js|css)$)/]',
+    message: 'Relative imports in src/ include the .js extension (.css for stylesheets).',
+  },
+];
+
 const BASE_RESTRICTED_IMPORT_PATHS = [
   { name: 'fs', message: 'Use node:fs instead.' },
   { name: 'path', message: 'Use node:path instead.' },
@@ -246,11 +255,17 @@ export default defineConfig([
     },
   },
   {
+    files: ['src/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-syntax': ['error', ...SOURCE_RESTRICTED_SYNTAX],
+    },
+  },
+  {
     files: ['src/background/checks/**/*.ts'],
     rules: {
       'no-restricted-syntax': [
         'error',
-        ...BASE_RESTRICTED_SYNTAX,
+        ...SOURCE_RESTRICTED_SYNTAX,
         {
           selector: `MemberExpression[property.name=${RAW_CONFIG_SLOT}]`,
           message: RAW_CONFIG_MESSAGE,
@@ -326,7 +341,7 @@ export default defineConfig([
     rules: {
       'no-restricted-syntax': [
         'error',
-        ...BASE_RESTRICTED_SYNTAX,
+        ...SOURCE_RESTRICTED_SYNTAX,
         { selector: "Literal[value='sdk-detected']", message: SDK_PRESENCE_MESSAGE },
       ],
     },

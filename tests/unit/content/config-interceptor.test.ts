@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
+import { PAGE_GLOBALS } from '../../../src/shared/constants';
 
-const CONFIG_KEY = '__adyenWebInspectorCapturedConfig';
-const INFERRED_CONFIG_KEY = '__adyenWebInspectorCapturedInferredConfig';
-const DIRECT_CONFIG_KEY = '__adyenWebInspectorDirectCheckoutConfigCaptured';
-const INSTALLED_KEY = `${CONFIG_KEY}__installed`;
+const CONFIG_KEY = PAGE_GLOBALS.capturedConfig;
+const INFERRED_CONFIG_KEY = PAGE_GLOBALS.inferredConfig;
+const DIRECT_CONFIG_KEY = PAGE_GLOBALS.directConfigCaptured;
+const INSTALLED_KEY = PAGE_GLOBALS.interceptorInstalled;
 
 type CapturedConfig = Record<string, unknown>;
 type CheckoutFactory = (config: unknown) => Promise<unknown>;

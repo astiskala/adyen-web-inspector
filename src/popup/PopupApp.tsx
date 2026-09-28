@@ -4,18 +4,21 @@ import {
   MIN_SUPPORTED_MAJOR_VERSION,
   STORAGE_CHECKOUT_ACTIVITY_PREFIX,
   STORAGE_VERSION_PREFIX,
-} from '~shared/constants';
-import { parseVersion } from '~shared/utils';
-import { exportPdf } from '~shared/export-pdf';
-import { IdentityCard } from './components/IdentityCard';
-import { HealthScore } from './components/HealthScore';
-import { IssueList } from './components/IssueList';
-import { NotDetected } from './components/NotDetected';
-import { DetectedReady } from './components/DetectedReady';
-import { VersionOutdated } from './components/VersionOutdated';
-import { ScanError } from './components/ScanError';
-import { StandardComplianceBadge } from './components/StandardComplianceBadge';
-import { useScanLifecycle } from './components/useScanLifecycle';
+} from '../shared/constants.js';
+import { parseVersion } from '../shared/utils.js';
+import { exportPdf } from '../shared/export-pdf.js';
+import { IdentityCard } from './components/IdentityCard.js';
+import { HealthScore } from './components/HealthScore.js';
+import { IssueList } from './components/IssueList.js';
+import { NotDetected } from './components/NotDetected.js';
+import { DetectedReady } from './components/DetectedReady.js';
+import { VersionOutdated } from './components/VersionOutdated.js';
+import { ScanError } from './components/ScanError.js';
+import { StandardComplianceBadge } from './components/StandardComplianceBadge.js';
+import { useScanLifecycle } from './components/useScanLifecycle.js';
+import styles from './PopupApp.module.css';
+
+const s = (key: string): string => styles[key] ?? '';
 
 type PopupState = 'loading' | 'ready' | 'detected' | 'not-detected' | 'error' | 'version-outdated';
 function getActiveTabId(): Promise<number | undefined> {
@@ -108,18 +111,7 @@ export function Popup(): JSX.Element {
 
   return (
     <div>
-      {state === 'loading' && (
-        <div
-          style={{
-            padding: '24px',
-            textAlign: 'center',
-            color: 'var(--color-text-secondary)',
-            fontSize: '12px',
-          }}
-        >
-          Loading…
-        </div>
-      )}
+      {state === 'loading' && <div class={s('loading')}>Loading…</div>}
       {state === 'error' && <ScanError onRetry={scan} scanning={scanning} />}
       {state === 'ready' && <DetectedReady />}
       {state === 'not-detected' && <NotDetected onAttemptScan={scan} scanning={scanning} />}
@@ -134,19 +126,11 @@ export function Popup(): JSX.Element {
       )}
       {sdkNotDetected && <NotDetected onAttemptScan={scan} scanning={scanning} />}
       {showScanControls && (
-        <div
-          style={{
-            display: 'flex',
-            gap: '6px',
-            padding: '8px 12px',
-            borderTop: '1px solid var(--color-border)',
-          }}
-        >
+        <div class={s('toolbar')}>
           <button
-            class={`btn ${scanning ? '' : 'btnPrimary'}`}
+            class={`btn ${scanning ? '' : 'btnPrimary'} ${s('scanButton')}`}
             onClick={scan}
             disabled={scanning}
-            style={{ flex: 1 }}
           >
             {scanButtonText}
           </button>

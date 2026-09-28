@@ -15,14 +15,11 @@
  */
 
 import { applyCapturedOptions, readCheckoutOptions } from '../shared/checkout-config-schema.js';
+import { PAGE_GLOBALS } from '../shared/constants.js';
 import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
 import { extractLocaleFromUrl, isAdyenHost } from '../shared/utils.js';
 
 (function configInterceptor(): void {
-  const CAPTURED_CONFIG_KEY = '__adyenWebInspectorCapturedConfig';
-  const CAPTURED_INFERRED_CONFIG_KEY = '__adyenWebInspectorCapturedInferredConfig';
-  const DIRECT_CONFIG_KEY = '__adyenWebInspectorDirectCheckoutConfigCaptured';
-  const CAPTURED_INIT_COUNT_KEY = '__adyenWebInspectorCheckoutInitCount';
   const WRAPPED = '__awInspectorWrapped';
 
   type PlainRecord = Record<string, unknown>;
@@ -32,10 +29,10 @@ import { extractLocaleFromUrl, isAdyenHost } from '../shared/utils.js';
   const LIVE_ENVIRONMENT_PATTERN = /(?:^|\.|-)(live(?:-[a-z]{2,4})?)(?:\.|$)/;
   const TEST_ENVIRONMENT_PATTERN = /(?:^|\.|-)(test)(?:\.|$)/;
 
-  if ((globalThis as PlainRecord)[CAPTURED_CONFIG_KEY + '__installed'] === true) {
+  if ((globalThis as PlainRecord)[PAGE_GLOBALS.interceptorInstalled] === true) {
     return;
   }
-  (globalThis as PlainRecord)[CAPTURED_CONFIG_KEY + '__installed'] = true;
+  (globalThis as PlainRecord)[PAGE_GLOBALS.interceptorInstalled] = true;
 
   // ---------------------------------------------------------------------------
   // Merging & Publishing
@@ -57,7 +54,7 @@ import { extractLocaleFromUrl, isAdyenHost } from '../shared/utils.js';
       return;
     }
     inferred = { ...inferred, ...incoming };
-    publish(CAPTURED_INFERRED_CONFIG_KEY, inferred);
+    publish(PAGE_GLOBALS.inferredConfig, inferred);
   }
 
   function captureConfig(raw: unknown, source: CallbackSource): void {
@@ -69,8 +66,8 @@ import { extractLocaleFromUrl, isAdyenHost } from '../shared/utils.js';
         return;
       }
       captured = applyCapturedOptions(captured, fields);
-      publish(CAPTURED_CONFIG_KEY, captured);
-      if (complete) (globalThis as PlainRecord)[DIRECT_CONFIG_KEY] = true;
+      publish(PAGE_GLOBALS.capturedConfig, captured);
+      if (complete) (globalThis as PlainRecord)[PAGE_GLOBALS.directConfigCaptured] = true;
     } catch {
       /* ignore */
     }
@@ -246,9 +243,9 @@ import { extractLocaleFromUrl, isAdyenHost } from '../shared/utils.js';
 
   function incrementInitCount(): void {
     try {
-      const count = (globalThis as PlainRecord)[CAPTURED_INIT_COUNT_KEY];
+      const count = (globalThis as PlainRecord)[PAGE_GLOBALS.checkoutInitCount];
       const nextCount = typeof count === 'number' ? count + 1 : 1;
-      (globalThis as PlainRecord)[CAPTURED_INIT_COUNT_KEY] = nextCount;
+      (globalThis as PlainRecord)[PAGE_GLOBALS.checkoutInitCount] = nextCount;
     } catch {
       /* ignore */
     }

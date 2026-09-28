@@ -1,11 +1,15 @@
 import type { JSX } from 'preact';
-import type { ScanResult, CheckResult } from '~shared/types';
-import { buildFindingProjection, type ImpactGroupChecks } from '~shared/export-report';
-import { IMPACT_LABELS } from '~shared/results';
-import { IdentityCard } from '../../popup/components/IdentityCard';
-import { HealthScore } from '../../popup/components/HealthScore';
-import { IssueList } from '../../popup/components/IssueList';
-import { StandardComplianceBadge } from '../../popup/components/StandardComplianceBadge';
+import type { ScanResult, CheckResult } from '../../shared/types.js';
+import {
+  buildFindingProjection,
+  buildRawConfigSections,
+  type ImpactGroupChecks,
+} from '../../shared/export-report.js';
+import { IMPACT_LABELS } from '../../shared/results.js';
+import { IdentityCard } from '../../popup/components/IdentityCard.js';
+import { HealthScore } from '../../popup/components/HealthScore.js';
+import { IssueList } from '../../popup/components/IssueList.js';
+import { StandardComplianceBadge } from '../../popup/components/StandardComplianceBadge.js';
 import styles from './panel.module.css';
 
 const s = (key: string): string => styles[key] ?? '';
@@ -240,40 +244,16 @@ export function NetworkTab({ result }: Props): JSX.Element {
  * JSON view of selected captured/inferred checkout fields and SDK metadata.
  */
 export function RawConfigTab({ result }: Props): JSX.Element {
-  const {
-    checkoutConfig: config,
-    componentConfig: component,
-    inferredCheckoutConfig: inferred,
-    sdkMetadata: metadata,
-  } = buildFindingProjection(result).rawConfig;
-
-  const configText = config ? JSON.stringify(config, null, 2) : 'No config captured.';
-  const componentText = component
-    ? JSON.stringify(component, null, 2)
-    : 'No component config captured.';
-  const inferredText = inferred
-    ? JSON.stringify(inferred, null, 2)
-    : 'No inferred config captured.';
-  const metaText = JSON.stringify(metadata ?? null, null, 2);
+  const sections = buildRawConfigSections(buildFindingProjection(result).rawConfig);
 
   return (
     <div class={s('tabContent')}>
-      <div class={s('section')}>
-        <h3 class={s('sectionTitle')}>Captured Checkout Fields</h3>
-        <pre class={s('codeBlock')}>{configText}</pre>
-      </div>
-      <div class={s('section')}>
-        <h3 class={s('sectionTitle')}>Mounted Component Fields</h3>
-        <pre class={s('codeBlock')}>{componentText}</pre>
-      </div>
-      <div class={s('section')}>
-        <h3 class={s('sectionTitle')}>Inferred Checkout Fields</h3>
-        <pre class={s('codeBlock')}>{inferredText}</pre>
-      </div>
-      <div class={s('section')}>
-        <h3 class={s('sectionTitle')}>SDK Metadata</h3>
-        <pre class={s('codeBlock')}>{metaText}</pre>
-      </div>
+      {sections.map(({ title, text }) => (
+        <div key={title} class={s('section')}>
+          <h3 class={s('sectionTitle')}>{title}</h3>
+          <pre class={s('codeBlock')}>{text}</pre>
+        </div>
+      ))}
     </div>
   );
 }

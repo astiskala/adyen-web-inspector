@@ -11,6 +11,16 @@ import { compareVersions, parseVersion } from './utils.js';
 
 const MINIMUM_STANDARD_DROPIN_VERSION = '6.30.0';
 
+/** Copy shared by every view of the Standard Drop-in assessment. */
+export const STANDARD_COMPLIANCE_COPY = {
+  metLabel: 'Standard Drop-in frontend criteria met',
+  unmetLabel: 'Standard Drop-in criteria not met',
+  caveat:
+    'This is not a compliance determination. Server-side API version, webhooks, account setup, security, testing, and go-live requirements require manual review.',
+  checklistLabel: 'Standard integration checklist',
+  checklistUrl: 'https://docs.adyen.com/standard',
+} as const;
+
 /** Evaluates the browser-visible requirements for Adyen Standard Drop-in. */
 export function computeStandardCompliance(payload: ScanPayload): StandardCompliance {
   const reasons: string[] = [];

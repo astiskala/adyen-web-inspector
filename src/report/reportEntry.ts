@@ -2,10 +2,10 @@ import {
   buildPrintableHtml,
   getPdfReportStorageKey,
   PDF_REPORT_TOKEN_PARAM,
-} from '~shared/export-pdf';
-import { buildPrintableReportMetadata } from '~shared/export-metadata';
-import type { ScanResult } from '~shared/types';
-import { isScanResult } from '~shared/utils';
+} from '../shared/export-pdf.js';
+import { buildPrintableReportMetadata } from '../shared/export-metadata.js';
+import type { ScanResult } from '../shared/types.js';
+import { isScanResult } from '../shared/utils.js';
 
 function showError(message: string): void {
   document.title = 'Adyen Web Inspector - PDF Export Failed';

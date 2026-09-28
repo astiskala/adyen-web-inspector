@@ -1,7 +1,4 @@
 import { defineConfig } from 'vitest/config';
-import { resolve } from 'node:path';
-
-const root = import.meta.dirname;
 
 export default defineConfig({
   test: {
@@ -87,11 +84,6 @@ export default defineConfig({
           statements: 65,
         },
       },
-    },
-  },
-  resolve: {
-    alias: {
-      '~shared': resolve(root, 'src/shared'),
     },
   },
 });

@@ -24,10 +24,7 @@
     "noUncheckedSideEffectImports": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
-    "types": ["chrome"],
-    "paths": {
-      "~shared/*": ["./src/shared/*"]
-    }
+    "types": ["chrome"]
   },
   "include": [
     "src/**/*",

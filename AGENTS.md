@@ -40,6 +40,7 @@ Keep pnpm settings such as `overrides` and `allowBuilds` in `pnpm-workspace.yaml
 - **Strict mode** is fully enabled: `strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noImplicitOverride`, `noPropertyAccessFromIndexSignature`, `noUnusedLocals`, `noUnusedParameters`, `noFallthroughCasesInSwitch`, `allowUnreachableCode: false`, `allowUnusedLabels: false`, `verbatimModuleSyntax`, `isolatedModules`, `erasableSyntaxOnly`, `noUncheckedSideEffectImports`.
 - Use `globalThis` instead of `window`.
 - Use `node:` prefix for Node.js built-ins (e.g. `import {resolve} from 'node:path'`).
+- Relative imports in `src/` include the `.js` extension (`.css` for stylesheets), even for `.ts`/`.tsx` files; there is no path alias. ESLint enforces this. Tests import `src/` without extensions.
 - When a property is `string | undefined` via `exactOptionalPropertyTypes`, use spread to conditionally include it: `...(val === undefined ? {} : {key: val})`.
 
 ### Preact / JSX
@@ -230,8 +231,10 @@ When capturing a new checkout option:
 When adding a new UI component:
 
 1. Create `ComponentName.tsx` and `ComponentName.module.css` in the appropriate folder
-2. Use the CSS Modules helper pattern for style access
+2. Use the CSS Modules helper pattern for style access; avoid inline `style` objects
 3. Use Preact hooks from `preact/hooks`
+4. For a centered popup state (icon, title, text, optional scan button or link), use `EmptyState`
+5. Put copy or colours that also appear in the PDF report in `shared/` (for example `STANDARD_COMPLIANCE_COPY`, `STATUS_COLORS`, `buildRawConfigSections()`)
 
 ---
 

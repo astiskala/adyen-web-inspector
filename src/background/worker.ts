@@ -19,23 +19,25 @@ import {
 import { chromeScanBrowser, getStoredResult } from './chrome-scan-browser.js';
 import { runScan } from './scan-orchestrator.js';
 import {
+  STATUS_COLORS,
   STORAGE_CHECKOUT_ACTIVITY_PREFIX,
   STORAGE_SCAN_RESULT_PREFIX,
   STORAGE_VERSION_PREFIX,
 } from '../shared/constants.js';
 import type { HealthScore } from '../shared/types.js';
+import { describeError } from '../shared/utils.js';
 
 // ─── Badge Helpers ─────────────────────────────────────────────────────────────
 
 function setBadgeDetected(tabId: number): void {
   chrome.action.setBadgeText({ tabId, text: '✓' }).catch(() => {});
-  chrome.action.setBadgeBackgroundColor({ tabId, color: '#188038' }).catch(() => {});
+  chrome.action.setBadgeBackgroundColor({ tabId, color: STATUS_COLORS.pass }).catch(() => {});
 }
 
 function healthBadgeColor(tier: HealthScore['tier']): string {
-  if (tier === 'excellent') return '#188038';
-  if (tier === 'issues') return '#f29900';
-  return '#d93025';
+  if (tier === 'excellent') return STATUS_COLORS.pass;
+  if (tier === 'issues') return STATUS_COLORS.warn;
+  return STATUS_COLORS.fail;
 }
 
 function setBadgeHealth(tabId: number, health: HealthScore): void {
@@ -51,7 +53,7 @@ function clearBadge(tabId: number): void {
 
 function setBadgeScanning(tabId: number): void {
   chrome.action.setBadgeText({ tabId, text: '…' }).catch(() => {});
-  chrome.action.setBadgeBackgroundColor({ tabId, color: '#f29900' }).catch(() => {});
+  chrome.action.setBadgeBackgroundColor({ tabId, color: STATUS_COLORS.warn }).catch(() => {});
 }
 
 function sendUiMessage(message: BswToUiMessage): void {
@@ -104,41 +106,18 @@ async function handleScanRequest(senderTabId: number): Promise<void> {
   scanInFlight.add(senderTabId);
 
   setBadgeScanning(senderTabId);
-  sendUiMessage({
-    type: MSG_SCAN_STARTED,
-    tabId: senderTabId,
-  });
+  sendUiMessage({ type: MSG_SCAN_STARTED, tabId: senderTabId });
 
   try {
     const result = await runScan(senderTabId, chromeScanBrowser);
-    const response: BswToUiMessage = {
-      type: MSG_SCAN_COMPLETE,
-      tabId: senderTabId,
-      result,
-    };
-    sendUiMessage(response);
+    sendUiMessage({ type: MSG_SCAN_COMPLETE, tabId: senderTabId, result });
     if (result.sdkPresence.detected) {
       setBadgeHealth(senderTabId, result.health);
     } else {
       clearBadge(senderTabId);
     }
   } catch (error: unknown) {
-    let errorMsg: string;
-    if (error instanceof Error) {
-      errorMsg = error.message;
-    } else {
-      const typeStr =
-        typeof error === 'object' && error !== null
-          ? Object.prototype.toString.call(error)
-          : typeof error;
-      errorMsg = `[${typeStr}]`;
-    }
-    const response: BswToUiMessage = {
-      type: MSG_SCAN_ERROR,
-      tabId: senderTabId,
-      error: errorMsg,
-    };
-    sendUiMessage(response);
+    sendUiMessage({ type: MSG_SCAN_ERROR, tabId: senderTabId, error: describeError(error) });
     clearBadge(senderTabId);
   } finally {
     scanInFlight.delete(senderTabId);
@@ -201,11 +180,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
   clearBadge(tabId);
   clearTabSessionState(tabId)
     .then(() => {
-      const response: BswToUiMessage = {
-        type: MSG_SCAN_RESET,
-        tabId,
-      };
-      sendUiMessage(response);
+      sendUiMessage({ type: MSG_SCAN_RESET, tabId });
     })
     .catch(() => {});
 });

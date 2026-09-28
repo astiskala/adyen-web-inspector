@@ -2,7 +2,7 @@
  * Category 8 — Third-party Script checks.
  */
 
-import type { ScanPayload, ScriptTag } from '../../shared/types.js';
+import type { ScanPayload } from '../../shared/types.js';
 import {
   AD_PIXEL_PATTERNS,
   ANALYTICS_PATTERNS,
@@ -36,7 +36,7 @@ interface PatternCheckOptions {
 }
 
 function getScriptSources(payload: ScanPayload): string[] {
-  return payload.page.scripts.map((script: ScriptTag) => script.src);
+  return payload.page.scripts.map((script) => script.src);
 }
 
 function findMatchingScripts(srcs: string[], patterns: readonly ThirdPartyPattern[]): string[] {
@@ -123,7 +123,7 @@ export const THIRD_PARTY_CHECKS = createRegistry(CATEGORY)
     );
   })
   .add('3p-no-sri', (payload, { pass, notice }) => {
-    const knownThirdPartyScripts = payload.page.scripts.filter((s: ScriptTag) => {
+    const knownThirdPartyScripts = payload.page.scripts.filter((s) => {
       return (
         s.src.startsWith('http') && scriptMatchesAnyPattern(s.src, THIRD_PARTY_SCRIPT_PATTERNS)
       );
@@ -134,7 +134,7 @@ export const THIRD_PARTY_CHECKS = createRegistry(CATEGORY)
     }
 
     const withoutSri = knownThirdPartyScripts.filter(
-      (s: ScriptTag) => s.integrity === undefined || s.integrity === ''
+      (s) => s.integrity === undefined || s.integrity === ''
     );
     if (withoutSri.length === 0) {
       return pass('Detected third-party scripts have SRI.');
