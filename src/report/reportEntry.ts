@@ -2,27 +2,10 @@ import {
   buildPrintableHtml,
   getPdfReportStorageKey,
   PDF_REPORT_TOKEN_PARAM,
-} from '~shared/export-pdf';
-import { buildPrintableReportMetadata } from '~shared/export-metadata';
-import type { ScanResult } from '~shared/types';
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
-
-function isScanResult(value: unknown): value is ScanResult {
-  if (!isRecord(value)) {
-    return false;
-  }
-
-  return (
-    typeof value['pageUrl'] === 'string' &&
-    typeof value['scannedAt'] === 'string' &&
-    Array.isArray(value['checks']) &&
-    isRecord(value['health']) &&
-    isRecord(value['payload'])
-  );
-}
+} from '../shared/export-pdf.js';
+import { buildPrintableReportMetadata } from '../shared/export-metadata.js';
+import type { ScanResult } from '../shared/types.js';
+import { isScanResult } from '../shared/utils.js';
 
 function showError(message: string): void {
   document.title = 'Adyen Web Inspector - PDF Export Failed';
@@ -60,9 +43,9 @@ async function loadStoredResult(token: string): Promise<ScanResult | null> {
 function renderReportHtml(html: string): void {
   const parsed = new DOMParser().parseFromString(html, 'text/html');
   document.title = parsed.title;
-  document.documentElement.lang = parsed.documentElement.lang || 'en';
-  document.head.replaceChildren(...Array.from(parsed.head.childNodes));
-  document.body.replaceChildren(...Array.from(parsed.body.childNodes));
+  document.documentElement.lang = parsed.documentElement.lang;
+  document.head.replaceChildren(...parsed.head.childNodes);
+  document.body.replaceChildren(...parsed.body.childNodes);
 }
 
 function triggerPrint(): void {

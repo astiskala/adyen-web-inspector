@@ -1,7 +1,4 @@
 import { defineConfig } from 'vitest/config';
-import { resolve } from 'node:path';
-
-const root = import.meta.dirname;
 
 export default defineConfig({
   test: {
@@ -13,44 +10,12 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov', 'html'],
-      include: [
-        'src/background/checks/**',
-        'src/background/npm-registry.ts',
-        'src/background/payload-builder.ts',
-        'src/shared/**',
-      ],
-      exclude: ['src/shared/export-pdf.ts', 'src/shared/types.ts', 'src/shared/base.css'],
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: ['src/types.d.ts', 'src/shared/types.ts', 'src/background/scan-browser.ts'],
       thresholds: {
-        'src/background/checks/**': {
-          lines: 95,
-          functions: 95,
-          branches: 90,
-          statements: 95,
-        },
-        'src/shared/**': {
-          lines: 80,
-          functions: 80,
-          branches: 70,
-          statements: 80,
-        },
-        'src/background/payload-builder.ts': {
-          lines: 90,
-          functions: 90,
-          branches: 85,
-          statements: 90,
-        },
-        'src/background/npm-registry.ts': {
-          lines: 95,
-          functions: 95,
-          branches: 90,
-          statements: 95,
-        },
+        100: true,
+        perFile: true,
       },
-    },
-  },
-  resolve: {
-    alias: {
-      '~shared': resolve(root, 'src/shared'),
     },
   },
 });

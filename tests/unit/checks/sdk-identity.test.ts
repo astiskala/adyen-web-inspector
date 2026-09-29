@@ -3,11 +3,12 @@ import { SDK_IDENTITY_CHECKS } from '../../../src/background/checks/sdk-identity
 import {
   makeScanPayload,
   makeAdyenPayload,
-  makePageExtract,
+  makeCheckoutPage,
   makeAdyenMetadata,
   makeAnalyticsData,
   makeRequest,
   makeCheckoutConfig,
+  makeCapturedConfig,
 } from '../../fixtures/makeScanPayload';
 import { requireCheck } from './requireCheck';
 
@@ -31,7 +32,7 @@ describe('sdk-detected', () => {
 
   it('returns info when CDN script src contains checkoutshopper-', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
+      page: makeCheckoutPage({
         scripts: [
           { src: 'https://checkoutshopper-test.adyen.com/checkoutshopper-sdk/5.67.0/adyen.js' },
         ],
@@ -39,6 +40,15 @@ describe('sdk-detected', () => {
     });
     const result = sdkDetected.run(payload);
     expect(result.severity).toBe('info');
+  });
+
+  it('detects the documented CDN script path without exposed metadata', () => {
+    const payload = makeScanPayload({
+      page: makeCheckoutPage({
+        scripts: [{ src: 'https://checkoutshopper-test.cdn.adyen.com/sdk/6.31.0/adyen.js' }],
+      }),
+    });
+    expect(sdkDetected.run(payload).severity).toBe('info');
   });
 
   it('returns fail when no SDK or CDN script found', () => {
@@ -51,7 +61,7 @@ describe('sdk-detected', () => {
 describe('sdk-bundle-type', () => {
   it('returns skip when CDN script detected', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
+      page: makeCheckoutPage({
         scripts: [
           { src: 'https://checkoutshopper-sdk.adyen.com/checkoutshopper-sdk/5.67.0/adyen.js' },
         ],
@@ -63,7 +73,7 @@ describe('sdk-bundle-type', () => {
 
   it('returns skip when legacy CDN /checkoutshopper/sdk/ script detected', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
+      page: makeCheckoutPage({
         scripts: [
           {
             src: 'https://checkoutshopper-live-us.adyen.com/checkoutshopper/sdk/6.31.1/adyen.js',
@@ -90,7 +100,7 @@ describe('sdk-bundle-type', () => {
 
   it('returns pass for esm bundle', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
+      page: makeCheckoutPage({
         adyenMetadata: makeAdyenMetadata({ bundleType: 'esm' }),
       }),
     });
@@ -122,7 +132,7 @@ describe('sdk-bundle-type', () => {
 
   it('prefers metadata bundleType over analytics buildType', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
+      page: makeCheckoutPage({
         adyenMetadata: makeAdyenMetadata({ bundleType: 'esm' }),
       }),
       analyticsData: makeAnalyticsData({ buildType: 'auto' }),
@@ -177,7 +187,7 @@ describe('sdk-flavor', () => {
 
   it('reports Drop-in when dropin script src is detected (no analytics)', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
+      page: makeCheckoutPage({
         scripts: [{ src: 'https://checkoutshopper-test.adyen.com/dropin/v5/adyen.js' }],
       }),
     });
@@ -195,9 +205,9 @@ describe('sdk-flavor', () => {
 
   it('reports Drop-in when hasDropinDOM is true (NPM integration without analytics)', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
+      page: makeCheckoutPage({
         adyenMetadata: makeAdyenMetadata(),
-        checkoutConfig: makeCheckoutConfig(),
+        capturedConfig: makeCapturedConfig(makeCheckoutConfig()),
         hasDropinDOM: true,
       }),
     });
@@ -207,21 +217,21 @@ describe('sdk-flavor', () => {
     expect(result.detail).toContain('DOM');
   });
 
-  it('reports not mounted when SDK is loaded but no checkout activity', () => {
+  it('reports unobserved checkout activity when SDK metadata is present alone', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
+      page: makeCheckoutPage({
         adyenMetadata: makeAdyenMetadata(),
       }),
     });
     const result = sdkFlavor.run(payload);
     expect(result.severity).toBe('info');
-    expect(result.title).toBe('No Adyen Web checkout was mounted on this page.');
+    expect(result.title).toBe('No active Adyen Web checkout was identified on this page.');
     expect(result.detail).toContain('Navigate to the page');
   });
 
-  it('reports not mounted when CDN script loaded but no checkout activity', () => {
+  it('reports unobserved checkout activity when only an SDK script is loaded', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
+      page: makeCheckoutPage({
         scripts: [
           { src: 'https://checkoutshopper-test.adyen.com/checkoutshopper-sdk/5.67.0/adyen.js' },
         ],
@@ -229,24 +239,24 @@ describe('sdk-flavor', () => {
     });
     const result = sdkFlavor.run(payload);
     expect(result.severity).toBe('info');
-    expect(result.title).toBe('No Adyen Web checkout was mounted on this page.');
+    expect(result.title).toBe('No active Adyen Web checkout was identified on this page.');
   });
 
-  it('does not report not-mounted when SDK loaded with Adyen iframes but no config', () => {
+  it('does not report unobserved activity when SDK loaded with Adyen iframes but no config', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
+      page: makeCheckoutPage({
         adyenMetadata: makeAdyenMetadata(),
         iframes: [{ name: 'adyen-card', src: 'https://checkoutshopper-test.adyen.com/card.html' }],
       }),
     });
     const result = sdkFlavor.run(payload);
-    // Should NOT say not-mounted, should say Unknown since there is activity but no flavor signal
-    expect(result.title).not.toContain('No Adyen Web checkout was mounted');
+    // Activity is visible, but there is no signal identifying the integration flavor.
+    expect(result.title).not.toContain('No active Adyen Web checkout was identified');
   });
 
-  it('does not report not-mounted when SDK loaded with API calls but no config', () => {
+  it('does not report unobserved activity when SDK loaded with API calls but no config', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
+      page: makeCheckoutPage({
         adyenMetadata: makeAdyenMetadata(),
       }),
       capturedRequests: [
@@ -254,7 +264,7 @@ describe('sdk-flavor', () => {
       ],
     });
     const result = sdkFlavor.run(payload);
-    expect(result.title).not.toContain('No Adyen Web checkout was mounted');
+    expect(result.title).not.toContain('No active Adyen Web checkout was identified');
   });
 
   it('reports Unknown when no SDK, no dropin, no config, and no analytics', () => {
@@ -266,8 +276,8 @@ describe('sdk-flavor', () => {
 
   it('prefers analytics data over heuristic fallback', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
-        checkoutConfig: { clientKey: 'test_ABC', environment: 'test' },
+      page: makeCheckoutPage({
+        capturedConfig: makeCapturedConfig({ clientKey: 'test_ABC', environment: 'test' }),
       }),
       analyticsData: makeAnalyticsData({ flavor: 'dropin' }),
     });
@@ -280,7 +290,7 @@ describe('sdk-flavor', () => {
 describe('sdk-import-method', () => {
   it('reports CDN when script host is *.cdn.adyen.com', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
+      page: makeCheckoutPage({
         scripts: [
           { src: 'https://checkoutshopper.cdn.adyen.com/checkoutshopper-sdk/5.67.0/adyen.js' },
         ],
@@ -293,7 +303,7 @@ describe('sdk-import-method', () => {
 
   it('reports Adyen when script host is *.adyen.com (non-CDN)', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
+      page: makeCheckoutPage({
         scripts: [
           {
             src: 'https://checkoutshopper-live-apse.adyen.com/checkoutshopper/sdk/6.31.1/adyen.js',
@@ -308,7 +318,7 @@ describe('sdk-import-method', () => {
 
   it('prioritises CDN when both CDN and non-CDN Adyen script hosts are present', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
+      page: makeCheckoutPage({
         scripts: [
           {
             src: 'https://checkoutshopper-live-apse.adyen.com/checkoutshopper/sdk/6.31.1/adyen.js',
@@ -322,22 +332,30 @@ describe('sdk-import-method', () => {
     expect(result.title).toBe('Import method: CDN.');
   });
 
-  it('reports npm import method when no Adyen-hosted script tags are present', () => {
+  it('reports Unknown for merchant-hosted bundles even when SDK metadata is visible', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
+      page: makeCheckoutPage({
+        adyenMetadata: makeAdyenMetadata(),
         scripts: [{ src: 'https://cdn.example.com/app.bundle.js' }],
       }),
     });
     const result = sdkImportMethod.run(payload);
     expect(result.severity).toBe('info');
-    expect(result.title).toBe('Import method: npm.');
+    expect(result.title).toBe('Import method: Unknown.');
   });
 
-  it('reports npm import method when no script tags are present', () => {
+  it('reports unknown import method when no script tags or SDK evidence are present', () => {
     const payload = makeScanPayload();
     const result = sdkImportMethod.run(payload);
     expect(result.severity).toBe('info');
-    expect(result.title).toBe('Import method: npm.');
+    expect(result.title).toBe('Import method: Unknown.');
+  });
+
+  it('reports unknown import method for a merchant bundle without SDK evidence', () => {
+    const payload = makeScanPayload({
+      page: makeCheckoutPage({ scripts: [{ src: 'https://cdn.example.com/app.bundle.js' }] }),
+    });
+    expect(sdkImportMethod.run(payload).title).toBe('Import method: Unknown.');
   });
 });
 
@@ -347,6 +365,16 @@ describe('sdk-analytics', () => {
     const result = sdkAnalytics.run(payload);
     expect(result.severity).toBe('pass');
     expect(result.id).toBe('sdk-analytics');
+  });
+
+  it('skips when a partial captured config does not show the analytics setting', () => {
+    const payload = makeScanPayload({
+      page: makeCheckoutPage({
+        adyenMetadata: makeAdyenMetadata(),
+        capturedConfig: makeCapturedConfig({ clientKey: 'test_X' }),
+      }),
+    });
+    expect(sdkAnalytics.run(payload).severity).toBe('skip');
   });
 
   it('returns pass when analytics.enabled is true', () => {
@@ -371,7 +399,7 @@ describe('sdk-analytics', () => {
 
   it('returns skip when SDK is loaded but checkout is not mounted', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
+      page: makeCheckoutPage({
         adyenMetadata: makeAdyenMetadata(),
       }),
     });
@@ -383,7 +411,7 @@ describe('sdk-analytics', () => {
 describe('sdk-multi-init', () => {
   it('skips when init count is missing', () => {
     const payload = makeScanPayload({
-      page: makePageExtract(), // checkoutInitCount is omitted
+      page: makeCheckoutPage(), // checkoutInitCount is omitted
     });
     const result = sdkMultiInit.run(payload);
     expect(result.severity).toBe('skip');
@@ -391,7 +419,7 @@ describe('sdk-multi-init', () => {
 
   it('passes when initialised once', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({ checkoutInitCount: 1 }),
+      page: makeCheckoutPage({ checkoutInitCount: 1 }),
     });
     const result = sdkMultiInit.run(payload);
     expect(result.severity).toBe('pass');
@@ -399,7 +427,7 @@ describe('sdk-multi-init', () => {
 
   it('warns when initialised multiple times', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({ checkoutInitCount: 2 }),
+      page: makeCheckoutPage({ checkoutInitCount: 2 }),
     });
     const result = sdkMultiInit.run(payload);
     expect(result.severity).toBe('warn');
@@ -410,7 +438,7 @@ describe('sdk-multi-init', () => {
 describe('componentConfig fallback', () => {
   it('sdk-analytics detects disabled analytics from componentConfig', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
+      page: makeCheckoutPage({
         adyenMetadata: makeAdyenMetadata(),
         componentConfig: makeCheckoutConfig({ analyticsEnabled: false }),
       }),
@@ -420,7 +448,7 @@ describe('componentConfig fallback', () => {
 
   it('sdk-multi-init uses componentMountCount when checkoutInitCount is absent', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
+      page: makeCheckoutPage({
         adyenMetadata: makeAdyenMetadata(),
         componentMountCount: 2,
       }),
@@ -431,11 +459,27 @@ describe('componentConfig fallback', () => {
 
   it('sdk-multi-init passes with componentMountCount of 1', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
+      page: makeCheckoutPage({
         adyenMetadata: makeAdyenMetadata(),
         componentMountCount: 1,
       }),
     });
     expect(sdkMultiInit.run(payload).severity).toBe('pass');
+  });
+});
+
+describe('sdk-analytics inferred values', () => {
+  it('skips when analytics is only disabled in page JSON', () => {
+    const payload = makeScanPayload({
+      page: makeCheckoutPage({
+        adyenMetadata: makeAdyenMetadata(),
+        hasDropinDOM: true,
+        pageJsonConfig: { analyticsEnabled: false },
+      }),
+    });
+
+    const result = sdkAnalytics.run(payload);
+    expect(result.severity).toBe('skip');
+    expect(result.detail).toMatch(/inferred/i);
   });
 });

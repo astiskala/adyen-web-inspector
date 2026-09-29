@@ -1,17 +1,18 @@
 /**
  * Page-world extractor — executed via chrome.scripting.executeScript with world: "MAIN".
- * Runs in the page's JS context to read globals, DOM state, and config.
- * Must return a plain serialisable object (no class instances, no functions).
+ * Reads page globals, DOM state, and config in each accessible frame, then
+ * serialises a plain result onto a page global for the background scan to read.
  */
 
-import {
-  findCoreOptions,
-  extractFieldsFromOptions,
-  mergeConfigs,
-} from '../shared/preact-tree-extractor.js';
+import { readAdyenEndpoint } from '../shared/adyen-endpoint.js';
+import { readCheckoutCapture } from '../shared/checkout-capture.js';
+import { readCheckoutDom } from '../shared/checkout-signals.js';
+import { mergeCheckoutConfigs, readCheckoutOptions } from '../shared/checkout-config-schema.js';
+import { PAGE_GLOBALS, type PageGlobalValues } from '../shared/constants.js';
 import type {
   AdyenStyleInfo,
   AdyenWebMetadata,
+  CheckoutCapture,
   CheckoutConfig,
   IframeInfo,
   LinkTag,
@@ -20,60 +21,71 @@ import type {
   ScriptTag,
 } from '../shared/types.js';
 
-type GlobalWithAdyen = typeof globalThis & {
-  AdyenWebMetadata?: AdyenWebMetadata;
-  /** Published by config-interceptor.ts (MAIN-world, document_start). */
-  __adyenWebInspectorCapturedConfig?: CheckoutConfig;
-  /** Published by config-interceptor.ts (MAIN-world, document_start). */
-  __adyenWebInspectorCapturedInferredConfig?: CheckoutConfig;
-  /** Published by config-interceptor.ts (MAIN-world, document_start). */
-  __adyenWebInspectorCheckoutInitCount?: number;
-  /** Published by this script for retrieval after all-frame file injection. */
-  __adyenWebInspectorPageExtractResultJson?: string;
-};
+/** Page globals from config-interceptor.ts (MAIN world, document_start) and the SDK. */
+type GlobalWithAdyen = typeof globalThis &
+  PageGlobalValues & {
+    AdyenWebMetadata?: AdyenWebMetadata;
+  };
 
 interface ElementWithVnode extends Element {
   __k?: unknown;
+}
+
+interface PreactVNode {
+  __c?: {
+    props?: {
+      core?: {
+        options?: unknown;
+      };
+    };
+  };
+  __k?: unknown;
+}
+
+const MAX_TREE_DEPTH = 15;
+
+/**
+ * Recursively walks a Preact VNode tree to find `props.core.options`.
+ * Returns the options object if found, or null.
+ */
+function findCoreOptions(node: unknown, depth: number): unknown {
+  if (depth > MAX_TREE_DEPTH || typeof node !== 'object' || node === null) return null;
+
+  const vnode = node as PreactVNode;
+  const options = vnode.__c?.props?.core?.options;
+  if (options !== undefined && options !== null) return options;
+
+  const children = vnode.__k;
+  if (!Array.isArray(children)) return findCoreOptions(children, depth + 1);
+
+  for (const child of children) {
+    const result = findCoreOptions(child, depth + 1);
+    if (result !== null) return result;
+  }
+  return null;
 }
 
 function extractMetadata(g: GlobalWithAdyen): AdyenWebMetadata | null {
   return g.AdyenWebMetadata ?? null;
 }
 
-/**
- * Reads the checkout config published by the MAIN-world config-interceptor.
- * The interceptor captures actual runtime values from AdyenCheckout() and
- * component constructor calls, so no static analysis is needed here.
- */
-function extractCheckoutConfig(g: GlobalWithAdyen): CheckoutConfig | null {
-  const captured = g.__adyenWebInspectorCapturedConfig;
-  if (captured && typeof captured === 'object' && Object.keys(captured).length > 0) {
-    return captured;
-  }
-  return null;
-}
-
-function extractInferredConfig(g: GlobalWithAdyen): CheckoutConfig | null {
-  const inferred = g.__adyenWebInspectorCapturedInferredConfig;
-  if (inferred && typeof inferred === 'object' && Object.keys(inferred).length > 0) {
-    return inferred;
-  }
-  return null;
-}
-
 function extractScripts(): ScriptTag[] {
-  return Array.from(document.querySelectorAll<HTMLScriptElement>('script[src]')).map((s) => {
-    const tag: { src: string; integrity?: string; crossorigin?: string } = { src: s.src };
+  return [...document.querySelectorAll<HTMLScriptElement>('script[src]')].map((s) => {
+    const tag: { src: string; integrity?: string; crossorigin?: string; blockingMode?: string } = {
+      src: s.src,
+    };
     const integrity = s.getAttribute('integrity');
     const crossorigin = s.getAttribute('crossorigin');
+    const blockingMode = s.dataset['blockingmode'];
     if (integrity !== null && integrity !== '') tag.integrity = integrity;
     if (crossorigin !== null && crossorigin !== '') tag.crossorigin = crossorigin;
+    if (blockingMode !== undefined && blockingMode !== '') tag.blockingMode = blockingMode;
     return tag;
   });
 }
 
 function extractLinks(): LinkTag[] {
-  return Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel][href]')).map((l) => {
+  return [...document.querySelectorAll<HTMLLinkElement>('link[rel][href]')].map((l) => {
     const tag: { href: string; rel: string; integrity?: string; crossorigin?: string } = {
       href: l.href,
       rel: l.rel,
@@ -86,12 +98,8 @@ function extractLinks(): LinkTag[] {
   });
 }
 
-function hasDropinDOM(): boolean {
-  return document.querySelector('.adyen-checkout__dropin') !== null;
-}
-
 function extractIframes(): IframeInfo[] {
-  return Array.from(document.querySelectorAll<HTMLIFrameElement>('iframe')).map((f) => {
+  return [...document.querySelectorAll<HTMLIFrameElement>('iframe')].map((f) => {
     const info: { name?: string; src?: string; referrerpolicy?: string } = {};
     const name = f.getAttribute('name');
     const src = f.getAttribute('src');
@@ -117,10 +125,16 @@ function extractObservedRequests(): ObservedRequest[] {
       typeof resourceEntry.initiatorType === 'string' && resourceEntry.initiatorType.length > 0
         ? resourceEntry.initiatorType
         : undefined;
+    // Browsers report 0 for opaque cross-origin responses and older Chromium lacks the field.
+    const responseStatus =
+      typeof resourceEntry.responseStatus === 'number' && resourceEntry.responseStatus > 0
+        ? resourceEntry.responseStatus
+        : undefined;
 
     requests.push({
       url: entry.name,
       ...(initiatorType === undefined ? {} : { initiatorType }),
+      ...(responseStatus === undefined ? {} : { responseStatus }),
     });
   }
 
@@ -166,7 +180,7 @@ function findAllVnodeRoots(): ElementWithVnode[] {
   }
 
   function walkNode(el: Element): void {
-    if (scanned > 10000 || roots.length >= 20) return;
+    if (scanned > 10_000 || roots.length >= 20) return;
     scanned++;
 
     if (isVnodeRoot(el)) {
@@ -174,12 +188,12 @@ function findAllVnodeRoots(): ElementWithVnode[] {
     }
 
     if (el.shadowRoot !== null) {
-      for (const child of Array.from(el.shadowRoot.children)) {
+      for (const child of el.shadowRoot.children) {
         walkNode(child);
       }
     }
 
-    for (const child of Array.from(el.children)) {
+    for (const child of el.children) {
       walkNode(child);
     }
   }
@@ -192,15 +206,15 @@ function findAllVnodeRoots(): ElementWithVnode[] {
  * Finds Adyen checkout elements including inside Shadow DOMs.
  */
 function findAdyenElements(): Element[] {
-  const results = Array.from(document.querySelectorAll('[class*="adyen-checkout"]'));
+  const results = [...document.querySelectorAll('[class*="adyen-checkout"]')];
 
   function findShadowHosts(el: Element, depth: number): void {
     if (depth > 6) return;
     if (el.shadowRoot !== null) {
-      const adyenInShadow = Array.from(el.shadowRoot.querySelectorAll('[class*="adyen-checkout"]'));
+      const adyenInShadow = [...el.shadowRoot.querySelectorAll('[class*="adyen-checkout"]')];
       results.push(...adyenInShadow);
     }
-    for (const child of Array.from(el.children)) {
+    for (const child of el.children) {
       findShadowHosts(child, depth + 1);
     }
   }
@@ -236,20 +250,18 @@ function processMountPoints(mountPoints: Set<ElementWithVnode>): {
   merged: CheckoutConfig | null;
   findCount: number;
 } {
-  let merged: CheckoutConfig | null = null;
+  const configs: CheckoutConfig[] = [];
   let findCount = 0;
 
   for (const mount of mountPoints) {
-    const vnode: unknown = mount.__k;
-    const options = findCoreOptions(vnode, 0);
-    if (options !== null && options !== undefined) {
+    const config = readCheckoutOptions(findCoreOptions(mount.__k, 0), 'checkout');
+    if (config !== null) {
       findCount++;
-      const extracted = extractFieldsFromOptions(options);
-      merged = merged === null ? extracted : mergeConfigs(merged, extracted);
+      configs.push(config);
     }
   }
 
-  return { merged, findCount };
+  return { merged: mergeCheckoutConfigs(configs), findCount };
 }
 
 function extractComponentConfig(): ComponentExtraction {
@@ -272,33 +284,16 @@ function extractComponentConfig(): ComponentExtraction {
  */
 const ADYEN_API_KEY_PATTERN = /AQ[A-Za-z0-9+/]+==-[A-Za-z0-9+/]+=-[A-Za-z0-9+/]+/;
 
-function detectApiKeyExposure(g: GlobalWithAdyen): boolean {
-  // Scan inline <script> tag contents
+/** Looks for an Adyen API key in inline scripts and in everything the capture record holds. */
+function detectApiKeyExposure(capture: CheckoutCapture): boolean {
   const scripts = document.querySelectorAll<HTMLScriptElement>('script:not([src])');
-  for (const script of Array.from(scripts)) {
+  for (const script of scripts) {
     if (ADYEN_API_KEY_PATTERN.test(script.textContent)) {
       return true;
     }
   }
-
-  // Scan captured config objects
-  const capturedConfig = g.__adyenWebInspectorCapturedConfig;
-  const inferredConfig = g.__adyenWebInspectorCapturedInferredConfig;
-
-  if (capturedConfig !== undefined && ADYEN_API_KEY_PATTERN.test(JSON.stringify(capturedConfig))) {
-    return true;
-  }
-
-  if (inferredConfig !== undefined && ADYEN_API_KEY_PATTERN.test(JSON.stringify(inferredConfig))) {
-    return true;
-  }
-
-  return false;
+  return ADYEN_API_KEY_PATTERN.test(JSON.stringify(capture));
 }
-
-/** Adyen CDN stylesheet host patterns — rules from these sheets are not overrides. */
-const ADYEN_CDN_HREF_PATTERN = /checkoutshopper[-.]|adyen\.com/i;
-const ADYEN_CHECKOUT_CLASS_PATTERN = /\.adyen-checkout__/;
 
 /**
  * When Adyen Web is loaded via npm, the SDK's own CSS is bundled into a
@@ -321,7 +316,7 @@ function safeGetCssRules(sheet: CSSStyleSheet): CSSRuleList | null {
 /** Counts --adyen-sdk-* custom properties declared in a single style rule. */
 function countAdyenCustomProps(style: CSSStyleDeclaration): number {
   let count = 0;
-  for (const prop of Array.from(style)) {
+  for (const prop of style) {
     if (prop.startsWith('--adyen-sdk-')) count++;
   }
   return count;
@@ -335,9 +330,9 @@ interface StyleAccumulator {
 
 /** Recursively walks CSS rules including nested @media/@supports/@layer blocks. */
 function walkCssRules(rules: CSSRuleList, acc: StyleAccumulator): void {
-  for (const rule of Array.from(rules)) {
+  for (const rule of rules) {
     if (rule instanceof CSSStyleRule) {
-      if (ADYEN_CHECKOUT_CLASS_PATTERN.test(rule.selectorText)) {
+      if (rule.selectorText.includes('.adyen-checkout__')) {
         acc.overrideCount++;
         if (acc.overrideSelectors.length < 5) {
           acc.overrideSelectors.push(rule.selectorText);
@@ -350,10 +345,9 @@ function walkCssRules(rules: CSSRuleList, acc: StyleAccumulator): void {
   }
 }
 
-/** Returns true when the stylesheet is likely Adyen's own CSS (CDN or npm bundle). */
+/** Returns true when the stylesheet is likely Adyen's own CSS (Adyen-hosted or npm bundle). */
 function isAdyenOwnStylesheet(sheet: CSSStyleSheet, rules: CSSRuleList): boolean {
-  const href = sheet.href ?? '';
-  if (href !== '' && ADYEN_CDN_HREF_PATTERN.test(href)) return true;
+  if (sheet.href !== null && readAdyenEndpoint(sheet.href) !== null) return true;
 
   const sheetAcc: StyleAccumulator = {
     overrideCount: 0,
@@ -368,7 +362,7 @@ function isAdyenOwnStylesheet(sheet: CSSStyleSheet, rules: CSSRuleList): boolean
 function extractAdyenStyles(): AdyenStyleInfo {
   const acc: StyleAccumulator = { overrideCount: 0, overrideSelectors: [], customPropertyCount: 0 };
 
-  for (const sheet of Array.from(document.styleSheets)) {
+  for (const sheet of document.styleSheets) {
     const rules = safeGetCssRules(sheet);
     if (rules === null) continue;
     if (isAdyenOwnStylesheet(sheet, rules)) continue;
@@ -388,24 +382,26 @@ function extract(): PageExtractResult {
 
   const metadata = extractMetadata(g);
   const { config: componentConfig, mountCount } = extractComponentConfig();
-  const checkoutConfig = extractCheckoutConfig(g);
-  const inferredConfig = extractInferredConfig(g);
-  const apiKeyDetected = detectApiKeyExposure(g);
+  const capture = readCheckoutCapture(g[PAGE_GLOBALS.checkoutCapture]);
+  const apiKeyDetected = detectApiKeyExposure(capture);
+  const dom = readCheckoutDom(document);
 
   return {
     adyenMetadata: metadata,
-    checkoutConfig,
-    inferredConfig,
+    capturedConfig: capture.captured,
+    inferredConfig: capture.inferred['adyen-request'] ?? null,
+    pageJsonConfig: capture.inferred['page-json'] ?? null,
     componentConfig,
     scripts: extractScripts(),
     links: extractLinks(),
     iframes: extractIframes(),
     observedRequests: extractObservedRequests(),
-    ...(typeof g.__adyenWebInspectorCheckoutInitCount === 'number'
-      ? { checkoutInitCount: g.__adyenWebInspectorCheckoutInitCount }
-      : {}),
+    ...(capture.initCount > 0 ? { checkoutInitCount: capture.initCount } : {}),
     ...(mountCount > 0 ? { componentMountCount: mountCount } : {}),
-    ...(hasDropinDOM() ? { hasDropinDOM: true } : {}),
+    ...(dom.dropin ? { hasDropinDOM: true } : {}),
+    ...(dom.card ? { hasCardDOM: true } : {}),
+    ...(dom.newCardForm ? { hasNewCardFormDOM: true } : {}),
+    ...(dom.cardHolderName ? { hasCardHolderNameDOM: true } : {}),
     ...(apiKeyDetected ? { apiKeyDetected: true } : {}),
     adyenStyles: extractAdyenStyles(),
     isInsideIframe: globalThis.self !== globalThis.top,
@@ -416,5 +412,5 @@ function extract(): PageExtractResult {
 
 // This function is injected by executeScript and must be self-contained.
 const pageExtractResult = extract();
-(globalThis as GlobalWithAdyen).__adyenWebInspectorPageExtractResultJson =
+(globalThis as GlobalWithAdyen)[PAGE_GLOBALS.pageExtractResultJson] =
   JSON.stringify(pageExtractResult);

@@ -21,7 +21,7 @@ Key capabilities:
 • Highlights issues with actionable remediation guidance and an overall health score
 • Exports findings as JSON or PDF for sharing and triage
 
-Important: This is an independent developer tool and is not an official Adyen product. It reviews client-side integration signals only and does not inspect backend API calls.
+Important: This is an independent developer tool and is not an official Adyen product. It observes browser-side configuration and network signals; it cannot verify server-side logic or payment API request bodies.
 
 ## Support URL
 

@@ -6,7 +6,7 @@ import { resolve } from 'node:path';
  * Validate that all documentation links referenced in check source files are reachable.
  *
  * These tests make live HTTP requests and are skipped by default.
- * Run with: RUN_LINK_CHECKS=1 pnpm test
+ * Run with `RUN_LINK_CHECKS=1 pnpm test` to check external links.
  */
 
 function collectDocsUrls(): Set<string> {
@@ -17,7 +17,7 @@ function collectDocsUrls(): Set<string> {
 
   for (const file of readdirSync(checksDir)) {
     if (!file.endsWith('.ts')) continue;
-    const content = readFileSync(resolve(checksDir, file), 'utf-8');
+    const content = readFileSync(resolve(checksDir, file), 'utf8');
     for (const match of content.matchAll(urlPattern)) {
       const url = match[1];
       if (url !== undefined && url !== '') {
@@ -40,20 +40,20 @@ const allowedDocHosts = [
 function isAllowedHost(url: string): boolean {
   try {
     const { hostname } = new URL(url);
-    return allowedDocHosts.some((allowedHost) => {
-      return hostname === allowedHost || hostname.endsWith(`.${allowedHost}`);
-    });
+    return allowedDocHosts.some(
+      (allowedHost) => hostname === allowedHost || hostname.endsWith(`.${allowedHost}`)
+    );
   } catch {
     // Ignore invalid URLs
     return false;
   }
 }
 
-const urlsToTest = Array.from(collectDocsUrls()).filter((url) => isAllowedHost(url));
+const urlsToTest = [...collectDocsUrls()].filter((url) => isAllowedHost(url));
 
 describe.skipIf(process.env['RUN_LINK_CHECKS'] === undefined)('Link Validation', () => {
   describe('Referenced Documentation Links', () => {
-    urlsToTest.forEach((url) => {
+    for (const url of urlsToTest) {
       it.concurrent(
         `should be reachable: ${url}`,
         async () => {
@@ -66,8 +66,8 @@ describe.skipIf(process.env['RUN_LINK_CHECKS'] === undefined)('Link Validation',
             expect(response.status).toBeLessThan(400);
           }
         },
-        10000
+        10_000
       );
-    });
+    }
   });
 });

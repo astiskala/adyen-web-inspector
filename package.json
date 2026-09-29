@@ -5,16 +5,16 @@
   "private": true,
   "type": "module",
   "license": "MIT",
+  "packageManager": "pnpm@10.33.2",
   "engines": {
     "node": ">=24",
-    "pnpm": ">=9"
+    "pnpm": ">=10 <11"
   },
   "scripts": {
     "dev": "vite build --watch",
     "build": "vite build",
     "clean": "rm -rf dist coverage test-results playwright-report tsconfig.tsbuildinfo",
     "icons:generate": "./scripts/generate-icons.sh",
-    "store-assets:generate": "./scripts/generate-store-assets.sh",
     "package:chrome": "./scripts/package-chrome.sh",
     "typecheck": "tsc --noEmit",
     "lint": "pnpm lint:code && pnpm lint:gha && pnpm lint:md",
@@ -32,7 +32,7 @@
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:e2e": "pnpm build && playwright test",
     "depcruise": "depcruise src --config .dependency-cruiser.cjs",
-    "knip": "knip",
+    "knip": "knip && knip --production",
     "validate": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm depcruise && pnpm knip && pnpm test:coverage && pnpm test:integration",
     "prepare": "husky"
   },
@@ -83,15 +83,5 @@
     ".github/workflows/*.{yml,yaml}": [
       "node ./scripts/check-gha-pinned-actions.mjs"
     ]
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild"
-    ],
-    "overrides": {
-      "tmp@<=0.2.3": ">=0.2.4",
-      "minimatch@>=10.0.0 <10.2.3": ">=10.2.3",
-      "typescript": "^6.0.3"
-    }
   }
 }

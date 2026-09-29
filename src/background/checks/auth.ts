@@ -1,5 +1,12 @@
+/**
+ * Authentication checks (`auth`) — client key, rejected client-side requests, country code,
+ * and locale.
+ */
+
+import { readAdyenEndpoint } from '../../shared/adyen-endpoint.js';
 import { ADYEN_WEB_TRANSLATION_LOCALES, ORIGIN_KEY_PREFIX } from '../../shared/constants.js';
-import { detectIntegrationFlow } from '../../shared/implementation-attributes.js';
+import { readCheckoutField } from '../../shared/scan-evidence.js';
+import type { InferenceSignal } from '../../shared/types.js';
 import { SKIP_REASONS } from './constants.js';
 import { createRegistry } from './registry.js';
 
@@ -16,6 +23,8 @@ const STRINGS = {
 
   COUNTRY_CODE_SKIP_TITLE: 'Country code check skipped.',
   COUNTRY_CODE_PARTIAL_NOTICE_TITLE: 'countryCode presence cannot be verified.',
+  COUNTRY_CODE_PARTIAL_NOTICE_DETAIL:
+    'Only partial checkout configuration was observed; countryCode absence cannot be verified.',
   COUNTRY_CODE_PASS_TITLE: 'countryCode is set correctly.',
   COUNTRY_CODE_FAIL_TITLE: 'countryCode is not set in the checkout configuration.',
   COUNTRY_CODE_FAIL_DETAIL:
@@ -23,9 +32,13 @@ const STRINGS = {
   COUNTRY_CODE_FAIL_REMEDIATION:
     "Set the countryCode property in your AdyenCheckout configuration to the ISO 3166-1 alpha-2 code for the shopper's country. This is required to display the correct payment methods for that market and to route the payment correctly.",
   COUNTRY_CODE_FAIL_URL: 'https://docs.adyen.com/development-resources/testing/',
+  COUNTRY_CODE_SESSIONS_WARN_DETAIL:
+    'Sessions flow typically sets countryCode server-side in the /sessions request. Setting it in the client config is still recommended for optimal payment method filtering.',
 
   LOCALE_SKIP_TITLE: 'Locale check skipped.',
   LOCALE_PARTIAL_NOTICE_TITLE: 'locale presence cannot be verified.',
+  LOCALE_PARTIAL_NOTICE_DETAIL:
+    'Only partial checkout configuration was observed; locale absence cannot be verified.',
   LOCALE_PASS_TITLE: 'locale is set correctly.',
   LOCALE_MISSING_WARN_TITLE:
     'locale is not explicitly set. Language will be determined automatically.',
@@ -41,23 +54,52 @@ const STRINGS = {
     'Update the locale property in your AdyenCheckout configuration to a locale string included in the Adyen Web server translations list. Using an unsupported locale may result in an unexpected language fallback for shoppers.',
   LOCALE_UNSUPPORTED_WARN_URL:
     'https://github.com/Adyen/adyen-web/tree/522975889a4287fe9c81cc138fcf3457e6bd5a6e/packages/server/translations',
+
+  KEY_REJECTED_SKIP_TITLE: 'Client key authorization check skipped.',
+  KEY_REJECTED_SKIP_REASON: 'No HTTP status codes from Adyen client-side endpoints were observed.',
+  KEY_REJECTED_PASS_TITLE: 'Adyen accepted the captured client-side requests.',
+  KEY_REJECTED_FAIL_TITLE: 'Adyen rejected client-side requests from this page.',
+  KEY_REJECTED_FAIL_REMEDIATION:
+    'Check that the client key belongs to the same environment as your checkout configuration, and add this page origin to the allowed origins of the API credential that owns the client key.',
+  KEY_REJECTED_FAIL_URL:
+    'https://docs.adyen.com/development-resources/client-side-authentication/#allowed-origins',
 } as const;
 
 const CATEGORY = 'auth' as const;
 const SUPPORTED_LOCALES = new Set<string>(
   ADYEN_WEB_TRANSLATION_LOCALES.map((l) => l.toLowerCase())
 );
+const REJECTED_STATUS_CODES = new Set([401, 403]);
+
+/** Checkoutshopper and analytics endpoints authenticate the browser with the client key. */
+function isClientKeyAuthenticated(url: string): boolean {
+  const role = readAdyenEndpoint(url)?.role;
+  return role === 'checkoutshopper' || role === 'analytics';
+}
+
+/** Where an inferred value was observed, for notice wording. */
+function inferredFrom(signal: InferenceSignal | undefined): string {
+  return signal === 'page-json' ? 'in JSON the page parsed' : 'in an Adyen request';
+}
+
+// Paths and query strings can contain the client key, so only the origin is reported.
+function describeRejectedRequests(
+  requests: readonly { url: string; statusCode: number }[]
+): string {
+  const descriptions = new Set(
+    requests.map(({ url, statusCode }) => `HTTP ${statusCode} from ${new URL(url).origin}`)
+  );
+  return [...descriptions].join(', ');
+}
 
 export const AUTH_CHECKS = createRegistry(CATEGORY)
   .add('auth-client-key', (payload, { pass, skip, warn }) => {
-    const clientKey =
-      payload.page.checkoutConfig?.clientKey ??
-      payload.page.componentConfig?.clientKey ??
-      payload.page.inferredConfig?.clientKey;
+    const evidence = readCheckoutField(payload, 'clientKey');
 
-    if (clientKey === undefined || clientKey === '') {
+    if (evidence.state !== 'present') {
       return skip(STRINGS.CLIENT_KEY_SKIP_TITLE, STRINGS.CLIENT_KEY_SKIP_REASON);
     }
+    const clientKey = evidence.value;
 
     if (clientKey.startsWith(ORIGIN_KEY_PREFIX)) {
       return warn(
@@ -70,32 +112,50 @@ export const AUTH_CHECKS = createRegistry(CATEGORY)
 
     return pass(STRINGS.CLIENT_KEY_PASS_TITLE);
   })
-  .add('auth-country-code', (payload, { pass, fail, skip, warn }) => {
-    const config = payload.page.checkoutConfig;
-    const component = payload.page.componentConfig;
-    const inferred = payload.page.inferredConfig;
+  .add('auth-client-key-rejected', (payload, { pass, fail, skip }) => {
+    const responses = payload.capturedRequests.filter(
+      (request) => request.statusCode > 0 && isClientKeyAuthenticated(request.url)
+    );
+    if (responses.length === 0) {
+      return skip(STRINGS.KEY_REJECTED_SKIP_TITLE, STRINGS.KEY_REJECTED_SKIP_REASON);
+    }
 
-    if (config?.countryCode !== undefined && config.countryCode !== '') {
+    const rejected = responses.filter((request) => REJECTED_STATUS_CODES.has(request.statusCode));
+    if (rejected.length === 0) return pass(STRINGS.KEY_REJECTED_PASS_TITLE);
+
+    return fail(
+      STRINGS.KEY_REJECTED_FAIL_TITLE,
+      `Observed ${describeRejectedRequests(rejected)}. A 401 or 403 from these endpoints usually means the client key is not valid for this environment or this page origin is not an allowed origin for the key. Adyen Web then cannot load card fields or complete Sessions requests.`,
+      STRINGS.KEY_REJECTED_FAIL_REMEDIATION,
+      STRINGS.KEY_REJECTED_FAIL_URL
+    );
+  })
+  .add('auth-country-code', (payload, { attributes, pass, fail, skip, warn, notice }) => {
+    const countryCode = readCheckoutField(payload, 'countryCode');
+    if (countryCode.state === 'present') {
+      if (countryCode.source === 'inferred') {
+        return notice(
+          STRINGS.COUNTRY_CODE_PARTIAL_NOTICE_TITLE,
+          `countryCode "${countryCode.value}" was observed ${inferredFrom(countryCode.signal)}, but its presence in checkout configuration could not be verified.`
+        );
+      }
       return pass(STRINGS.COUNTRY_CODE_PASS_TITLE);
     }
 
-    if (component?.countryCode !== undefined && component.countryCode !== '') {
-      return pass(STRINGS.COUNTRY_CODE_PASS_TITLE);
-    }
-
-    if (inferred?.countryCode !== undefined && inferred.countryCode !== '') {
-      return pass(STRINGS.COUNTRY_CODE_PASS_TITLE);
-    }
-
-    if (!config && !component) {
+    if (countryCode.state === 'unobserved' && countryCode.reason === 'no-config') {
       return skip(STRINGS.COUNTRY_CODE_SKIP_TITLE, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
     }
+    if (countryCode.state === 'unobserved') {
+      return notice(
+        STRINGS.COUNTRY_CODE_PARTIAL_NOTICE_TITLE,
+        STRINGS.COUNTRY_CODE_PARTIAL_NOTICE_DETAIL
+      );
+    }
 
-    const flow = detectIntegrationFlow(payload);
-    if (flow === 'sessions') {
+    if (attributes.flow.value === 'sessions') {
       return warn(
         STRINGS.COUNTRY_CODE_FAIL_TITLE,
-        'Sessions flow typically sets countryCode server-side in the /sessions request. Setting it in the client config is still recommended for optimal payment method filtering.',
+        STRINGS.COUNTRY_CODE_SESSIONS_WARN_DETAIL,
         STRINGS.COUNTRY_CODE_FAIL_REMEDIATION,
         STRINGS.COUNTRY_CODE_FAIL_URL
       );
@@ -108,14 +168,16 @@ export const AUTH_CHECKS = createRegistry(CATEGORY)
       STRINGS.COUNTRY_CODE_FAIL_URL
     );
   })
-  .add('auth-locale', (payload, { pass, skip, warn }) => {
-    const config = payload.page.checkoutConfig;
-    const component = payload.page.componentConfig;
-    const inferred = payload.page.inferredConfig;
-
-    const locale = config?.locale ?? component?.locale ?? inferred?.locale;
-
-    if (locale !== undefined && locale !== '') {
+  .add('auth-locale', (payload, { pass, skip, warn, notice }) => {
+    const evidence = readCheckoutField(payload, 'locale');
+    if (evidence.state === 'present') {
+      const locale = evidence.value;
+      if (evidence.source === 'inferred') {
+        return notice(
+          STRINGS.LOCALE_PARTIAL_NOTICE_TITLE,
+          `locale "${locale}" was observed ${inferredFrom(evidence.signal)}, but its presence in checkout configuration could not be verified.`
+        );
+      }
       if (!SUPPORTED_LOCALES.has(locale.toLowerCase())) {
         return warn(
           `locale "${locale}" is not in the supported Adyen Web translations list.`,
@@ -127,8 +189,11 @@ export const AUTH_CHECKS = createRegistry(CATEGORY)
       return pass(STRINGS.LOCALE_PASS_TITLE);
     }
 
-    if (!config && !component && !inferred) {
+    if (evidence.state === 'unobserved' && evidence.reason === 'no-config') {
       return skip(STRINGS.LOCALE_SKIP_TITLE, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
+    }
+    if (evidence.state === 'unobserved') {
+      return notice(STRINGS.LOCALE_PARTIAL_NOTICE_TITLE, STRINGS.LOCALE_PARTIAL_NOTICE_DETAIL);
     }
 
     return warn(

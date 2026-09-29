@@ -189,3 +189,29 @@ describe('buildPrintableReportMetadata', () => {
     });
   });
 });
+
+describe('buildPrintableReportMetadata user-agent fallbacks', () => {
+  it.each([
+    [
+      'Chrome on macOS',
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36',
+      'Google Chrome 134.0.0.0 on macOS',
+    ],
+    [
+      'Firefox on Linux',
+      'Mozilla/5.0 (X11; Linux x86_64; rv:124.0) Gecko/20100101 Firefox/124.0',
+      'Firefox 124.0 on Linux',
+    ],
+    [
+      'a Safari web view without a version',
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 17_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Safari/604.1',
+      'Unknown Browser on iOS',
+    ],
+  ])('reads %s from the user agent', (_label, userAgent, browser) => {
+    setUserAgent(userAgent);
+    clearUserAgentData();
+    setManifestVersion('1.0.0');
+
+    expect(buildPrintableReportMetadata().browser).toBe(browser);
+  });
+});

@@ -2,104 +2,20 @@
  * Shared constants used across all extension components.
  */
 
-// ─── Adyen Host Suffixes ──────────────────────────────────────────────────────
-
-export const ADYEN_CDN_HOST_SUFFIX = '.cdn.adyen.com';
-export const ADYEN_HOST_SUFFIX = '.adyen.com';
-export const ADYEN_PAYMENTS_HOST_SUFFIX = '.adyenpayments.com';
-
-// ─── Adyen Checkout Domains ───────────────────────────────────────────────────
-
-/** Static checkout assets hosted on CDN origins (`*.cdn.adyen.com`). */
-export const ADYEN_CDN_DOMAINS = [
-  'checkoutshopper-live-apse.cdn.adyen.com',
-  'checkoutshopper-live-au.cdn.adyen.com',
-  'checkoutshopper-live-in.cdn.adyen.com',
-  'checkoutshopper-live-nea.cdn.adyen.com',
-  'checkoutshopper-live-us.cdn.adyen.com',
-  'checkoutshopper-live.cdn.adyen.com',
-  'checkoutshopper-test.cdn.adyen.com',
-] as const;
-
-/** Checkoutshopper origins without `cdn` that may serve API interactions. */
-export const ADYEN_CHECKOUTSHOPPER_DOMAINS = [
-  'checkoutshopper-live-apse.adyen.com',
-  'checkoutshopper-live-au.adyen.com',
-  'checkoutshopper-live-in.adyen.com',
-  'checkoutshopper-live-nea.adyen.com',
-  'checkoutshopper-live-us.adyen.com',
-  'checkoutshopper-live.adyen.com',
-  'checkoutshopper-test.adyen.com',
-] as const;
-
-export const ADYEN_API_DOMAINS = [
-  'checkout-live-apse.adyenpayments.com',
-  'checkout-live-au.adyenpayments.com',
-  'checkout-live-in.adyenpayments.com',
-  'checkout-live-nea.adyenpayments.com',
-  'checkout-live-us.adyenpayments.com',
-  'checkout-live.adyenpayments.com',
-  'checkout-test.adyen.com',
-] as const;
-
-const ADYEN_ANALYTICS_DOMAINS = [
-  'checkoutanalytics-live.adyen.com',
-  'checkoutanalytics-test.adyen.com',
-] as const;
-
-export const ANALYTICS_URL_PATTERNS = [
-  '*://checkoutanalytics-live.adyen.com/*',
-  '*://checkoutanalytics-test.adyen.com/*',
-] as const;
-
-export const ALL_ADYEN_DOMAINS = [
-  ...ADYEN_CDN_DOMAINS,
-  ...ADYEN_CHECKOUTSHOPPER_DOMAINS,
-  ...ADYEN_API_DOMAINS,
-  ...ADYEN_ANALYTICS_DOMAINS,
-] as const;
+import type { CheckoutCapture, HealthScore, IntegrationFlow, Severity } from './types.js';
 
 // ─── Client Key Prefixes ──────────────────────────────────────────────────────
 
 export const CLIENT_KEY_TEST_PREFIX = 'test_';
 export const CLIENT_KEY_LIVE_PREFIX = 'live_';
-/** Legacy origin key prefix — should be migrated to client key */
+/** Legacy origin key prefix — should be migrated to client key. */
 export const ORIGIN_KEY_PREFIX = 'pub.v2.';
-
-// ─── Environment URLs ─────────────────────────────────────────────────────────
-
-export type AdyenEnvironment = 'test' | 'live' | 'live-in';
-export type AdyenRegion = 'APSE' | 'AU' | 'IN' | 'EU' | 'NEA' | 'US' | 'unknown';
-
-export const ENVIRONMENT_REGION_MAP: Record<string, AdyenRegion> = {
-  'checkout-live-apse.adyenpayments.com': 'APSE',
-  'checkout-live-au.adyenpayments.com': 'AU',
-  'checkout-live-in.adyenpayments.com': 'IN',
-  'checkout-live-nea.adyenpayments.com': 'NEA',
-  'checkout-live-us.adyenpayments.com': 'US',
-  'checkout-live.adyenpayments.com': 'EU',
-  'checkout-test.adyen.com': 'EU',
-  'checkoutshopper-live-apse.adyen.com': 'APSE',
-  'checkoutshopper-live-apse.cdn.adyen.com': 'APSE',
-  'checkoutshopper-live-au.adyen.com': 'AU',
-  'checkoutshopper-live-au.cdn.adyen.com': 'AU',
-  'checkoutshopper-live-in.adyen.com': 'IN',
-  'checkoutshopper-live-in.cdn.adyen.com': 'IN',
-  'checkoutshopper-live-nea.adyen.com': 'NEA',
-  'checkoutshopper-live-nea.cdn.adyen.com': 'NEA',
-  'checkoutshopper-live-us.adyen.com': 'US',
-  'checkoutshopper-live-us.cdn.adyen.com': 'US',
-  'checkoutshopper-live.adyen.com': 'EU',
-  'checkoutshopper-live.cdn.adyen.com': 'EU',
-  'checkoutshopper-test.adyen.com': 'EU',
-  'checkoutshopper-test.cdn.adyen.com': 'EU',
-};
 
 // ─── Adyen Translation Locales ───────────────────────────────────────────────
 
 /**
  * Locales available in Adyen Web translations.
- * Source (pinned): https://github.com/Adyen/adyen-web/tree/522975889a4287fe9c81cc138fcf3457e6bd5a6e/packages/server/translations
+ * @see https://github.com/Adyen/adyen-web/tree/522975889a4287fe9c81cc138fcf3457e6bd5a6e/packages/server/translations
  */
 export const ADYEN_WEB_TRANSLATION_LOCALES = [
   'ar',
@@ -135,10 +51,6 @@ export const ADYEN_WEB_TRANSLATION_LOCALES = [
   'zh-CN',
   'zh-TW',
 ] as const;
-
-// ─── Sessions API Pattern ─────────────────────────────────────────────────────
-
-export const SESSIONS_API_PATTERN = /\/v\d+\/sessions/;
 
 // ─── Third-party Script Patterns ──────────────────────────────────────────────
 
@@ -178,15 +90,42 @@ export const DF_IFRAME_URL_PATTERN = /dfp\.[^/]+\.html/;
 
 // ─── NPM Registry ─────────────────────────────────────────────────────────────
 
-export const NPM_REGISTRY_URL = 'https://registry.npmjs.org/@adyen/adyen-web/latest';
+export const NPM_REGISTRY_URL = 'https://registry.npmjs.org/@adyen/adyen-web';
 export const NPM_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 // ─── Storage Keys ─────────────────────────────────────────────────────────────
 
 export const STORAGE_SCAN_RESULT_PREFIX = 'scan_result_';
 export const STORAGE_NPM_CACHE_KEY = 'npm_cache_adyen_web';
-export const STORAGE_DETECTED_PREFIX = 'adyen_detected_';
+export const STORAGE_CHECKOUT_ACTIVITY_PREFIX = 'checkout_activity_';
 export const STORAGE_VERSION_PREFIX = 'adyen_version_';
+
+// ─── Page Globals ─────────────────────────────────────────────────────────────
+
+/**
+ * Page globals the MAIN-world config interceptor publishes its capture record
+ * on, the page extractor reads, and the Chrome adapter collects the
+ * extraction from.
+ */
+export const PAGE_GLOBALS = {
+  checkoutCapture: '__adyenWebInspectorCheckoutCapture',
+  interceptorInstalled: '__adyenWebInspectorCapturedConfig__installed',
+  pageExtractResultJson: '__adyenWebInspectorPageExtractResultJson',
+} as const;
+
+/**
+ * The page-global contract: what each page global holds. The config
+ * interceptor writes the capture record, the page extractor reads it and
+ * writes its serialized result. Page scripts can overwrite any of them, so
+ * readers still check their shape.
+ */
+export interface PageGlobalValues {
+  /** The config interceptor's capture record for this frame. */
+  [PAGE_GLOBALS.checkoutCapture]?: CheckoutCapture;
+  [PAGE_GLOBALS.interceptorInstalled]?: boolean;
+  /** The page extractor's serialized `PageExtractResult` for this frame. */
+  [PAGE_GLOBALS.pageExtractResultJson]?: string;
+}
 
 // ─── Version Gates ────────────────────────────────────────────────────────────
 
@@ -194,6 +133,38 @@ export const STORAGE_VERSION_PREFIX = 'adyen_version_';
 export const MIN_SUPPORTED_MAJOR_VERSION = 6;
 
 // ─── UI Constants ─────────────────────────────────────────────────────────────
+
+/** Status colours for the badge and printed report, matching the light palette in base.css. */
+export const STATUS_COLORS = {
+  pass: '#188038',
+  warn: '#f29900',
+  fail: '#d93025',
+  info: '#1a73e8',
+} as const;
+
+/** Colour of each check severity in reports. */
+export const SEVERITY_COLORS: Readonly<Record<Severity, string>> = {
+  pass: STATUS_COLORS.pass,
+  warn: STATUS_COLORS.warn,
+  fail: STATUS_COLORS.fail,
+  notice: STATUS_COLORS.info,
+  info: STATUS_COLORS.info,
+  skip: '#6b7280',
+};
+
+/** Colour of each health tier, shared by the badge and reports. */
+export const HEALTH_TIER_COLORS: Readonly<Record<HealthScore['tier'], string>> = {
+  excellent: STATUS_COLORS.pass,
+  issues: STATUS_COLORS.warn,
+  critical: STATUS_COLORS.fail,
+};
+
+/** Display labels for integration flows, shared by every view. */
+export const INTEGRATION_FLOW_LABELS: Readonly<Record<IntegrationFlow, string>> = {
+  sessions: 'Sessions',
+  advanced: 'Advanced',
+  unknown: 'Unknown',
+};
 
 export const DEVTOOLS_PANEL_TITLE = 'Adyen Inspector';
 export const DEVTOOLS_PANEL_ICON_PATH = '';

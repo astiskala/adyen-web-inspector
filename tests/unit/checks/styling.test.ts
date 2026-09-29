@@ -2,10 +2,11 @@ import { describe, it, expect } from 'vitest';
 import { STYLING_CHECKS } from '../../../src/background/checks/styling';
 import {
   makeAdyenPayload,
-  makePageExtract,
+  makeCheckoutPage,
   makeAdyenMetadata,
   makeCheckoutConfig,
   makeScanPayload,
+  makeCapturedConfig,
 } from '../../fixtures/makeScanPayload';
 import { requireCheck } from './requireCheck';
 
@@ -22,9 +23,9 @@ describe('Styling Checks', () => {
 
     it('passes when only CSS custom properties are used', () => {
       const payload = makeScanPayload({
-        page: makePageExtract({
+        page: makeCheckoutPage({
           adyenMetadata: makeAdyenMetadata(),
-          checkoutConfig: makeCheckoutConfig(),
+          capturedConfig: makeCapturedConfig(makeCheckoutConfig()),
           adyenStyles: {
             classOverrideCount: 0,
             classOverrideSelectors: [],
@@ -40,7 +41,7 @@ describe('Styling Checks', () => {
 
     it('passes with singular "rule" for 1 custom property', () => {
       const payload = makeScanPayload({
-        page: makePageExtract({
+        page: makeCheckoutPage({
           adyenStyles: {
             classOverrideCount: 0,
             classOverrideSelectors: [],
@@ -55,9 +56,9 @@ describe('Styling Checks', () => {
 
     it('returns notice when class overrides are detected', () => {
       const payload = makeScanPayload({
-        page: makePageExtract({
+        page: makeCheckoutPage({
           adyenMetadata: makeAdyenMetadata(),
-          checkoutConfig: makeCheckoutConfig(),
+          capturedConfig: makeCapturedConfig(makeCheckoutConfig()),
           adyenStyles: {
             classOverrideCount: 2,
             classOverrideSelectors: ['.adyen-checkout__button', '.adyen-checkout__input'],
@@ -75,7 +76,7 @@ describe('Styling Checks', () => {
 
     it('returns notice when both overrides and custom properties are detected', () => {
       const payload = makeScanPayload({
-        page: makePageExtract({
+        page: makeCheckoutPage({
           adyenStyles: {
             classOverrideCount: 1,
             classOverrideSelectors: ['.adyen-checkout__label'],
@@ -90,7 +91,7 @@ describe('Styling Checks', () => {
 
     it('includes remediation guidance', () => {
       const payload = makeScanPayload({
-        page: makePageExtract({
+        page: makeCheckoutPage({
           adyenStyles: {
             classOverrideCount: 1,
             classOverrideSelectors: ['.adyen-checkout__button'],
@@ -104,7 +105,7 @@ describe('Styling Checks', () => {
 
     it('uses singular "rule" for 1 override', () => {
       const payload = makeScanPayload({
-        page: makePageExtract({
+        page: makeCheckoutPage({
           adyenStyles: {
             classOverrideCount: 1,
             classOverrideSelectors: ['.adyen-checkout__button'],
@@ -118,7 +119,7 @@ describe('Styling Checks', () => {
 
     it('reports true count even when selector samples are capped', () => {
       const payload = makeScanPayload({
-        page: makePageExtract({
+        page: makeCheckoutPage({
           adyenStyles: {
             classOverrideCount: 12,
             classOverrideSelectors: [
@@ -144,7 +145,7 @@ describe('Styling Checks', () => {
 
     it('caps examples to 3 individual selectors when a rule contains comma-separated selectors', () => {
       const payload = makeScanPayload({
-        page: makePageExtract({
+        page: makeCheckoutPage({
           adyenStyles: {
             classOverrideCount: 564,
             classOverrideSelectors: [
@@ -169,7 +170,7 @@ describe('Styling Checks', () => {
 
     it('focuses examples on the Adyen override target instead of the full ancestor chain', () => {
       const payload = makeScanPayload({
-        page: makePageExtract({
+        page: makeCheckoutPage({
           adyenStyles: {
             classOverrideCount: 564,
             classOverrideSelectors: [
@@ -191,5 +192,36 @@ describe('Styling Checks', () => {
       expect(result.detail).not.toContain('.vd-cmp-payment');
       expect(result.detail).toContain('561 more selectors omitted.');
     });
+  });
+});
+
+function overridePayload(
+  classOverrideCount: number,
+  classOverrideSelectors: string[]
+): ReturnType<typeof makeScanPayload> {
+  return makeScanPayload({
+    page: makeCheckoutPage({
+      adyenMetadata: makeAdyenMetadata(),
+      adyenStyles: { classOverrideCount, classOverrideSelectors, customPropertyCount: 0 },
+    }),
+  });
+}
+
+describe('styling override examples', () => {
+  it('lists only the selectors in a group that target Adyen classes', () => {
+    const result = cssCustomProps.run(
+      overridePayload(2, ['body .page, .adyen-checkout__button:hover'])
+    );
+
+    expect(result.detail).toContain('Examples: .adyen-checkout__button:hover.');
+    expect(result.detail).not.toContain('body');
+    expect(result.detail).toContain('1 more selector omitted.');
+  });
+
+  it('omits the examples sentence when no selector could be sampled', () => {
+    const result = cssCustomProps.run(overridePayload(2, []));
+
+    expect(result.detail).not.toContain('Examples:');
+    expect(result.detail).toContain('2 more selectors omitted.');
   });
 });
