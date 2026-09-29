@@ -66,7 +66,6 @@ async function waitForTabComplete(tabId: number, timeoutMs: number): Promise<voi
   return new Promise((resolve, reject) => {
     let settled = false;
     const timeout = setTimeout(() => {
-      if (settled) return;
       settled = true;
       chrome.tabs.onUpdated.removeListener(listener);
       reject(new Error(`Tab ${tabId} did not finish loading within ${timeoutMs}ms`));

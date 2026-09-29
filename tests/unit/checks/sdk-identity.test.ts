@@ -467,3 +467,19 @@ describe('componentConfig fallback', () => {
     expect(sdkMultiInit.run(payload).severity).toBe('pass');
   });
 });
+
+describe('sdk-analytics inferred values', () => {
+  it('skips when analytics is only disabled in page JSON', () => {
+    const payload = makeScanPayload({
+      page: makeCheckoutPage({
+        adyenMetadata: makeAdyenMetadata(),
+        hasDropinDOM: true,
+        pageJsonConfig: { analyticsEnabled: false },
+      }),
+    });
+
+    const result = sdkAnalytics.run(payload);
+    expect(result.severity).toBe('skip');
+    expect(result.detail).toMatch(/inferred/i);
+  });
+});

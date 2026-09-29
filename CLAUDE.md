@@ -18,8 +18,8 @@ See [AGENTS.md](./AGENTS.md) for full project conventions, architecture, and cod
 - New captured checkout options go in `readCheckoutOptions()` (`src/shared/checkout-config-schema.ts`).
 - Module boundaries and the seams in AGENTS.md → Key Seams are enforced by dependency-cruiser. `shared/` imports nothing outside `shared/`.
 - `knip` enforces no unused exports (including exports used only by tests, via `knip --production`) — remove dead code, don't suppress.
-- Coverage thresholds are ratcheted per area in `vitest.config.ts` (100% on the Scan modules, captured traffic, frame merge, tab state, network recorder, and npm registry; 98%+ on checks and the shared endpoint, capture record, evidence, schema, checkout signals, SDK presence, and SDK version modules; floors on the Chrome adapters, content scripts, and UI). Never lower a threshold to pass.
+- Coverage is 100% (lines, statements, branches, functions) for every file in `src/`, enforced per file in `vitest.config.ts`. Test new behaviour through the module's interface; remove unreachable branches instead of excluding them.
 - ESLint layers typescript-eslint strict/stylistic type-checked, unicorn, regexp, and sonarjs presets over gts; export functions as declarations and prefer `toSorted()`.
 - Conventional Commits enforced by commitlint. Types: feat, fix, chore, docs, style, refactor, test, ci, build, revert.
 - Use `globalThis` instead of `window`.
-- CSS Modules with bracket notation for style access.
+- CSS Modules through the shared helper: `const s = cssModule(styles);`.

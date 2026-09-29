@@ -1,10 +1,11 @@
 import type { JSX } from 'preact';
 import { useState } from 'preact/hooks';
 import { chromeTabStateClient } from '../../popup/components/chrome-tab-state-client.js';
-import { useScanLifecycle } from '../../popup/components/useScanLifecycle.js';
+import { scanButtonLabel, useScanLifecycle } from '../../popup/components/useScanLifecycle.js';
 import { buildJsonExport } from '../../shared/export-json.js';
 import { buildPrintableReportMetadata } from '../../shared/export-metadata.js';
 import { exportPdf } from '../../popup/components/pdf-export.js';
+import type { ScanResult } from '../../shared/types.js';
 import { describeError } from '../../shared/utils.js';
 import {
   OverviewTab,
@@ -15,8 +16,9 @@ import {
   SkippedChecksTab,
 } from './tabs.js';
 import styles from './panel.module.css';
+import { cssModule } from '../../popup/components/css-module.js';
 
-const s = (key: string): string => styles[key] ?? '';
+const s = cssModule(styles);
 
 const TABS = [
   'Overview',
@@ -57,6 +59,30 @@ function getPanelErrorMessage(error: ReturnType<typeof useScanLifecycle>['error'
     : RUNTIME_ERROR_UI_MESSAGE;
 }
 
+function exportJson(result: ScanResult): void {
+  const exportData = buildJsonExport(result, buildPrintableReportMetadata());
+  const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+    type: 'application/json',
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `adyen-inspector-${Date.now()}.json`;
+  a.click();
+  globalThis.setTimeout(() => {
+    URL.revokeObjectURL(url);
+  }, 10_000);
+}
+
+function renderTab(activeTab: TabName, result: ScanResult): JSX.Element {
+  if (activeTab === 'Overview') return <OverviewTab result={result} />;
+  if (activeTab === 'Best Practices') return <BestPracticesTab result={result} />;
+  if (activeTab === 'Security') return <SecurityTab result={result} />;
+  if (activeTab === 'Network') return <NetworkTab result={result} />;
+  if (activeTab === 'Extracted Config') return <RawConfigTab result={result} />;
+  return <SkippedChecksTab result={result} />;
+}
+
 /**
  * DevTools panel root that coordinates scan lifecycle, exports, and tab views.
  */
@@ -65,46 +91,10 @@ export function Panel(): JSX.Element {
   const { result, scanning, error, scan } = useScanLifecycle(inspectedTab, chromeTabStateClient);
   const errorMsg = getPanelErrorMessage(error);
 
-  function handleExportJson(): void {
-    if (!result) return;
-    const exportData = buildJsonExport(result, buildPrintableReportMetadata());
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], {
-      type: 'application/json',
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `adyen-inspector-${Date.now()}.json`;
-    a.click();
-    globalThis.setTimeout(() => {
-      URL.revokeObjectURL(url);
-    }, 10_000);
-  }
-
-  function handleExportPdf(): void {
-    if (!result) return;
-    exportPdf(result).catch(() => {});
-  }
-
-  function renderTab(): JSX.Element | null {
-    if (!result) return null;
-    if (activeTab === 'Overview') return <OverviewTab result={result} />;
-    if (activeTab === 'Best Practices') return <BestPracticesTab result={result} />;
-    if (activeTab === 'Security') return <SecurityTab result={result} />;
-    if (activeTab === 'Network') return <NetworkTab result={result} />;
-    if (activeTab === 'Extracted Config') return <RawConfigTab result={result} />;
-    return <SkippedChecksTab result={result} />;
-  }
-
   const sdkNotDetected = result !== null && !result.sdkPresence.detected;
   const showScanButton = !sdkNotDetected;
 
-  let scanButtonText = 'Run Scan';
-  if (scanning) {
-    scanButtonText = 'Scanning…';
-  } else if (result) {
-    scanButtonText = 'Re-run Scan';
-  }
+  const scanButtonText = scanButtonLabel({ scanning, result });
 
   let bodyContent: JSX.Element;
   if (result === null) {
@@ -120,7 +110,7 @@ export function Panel(): JSX.Element {
       </div>
     );
   } else {
-    bodyContent = renderTab() ?? <div class={s('tabContent')} />;
+    bodyContent = renderTab(activeTab, result);
   }
 
   return (
@@ -133,10 +123,20 @@ export function Panel(): JSX.Element {
         )}
         {result && !sdkNotDetected && (
           <>
-            <button class="btn" onClick={handleExportJson}>
+            <button
+              class="btn"
+              onClick={() => {
+                exportJson(result);
+              }}
+            >
               Export JSON
             </button>
-            <button class="btn" onClick={handleExportPdf}>
+            <button
+              class="btn"
+              onClick={() => {
+                exportPdf(result).catch(() => {});
+              }}
+            >
               Export PDF
             </button>
           </>
@@ -152,7 +152,7 @@ export function Panel(): JSX.Element {
       {!sdkNotDetected && (
         <div class={s('tabBar')}>
           {TABS.map((tab) => {
-            const cls = tab === activeTab ? s('tab') + ' ' + s('tabActive') : s('tab');
+            const cls = tab === activeTab ? `${s('tab')} ${s('tabActive')}` : s('tab');
             return (
               <button
                 key={tab}

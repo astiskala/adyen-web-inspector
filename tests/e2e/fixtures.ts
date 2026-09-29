@@ -231,7 +231,7 @@ export async function scanFixture(
     const { id: tabId } = await getFixtureTab(worker, page);
     const scanPromise = popup.evaluate(
       (targetTabId) =>
-        new Promise<ScanResult>((resolve, reject) => {
+        new Promise<ScanResult>((resolveScan, rejectScan) => {
           let started = false;
           const listener = (message: {
             type: string;
@@ -251,15 +251,15 @@ export async function scanFixture(
             if (!started) return;
             chrome.runtime.onMessage.removeListener(listener);
             const result = message.snapshot?.result ?? null;
-            if (scan.state === 'idle' && result !== null) resolve(result);
-            else reject(new Error(scan.error ?? 'Scan finished without a result.'));
+            if (scan.state === 'idle' && result !== null) resolveScan(result);
+            else rejectScan(new Error(scan.error ?? 'Scan finished without a result.'));
           };
           chrome.runtime.onMessage.addListener(listener);
           chrome.runtime
             .sendMessage({ type: 'SCAN_REQUEST', tabId: targetTabId })
             .catch((error: unknown) => {
               chrome.runtime.onMessage.removeListener(listener);
-              reject(error instanceof Error ? error : new Error('Scan request failed.'));
+              rejectScan(error instanceof Error ? error : new Error('Scan request failed.'));
             });
         }),
       tabId

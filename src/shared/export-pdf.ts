@@ -3,7 +3,12 @@
  * storage key and URL parameter of the scan result handed to that page.
  */
 
-import { INTEGRATION_FLOW_LABELS, STATUS_COLORS } from './constants.js';
+import {
+  HEALTH_TIER_COLORS,
+  INTEGRATION_FLOW_LABELS,
+  SEVERITY_COLORS,
+  STATUS_COLORS,
+} from './constants.js';
 import type { ScanResult, StandardCompliance } from './types.js';
 import {
   buildFindingProjection,
@@ -29,20 +34,6 @@ export interface PrintableReportMetadata {
 /** Returns the session-storage key used for a pending PDF export handoff. */
 export function getPdfReportStorageKey(token: string): string {
   return `${PDF_REPORT_STORAGE_PREFIX}${token}`;
-}
-
-function severityColor(severity: string): string {
-  if (severity === 'fail') return STATUS_COLORS.fail;
-  if (severity === 'warn') return STATUS_COLORS.warn;
-  if (severity === 'pass') return STATUS_COLORS.pass;
-  if (severity === 'notice' || severity === 'info') return STATUS_COLORS.info;
-  return '#6b7280';
-}
-
-function scoreColor(tier: string): string {
-  if (tier === 'excellent') return severityColor('pass');
-  if (tier === 'issues') return severityColor('warn');
-  return severityColor('fail');
 }
 
 function escapeHtml(str: string): string {
@@ -124,7 +115,7 @@ function buildIssueTableForSection(
       </tr>`);
 
     for (const issue of group.issues) {
-      const color = severityColor(issue.severity);
+      const color = SEVERITY_COLORS[issue.severity];
       const detail = issue.detail === null ? '' : `<br><small>${escapeHtml(issue.detail)}</small>`;
       const docsLink = `<br><a class="docs-link" href="${escapeHtml(issue.docsUrl)}" target="_blank" rel="noopener noreferrer">Read documentation</a>`;
       rows.push(`
@@ -278,7 +269,7 @@ function buildComplianceHtml(compliance: StandardCompliance): string {
 export function buildPrintableHtml(result: ScanResult, metadata: PrintableReportMetadata): string {
   const date = new Date(result.scannedAt).toLocaleString();
   const { score, passing, total, tier } = result.health;
-  const tierColor = scoreColor(tier);
+  const tierColor = HEALTH_TIER_COLORS[tier];
   const projection = buildFindingProjection(result);
 
   return `<!doctype html>

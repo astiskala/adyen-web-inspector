@@ -40,9 +40,9 @@ const allowedDocHosts = [
 function isAllowedHost(url: string): boolean {
   try {
     const { hostname } = new URL(url);
-    return allowedDocHosts.some((allowedHost) => {
-      return hostname === allowedHost || hostname.endsWith(`.${allowedHost}`);
-    });
+    return allowedDocHosts.some(
+      (allowedHost) => hostname === allowedHost || hostname.endsWith(`.${allowedHost}`)
+    );
   } catch {
     // Ignore invalid URLs
     return false;

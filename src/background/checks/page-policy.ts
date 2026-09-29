@@ -21,13 +21,13 @@ export type DocumentHeaderEvidence =
 interface EnforcedPagePolicy {
   readonly status: 'enforced';
   /** Returns true when every enforced policy allows the URL for the directive. */
-  allows(directive: CspDirective, url: string): boolean;
+  allows: (directive: CspDirective, url: string) => boolean;
   /** Governing sources per policy, following fallbacks; null where a policy leaves it unrestricted. */
-  governing(directive: CspDirective): readonly (GoverningSources | null)[];
+  governing: (directive: CspDirective) => readonly (GoverningSources | null)[];
   /** Returns the first governing source list that allows neither `*` nor `https:`. */
-  restrictive(directive: CspDirective): GoverningSources | undefined;
+  restrictive: (directive: CspDirective) => GoverningSources | undefined;
   /** Returns true when any enforced policy declares the directive by name. */
-  declares(directive: string): boolean;
+  declares: (directive: string) => boolean;
 }
 
 /** The checkout document's policy: headers unavailable, no policy, or enforced policies. */

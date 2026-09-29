@@ -391,3 +391,103 @@ describe('config-interceptor', () => {
     });
   });
 });
+
+describe('config-interceptor installation and edge cases', () => {
+  const g = globalThis as unknown as Record<string, unknown>;
+
+  beforeEach(async () => {
+    resetGlobals();
+    await loadInterceptor();
+  });
+
+  afterAll(() => {
+    resetGlobals();
+  });
+
+  it('leaves page APIs alone when another copy is already installed', async () => {
+    resetGlobals();
+    g[INSTALLED_KEY] = true;
+    await loadInterceptor();
+
+    expect(vi.isMockFunction(globalThis.fetch)).toBe(true);
+  });
+
+  it('returns parsed values unchanged, even when inspecting them throws', () => {
+    const hostile = new Proxy(
+      {},
+      {
+        get: (): never => {
+          throw new Error('trap');
+        },
+      }
+    );
+
+    expect(JSON.parse('42')).toBe(42);
+    expect(JSON.parse('{}', () => hostile)).toBe(hostile);
+    expect(getCapture()).toBeUndefined();
+  });
+
+  it('passes other fetch inputs through without reading them', async () => {
+    const input = { toString: (): string => 'https://checkoutshopper-test.adyen.com/v1/x' };
+
+    await globalThis.fetch(input as unknown as string);
+
+    expect(getCapture()).toBeUndefined();
+  });
+
+  it('keeps component statics and ignores constructors called without options', () => {
+    class StaticCard {
+      static readonly type = 'card';
+      readonly checkout: unknown;
+      constructor(checkout: unknown) {
+        this.checkout = checkout;
+      }
+    }
+    g['AdyenWeb'] = { Card: StaticCard };
+    const namespace = g['AdyenWeb'] as { Card: typeof StaticCard };
+
+    const card = new namespace.Card({});
+
+    expect(namespace.Card.type).toBe('card');
+    expect(card).toBeInstanceOf(StaticCard);
+    expect(getCapture()).toBeUndefined();
+  });
+
+  it('stores AdyenWeb values that are not namespaces', () => {
+    g['AdyenWeb'] = undefined;
+
+    expect(g['AdyenWeb']).toBeUndefined();
+  });
+
+  it('captures options passed to a synchronous factory without inspecting its result', () => {
+    const instance = { create: (): void => {}, options: { clientKey: 'test_SYNC' } };
+    g['AdyenCheckout'] = (): unknown => instance;
+
+    (g['AdyenCheckout'] as (config: unknown) => unknown)({ countryCode: 'NL' });
+
+    expect(getCapturedConfig()).toEqual({ countryCode: 'NL' });
+  });
+
+  it('keeps a rejecting factory rejecting for its caller', async () => {
+    installAdyenCheckoutFactory(async () => {
+      throw new Error('init failed');
+    });
+
+    await expect(callAdyenCheckout({ locale: 'nl-NL' })).rejects.toThrow('init failed');
+    expect(getCapturedConfig()).toEqual({ locale: 'nl-NL' });
+  });
+
+  it('ignores instance create calls without component options', async () => {
+    const instance: Record<string, unknown> = {
+      create: (type: string) => ({ type }),
+      options: { clientKey: 'test_ONE' },
+    };
+    installAdyenCheckoutFactory(async () => instance);
+    await callAdyenCheckout({});
+    const before = getCapture();
+
+    (instance['create'] as (type: string) => unknown)('card');
+
+    expect(getCapture()).toBe(before);
+  });
+});

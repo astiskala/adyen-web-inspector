@@ -1,11 +1,11 @@
 import { h, render, type JSX } from 'preact';
 import { act } from 'preact/test-utils';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { Panel } from '../../../src/devtools/panel/Panel';
 import { Popup } from '../../../src/popup/PopupApp';
 import type { CheckoutActivity, TabScanStatus, TabSnapshot } from '../../../src/shared/messages';
 import type { ScanResult } from '../../../src/shared/types';
-import { makeScanResult } from '../../fixtures/makeScanPayload';
+import { makeAdyenPayload, makeScanResult } from '../../fixtures/makeScanPayload';
 
 interface Message {
   readonly type: string;
@@ -178,28 +178,31 @@ describe('scan views', () => {
     expect(headers).toEqual(['High impact1', 'High impact1', 'Medium impact1']);
   });
 
-  it('shows the same resolved remediation and documentation in the popup and DevTools', async () => {
-    const withoutGuidance = makeScanResult({
-      tabId: 3,
-      checks: [
-        { id: 'auth-country-code', category: 'auth', severity: 'fail', title: 'No country' },
-      ],
-    });
-    const remediation =
-      'Follow the linked Adyen guidance, apply the configuration change, then rerun the scan.';
-    const docsUrl = 'https://docs.adyen.com/online-payments/web-best-practices/';
-    sendMessage.mockResolvedValue(snapshot(withoutGuidance, { detected: true }));
+  it.each([
+    ['popup', Popup, null],
+    ['DevTools panel', Panel, 'Best Practices'],
+  ] as const)(
+    'shows the resolved remediation and documentation in the %s',
+    async (_label, View, tab) => {
+      const withoutGuidance = makeScanResult({
+        tabId: 3,
+        checks: [
+          { id: 'auth-country-code', category: 'auth', severity: 'fail', title: 'No country' },
+        ],
+      });
+      const remediation =
+        'Follow the linked Adyen guidance, apply the configuration change, then rerun the scan.';
+      const docsUrl = 'https://docs.adyen.com/online-payments/web-best-practices/';
+      sendMessage.mockResolvedValue(snapshot(withoutGuidance, { detected: true }));
 
-    for (const View of [Popup, Panel]) {
       await mount(View);
-      if (View === Panel) await clickButton('Best Practices');
+      if (tab !== null) await clickButton(tab);
       await vi.waitFor(() => {
         expect(host.textContent).toContain(remediation);
       });
       expect([...host.querySelectorAll('a')].map((link) => link.href)).toContain(docsUrl);
-      render(null, host);
     }
-  });
+  );
 
   it('uses the scan verdict for SDK presence in the DevTools panel', async () => {
     sendMessage.mockResolvedValue(
@@ -271,5 +274,218 @@ describe('scan views', () => {
     await vi.waitFor(() => {
       expect(host.textContent).toContain('Reload the extension');
     });
+  });
+});
+
+interface ReportTabStubs {
+  readonly create: ReturnType<typeof vi.fn>;
+  readonly remove: ReturnType<typeof vi.fn>;
+}
+
+/** Adds what the PDF export needs to the stubbed chrome global. */
+function stubReportTab(): ReportTabStubs {
+  const stubbed = globalThis.chrome as unknown as {
+    runtime: Record<string, unknown>;
+    tabs: Record<string, unknown>;
+    storage?: unknown;
+  };
+  const create = vi.fn().mockResolvedValue({ id: 9 });
+  const remove = vi.fn().mockResolvedValue(undefined);
+  stubbed.runtime['getURL'] = (path: string): string => `chrome-extension://id/${path}`;
+  stubbed.tabs['create'] = create;
+  stubbed.storage = { session: { set: vi.fn().mockResolvedValue(undefined), remove } };
+  return { create, remove };
+}
+
+async function settle(): Promise<void> {
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+}
+
+describe('DevTools panel states', () => {
+  it.each([
+    ['a failed scan without a message', '', 'Scan failed. Try reloading the page.'],
+    ['a failed scan with its message', 'Blocked page', 'Blocked page'],
+  ])('explains %s', async (_label, error, message) => {
+    sendMessage.mockResolvedValue(snapshot(null, undefined, { state: 'failed', error }));
+    await mount(Panel);
+
+    await vi.waitFor(() => {
+      expect(host.textContent).toContain(message);
+    });
+  });
+
+  it('explains a scan request the runtime rejected', async () => {
+    await mount(Panel);
+    sendMessage.mockRejectedValueOnce(new Error('offline'));
+
+    await clickButton('Run Scan');
+    await settle();
+
+    await vi.waitFor(() => {
+      expect(host.textContent).toContain('Unable to start scan. Try reloading the page.');
+    });
+  });
+
+  it('explains a runtime that cannot be reached', async () => {
+    sendMessage.mockRejectedValue(new Error('offline'));
+    await mount(Panel);
+
+    await vi.waitFor(() => {
+      expect(host.textContent).toContain('Unable to communicate with the extension runtime.');
+    });
+  });
+
+  it('explains a panel without an inspected tab', async () => {
+    (globalThis.chrome as unknown as { devtools: unknown }).devtools = {
+      inspectedWindow: { tabId: undefined },
+    };
+    await mount(Panel);
+
+    await clickButton('Run Scan');
+    await settle();
+
+    await vi.waitFor(() => {
+      expect(host.textContent).toContain('Unable to communicate with the extension runtime.');
+    });
+  });
+
+  it('shows a Scan in progress before any result', async () => {
+    sendMessage.mockResolvedValue(snapshot(null, undefined, { state: 'running' }));
+    await mount(Panel);
+
+    await vi.waitFor(() => {
+      expect(host.querySelector('[class*="emptyState"]')?.textContent).toBe('Scanning…');
+    });
+    const button = [...host.querySelectorAll('button')].find((b) => b.textContent === 'Scanning…');
+    expect(button?.disabled).toBe(true);
+  });
+
+  it('exports the result as JSON and as a PDF report', async () => {
+    const report = stubReportTab();
+    const createObjectURL = vi.fn(() => 'blob:report');
+    const revokeObjectURL = vi.fn();
+    const urlStatics = URL as unknown as Record<string, unknown>;
+    urlStatics['createObjectURL'] = createObjectURL;
+    urlStatics['revokeObjectURL'] = revokeObjectURL;
+    onTestFinished(() => {
+      Reflect.deleteProperty(urlStatics, 'createObjectURL');
+      Reflect.deleteProperty(urlStatics, 'revokeObjectURL');
+    });
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    sendMessage.mockResolvedValue(snapshot(makeResult(), { detected: true }));
+    await mount(Panel);
+    await vi.waitFor(() => {
+      expect(host.textContent).toContain('Export JSON');
+    });
+
+    vi.useFakeTimers({ toFake: ['setTimeout'] });
+    await clickButton('Export JSON');
+    vi.runAllTimers();
+    vi.useRealTimers();
+    await clickButton('Export PDF');
+    await settle();
+
+    expect(createObjectURL).toHaveBeenCalledWith(expect.any(Blob));
+    expect(click).toHaveBeenCalled();
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:report');
+    expect(report.create.mock.lastCall?.[0]).toHaveProperty(
+      'url',
+      expect.stringContaining('report')
+    );
+    click.mockRestore();
+  });
+
+  it('keeps the panel usable when the PDF report tab cannot open', async () => {
+    const report = stubReportTab();
+    report.create.mockRejectedValue(new Error('blocked'));
+    sendMessage.mockResolvedValue(snapshot(makeResult(), { detected: true }));
+    await mount(Panel);
+    await vi.waitFor(() => {
+      expect(host.textContent).toContain('Export PDF');
+    });
+
+    await clickButton('Export PDF');
+    await settle();
+
+    await vi.waitFor(() => {
+      expect(report.remove).toHaveBeenCalled();
+    });
+    expect(host.querySelector('[class*="errorBanner"]')).toBeNull();
+  });
+});
+
+describe('popup result states', () => {
+  it('offers another attempt when the scan found no SDK', async () => {
+    sendMessage.mockResolvedValue(
+      snapshot(makeScanResult({ tabId: 3, sdkPresence: { detected: false, source: 'none' } }))
+    );
+    await mount(Popup);
+
+    await vi.waitFor(() => {
+      expect(host.textContent).toContain('Attempt Scan');
+    });
+    await clickButton('Attempt Scan');
+    expect(host.textContent).toContain('Scanning…');
+  });
+
+  it('exports a PDF report and lists notices, compliance reasons, and the environment', async () => {
+    const report = stubReportTab();
+    sendMessage.mockResolvedValue(
+      snapshot(
+        makeScanResult({
+          tabId: 3,
+          payload: makeAdyenPayload({}, { environment: 'live-in', clientKey: 'live_KEY' }),
+          checks: [
+            {
+              id: 'security-referrer-policy',
+              category: 'security',
+              severity: 'notice',
+              title: 'Referrer-Policy header is not set.',
+            },
+          ],
+          standardCompliance: { compliant: false, reasons: ['Sessions flow not detected.'] },
+        }),
+        { detected: true }
+      )
+    );
+    await mount(Popup);
+    await vi.waitFor(() => {
+      expect(host.textContent).toContain('Notices');
+    });
+
+    expect(host.textContent).toContain('Referrer-Policy header is not set.');
+    expect(host.textContent).toContain('Sessions flow not detected.');
+    expect(host.querySelector('[class*="badgeLive"]')?.textContent).toBe('live-in');
+
+    await clickButton('Export PDF');
+    await settle();
+    expect(report.create).toHaveBeenCalled();
+  });
+});
+
+describe('popup compliance and export failures', () => {
+  it('shows a met Standard Drop-in assessment and survives a failed PDF export', async () => {
+    const report = stubReportTab();
+    report.create.mockRejectedValue(new Error('blocked'));
+    sendMessage.mockResolvedValue(
+      snapshot(makeScanResult({ tabId: 3, standardCompliance: { compliant: true, reasons: [] } }), {
+        detected: true,
+      })
+    );
+    await mount(Popup);
+    await vi.waitFor(() => {
+      expect(host.querySelector('[class*="iconCompliant"]')?.textContent).toBe('\u2713');
+    });
+
+    await clickButton('Export PDF');
+    await settle();
+
+    await vi.waitFor(() => {
+      expect(report.remove).toHaveBeenCalled();
+    });
+    expect(host.textContent).toContain('Re-run Scan');
   });
 });

@@ -38,7 +38,7 @@ export interface ObservedNetwork {
 /** An active network capture for one tab. */
 export interface NetworkCapture {
   /** Stops capturing and returns the observations; safe to call more than once. */
-  stop(): ObservedNetwork;
+  stop: () => ObservedNetwork;
 }
 
 /** Latest published adyen-web release information. */
@@ -51,18 +51,18 @@ export interface AdyenWebReleaseInfo {
 /** Everything the Scan needs from the browser. */
 export interface ScanBrowser {
   /** Resolves once the tab has finished loading; rejects after the timeout. */
-  waitForTabComplete(tabId: number, timeoutMs: number): Promise<void>;
+  waitForTabComplete: (tabId: number, timeoutMs: number) => Promise<void>;
   /** Runs page extraction in every accessible frame; rejects when injection fails. */
-  extractFrames(tabId: number): Promise<readonly FrameExtraction[]>;
+  extractFrames: (tabId: number) => Promise<readonly FrameExtraction[]>;
   /** Starts observing the tab's network traffic. */
-  captureNetwork(tabId: number): NetworkCapture;
+  captureNetwork: (tabId: number) => NetworkCapture;
   /** Fetches a document's response headers; resolves empty on failure. */
-  fetchDocumentHeaders(url: string): Promise<CapturedHeader[]>;
+  fetchDocumentHeaders: (url: string) => Promise<CapturedHeader[]>;
   /** Fetches a script's text without credentials; resolves null on failure. */
-  fetchScriptText(url: string): Promise<string | null>;
+  fetchScriptText: (url: string) => Promise<string | null>;
   /** Resolves the latest adyen-web release; resolves null on failure. */
-  getReleaseInfo(): Promise<AdyenWebReleaseInfo | null>;
-  sleep(ms: number): Promise<void>;
+  getReleaseInfo: () => Promise<AdyenWebReleaseInfo | null>;
+  sleep: (ms: number) => Promise<void>;
   /** Current time in Unix milliseconds. */
-  now(): number;
+  now: () => number;
 }

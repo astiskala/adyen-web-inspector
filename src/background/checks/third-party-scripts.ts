@@ -113,8 +113,8 @@ function runPatternCheck(
 }
 
 export const THIRD_PARTY_CHECKS = createRegistry(CATEGORY)
-  .add('3p-tag-manager', (payload, context) => {
-    return runPatternCheck(
+  .add('3p-tag-manager', (payload, context) =>
+    runPatternCheck(
       payload,
       {
         patterns: TAG_MANAGER_PATTERNS,
@@ -126,10 +126,10 @@ export const THIRD_PARTY_CHECKS = createRegistry(CATEGORY)
         passTitle: STRINGS.TAG_MANAGER_PASS_TITLE,
       },
       context
-    );
-  })
-  .add('3p-session-replay', (payload, context) => {
-    return runPatternCheck(
+    )
+  )
+  .add('3p-session-replay', (payload, context) =>
+    runPatternCheck(
       payload,
       {
         patterns: SESSION_REPLAY_PATTERNS,
@@ -141,10 +141,10 @@ export const THIRD_PARTY_CHECKS = createRegistry(CATEGORY)
         passTitle: STRINGS.SESSION_REPLAY_PASS_TITLE,
       },
       context
-    );
-  })
-  .add('3p-ad-pixels', (payload, context) => {
-    return runPatternCheck(
+    )
+  )
+  .add('3p-ad-pixels', (payload, context) =>
+    runPatternCheck(
       payload,
       {
         patterns: AD_PIXEL_PATTERNS,
@@ -156,14 +156,12 @@ export const THIRD_PARTY_CHECKS = createRegistry(CATEGORY)
         passTitle: STRINGS.AD_PIXELS_PASS_TITLE,
       },
       context
-    );
-  })
+    )
+  )
   .add('3p-no-sri', (payload, { pass, notice }) => {
-    const knownThirdPartyScripts = payload.page.scripts.filter((s) => {
-      return (
-        s.src.startsWith('http') && scriptMatchesAnyPattern(s.src, THIRD_PARTY_SCRIPT_PATTERNS)
-      );
-    });
+    const knownThirdPartyScripts = payload.page.scripts.filter(
+      (s) => s.src.startsWith('http') && scriptMatchesAnyPattern(s.src, THIRD_PARTY_SCRIPT_PATTERNS)
+    );
 
     if (knownThirdPartyScripts.length === 0) {
       return pass(STRINGS.NO_SRI_NONE_PASS_TITLE);

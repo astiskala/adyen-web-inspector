@@ -2,7 +2,7 @@
  * Shared constants used across all extension components.
  */
 
-import type { CheckoutCapture, IntegrationFlow } from './types.js';
+import type { CheckoutCapture, HealthScore, IntegrationFlow, Severity } from './types.js';
 
 // ─── Client Key Prefixes ──────────────────────────────────────────────────────
 
@@ -141,6 +141,23 @@ export const STATUS_COLORS = {
   fail: '#d93025',
   info: '#1a73e8',
 } as const;
+
+/** Colour of each check severity in reports. */
+export const SEVERITY_COLORS: Readonly<Record<Severity, string>> = {
+  pass: STATUS_COLORS.pass,
+  warn: STATUS_COLORS.warn,
+  fail: STATUS_COLORS.fail,
+  notice: STATUS_COLORS.info,
+  info: STATUS_COLORS.info,
+  skip: '#6b7280',
+};
+
+/** Colour of each health tier, shared by the badge and reports. */
+export const HEALTH_TIER_COLORS: Readonly<Record<HealthScore['tier'], string>> = {
+  excellent: STATUS_COLORS.pass,
+  issues: STATUS_COLORS.warn,
+  critical: STATUS_COLORS.fail,
+};
 
 /** Display labels for integration flows, shared by every view. */
 export const INTEGRATION_FLOW_LABELS: Readonly<Record<IntegrationFlow, string>> = {

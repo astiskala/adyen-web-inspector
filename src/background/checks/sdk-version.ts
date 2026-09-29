@@ -3,7 +3,7 @@
  * the Adyen Uplift co-badged card minimum.
  */
 
-import type { SdkVersionSource } from '../../shared/types.js';
+import type { SdkVersionSource, VersionInfo } from '../../shared/types.js';
 import { compareVersions, parseVersion } from '../../shared/utils.js';
 import { createRegistry } from './registry.js';
 
@@ -99,6 +99,34 @@ function getReleaseAge(releasedAt: string | undefined, scannedAt: string): Relea
   };
 }
 
+type ParsedVersion = NonNullable<ReturnType<typeof parseVersion>>;
+
+interface ComparableVersions {
+  readonly detected: string;
+  readonly latest: string;
+  readonly parsedDetected: ParsedVersion;
+  readonly parsedLatest: ParsedVersion;
+}
+
+/** Reads the detected and latest versions for comparison, or why they cannot be compared. */
+function readComparableVersions({
+  detected,
+  latest,
+}: VersionInfo): ComparableVersions | { readonly skipReason: string } {
+  if (detected === null || detected === '') {
+    return { skipReason: STRINGS.VERSION_NO_DETECTED_SKIP_REASON };
+  }
+  if (latest === null || latest === '') {
+    return { skipReason: STRINGS.VERSION_NO_LATEST_SKIP_REASON };
+  }
+  const parsedDetected = parseVersion(detected);
+  const parsedLatest = parseVersion(latest);
+  if (!parsedDetected || !parsedLatest) {
+    return { skipReason: STRINGS.VERSION_PARSE_FAIL_SKIP_REASON };
+  }
+  return { detected, latest, parsedDetected, parsedLatest };
+}
+
 export const SDK_VERSION_CHECKS = createRegistry(CATEGORY)
   .add('version-detected', (payload, { info, warn }) => {
     const detected = payload.versionInfo.detected;
@@ -119,19 +147,9 @@ export const SDK_VERSION_CHECKS = createRegistry(CATEGORY)
   .add(
     'version-latest',
     (payload, { pass, skip, warn, notice }) => {
-      const { detected, latest } = payload.versionInfo;
-      if (detected === null || detected === '') {
-        return skip(STRINGS.VERSION_SKIP_TITLE, STRINGS.VERSION_NO_DETECTED_SKIP_REASON);
-      }
-      if (latest === null || latest === '') {
-        return skip(STRINGS.VERSION_SKIP_TITLE, STRINGS.VERSION_NO_LATEST_SKIP_REASON);
-      }
-
-      const parsedDetected = parseVersion(detected);
-      const parsedLatest = parseVersion(latest);
-      if (!parsedDetected || !parsedLatest) {
-        return skip(STRINGS.VERSION_SKIP_TITLE, STRINGS.VERSION_PARSE_FAIL_SKIP_REASON);
-      }
+      const versions = readComparableVersions(payload.versionInfo);
+      if ('skipReason' in versions) return skip(STRINGS.VERSION_SKIP_TITLE, versions.skipReason);
+      const { detected, latest, parsedDetected, parsedLatest } = versions;
 
       const diff = compareVersions(parsedLatest, parsedDetected);
       if (diff <= 0) {

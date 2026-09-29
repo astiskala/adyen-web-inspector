@@ -115,7 +115,7 @@ export interface CheckResult {
 export interface Check {
   readonly id: CheckId;
   readonly category: CheckCategory;
-  run(payload: ScanPayload): CheckResult;
+  run: (payload: ScanPayload) => CheckResult;
 }
 
 // ─── SDK Metadata (from window.AdyenWebMetadata) ─────────────────────────────

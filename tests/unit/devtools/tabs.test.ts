@@ -61,3 +61,30 @@ describe('DevTools finding views', () => {
     expect(host.textContent).toContain('CSS integrity missing');
   });
 });
+
+describe('DevTools empty and unobserved values', () => {
+  it('shows a dash for requests whose status was not observed', () => {
+    const result = makeScanResult({
+      payload: makeScanPayload({
+        capturedRequests: [
+          {
+            url: 'https://checkoutshopper-test.adyen.com/sdk.js',
+            type: 'script',
+            responseHeaders: [],
+            statusCode: 0,
+          },
+        ],
+      }),
+    });
+
+    render(h(NetworkTab, { result }), host);
+
+    expect([...host.querySelectorAll('td')].map((cell) => cell.textContent)).toContain('—');
+  });
+
+  it('says so when no check was skipped', () => {
+    render(h(SkippedChecksTab, { result: makeScanResult({ checks: [] }) }), host);
+
+    expect(host.textContent).toContain('No checks were skipped.');
+  });
+});

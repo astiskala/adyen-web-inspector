@@ -47,7 +47,7 @@ Keep pnpm settings such as `overrides` and `allowBuilds` in `pnpm-workspace.yaml
 
 - `jsxImportSource` is set to `preact` in tsconfig — no manual `import {h}` needed.
 - Hooks come from `preact/hooks`.
-- CSS Modules are typed as `Record<string, string | undefined>`. Access via a helper: `const s = (key: string) => styles[key] ?? ''`.
+- CSS Modules are typed as `Record<string, string | undefined>`. Read class names through the shared helper: `const s = cssModule(styles);` (`src/popup/components/css-module.ts`).
 - Never use array index as a JSX key — use a stable identifier like `check.id`.
 
 ### Linting (gts / ESLint)
@@ -69,6 +69,8 @@ Keep pnpm settings such as `overrides` and `allowBuilds` in `pnpm-workspace.yaml
 - Export functions as function declarations, not `export const fn = () => …`.
 - Empty functions are allowed only as arrows (for `.catch(() => {})`).
 - Functions used as callbacks should be declared at module scope, not inside component render functions.
+- Interfaces declare functions as properties (`read: (tabId: number) => Promise<T>`), not methods, so parameter types are checked strictly (`@typescript-eslint/method-signature-style`).
+- Functions stay within a cyclomatic complexity of 15 and a nesting depth of 4; split a function rather than raising the limit. Parameters are not reassigned, shadowing is not allowed, and string building uses template literals.
 - `knip` enforces no unused exports; remove dead code instead of suppressing. `pnpm knip` also runs `knip --production`, which ignores tests, so an export used only by tests is reported as unused.
 - Architecture seams are lint-enforced (see **Key Seams**): checks and the implementation-attribute rules may not read raw checkout config slots; checks may not read `documentHeaders` or import CSP parsing primitives (outside `page-policy.ts`), or use `chrome`, `fetch`, `setTimeout`, or `Date.now`; the Scan (`scan-orchestrator.ts`, `scan-assessment.ts`, `frame-merge.ts`, `captured-traffic.ts`) and the tab state (`tab-state.ts`) may not use `chrome`, `fetch`, `setTimeout`, or `Date.now`; the scan lifecycle hook may not use `chrome`; popup, DevTools, and the worker may not reference the `'sdk-detected'` check ID, or import the implementation-attribute rules, `shared/results.ts`, or the `STORAGE_*` key prefixes.
 - Markdown files are linted with `markdownlint-cli2`; JSDoc descriptions must be complete sentences (`jsdoc/require-description-complete-sentence`).
@@ -76,7 +78,7 @@ Keep pnpm settings such as `overrides` and `allowBuilds` in `pnpm-workspace.yaml
 ### CSS Modules
 
 - Files use `.module.css` extension.
-- Access values with bracket notation or a helper function to satisfy `noPropertyAccessFromIndexSignature`.
+- Access values through `cssModule(styles)`, which satisfies `noPropertyAccessFromIndexSignature` and gives an empty class for undefined names.
 
 ### Commit Messages
 
@@ -217,7 +219,7 @@ Check-specific guidance:
 - Tab state tests: drive `createTabState()` with `createFakeTabStateBrowser()` and a controllable scan function; assert on stored state, badges, and the published snapshots, including navigation while a Scan is pending.
 - Scan lifecycle hook tests: connect the real tab state with `connectTabStateClient()` from `tests/fixtures/inMemoryTabStateClient.ts` and render the hook; no `chrome` stubs are needed.
 - Page extraction tests: set up the jsdom document and page globals (the capture record on `PAGE_GLOBALS.checkoutCapture`), import `src/content/page-extractor.ts`, and read the `PageExtractResult` it publishes.
-- Coverage thresholds are ratcheted per area in `vitest.config.ts`: **100%** on `src/background/{captured-traffic,frame-merge,scan-assessment,scan-orchestrator,tab-state}.ts` and `src/background/{network-recorder,npm-registry}.ts`; **100% lines/functions, 95% branches, 98% statements** on the Chrome adapters; **98% lines/statements, 100% functions, 95% branches** on `src/background/checks/**`; **98% lines/statements/branches, 100% functions** on `src/shared/{adyen-endpoint,checkout-capture,checkout-config-schema,checkout-signals,scan-evidence,sdk-presence,sdk-version}.ts`; **95% lines/functions/statements, 88% branches** on `src/shared/**`. The page extractor, config interceptor, popup, and DevTools panel have regression floors. Raise a floor when coverage improves; never lower one to pass.
+- Coverage is **100% lines, statements, branches, and functions for every file in `src/`**, enforced per file (`vitest.config.ts`: `thresholds: { 100: true, perFile: true }`); only declaration-only modules are excluded. Entry points, the service worker, the detector, and the report page have unit tests too. Cover new behaviour with a test through the module's interface; when a branch cannot be reached, remove it rather than excluding it.
 
 ### Integration Tests
 
@@ -266,7 +268,7 @@ When capturing a new checkout option:
 When adding a new UI component:
 
 1. Create `ComponentName.tsx` and `ComponentName.module.css` in the appropriate folder
-2. Use the CSS Modules helper pattern for style access; avoid inline `style` objects
+2. Read styles through `cssModule(styles)`; avoid inline `style` objects
 3. Use Preact hooks from `preact/hooks`
 4. For a centered popup state (icon, title, text, optional scan button or link), use `EmptyState`
 5. Put copy or colours that also appear in the PDF report in `shared/` (for example `STANDARD_COMPLIANCE_COPY`, `STATUS_COLORS`, `buildRawConfigSections()`)

@@ -2,8 +2,9 @@ import type { JSX } from 'preact';
 import { groupIssuesByImpact, type IssueGroup, type IssueRow } from '../../shared/export-report.js';
 import type { CheckResult } from '../../shared/types.js';
 import styles from './IssueList.module.css';
+import { cssModule } from './css-module.js';
 
-const s = (key: string): string => styles[key] ?? '';
+const s = cssModule(styles);
 
 interface Props {
   readonly checks: readonly CheckResult[];
@@ -93,7 +94,7 @@ export function IssueList({ checks }: Props): JSX.Element {
               key={group.impact}
               group={group}
               badgeClass={s('badgeFail')}
-              dotClass={s('dot') + ' ' + s('dotFail')}
+              dotClass={`${s('dot')} ${s('dotFail')}`}
             />
           ))}
         </details>
@@ -109,7 +110,7 @@ export function IssueList({ checks }: Props): JSX.Element {
               key={group.impact}
               group={group}
               badgeClass={s('badgeWarn')}
-              dotClass={s('dot') + ' ' + s('dotWarn')}
+              dotClass={`${s('dot')} ${s('dotWarn')}`}
             />
           ))}
         </details>
@@ -122,7 +123,7 @@ export function IssueList({ checks }: Props): JSX.Element {
           </summary>
           <ul class={s('list')}>
             {notices.map((issue) => (
-              <IssueItem key={issue.id} issue={issue} dotClass={s('dot') + ' ' + s('dotNotice')} />
+              <IssueItem key={issue.id} issue={issue} dotClass={`${s('dot')} ${s('dotNotice')}`} />
             ))}
           </ul>
         </details>

@@ -20,8 +20,8 @@ type TabTarget = Parameters<typeof useScanLifecycle>[0];
 const TAB = 3;
 
 interface PendingScan {
-  resolve(result: ScanResult): void;
-  reject(error: Error): void;
+  resolve: (result: ScanResult) => void;
+  reject: (error: Error) => void;
 }
 
 let host: HTMLDivElement;
@@ -216,5 +216,45 @@ describe('useScanLifecycle', () => {
     await tabState.checkoutActivityDetected(TAB);
     await settle();
     expect(session).toBe(before);
+  });
+});
+
+describe('useScanLifecycle after the view closes', () => {
+  it('stops following a tab whose id resolves after the view closed', async () => {
+    const tab = Promise.withResolvers<number>();
+    const target: TabTarget = { getTabId: () => tab.promise };
+    let reads = 0;
+    const counting: TabStateClient = {
+      ...client,
+      read: async (tabId) => {
+        reads += 1;
+        return client.read(tabId);
+      },
+    };
+    await mount(target, counting);
+
+    await act(async () => {
+      render(null, host);
+    });
+    tab.resolve(TAB);
+    await settle();
+
+    expect(reads).toBe(0);
+  });
+
+  it('ignores a snapshot that arrives after the view closed', async () => {
+    const snapshot = Promise.withResolvers<Awaited<ReturnType<TabStateClient['read']>>>();
+    const slow: TabStateClient = { ...client, read: () => snapshot.promise };
+    await mount(INSPECTED_TAB, slow);
+    const before = session;
+
+    await act(async () => {
+      render(null, host);
+    });
+    snapshot.resolve(await client.read(TAB));
+    await settle();
+
+    expect(session).toBe(before);
+    expect(session.loading).toBe(true);
   });
 });

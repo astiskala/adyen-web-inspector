@@ -11,8 +11,9 @@ import { HealthScore } from '../../popup/components/HealthScore.js';
 import { IssueList } from '../../popup/components/IssueList.js';
 import { StandardComplianceBadge } from '../../popup/components/StandardComplianceBadge.js';
 import styles from './panel.module.css';
+import { cssModule } from '../../popup/components/css-module.js';
 
-const s = (key: string): string => styles[key] ?? '';
+const s = cssModule(styles);
 
 interface Props {
   readonly result: ScanResult;

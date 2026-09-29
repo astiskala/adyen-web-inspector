@@ -8,7 +8,7 @@ type BodyListener = (details: Partial<chrome.webRequest.OnBeforeRequestDetails>)
 interface FakeEvent<L> {
   readonly addListener: ReturnType<typeof vi.fn>;
   readonly removeListener: ReturnType<typeof vi.fn>;
-  listener(): L;
+  listener: () => L;
 }
 
 const ANALYTICS_URL = 'https://checkoutanalytics-test.adyen.com/checkoutanalytics/v3/analytics';

@@ -93,7 +93,7 @@ function chromeExtensionHtmlFlatten(): Plugin {
           /(['"(])((?:\.\.\/)+)/g,
           (_match: string, quote: string, dots: string) => {
             const levels = dots.length / 3;
-            return levels > 1 ? quote + '../'.repeat(levels - 1) : quote + './';
+            return levels > 1 ? `${quote}${'../'.repeat(levels - 1)}` : `${quote}./`;
           }
         );
 

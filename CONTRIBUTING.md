@@ -79,7 +79,7 @@ Key conventions:
 - **TypeScript strict mode** — `strict: true`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noImplicitOverride`, `noPropertyAccessFromIndexSignature`, `verbatimModuleSyntax`, `erasableSyntaxOnly`.
 - **Prefer `globalThis`** over `window` for globals.
 - **Use `node:` prefix** for Node.js built-in imports (e.g. `import {resolve} from 'node:path'`).
-- **CSS Modules** — access styles via a helper: `const s = (key: string) => styles[key] ?? ''` to satisfy `noPropertyAccessFromIndexSignature`.
+- **CSS Modules** — read class names through the shared helper, `const s = cssModule(styles);` (`src/popup/components/css-module.ts`), which satisfies `noPropertyAccessFromIndexSignature`.
 - **No nested ternaries** — use `if`/`else` or extract helper functions.
 - **`String#replaceAll()`** over regex-based `String#replace()`.
 - **`element.remove()`** over `parent.removeChild(element)`.
@@ -187,7 +187,7 @@ it('fails for live checkout over HTTP', () => {
 });
 ```
 
-**Coverage target:** check modules need 98% lines/statements, 100% functions, and 95% branches (`src/background/checks/**`), enforced in CI. Other areas have their own ratcheted thresholds in `vitest.config.ts`; raise them when coverage improves rather than lowering them to pass.
+**Coverage target:** every file in `src/` needs 100% lines, statements, branches, and functions, enforced per file in CI. When a branch cannot be reached through the module's interface, remove it instead of excluding it from coverage.
 
 ### 4. Update the check catalog
 

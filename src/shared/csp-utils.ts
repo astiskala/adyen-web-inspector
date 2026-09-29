@@ -30,13 +30,17 @@ function sourceMatchesUrl(source: string, resource: URL, page: URL): boolean {
   if (source === "'self'") return resource.origin === page.origin;
   if (source === '*') return resource.protocol === 'https:' || resource.protocol === 'http:';
   if (source === 'https:' || source === 'http:') return resource.protocol === source;
+  return hostSourceMatchesUrl(source, resource);
+}
 
+/** Matches a host source such as `https://*.adyen.com:443/path` against a resource URL. */
+function hostSourceMatchesUrl(source: string, resource: URL): boolean {
   const match = /^(?:(https?):\/\/)?(\*\.)?([^/:]+)(?::(\d+))?(\/.*)?$/.exec(source.toLowerCase());
-  if (!match) return false;
+  const host = match?.[3];
+  if (match === null || host === undefined) return false;
 
-  const [, scheme, wildcard, host, port, path] = match;
+  const [, scheme, wildcard, , port, path] = match;
   if (scheme !== undefined && resource.protocol !== `${scheme}:`) return false;
-  if (host === undefined) return false;
   const hostMatches =
     wildcard === '*.' ? resource.hostname.endsWith(`.${host}`) : resource.hostname === host;
   if (!hostMatches) return false;

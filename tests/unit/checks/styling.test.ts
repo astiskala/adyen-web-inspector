@@ -194,3 +194,34 @@ describe('Styling Checks', () => {
     });
   });
 });
+
+function overridePayload(
+  classOverrideCount: number,
+  classOverrideSelectors: string[]
+): ReturnType<typeof makeScanPayload> {
+  return makeScanPayload({
+    page: makeCheckoutPage({
+      adyenMetadata: makeAdyenMetadata(),
+      adyenStyles: { classOverrideCount, classOverrideSelectors, customPropertyCount: 0 },
+    }),
+  });
+}
+
+describe('styling override examples', () => {
+  it('lists only the selectors in a group that target Adyen classes', () => {
+    const result = cssCustomProps.run(
+      overridePayload(2, ['body .page, .adyen-checkout__button:hover'])
+    );
+
+    expect(result.detail).toContain('Examples: .adyen-checkout__button:hover.');
+    expect(result.detail).not.toContain('body');
+    expect(result.detail).toContain('1 more selector omitted.');
+  });
+
+  it('omits the examples sentence when no selector could be sampled', () => {
+    const result = cssCustomProps.run(overridePayload(2, []));
+
+    expect(result.detail).not.toContain('Examples:');
+    expect(result.detail).toContain('2 more selectors omitted.');
+  });
+});

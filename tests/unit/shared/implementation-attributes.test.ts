@@ -266,3 +266,17 @@ describe('integration flavor, import method, and checkout activity', () => {
     expect(readImplementationAttributes(npm).importMethod).toBe('Unknown');
   });
 });
+
+describe('region from an unrecognised live environment option', () => {
+  it('leaves the region to other signals when the option names no known region', () => {
+    const { region } = readImplementationAttributes(
+      makeScanPayload({
+        page: makeCheckoutPage({
+          capturedConfig: makeCapturedConfig({ environment: 'live-xx' }),
+        }),
+      })
+    );
+
+    expect(region).toMatchObject({ value: 'unknown', source: 'unknown' });
+  });
+});

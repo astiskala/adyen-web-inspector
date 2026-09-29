@@ -1,7 +1,8 @@
 import type { ComponentChildren, JSX } from 'preact';
 import styles from './EmptyState.module.css';
+import { cssModule } from './css-module.js';
 
-const s = (key: string): string => styles[key] ?? '';
+const s = cssModule(styles);
 
 interface ScanAction {
   readonly label: string;

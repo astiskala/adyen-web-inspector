@@ -13,6 +13,7 @@
  */
 
 import {
+  HEALTH_TIER_COLORS,
   STATUS_COLORS,
   STORAGE_CHECKOUT_ACTIVITY_PREFIX,
   STORAGE_SCAN_RESULT_PREFIX,
@@ -26,7 +27,7 @@ import {
   type TabScanStatus,
   type TabSnapshot,
 } from '../shared/messages.js';
-import type { HealthScore, ScanResult } from '../shared/types.js';
+import type { ScanResult } from '../shared/types.js';
 import { describeError, isScanResult } from '../shared/utils.js';
 
 /** A badge on the extension's action icon for one tab. */
@@ -38,13 +39,13 @@ interface TabBadge {
 /** Everything the tab state needs from the browser. */
 export interface TabStateBrowser {
   /** Reads session-scoped values; missing keys are omitted. */
-  read(keys: readonly string[]): Promise<Readonly<Record<string, unknown>>>;
-  write(items: Readonly<Record<string, unknown>>): Promise<void>;
-  remove(keys: readonly string[]): Promise<void>;
+  read: (keys: readonly string[]) => Promise<Readonly<Record<string, unknown>>>;
+  write: (items: Readonly<Record<string, unknown>>) => Promise<void>;
+  remove: (keys: readonly string[]) => Promise<void>;
   /** Shows a badge on the tab's action icon, or clears it when null. */
-  setBadge(tabId: number, badge: TabBadge | null): void;
+  setBadge: (tabId: number, badge: TabBadge | null) => void;
   /** Notifies open popups and DevTools panels. */
-  notify(message: BswToUiMessage): void;
+  notify: (message: BswToUiMessage) => void;
 }
 
 /** Runs a Scan of the tab's current page. */
@@ -52,15 +53,15 @@ type RunScan = (tabId: number) => Promise<ScanResult>;
 
 interface TabState {
   /** The passive detector saw a mounted Drop-in, Component, or Adyen iframe. */
-  checkoutActivityDetected(tabId: number, version?: string): Promise<void>;
-  checkoutActivityCleared(tabId: number): Promise<void>;
+  checkoutActivityDetected: (tabId: number, version?: string) => Promise<void>;
+  checkoutActivityCleared: (tabId: number) => Promise<void>;
   /** Scans the tab unless a Scan of its current page is already running. */
-  requestScan(tabId: number): Promise<void>;
+  requestScan: (tabId: number) => Promise<void>;
   /** The tab started loading a document: its state and any pending Scan are discarded. */
-  navigated(tabId: number): Promise<void>;
-  removed(tabId: number): Promise<void>;
+  navigated: (tabId: number) => Promise<void>;
+  removed: (tabId: number) => Promise<void>;
   /** Reads the tab's snapshot after its pending transitions. */
-  read(tabId: number): Promise<TabSnapshot>;
+  read: (tabId: number) => Promise<TabSnapshot>;
 }
 
 interface TabRuntime {
@@ -94,18 +95,12 @@ function tabKeys(tabId: number): string[] {
   return [resultKey(tabId), activityKey(tabId), versionKey(tabId)];
 }
 
-function healthColor(tier: HealthScore['tier']): string {
-  if (tier === 'excellent') return STATUS_COLORS.pass;
-  if (tier === 'issues') return STATUS_COLORS.warn;
-  return STATUS_COLORS.fail;
-}
-
 /** A running Scan decides the badge, then a stored result, then checkout activity. */
 function badgeFor({ result, checkoutActivity, scan }: TabSnapshot): TabBadge | null {
   if (scan.state === 'running') return SCANNING_BADGE;
   if (result !== null) {
     if (!result.sdkPresence.detected) return null;
-    return { text: `${result.health.score}`, color: healthColor(result.health.tier) };
+    return { text: `${result.health.score}`, color: HEALTH_TIER_COLORS[result.health.tier] };
   }
   return checkoutActivity.detected ? ACTIVITY_BADGE : null;
 }

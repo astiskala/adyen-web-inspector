@@ -254,10 +254,10 @@ function processMountPoints(mountPoints: Set<ElementWithVnode>): {
   let findCount = 0;
 
   for (const mount of mountPoints) {
-    const options = findCoreOptions(mount.__k, 0);
-    if (options !== null) {
+    const config = readCheckoutOptions(findCoreOptions(mount.__k, 0), 'checkout');
+    if (config !== null) {
       findCount++;
-      configs.push(readCheckoutOptions(options, 'checkout') ?? {});
+      configs.push(config);
     }
   }
 

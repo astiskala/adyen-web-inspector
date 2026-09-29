@@ -2,8 +2,9 @@ import type { JSX } from 'preact';
 import { STANDARD_COMPLIANCE_COPY } from '../../shared/standard-compliance.js';
 import type { StandardCompliance } from '../../shared/types.js';
 import styles from './StandardComplianceBadge.module.css';
+import { cssModule } from './css-module.js';
 
-const s = (key: string): string => styles[key] ?? '';
+const s = cssModule(styles);
 
 interface Props {
   readonly compliance: StandardCompliance;

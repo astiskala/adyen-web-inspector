@@ -201,3 +201,13 @@ describe('effective CSP sources', () => {
     });
   });
 });
+
+describe('cspAllowsUrl wildcard sources', () => {
+  it('lets a bare * source allow http and https resources only', () => {
+    const policy = parseCsp('img-src *');
+    const page = 'https://merchant.example/checkout';
+
+    expect(cspAllowsUrl(policy, 'img-src', 'http://cdn.example/a.png', page)).toBe(true);
+    expect(cspAllowsUrl(policy, 'img-src', 'data:image/png;base64,AAAA', page)).toBe(false);
+  });
+});

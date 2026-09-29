@@ -379,3 +379,65 @@ describe('page extractor styling', () => {
     });
   });
 });
+
+describe('page extractor tree walk limits', () => {
+  it('reads options from a root far above a deeply nested Adyen element', async () => {
+    const deep = `${'<div>'.repeat(12)}<div class="adyen-checkout__card-input"></div>${'</div>'.repeat(12)}`;
+    mountTree(deep, coreOptions({ locale: 'nl-NL' }));
+
+    await expect(extractPage()).resolves.toMatchObject({
+      componentConfig: { locale: 'nl-NL' },
+      componentMountCount: 1,
+    });
+  });
+
+  it('stops scanning for vnode roots after twenty', async () => {
+    document.body.innerHTML = '<div class="adyen-checkout__button"></div>';
+    for (let index = 0; index < 25; index += 1) mountTree('<p></p>', coreOptions({ locale: 'a' }));
+
+    await expect(extractPage()).resolves.toMatchObject({ componentMountCount: 20 });
+  });
+
+  it('reads an Adyen root mounted directly in a shadow root', async () => {
+    const host = document.createElement('div');
+    document.body.append(host);
+    const root = document.createElement('div');
+    root.className = 'adyen-checkout__dropin';
+    (root as VnodeElement).__k = coreOptions({ countryCode: 'NL' });
+    host.attachShadow({ mode: 'open' }).append(root);
+
+    await expect(extractPage()).resolves.toMatchObject({ componentConfig: { countryCode: 'NL' } });
+  });
+
+  it('does not look for shadow hosts nested deeper than seven levels', async () => {
+    let parent: Element = document.body;
+    for (let level = 0; level < 8; level += 1) {
+      const child = document.createElement('div');
+      parent.append(child);
+      parent = child;
+    }
+    const shadow = parent.attachShadow({ mode: 'open' });
+    mountTree('<div class="adyen-checkout__dropin"></div>', coreOptions({ locale: 'a' }), shadow);
+
+    await expect(extractPage()).resolves.toMatchObject({ componentConfig: null });
+  });
+
+  it('does not count trees whose core options are not an object', async () => {
+    mountTree('<div class="adyen-checkout__dropin"></div>', coreOptions(42));
+
+    const page = await extractPage();
+
+    expect(page.componentConfig).toBeNull();
+    expect(page).not.toHaveProperty('componentMountCount');
+  });
+
+  it('skips rules that neither style nor group other rules', async () => {
+    addStyleSheet(
+      '@font-face { font-family: X; src: url(x.woff2); } .adyen-checkout__button { color: red; }'
+    );
+
+    await expect(extractPage()).resolves.toMatchObject({
+      adyenStyles: { classOverrideCount: 1 },
+    });
+  });
+});

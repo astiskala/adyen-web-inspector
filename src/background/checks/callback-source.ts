@@ -244,9 +244,9 @@ function detectStateDataForwarding(source: string): StateDataForwarding {
 
   const fields = [
     ...new Set(
-      [...callback.body.matchAll(fieldAccess)].flatMap((match) =>
-        match[1] === undefined ? [] : [match[1]]
-      )
+      [...callback.body.matchAll(fieldAccess)]
+        .map((match) => match[1])
+        .filter((field): field is string => field !== undefined)
     ),
   ].toSorted((a, b) => a.localeCompare(b));
   return fields.includes('paymentMethod')
@@ -305,8 +305,9 @@ function readSource(payload: ScanPayload, key: CallbackSourceKey): string {
  * handles submission itself.
  */
 export function readOnSubmitSource(payload: ScanPayload, flow: IntegrationFlow): OnSubmitSource {
-  if (!hasCapturedCheckoutConfig(payload.page))
+  if (!hasCapturedCheckoutConfig(payload.page)) {
     return { status: 'unavailable', reason: 'no-config' };
+  }
   if (flow === 'sessions') return { status: 'unavailable', reason: 'sessions-flow' };
   const source = readSource(payload, 'onSubmitSource');
   if (source === '') return { status: 'unavailable', reason: 'no-source' };
@@ -323,8 +324,9 @@ export function readOnSubmitSource(payload: ScanPayload, flow: IntegrationFlow):
 
 /** Looks for a duplicate-submission guard in captured onSubmit and beforeSubmit source. */
 export function readSubmissionGuard(payload: ScanPayload): SubmissionGuard {
-  if (!hasCapturedCheckoutConfig(payload.page))
+  if (!hasCapturedCheckoutConfig(payload.page)) {
     return { status: 'unavailable', reason: 'no-config' };
+  }
   const combined = `${readSource(payload, 'onSubmitSource')}\n${readSource(payload, 'beforeSubmitSource')}`;
   if (combined.trim() === '') return { status: 'unavailable', reason: 'no-source' };
   return { status: 'read', guarded: detectsMultipleSubmissions(combined) };

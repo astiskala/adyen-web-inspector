@@ -142,34 +142,28 @@ import type { CallbackSource, CheckoutCapture } from '../shared/types.js';
   }
 
   function copyStatics(original: SdkCallable, wrapped: SdkCallable): void {
-    for (const key of Object.getOwnPropertyNames(original)) {
+    for (const [key, descriptor] of Object.entries(Object.getOwnPropertyDescriptors(original))) {
       if (['prototype', 'length', 'name', 'arguments', 'caller'].includes(key)) {
         continue;
       }
       try {
-        const desc = Object.getOwnPropertyDescriptor(original, key);
-        if (desc !== undefined) {
-          Object.defineProperty(wrapped, key, desc);
-        }
+        Object.defineProperty(wrapped, key, descriptor);
       } catch {
         /* ignore */
       }
     }
   }
 
-  function wrapInstanceCreate(i: PlainRecord): void {
-    const create = i['create'];
-    if (typeof create === 'function' && !isWrapped(create)) {
-      const origCreate = create as SdkCallable;
-      const wrappedCreate = function (this: unknown, ...cArgs: unknown[]): unknown {
-        if (cArgs.length > 1) {
-          captureConfig(cArgs[1], 'component');
-        }
-        return origCreate.apply(this, cArgs);
-      };
-      markWrapped(wrappedCreate);
-      i['create'] = wrappedCreate;
-    }
+  /** Wraps a checkout instance's create; the instance marker keeps it from being wrapped twice. */
+  function wrapInstanceCreate(i: PlainRecord, create: SdkCallable): void {
+    const wrappedCreate = function (this: unknown, ...cArgs: unknown[]): unknown {
+      if (cArgs.length > 1) {
+        captureConfig(cArgs[1], 'component');
+      }
+      return create.apply(this, cArgs);
+    };
+    markWrapped(wrappedCreate);
+    i['create'] = wrappedCreate;
   }
 
   function tryCaptureFromInstance(inst: unknown): boolean {
@@ -179,11 +173,11 @@ import type { CallbackSource, CheckoutCapture } from '../shared/types.js';
 
     const i = inst as PlainRecord;
     // Heuristic: looks like an Adyen Checkout instance
-    const hasCreate = typeof i['create'] === 'function';
+    const create = i['create'];
     const opts = i['options'] ?? i['_options'];
     const hasOptions = opts !== undefined && opts !== null && typeof opts === 'object';
 
-    if (hasCreate && hasOptions) {
+    if (typeof create === 'function' && hasOptions) {
       if (i[ADYEN_INSTANCE_MARKER] === true) {
         return true;
       }
@@ -194,7 +188,7 @@ import type { CallbackSource, CheckoutCapture } from '../shared/types.js';
       }
 
       captureConfig(opts, 'checkout');
-      wrapInstanceCreate(i);
+      wrapInstanceCreate(i, create as SdkCallable);
       return true;
     }
 

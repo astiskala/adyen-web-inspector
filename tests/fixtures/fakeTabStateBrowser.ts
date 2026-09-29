@@ -16,7 +16,7 @@ export interface FakeTabStateBrowser extends TabStateBrowser {
   /** Makes the next reads reject, to exercise storage failures. */
   failReads: boolean;
   /** Delivers later notifications to a listener, as open views receive them; returns an unsubscribe function. */
-  onNotify(listener: NotifyListener): () => void;
+  onNotify: (listener: NotifyListener) => () => void;
 }
 
 /** In-memory adapter for the tab state port. */

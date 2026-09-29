@@ -173,6 +173,13 @@ export default defineConfig([
       ],
       '@typescript-eslint/no-empty-function': ['error', { allow: ['arrowFunctions'] }],
       '@typescript-eslint/non-nullable-type-assertion-style': 'off',
+      '@typescript-eslint/default-param-last': 'error',
+      '@typescript-eslint/method-signature-style': 'error',
+      '@typescript-eslint/no-import-type-side-effects': 'error',
+      '@typescript-eslint/no-loop-func': 'error',
+      '@typescript-eslint/no-shadow': 'error',
+      '@typescript-eslint/no-useless-empty-export': 'error',
+      '@typescript-eslint/require-array-sort-compare': 'error',
 
       // Import ordering and cycles
       'import-x/first': 'error',
@@ -257,6 +264,16 @@ export default defineConfig([
 
       // Core JavaScript
       eqeqeq: 'error',
+      'arrow-body-style': 'error',
+      complexity: ['error', 15],
+      curly: ['error', 'multi-line'],
+      'max-depth': ['error', 4],
+      'no-else-return': 'error',
+      'no-implicit-coercion': 'error',
+      'no-lonely-if': 'error',
+      'no-param-reassign': 'error',
+      'object-shorthand': 'error',
+      'prefer-template': 'error',
       'no-console': 'error',
       'no-void': 'error',
       'no-extend-native': 'error',

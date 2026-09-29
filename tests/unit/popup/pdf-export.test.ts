@@ -55,3 +55,13 @@ describe('PDF export handoff', () => {
     expect(chromeMock.storage.session.remove).toHaveBeenCalledWith(getPdfReportStorageKey(TOKEN));
   });
 });
+
+describe('PDF export cleanup failures', () => {
+  it('reports the tab failure even when cleaning up the stored result fails', async () => {
+    const chromeMock = stubChrome();
+    chromeMock.tabs.create.mockRejectedValue(new Error('tab creation failed'));
+    chromeMock.storage.session.remove.mockRejectedValue(new Error('storage gone'));
+
+    await expect(exportPdf(makeScanResult())).rejects.toThrow('tab creation failed');
+  });
+});

@@ -277,3 +277,25 @@ describe('componentConfig fallback', () => {
     expect(envKeyMismatch.run(payload).severity).toBe('pass');
   });
 });
+
+describe('region edge cases', () => {
+  it('skips the region comparison when only the CDN shows a region', () => {
+    const payload = makeScanPayload({
+      capturedRequests: [makeRequest('https://checkoutshopper-live-us.cdn.adyen.com/sdk.js')],
+    });
+
+    const result = envRegionMismatch.run(payload);
+    expect(result.severity).toBe('skip');
+    expect(result.detail).toBe('Configured region unknown.');
+  });
+
+  it('explains a region read from network traffic', () => {
+    const payload = makeScanPayload({
+      capturedRequests: [makeRequest('https://checkout-live-au.adyenpayments.com/v71/sessions')],
+    });
+
+    const result = envRegion.run(payload);
+    expect(result).toMatchObject({ severity: 'info', title: 'Region: AU.' });
+    expect(result.detail).toContain('request hostnames');
+  });
+});

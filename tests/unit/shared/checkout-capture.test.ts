@@ -130,3 +130,11 @@ describe('readCheckoutCapture', () => {
     });
   });
 });
+
+describe('readRequestInference without an environment', () => {
+  it('reads option parameters from Adyen hosts that name no environment', () => {
+    expect(readRequestInference('https://docs.adyen.com/x?clientKey=test_K', BASE)).toEqual({
+      clientKey: 'test_K',
+    });
+  });
+});

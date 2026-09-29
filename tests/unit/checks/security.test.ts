@@ -10,6 +10,7 @@ import {
   makeRequest,
   makeCapturedConfig,
   makeDocumentHeaders,
+  UNAVAILABLE_DOCUMENT_HEADERS,
 } from '../../fixtures/makeScanPayload';
 import { requireCheck } from './requireCheck';
 
@@ -368,5 +369,32 @@ describe('Security Checks', () => {
       });
       expect(apiKeyExposed.run(payload).severity).toBe('pass');
     });
+  });
+});
+
+describe('response header edge cases', () => {
+  it.each([
+    ['an empty Referrer-Policy as not set', '', 'Referrer-Policy header is not set.'],
+    [
+      'a permissive Referrer-Policy by value',
+      'unsafe-url',
+      'Referrer-Policy is "unsafe-url". Consider using the recommended value.',
+    ],
+  ])('reports %s', (_label, value, title) => {
+    const payload = makeScanPayload({
+      documentHeaders: makeDocumentHeaders([makeHeader('referrer-policy', value)]),
+    });
+
+    expect(referrerPolicy.run(payload)).toMatchObject({ severity: 'notice', title });
+  });
+
+  it('skips HSTS on live when the document headers are unavailable', () => {
+    const payload = makeAdyenPayload(
+      {},
+      { clientKey: 'live_XXXX', environment: 'live' },
+      { documentHeaders: UNAVAILABLE_DOCUMENT_HEADERS }
+    );
+
+    expect(hsts.run(payload).severity).toBe('skip');
   });
 });

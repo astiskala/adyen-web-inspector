@@ -154,3 +154,22 @@ describe('applyCapturedOptions', () => {
     expect(applyCapturedOptions(null, { locale: 'en-US' })).toEqual({ locale: 'en-US' });
   });
 });
+
+function hiddenSourceHandler(_data: unknown): void {
+  // intentionally empty — its source is hidden below
+}
+
+function hideSource(): never {
+  throw new Error('source hidden');
+}
+
+describe('readCheckoutOptions callback source', () => {
+  it('registers a callback whose source cannot be read, without its source', () => {
+    Object.defineProperty(hiddenSourceHandler, 'toString', { value: hideSource });
+
+    const config = readCheckoutOptions({ onSubmit: hiddenSourceHandler }, 'checkout');
+
+    expect(config).toMatchObject({ onSubmit: 'checkout' });
+    expect(config).not.toHaveProperty('onSubmitSource');
+  });
+});

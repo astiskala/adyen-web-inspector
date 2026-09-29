@@ -1,8 +1,9 @@
 import type { JSX } from 'preact';
 import type { ScanResult } from '../../shared/types.js';
 import styles from './HealthScore.module.css';
+import { cssModule } from './css-module.js';
 
-const s = (key: string): string => styles[key] ?? '';
+const s = cssModule(styles);
 
 interface Props {
   readonly result: ScanResult;

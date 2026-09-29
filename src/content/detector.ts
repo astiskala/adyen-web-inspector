@@ -54,9 +54,7 @@ function sendDetectionResult(force = false): void {
     ? {
         type: MSG_CHECKOUT_ACTIVITY_DETECTED,
         tabId: 0,
-        ...(result.version === undefined || result.version === ''
-          ? {}
-          : { version: result.version }),
+        ...(result.version === undefined ? {} : { version: result.version }),
       }
     : { type: MSG_CHECKOUT_ACTIVITY_CLEARED, tabId: 0 };
 
@@ -97,12 +95,9 @@ function isInterestingNode(node: Node): boolean {
   return src.includes('adyen') || href.includes('adyen');
 }
 
+/** The observer watches child lists only, so every record lists added and removed nodes. */
 function handleMutations(records: MutationRecord[]): void {
   for (const record of records) {
-    if (record.type !== 'childList') {
-      continue;
-    }
-
     for (const added of record.addedNodes) {
       if (isInterestingNode(added)) {
         scheduleDetection();

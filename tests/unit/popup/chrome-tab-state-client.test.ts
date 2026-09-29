@@ -43,6 +43,7 @@ describe('chromeTabStateClient', () => {
   it.each([
     ['a missing response', null],
     ['a malformed response', { result: 'x', checkoutActivity: 'y', scan: { state: 'failed' } }],
+    ['a response with a non-object scan status', { scan: 'running' }],
   ])('reads %s as an empty snapshot', async (_label, response) => {
     stubRuntime(response);
 

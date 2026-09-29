@@ -28,16 +28,11 @@ function pluralRules(count: number): string {
   return `${count} rule${count === 1 ? '' : 's'}`;
 }
 
+/** The selector from its first Adyen class on; empty for selectors in the group that do not target Adyen. */
 function focusAdyenSelector(selector: string): string {
   const normalized = selector.replaceAll(/\s+/g, ' ').trim();
-  const firstAdyenClass = ADYEN_SELECTOR_START_PATTERN.exec(normalized)?.[0];
-
-  if (firstAdyenClass === undefined) {
-    return normalized;
-  }
-
-  const firstIndex = normalized.indexOf(firstAdyenClass);
-  return normalized.slice(firstIndex);
+  const firstAdyenClass = ADYEN_SELECTOR_START_PATTERN.exec(normalized);
+  return firstAdyenClass === null ? '' : normalized.slice(firstAdyenClass.index);
 }
 
 function getSelectorExamples(selectorTexts: readonly string[]): string[] {

@@ -12,8 +12,8 @@ import {
 const TAB = 7;
 
 interface PendingScan {
-  resolve(result: ScanResult): void;
-  reject(error: Error): void;
+  resolve: (result: ScanResult) => void;
+  reject: (error: Error) => void;
 }
 
 let browser: FakeTabStateBrowser;

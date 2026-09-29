@@ -885,3 +885,43 @@ describe('partial checkoutConfig fallback', () => {
     expect(multipleSubmissions.run(payload).severity).toBe('info');
   });
 });
+
+describe('flow-type signal lists', () => {
+  it('lists every Sessions signal', () => {
+    const payload = makeScanPayload({
+      page: makeCheckoutPage({ componentConfig: { hasSession: true } }),
+      capturedRequests: sessionsRequests,
+      analyticsData: makeAnalyticsData({ sessionId: 'S1' }),
+    });
+
+    expect(flowType.run(payload).detail).toBe(
+      'Sessions flow inferred from a Sessions API request, a session object in checkout configuration, and an analytics sessionId.'
+    );
+  });
+});
+
+describe('callback-on-submit-filtering source parsing', () => {
+  it('reads conditions with nested parentheses', () => {
+    const payload = makeAdyenPayload(
+      {},
+      {
+        onSubmitSource:
+          "onSubmit: (state, component, actions) => { if ((state.data.paymentMethod.type === 'scheme')) { actions.resolve(result); } }",
+      }
+    );
+
+    expect(onSubmitSelectiveHandling.run(payload).severity).toBe('warn');
+  });
+
+  it('does not flag a filter whose block was cut off before it closed', () => {
+    const payload = makeAdyenPayload(
+      {},
+      {
+        onSubmitSource:
+          "onSubmit: (state, component, actions) => { if (state.data.paymentMethod.type === 'scheme') { actions.resolve(",
+      }
+    );
+
+    expect(onSubmitSelectiveHandling.run(payload).severity).toBe('notice');
+  });
+});

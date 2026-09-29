@@ -1,6 +1,7 @@
 import type { JSX } from 'preact';
 import { MIN_SUPPORTED_MAJOR_VERSION } from '../shared/constants.js';
 import type { CheckoutActivity } from '../shared/messages.js';
+import type { ScanResult } from '../shared/types.js';
 import { parseVersion } from '../shared/utils.js';
 import { exportPdf } from './components/pdf-export.js';
 import { IdentityCard } from './components/IdentityCard.js';
@@ -12,10 +13,11 @@ import { VersionOutdated } from './components/VersionOutdated.js';
 import { ScanError } from './components/ScanError.js';
 import { StandardComplianceBadge } from './components/StandardComplianceBadge.js';
 import { chromeTabStateClient } from './components/chrome-tab-state-client.js';
-import { useScanLifecycle } from './components/useScanLifecycle.js';
+import { scanButtonLabel, useScanLifecycle } from './components/useScanLifecycle.js';
 import styles from './PopupApp.module.css';
+import { cssModule } from './components/css-module.js';
 
-const s = (key: string): string => styles[key] ?? '';
+const s = cssModule(styles);
 
 function getActiveTabId(): Promise<number | undefined> {
   return chrome.tabs.query({ active: true, currentWindow: true }).then((tabs) => tabs[0]?.id);
@@ -24,8 +26,9 @@ function getActiveTabId(): Promise<number | undefined> {
 const activeTab = { getTabId: getActiveTabId } as const;
 
 type PopupView =
-  | { readonly state: 'loading' | 'error' | 'detected' | 'ready' | 'not-detected' }
-  | { readonly state: 'version-outdated'; readonly version: string };
+  | { readonly state: 'loading' | 'error' | 'ready' | 'not-detected' }
+  | { readonly state: 'version-outdated'; readonly version: string }
+  | { readonly state: 'result'; readonly result: ScanResult };
 
 /** Resolves the view for a tab without a scan result from the detector's checkout activity. */
 function getIdleView({ detected, version }: CheckoutActivity): PopupView {
@@ -37,11 +40,13 @@ function getIdleView({ detected, version }: CheckoutActivity): PopupView {
   return { state: 'ready' };
 }
 
+/** A scan that found no SDK offers another attempt, like a page where none was detected. */
 function getPopupView(session: ReturnType<typeof useScanLifecycle>): PopupView {
-  if (session.loading && session.result === null) return { state: 'loading' };
-  if (session.error !== null) return { state: 'error' };
-  if (session.result !== null) return { state: 'detected' };
-  return getIdleView(session.checkoutActivity);
+  const { loading, error, result, checkoutActivity } = session;
+  if (loading && result === null) return { state: 'loading' };
+  if (error !== null) return { state: 'error' };
+  if (result === null) return getIdleView(checkoutActivity);
+  return result.sdkPresence.detected ? { state: 'result', result } : { state: 'not-detected' };
 }
 
 /**
@@ -49,52 +54,41 @@ function getPopupView(session: ReturnType<typeof useScanLifecycle>): PopupView {
  */
 export function Popup(): JSX.Element {
   const session = useScanLifecycle(activeTab, chromeTabStateClient);
-  const { result, scanning, scan } = session;
+  const { scanning, scan } = session;
   const view = getPopupView(session);
-  const { state } = view;
-
-  function handleExportPdf(): void {
-    if (!result) return;
-    exportPdf(result).catch(() => {});
-  }
-
-  const isDetected = state === 'detected' && result !== null;
-  const sdkNotDetected = isDetected && !result.sdkPresence.detected;
-  const showScanControls = (state === 'ready' || state === 'detected') && !sdkNotDetected;
-  let scanButtonText = 'Run Scan';
-  if (scanning) {
-    scanButtonText = 'Scanning…';
-  } else if (result) {
-    scanButtonText = 'Re-run Scan';
-  }
 
   return (
     <div>
-      {state === 'loading' && <div class={s('loading')}>Loading…</div>}
-      {state === 'error' && <ScanError onRetry={scan} scanning={scanning} />}
-      {state === 'ready' && <DetectedReady />}
-      {state === 'not-detected' && <NotDetected onAttemptScan={scan} scanning={scanning} />}
+      {view.state === 'loading' && <div class={s('loading')}>Loading…</div>}
+      {view.state === 'error' && <ScanError onRetry={scan} scanning={scanning} />}
+      {view.state === 'ready' && <DetectedReady />}
+      {view.state === 'not-detected' && <NotDetected onAttemptScan={scan} scanning={scanning} />}
       {view.state === 'version-outdated' && <VersionOutdated version={view.version} />}
-      {isDetected && !sdkNotDetected && (
+      {view.state === 'result' && (
         <>
-          <IdentityCard result={result} />
-          <HealthScore result={result} />
-          <StandardComplianceBadge compliance={result.standardCompliance} />
-          <IssueList checks={result.checks} />
+          <IdentityCard result={view.result} />
+          <HealthScore result={view.result} />
+          <StandardComplianceBadge compliance={view.result.standardCompliance} />
+          <IssueList checks={view.result.checks} />
         </>
       )}
-      {sdkNotDetected && <NotDetected onAttemptScan={scan} scanning={scanning} />}
-      {showScanControls && (
+      {(view.state === 'ready' || view.state === 'result') && (
         <div class={s('toolbar')}>
           <button
             class={`btn ${scanning ? '' : 'btnPrimary'} ${s('scanButton')}`}
             onClick={scan}
             disabled={scanning}
           >
-            {scanButtonText}
+            {scanButtonLabel(session)}
           </button>
-          {isDetected && (
-            <button class="btn" onClick={handleExportPdf} title="Export PDF report">
+          {view.state === 'result' && (
+            <button
+              class="btn"
+              onClick={() => {
+                exportPdf(view.result).catch(() => {});
+              }}
+              title="Export PDF report"
+            >
               Export PDF
             </button>
           )}

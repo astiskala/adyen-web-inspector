@@ -62,54 +62,20 @@ function detectBrowserFromUserAgent(userAgent: string): NavigatorBrand {
   return { brand: 'Unknown Browser', version: '' };
 }
 
-function normalizePlatform(platform: string): string {
-  const normalizedPlatform = platform.toLowerCase();
-
-  if (normalizedPlatform.includes('mac')) {
-    return 'macOS';
-  }
-  if (normalizedPlatform.includes('win')) {
-    return 'Windows';
-  }
-  if (normalizedPlatform.includes('android')) {
-    return 'Android';
-  }
-  if (normalizedPlatform.includes('iphone')) {
-    return 'iOS';
-  }
-  if (normalizedPlatform.includes('ipad')) {
-    return 'iPadOS';
-  }
-  if (normalizedPlatform.includes('linux')) {
-    return 'Linux';
-  }
-
-  return platform;
-}
+/** User-agent tokens and their platforms, most specific first: iOS user agents also mention Mac OS, and Android ones Linux. */
+const USER_AGENT_PLATFORMS = [
+  ['iphone', 'iOS'],
+  ['ipad', 'iPadOS'],
+  ['android', 'Android'],
+  ['windows', 'Windows'],
+  ['macintosh', 'macOS'],
+  ['linux', 'Linux'],
+] as const;
 
 function detectPlatformFromUserAgent(userAgent: string): string {
   const normalizedUserAgent = userAgent.toLowerCase();
-
-  if (normalizedUserAgent.includes('iphone')) {
-    return 'iOS';
-  }
-  if (normalizedUserAgent.includes('ipad')) {
-    return 'iPadOS';
-  }
-  if (normalizedUserAgent.includes('android')) {
-    return 'Android';
-  }
-  if (normalizedUserAgent.includes('windows')) {
-    return 'Windows';
-  }
-  if (normalizedUserAgent.includes('macintosh') || normalizedUserAgent.includes('mac os')) {
-    return 'macOS';
-  }
-  if (normalizedUserAgent.includes('linux')) {
-    return 'Linux';
-  }
-
-  return 'Unknown platform';
+  const match = USER_AGENT_PLATFORMS.find(([token]) => normalizedUserAgent.includes(token));
+  return match?.[1] ?? 'Unknown platform';
 }
 
 function buildBrowserLabel(): string {
@@ -118,7 +84,7 @@ function buildBrowserLabel(): string {
 
   let platform = detectPlatformFromUserAgent(userAgent);
   if (userAgentData?.platform !== undefined && userAgentData.platform !== '') {
-    platform = normalizePlatform(userAgentData.platform);
+    platform = userAgentData.platform;
   }
 
   let browserInfo = detectBrowserFromUserAgent(userAgent);

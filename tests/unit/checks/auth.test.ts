@@ -251,3 +251,31 @@ describe('auth-client-key-rejected', () => {
     expect(result.detail).not.toContain('merchant.example');
   });
 });
+
+describe('auth-country-code edge cases', () => {
+  it('warns rather than fails when Sessions flow lacks countryCode', () => {
+    const payload = makeScanPayload({
+      page: makeCheckoutPage({
+        capturedConfig: makeCapturedConfig(
+          makeCheckoutConfig({ countryCode: undefined, hasSession: true }),
+          true
+        ),
+      }),
+    });
+
+    expect(authCountryCode.run(payload).severity).toBe('warn');
+  });
+
+  it('says a countryCode seen only in page JSON came from JSON the page parsed', () => {
+    const payload = makeScanPayload({
+      page: makeCheckoutPage({
+        capturedConfig: makeCapturedConfig({ clientKey: 'test_K' }),
+        pageJsonConfig: { countryCode: 'NL' },
+      }),
+    });
+
+    const result = authCountryCode.run(payload);
+    expect(result.severity).toBe('notice');
+    expect(result.detail).toContain('in JSON the page parsed');
+  });
+});

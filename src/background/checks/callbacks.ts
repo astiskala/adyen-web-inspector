@@ -79,30 +79,22 @@ function componentLevelWarning(
   );
 }
 
-function joinSignals(signals: readonly string[]): string {
-  if (signals.length === 0) return 'no strong flow signals';
-  if (signals.length === 1) {
-    return signals[0] ?? 'no strong flow signals';
-  }
-  const head = signals.slice(0, -1).join(', ');
-  const tail = signals.at(-1) ?? '';
-  return `${head} and ${tail}`;
-}
+const SIGNAL_LIST = new Intl.ListFormat('en', { type: 'conjunction' });
 
+/** A known flow always has at least one signal: Advanced flow requires checkout configuration. */
 function describeFlow({ value: flow, signals }: ImplementationAttributes['flow']): string {
   if (flow === 'sessions') {
     const sources: string[] = [];
     if (signals.hasSessionsRequest) sources.push('a Sessions API request');
     if (signals.hasSessionConfig) sources.push('a session object in checkout configuration');
     if (signals.hasAnalyticsSessionId) sources.push('an analytics sessionId');
-    return `Sessions flow inferred from ${joinSignals(sources)}.`;
+    return `Sessions flow inferred from ${SIGNAL_LIST.format(sources)}.`;
   }
 
   if (flow === 'advanced') {
-    const sources: string[] = [];
-    if (signals.hasCheckoutConfig) sources.push('checkout config');
+    const sources = ['checkout config'];
     if (signals.hasAnalyticsData) sources.push('checkout analytics data');
-    return `Advanced flow inferred from ${joinSignals(sources)}.`;
+    return `Advanced flow inferred from ${SIGNAL_LIST.format(sources)}.`;
   }
 
   return STRINGS.FLOW_UNKNOWN_DETAIL;
@@ -324,8 +316,8 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
     const { flow } = attributes;
     return info(`Integration flow type: ${flowLabel(flow.value)}.`, describeFlow(flow));
   })
-  .add('callback-on-submit', (payload, context) => {
-    return runAdvancedRequiredCallbackCheck(
+  .add('callback-on-submit', (payload, context) =>
+    runAdvancedRequiredCallbackCheck(
       payload,
       {
         key: 'onSubmit',
@@ -335,8 +327,8 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
         remediation: STRINGS.ON_SUBMIT_FAIL_REMEDIATION,
       },
       context
-    );
-  })
+    )
+  )
   .add('callback-on-submit-filtering', (payload, { attributes, skip, warn, notice, info }) => {
     const onSubmit = readOnSubmitSource(payload, attributes.flow.value);
     if (onSubmit.status === 'unavailable') {
@@ -358,7 +350,7 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
 
       return warn(
         STRINGS.SUBMIT_FILTER_WARN_TITLE,
-        `Static analysis detected selective filtering on ${joinSignals(filteredTargets)} without a clear catch-all branch (else/default).`,
+        `Static analysis detected selective filtering on ${SIGNAL_LIST.format(filteredTargets)} without a clear catch-all branch (else/default).`,
         STRINGS.SUBMIT_FILTER_WARN_REMEDIATION,
         getFlowSensitiveCallbackDocsUrl(attributes, 'advanced')
       );
@@ -405,8 +397,8 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
       );
     }
   )
-  .add('callback-on-additional-details', (payload, context) => {
-    return runAdvancedRequiredCallbackCheck(
+  .add('callback-on-additional-details', (payload, context) =>
+    runAdvancedRequiredCallbackCheck(
       payload,
       {
         key: 'onAdditionalDetails',
@@ -416,10 +408,10 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
         remediation: STRINGS.ON_ADD_DETAILS_FAIL_REMEDIATION,
       },
       context
-    );
-  })
-  .add('callback-on-payment-completed', (payload, context) => {
-    return runFlowSensitiveOutcomeCallbackCheck(
+    )
+  )
+  .add('callback-on-payment-completed', (payload, context) =>
+    runFlowSensitiveOutcomeCallbackCheck(
       payload,
       {
         key: 'onPaymentCompleted',
@@ -431,10 +423,10 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
         missingAdvancedRemediation: STRINGS.ON_PAYMENT_COMPLETED_ADVANCED_REMEDIATION,
       },
       context
-    );
-  })
-  .add('callback-on-payment-failed', (payload, context) => {
-    return runFlowSensitiveOutcomeCallbackCheck(
+    )
+  )
+  .add('callback-on-payment-failed', (payload, context) =>
+    runFlowSensitiveOutcomeCallbackCheck(
       payload,
       {
         key: 'onPaymentFailed',
@@ -446,8 +438,8 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
         missingAdvancedRemediation: STRINGS.ON_PAYMENT_FAILED_ADVANCED_REMEDIATION,
       },
       context
-    );
-  })
+    )
+  )
   .add('callback-on-error', (payload, context) => {
     const { attributes, pass, fail, skip } = context;
     const evidence = readCallback(payload, 'onError');
