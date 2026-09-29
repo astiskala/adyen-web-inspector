@@ -5,8 +5,11 @@
  * one Scan per page at a time, and navigation discards the tab's state and any
  * pending Scan, whose result would describe a page that is gone.
  *
- * Each tab's transitions run in order, so a navigation reset and a finishing
- * Scan cannot interleave. The module reaches Chrome only through its port.
+ * Every transition ends by publishing the tab's whole snapshot, so open views
+ * render what the tab state holds instead of rebuilding it from events. Each
+ * tab's transitions and reads run in order, so a navigation reset and a
+ * finishing Scan cannot interleave. The module reaches Chrome only through its
+ * port.
  */
 
 import {
@@ -16,12 +19,11 @@ import {
   STORAGE_VERSION_PREFIX,
 } from '../shared/constants.js';
 import {
-  MSG_SCAN_COMPLETE,
-  MSG_SCAN_ERROR,
-  MSG_SCAN_RESET,
-  MSG_SCAN_STARTED,
+  EMPTY_TAB_SNAPSHOT,
+  MSG_TAB_STATE_CHANGED,
   type BswToUiMessage,
   type CheckoutActivity,
+  type TabScanStatus,
   type TabSnapshot,
 } from '../shared/messages.js';
 import type { HealthScore, ScanResult } from '../shared/types.js';
@@ -57,6 +59,7 @@ interface TabState {
   /** The tab started loading a document: its state and any pending Scan are discarded. */
   navigated(tabId: number): Promise<void>;
   removed(tabId: number): Promise<void>;
+  /** Reads the tab's snapshot after its pending transitions. */
   read(tabId: number): Promise<TabSnapshot>;
 }
 
@@ -64,12 +67,14 @@ interface TabRuntime {
   readonly tabId: number;
   /** Incremented when the tab's page goes away, so a pending Scan can tell it is stale. */
   generation: number;
-  scanning: boolean;
+  scan: TabScanStatus;
   queue: Promise<unknown>;
 }
 
 type ScanOutcome = { readonly result: ScanResult } | { readonly error: unknown };
 
+const IDLE: TabScanStatus = { state: 'idle' };
+const RUNNING: TabScanStatus = { state: 'running' };
 const SCANNING_BADGE: TabBadge = { text: '…', color: STATUS_COLORS.warn };
 const ACTIVITY_BADGE: TabBadge = { text: '✓', color: STATUS_COLORS.pass };
 
@@ -95,8 +100,9 @@ function healthColor(tier: HealthScore['tier']): string {
   return STATUS_COLORS.fail;
 }
 
-/** A stored result decides the badge; without one, checkout activity does. */
-function badgeFor({ result, checkoutActivity }: TabSnapshot): TabBadge | null {
+/** A running Scan decides the badge, then a stored result, then checkout activity. */
+function badgeFor({ result, checkoutActivity, scan }: TabSnapshot): TabBadge | null {
+  if (scan.state === 'running') return SCANNING_BADGE;
   if (result !== null) {
     if (!result.sdkPresence.detected) return null;
     return { text: `${result.health.score}`, color: healthColor(result.health.tier) };
@@ -124,55 +130,59 @@ export function createTabState(browser: TabStateBrowser, scan: RunScan): TabStat
   function runtime(tabId: number): TabRuntime {
     let tab = tabs.get(tabId);
     if (tab === undefined) {
-      tab = { tabId, generation: 0, scanning: false, queue: Promise.resolve() };
+      tab = { tabId, generation: 0, scan: IDLE, queue: Promise.resolve() };
       tabs.set(tabId, tab);
     }
     return tab;
   }
 
-  async function read(tabId: number): Promise<TabSnapshot> {
-    const stored = await browser.read(tabKeys(tabId));
-    const result = stored[resultKey(tabId)];
+  async function snapshot(tab: TabRuntime): Promise<TabSnapshot> {
+    const stored = await browser.read(tabKeys(tab.tabId));
+    const result = stored[resultKey(tab.tabId)];
     return {
       result: isScanResult(result) ? result : null,
-      checkoutActivity: readActivity(stored, tabId),
+      checkoutActivity: readActivity(stored, tab.tabId),
+      scan: tab.scan,
     };
   }
 
-  async function refreshBadge(tab: TabRuntime): Promise<void> {
-    browser.setBadge(tab.tabId, tab.scanning ? SCANNING_BADGE : badgeFor(await read(tab.tabId)));
+  function show(tabId: number, current: TabSnapshot): void {
+    browser.setBadge(tabId, badgeFor(current));
+    browser.notify({ type: MSG_TAB_STATE_CHANGED, tabId, snapshot: current });
+  }
+
+  async function publish(tab: TabRuntime): Promise<void> {
+    show(tab.tabId, await snapshot(tab));
   }
 
   /** Forgets the tab's page: stored state goes, and any pending Scan becomes stale. */
   async function discardPage(tab: TabRuntime): Promise<void> {
     tab.generation += 1;
-    tab.scanning = false;
+    tab.scan = IDLE;
     await browser.remove(tabKeys(tab.tabId));
   }
 
   function startScan(tab: TabRuntime): Promise<number | null> {
-    return enqueue(tab, () => {
-      if (tab.scanning) return null;
-      tab.scanning = true;
-      browser.setBadge(tab.tabId, SCANNING_BADGE);
-      browser.notify({ type: MSG_SCAN_STARTED, tabId: tab.tabId });
+    return enqueue(tab, async () => {
+      if (tab.scan.state === 'running') return null;
+      tab.scan = RUNNING;
+      // The Scan must start even if storage cannot be read; its outcome publishes again.
+      await publish(tab).catch(() => {});
       return tab.generation;
     });
   }
 
   function finishScan(tab: TabRuntime, generation: number, outcome: ScanOutcome): Promise<void> {
-    const { tabId } = tab;
     return enqueue(tab, async () => {
       if (tab.generation !== generation) return;
-      tab.scanning = false;
       try {
         if ('error' in outcome) throw outcome.error;
-        await browser.write({ [resultKey(tabId)]: outcome.result });
-        browser.notify({ type: MSG_SCAN_COMPLETE, tabId, result: outcome.result });
+        await browser.write({ [resultKey(tab.tabId)]: outcome.result });
+        tab.scan = IDLE;
       } catch (error: unknown) {
-        browser.notify({ type: MSG_SCAN_ERROR, tabId, error: describeError(error) });
+        tab.scan = { state: 'failed', error: describeError(error) };
       }
-      await refreshBadge(tab);
+      await publish(tab);
     });
   }
 
@@ -184,7 +194,7 @@ export function createTabState(browser: TabStateBrowser, scan: RunScan): TabStat
           [activityKey(tabId)]: true,
           ...(version === undefined ? {} : { [versionKey(tabId)]: version }),
         });
-        await refreshBadge(tab);
+        await publish(tab);
       });
     },
 
@@ -192,7 +202,7 @@ export function createTabState(browser: TabStateBrowser, scan: RunScan): TabStat
       const tab = runtime(tabId);
       return enqueue(tab, async () => {
         await browser.remove([activityKey(tabId), versionKey(tabId)]);
-        await refreshBadge(tab);
+        await publish(tab);
       });
     },
 
@@ -213,8 +223,7 @@ export function createTabState(browser: TabStateBrowser, scan: RunScan): TabStat
         try {
           await discardPage(tab);
         } finally {
-          browser.setBadge(tabId, null);
-          browser.notify({ type: MSG_SCAN_RESET, tabId });
+          show(tabId, EMPTY_TAB_SNAPSHOT);
         }
       });
     },
@@ -225,6 +234,9 @@ export function createTabState(browser: TabStateBrowser, scan: RunScan): TabStat
       await enqueue(tab, () => discardPage(tab));
     },
 
-    read,
+    read(tabId): Promise<TabSnapshot> {
+      const tab = runtime(tabId);
+      return enqueue(tab, () => snapshot(tab));
+    },
   };
 }

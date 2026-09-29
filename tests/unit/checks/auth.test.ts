@@ -6,6 +6,7 @@ import {
   makeCheckoutPage,
   makeCheckoutConfig,
   makeRequest,
+  makeCapturedConfig,
 } from '../../fixtures/makeScanPayload';
 import { requireCheck } from './requireCheck';
 
@@ -32,7 +33,7 @@ describe('auth-client-key', () => {
   it('skips (no client key) when no client key is configured', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
-        checkoutConfig: makeCheckoutConfig({ clientKey: undefined }),
+        capturedConfig: makeCapturedConfig(makeCheckoutConfig({ clientKey: undefined })),
       }),
     });
     expect(authClientKey.run(payload).severity).toBe('skip');
@@ -59,14 +60,14 @@ describe('auth-country-code', () => {
 
   it('does not fail when country code is missing from partial config', () => {
     const payload = makeScanPayload({
-      page: makeCheckoutPage({ checkoutConfig: { clientKey: 'test_X' } }),
+      page: makeCheckoutPage({ capturedConfig: makeCapturedConfig({ clientKey: 'test_X' }) }),
     });
     expect(authCountryCode.run(payload).severity).toBe('notice');
   });
 
   it('skips when no checkout config present', () => {
     const payload = makeScanPayload({
-      page: makeCheckoutPage({ checkoutConfig: null }),
+      page: makeCheckoutPage({ capturedConfig: null }),
     });
     expect(authCountryCode.run(payload).severity).toBe('skip');
   });
@@ -74,7 +75,7 @@ describe('auth-country-code', () => {
   it('skips when country code is missing and only inferred config is present', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
-        checkoutConfig: null,
+        capturedConfig: null,
         inferredConfig: makeCheckoutConfig({ countryCode: undefined }),
       }),
     });
@@ -91,7 +92,7 @@ describe('auth-country-code', () => {
   it('returns notice when country code is found only in inferred config', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
-        checkoutConfig: null,
+        capturedConfig: null,
         inferredConfig: makeCheckoutConfig({ countryCode: 'IN' }),
       }),
     });
@@ -126,14 +127,14 @@ describe('auth-locale', () => {
 
   it('does not warn when locale is missing from partial config', () => {
     const payload = makeScanPayload({
-      page: makeCheckoutPage({ checkoutConfig: { clientKey: 'test_X' } }),
+      page: makeCheckoutPage({ capturedConfig: makeCapturedConfig({ clientKey: 'test_X' }) }),
     });
     expect(authLocale.run(payload).severity).toBe('notice');
   });
 
   it('skips when no checkout config present', () => {
     const payload = makeScanPayload({
-      page: makeCheckoutPage({ checkoutConfig: null }),
+      page: makeCheckoutPage({ capturedConfig: null }),
     });
     expect(authLocale.run(payload).severity).toBe('skip');
   });
@@ -141,7 +142,7 @@ describe('auth-locale', () => {
   it('skips when locale is missing and only inferred config is present', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
-        checkoutConfig: null,
+        capturedConfig: null,
         inferredConfig: makeCheckoutConfig({ locale: undefined }),
       }),
     });
@@ -151,7 +152,7 @@ describe('auth-locale', () => {
   it('returns notice when locale is set only in inferred config', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
-        checkoutConfig: null,
+        capturedConfig: null,
         inferredConfig: makeCheckoutConfig({ locale: 'en-US' }),
       }),
     });
@@ -161,7 +162,7 @@ describe('auth-locale', () => {
   it('falls back to a component locale when captured locale is empty', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
-        checkoutConfig: { locale: '' },
+        capturedConfig: makeCapturedConfig({ locale: '' }),
         componentConfig: { locale: 'nl-NL' },
       }),
     });

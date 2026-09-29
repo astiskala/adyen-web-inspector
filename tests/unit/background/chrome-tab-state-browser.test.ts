@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { chromeTabStateBrowser } from '../../../src/background/chrome-tab-state-browser';
+import { EMPTY_TAB_SNAPSHOT } from '../../../src/shared/messages';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -53,8 +54,13 @@ describe('chromeTabStateBrowser', () => {
   it('notifies open views and tolerates having none', () => {
     const { sendMessage } = stubChrome();
 
-    chromeTabStateBrowser.notify({ type: 'SCAN_RESET', tabId: 1 });
+    const message = {
+      type: 'TAB_STATE_CHANGED',
+      tabId: 1,
+      snapshot: EMPTY_TAB_SNAPSHOT,
+    } as const;
+    chromeTabStateBrowser.notify(message);
 
-    expect(sendMessage).toHaveBeenCalledWith({ type: 'SCAN_RESET', tabId: 1 });
+    expect(sendMessage).toHaveBeenCalledWith(message);
   });
 });

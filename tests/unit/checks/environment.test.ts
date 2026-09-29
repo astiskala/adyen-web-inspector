@@ -6,6 +6,7 @@ import {
   makeCheckoutPage,
   makeRequest,
   makeCheckoutConfig,
+  makeCapturedConfig,
 } from '../../fixtures/makeScanPayload';
 import { requireCheck } from './requireCheck';
 
@@ -52,7 +53,7 @@ describe('env-cdn-mismatch', () => {
 
   it('skips when CDN env is detected but no configured environment', () => {
     const payload = makeScanPayload({
-      page: makeCheckoutPage({ checkoutConfig: null }),
+      page: makeCheckoutPage({ capturedConfig: null }),
       capturedRequests: [
         makeRequest('https://checkoutshopper-live.cdn.adyen.com/checkoutshopper/sdk.js'),
       ],
@@ -200,7 +201,9 @@ describe('env-not-iframe', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
         checkoutInIframe: true,
-        checkoutConfig: makeCheckoutConfig({ redirectFromTopWhenInIframe: true }),
+        capturedConfig: makeCapturedConfig(
+          makeCheckoutConfig({ redirectFromTopWhenInIframe: true })
+        ),
       }),
     });
     const result = envNotIframe.run(payload);
@@ -212,7 +215,9 @@ describe('env-not-iframe', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
         checkoutInIframe: true,
-        checkoutConfig: makeCheckoutConfig({ redirectFromTopWhenInIframe: false }),
+        capturedConfig: makeCapturedConfig(
+          makeCheckoutConfig({ redirectFromTopWhenInIframe: false })
+        ),
       }),
     });
     expect(envNotIframe.run(payload).severity).toBe('warn');

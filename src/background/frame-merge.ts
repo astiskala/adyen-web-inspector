@@ -5,9 +5,17 @@
  */
 
 import { mergeCheckoutConfigs } from '../shared/checkout-config-schema.js';
-import { hasAdyenScriptHint } from '../shared/sdk-presence.js';
-import type { CheckoutConfig, CheckoutPage, PageExtractResult } from '../shared/types.js';
-import { extractHostname, isAdyenHost } from '../shared/utils.js';
+import {
+  checkoutStrength,
+  isMerchantDocument,
+  rendersCheckout,
+} from '../shared/checkout-signals.js';
+import type {
+  CapturedCheckoutOptions,
+  CheckoutConfig,
+  CheckoutPage,
+  PageExtractResult,
+} from '../shared/types.js';
 import type { FrameExtraction } from './scan-browser.js';
 
 const TOP_FRAME_ID = 0;
@@ -21,9 +29,9 @@ type FieldScope =
  */
 const FIELD_SCOPE = {
   adyenMetadata: 'selected-or-first',
-  checkoutConfig: 'all-frames',
-  checkoutConfigComplete: 'all-frames',
+  capturedConfig: 'all-frames',
   inferredConfig: 'all-frames',
+  pageJsonConfig: 'all-frames',
   componentConfig: 'all-frames',
   componentMountCount: 'selected',
   hasDropinDOM: 'selected-or-merchant',
@@ -46,7 +54,7 @@ type ScopedField<S extends FieldScope> = {
   [K in keyof typeof FIELD_SCOPE]: (typeof FIELD_SCOPE)[K] extends S ? K : never;
 }[keyof typeof FIELD_SCOPE];
 
-type ConfigSlot = 'checkoutConfig' | 'componentConfig' | 'inferredConfig';
+type ConfigSlot = 'componentConfig' | 'inferredConfig' | 'pageJsonConfig';
 
 interface ExtractedFrame {
   readonly frameId: number;
@@ -62,26 +70,16 @@ function fieldsWithScope<S extends FieldScope>(scope: S): ScopedField<S>[] {
 const SELECTED_FIELDS = fieldsWithScope('selected');
 const MERCHANT_FLAGS = fieldsWithScope('selected-or-merchant');
 
-function frameScore(result: PageExtractResult): number {
-  let score = 0;
-  if (result.checkoutConfig !== null) score += 100;
-  if (result.componentConfig !== null) score += 90;
-  if (result.hasDropinDOM === true) score += 60;
-  if (result.adyenMetadata !== null) score += 40;
-  if (hasAdyenScriptHint(result)) score += 20;
-  if (result.iframes.some((frame) => frame.name?.startsWith('adyen-') === true)) {
-    score += 10;
-  }
-  return score;
-}
-
 /** Picks the frame with the strongest checkout signals; the top frame wins ties. */
 function selectFrame(first: ExtractedFrame, rest: readonly ExtractedFrame[]): ExtractedFrame {
   let selected = first;
   for (const frame of rest) {
-    const selectedScore = frameScore(selected.result);
-    const score = frameScore(frame.result);
-    if (score > selectedScore || (score === selectedScore && frame.frameId === TOP_FRAME_ID)) {
+    const selectedStrength = checkoutStrength(selected.result);
+    const strength = checkoutStrength(frame.result);
+    if (
+      strength > selectedStrength ||
+      (strength === selectedStrength && frame.frameId === TOP_FRAME_ID)
+    ) {
       selected = frame;
     }
   }
@@ -89,17 +87,7 @@ function selectFrame(first: ExtractedFrame, rest: readonly ExtractedFrame[]): Ex
 }
 
 function isMerchantFrame(frame: ExtractedFrame): boolean {
-  const host = extractHostname(frame.result.pageUrl);
-  return host === null || !isAdyenHost(host);
-}
-
-function hasCheckout(result: PageExtractResult): boolean {
-  return (
-    result.checkoutConfigComplete === true ||
-    result.hasDropinDOM === true ||
-    result.hasCardDOM === true ||
-    (result.componentMountCount ?? 0) > 0
-  );
+  return isMerchantDocument(frame.result.pageUrl);
 }
 
 function readSelectedFields(
@@ -115,6 +103,15 @@ function mergeSlot(frames: readonly PageExtractResult[], slot: ConfigSlot): Chec
   return mergeCheckoutConfigs(
     frames.map((frame) => frame[slot]).filter((config) => config !== null)
   );
+}
+
+/** Merges captured options across frames; the capture is complete when any frame's is. */
+function mergeCaptured(frames: readonly PageExtractResult[]): CapturedCheckoutOptions | null {
+  const captures = frames.map((frame) => frame.capturedConfig).filter((c) => c !== null);
+  const options = mergeCheckoutConfigs(captures.map((capture) => capture.options));
+  return options === null
+    ? null
+    : { options, complete: captures.some((capture) => capture.complete) };
 }
 
 function mergeMerchantFlags(
@@ -134,7 +131,7 @@ function mergeMerchantFlags(
  * Merges frame extractions into the Checkout page, or returns null when no
  * frame produced a result. Configuration merges across all frames with earlier
  * frames winning per field; absence is provable when any frame captured
- * AdyenCheckout options directly.
+ * AdyenCheckout options whole.
  */
 export function mergeFrames(frames: readonly FrameExtraction[]): CheckoutPage | null {
   const extracted = frames.filter((frame): frame is ExtractedFrame => frame.result !== null);
@@ -144,11 +141,8 @@ export function mergeFrames(frames: readonly FrameExtraction[]): CheckoutPage | 
   const selected = selectFrame(first, rest);
   const results = extracted.map((frame) => frame.result);
   const merchantFrames = extracted.filter(isMerchantFrame);
-  const configComplete = results.some(
-    (result) => result.checkoutConfigComplete === true && result.checkoutConfig !== null
-  );
   const checkoutInChildFrame = merchantFrames.some(
-    (frame) => frame.frameId !== TOP_FRAME_ID && hasCheckout(frame.result)
+    (frame) => frame.frameId !== TOP_FRAME_ID && rendersCheckout(frame.result)
   );
 
   return {
@@ -157,10 +151,10 @@ export function mergeFrames(frames: readonly FrameExtraction[]): CheckoutPage | 
       selected.result.adyenMetadata ??
       results.find((result) => result.adyenMetadata !== null)?.adyenMetadata ??
       null,
-    checkoutConfig: mergeSlot(results, 'checkoutConfig'),
+    capturedConfig: mergeCaptured(results),
     componentConfig: mergeSlot(results, 'componentConfig'),
     inferredConfig: mergeSlot(results, 'inferredConfig'),
-    ...(configComplete ? { checkoutConfigComplete: true } : {}),
+    pageJsonConfig: mergeSlot(results, 'pageJsonConfig'),
     ...mergeMerchantFlags(
       selected.result,
       merchantFrames.map((frame) => frame.result)

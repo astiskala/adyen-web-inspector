@@ -4,8 +4,8 @@
  * mounted or in use.
  */
 
+import { isAdyenCheckoutResource } from './adyen-endpoint.js';
 import type { PageExtractResult, SdkPresence } from './types.js';
-import { isAdyenCheckoutResource } from './utils.js';
 
 type PresenceEvidence = Pick<PageExtractResult, 'adyenMetadata' | 'scripts'>;
 

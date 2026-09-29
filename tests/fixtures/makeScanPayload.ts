@@ -2,6 +2,8 @@ import { readImplementationAttributes } from '../../src/shared/implementation-at
 import type {
   ScanPayload,
   PageExtractResult,
+  CapturedCheckoutOptions,
+  DocumentHeaders,
   CheckoutConfig,
   CheckoutPage,
   AdyenWebMetadata,
@@ -15,8 +17,9 @@ type VersionInfo = ScanPayload['versionInfo'];
 
 const EMPTY_PAGE = {
   adyenMetadata: null,
-  checkoutConfig: null,
+  capturedConfig: null,
   inferredConfig: null,
+  pageJsonConfig: null,
   componentConfig: null,
   scripts: [],
   links: [],
@@ -71,6 +74,18 @@ export function makeCheckoutConfig(overrides: CheckoutConfigOverrides = {}): Che
 }
 
 /**
+ * Wraps options as captured from AdyenCheckout or component calls. Pass
+ * `complete` when AdyenCheckout's options were captured whole, so options
+ * missing from them count as absent.
+ */
+export function makeCapturedConfig(
+  options: CheckoutConfig,
+  complete = false
+): CapturedCheckoutOptions {
+  return { options, complete };
+}
+
+/**
  * Creates detected/latest version info for scan fixtures.
  */
 export function makeVersionInfo(overrides: Partial<VersionInfo> = {}): VersionInfo {
@@ -94,6 +109,17 @@ export function makeAnalyticsData(overrides: Partial<AnalyticsData> = {}): Analy
   };
 }
 
+/** Checkout document headers the scan could not observe. */
+export const UNAVAILABLE_DOCUMENT_HEADERS: DocumentHeaders = { status: 'unavailable' };
+
+/** Checkout document headers captured from the tab's own response. */
+export function makeDocumentHeaders(
+  headers: readonly CapturedHeader[] = [],
+  url = 'https://example.com/checkout'
+): DocumentHeaders {
+  return { status: 'observed', url, source: 'captured', headers };
+}
+
 /**
  * Creates a complete scan payload fixture with optional overrides.
  */
@@ -102,8 +128,7 @@ export function makeScanPayload(overrides: Partial<ScanPayload> = {}): ScanPaylo
     tabId: 1,
     pageUrl: 'https://example.com/checkout',
     page: makeCheckoutPage(),
-    mainDocumentHeaders: [],
-    mainDocumentHeadersAvailable: true,
+    documentHeaders: makeDocumentHeaders(),
     capturedRequests: [],
     versionInfo: makeVersionInfo(),
     analyticsData: null,
@@ -142,8 +167,7 @@ export function makeAdyenPayload(
   return makeScanPayload({
     page: makeCheckoutPage({
       adyenMetadata: makeAdyenMetadata(metaOverrides),
-      checkoutConfig: makeCheckoutConfig(configOverrides),
-      checkoutConfigComplete: true,
+      capturedConfig: makeCapturedConfig(makeCheckoutConfig(configOverrides), true),
     }),
     ...payloadOverrides,
   });

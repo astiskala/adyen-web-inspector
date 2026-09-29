@@ -1,14 +1,11 @@
 /**
  * Browser port for the Scan. The Chrome adapter drives a real tab; tests use
  * an in-memory adapter so scan sequencing can be verified without a browser.
+ * The port is I/O only: it reports what the browser observed, and the Scan
+ * decides what it means.
  */
 
-import type {
-  AnalyticsData,
-  CapturedHeader,
-  CapturedRequest,
-  PageExtractResult,
-} from '../shared/types.js';
+import type { CapturedHeader, PageExtractResult } from '../shared/types.js';
 
 /** One frame's page extraction; null when the frame produced no result. */
 export interface FrameExtraction {
@@ -16,17 +13,32 @@ export interface FrameExtraction {
   readonly result: PageExtractResult | null;
 }
 
-/** Network observations collected while a scan runs. */
-export interface CollectedNetwork {
-  readonly mainDocumentHeaders: CapturedHeader[];
-  readonly capturedRequests: CapturedRequest[];
-  readonly analyticsData: AnalyticsData | null;
+/** A response the tab received while the Scan observed its network. */
+export interface ObservedResponse {
+  readonly url: string;
+  /** The browser's resource type, such as main_frame, sub_frame, script, or xmlhttprequest. */
+  readonly type: string;
+  readonly statusCode: number;
+  readonly headers: readonly CapturedHeader[];
+}
+
+/** A request body the tab posted to an Adyen checkout analytics host. */
+export interface ObservedPost {
+  readonly url: string;
+  /** The body decoded as text. */
+  readonly body: string;
+}
+
+/** Network traffic observed while a scan runs, as the browser reported it. */
+export interface ObservedNetwork {
+  readonly responses: readonly ObservedResponse[];
+  readonly posts: readonly ObservedPost[];
 }
 
 /** An active network capture for one tab. */
 export interface NetworkCapture {
   /** Stops capturing and returns the observations; safe to call more than once. */
-  stop(): CollectedNetwork;
+  stop(): ObservedNetwork;
 }
 
 /** Latest published adyen-web release information. */
@@ -44,7 +56,7 @@ export interface ScanBrowser {
   extractFrames(tabId: number): Promise<readonly FrameExtraction[]>;
   /** Starts observing the tab's network traffic. */
   captureNetwork(tabId: number): NetworkCapture;
-  /** Fetches the checkout document's response headers; resolves empty on failure. */
+  /** Fetches a document's response headers; resolves empty on failure. */
   fetchDocumentHeaders(url: string): Promise<CapturedHeader[]>;
   /** Fetches a script's text without credentials; resolves null on failure. */
   fetchScriptText(url: string): Promise<string | null>;

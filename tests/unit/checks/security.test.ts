@@ -8,6 +8,8 @@ import {
   makeCheckoutConfig,
   makeAdyenMetadata,
   makeRequest,
+  makeCapturedConfig,
+  makeDocumentHeaders,
 } from '../../fixtures/makeScanPayload';
 import { requireCheck } from './requireCheck';
 
@@ -34,7 +36,9 @@ describe('Security Checks', () => {
       const page = makeCheckoutPage({
         pageProtocol: 'http:',
         pageUrl: 'http://example.com',
-        checkoutConfig: makeCheckoutConfig({ clientKey: 'live_XXXX', environment: 'live' }),
+        capturedConfig: makeCapturedConfig(
+          makeCheckoutConfig({ clientKey: 'live_XXXX', environment: 'live' })
+        ),
         adyenMetadata: makeAdyenMetadata(),
       });
       expect(securityHttps.run(makeScanPayload({ page })).severity).toBe('fail');
@@ -43,7 +47,9 @@ describe('Security Checks', () => {
     it('fails when India live environment is served over http', () => {
       const page = makeCheckoutPage({
         pageProtocol: 'http:',
-        checkoutConfig: makeCheckoutConfig({ environment: 'live-in', clientKey: 'live_XXXX' }),
+        capturedConfig: makeCapturedConfig(
+          makeCheckoutConfig({ environment: 'live-in', clientKey: 'live_XXXX' })
+        ),
       });
       expect(securityHttps.run(makeScanPayload({ page })).severity).toBe('fail');
     });
@@ -182,13 +188,15 @@ describe('Security Checks', () => {
   describe('Referrer-Policy', () => {
     it('passes when strict policy is set', () => {
       const payload = makeScanPayload({
-        mainDocumentHeaders: [makeHeader('referrer-policy', 'strict-origin-when-cross-origin')],
+        documentHeaders: makeDocumentHeaders([
+          makeHeader('referrer-policy', 'strict-origin-when-cross-origin'),
+        ]),
       });
       expect(referrerPolicy.run(payload).severity).toBe('pass');
     });
 
     it('returns notice when header is missing', () => {
-      const payload = makeScanPayload({ mainDocumentHeaders: [] });
+      const payload = makeScanPayload({ documentHeaders: makeDocumentHeaders([]) });
       const result = referrerPolicy.run(payload);
       expect(result.severity).toBe('notice');
       expect(result.detail).toContain('referrer policy');
@@ -196,7 +204,7 @@ describe('Security Checks', () => {
 
     it('passes when same-origin is set', () => {
       const payload = makeScanPayload({
-        mainDocumentHeaders: [makeHeader('Referrer-Policy', 'same-origin')],
+        documentHeaders: makeDocumentHeaders([makeHeader('Referrer-Policy', 'same-origin')]),
       });
       expect(referrerPolicy.run(payload).severity).toBe('pass');
     });
@@ -205,14 +213,14 @@ describe('Security Checks', () => {
   describe('X-Content-Type-Options', () => {
     it('passes when nosniff is set', () => {
       const payload = makeScanPayload({
-        mainDocumentHeaders: [makeHeader('x-content-type-options', 'nosniff')],
+        documentHeaders: makeDocumentHeaders([makeHeader('x-content-type-options', 'nosniff')]),
       });
       expect(xContentType.run(payload).severity).toBe('pass');
     });
 
     it('returns notice with impact detail when nosniff is missing', () => {
       const payload = makeScanPayload({
-        mainDocumentHeaders: [],
+        documentHeaders: makeDocumentHeaders([]),
       });
       const result = xContentType.run(payload);
       expect(result.severity).toBe('notice');
@@ -238,7 +246,9 @@ describe('Security Checks', () => {
         {},
         { clientKey: 'live_XXXX', environment: 'live' },
         {
-          mainDocumentHeaders: [makeHeader('strict-transport-security', 'max-age=31536000')],
+          documentHeaders: makeDocumentHeaders([
+            makeHeader('strict-transport-security', 'max-age=31536000'),
+          ]),
         }
       );
       expect(hsts.run(payload).severity).toBe('pass');
@@ -253,7 +263,11 @@ describe('Security Checks', () => {
       const payload = makeAdyenPayload(
         {},
         { clientKey: 'live_XXXX', environment: 'live-in' },
-        { mainDocumentHeaders: [makeHeader('strict-transport-security', 'max-age=31536000')] }
+        {
+          documentHeaders: makeDocumentHeaders([
+            makeHeader('strict-transport-security', 'max-age=31536000'),
+          ]),
+        }
       );
       expect(hsts.run(payload).severity).toBe('pass');
     });
@@ -262,14 +276,14 @@ describe('Security Checks', () => {
   describe('X-XSS-Protection', () => {
     it('passes when header is disabled', () => {
       const payload = makeScanPayload({
-        mainDocumentHeaders: [makeHeader('x-xss-protection', '0')],
+        documentHeaders: makeDocumentHeaders([makeHeader('x-xss-protection', '0')]),
       });
       expect(xssProtection.run(payload).severity).toBe('pass');
     });
 
     it('returns notice when header is enabled', () => {
       const payload = makeScanPayload({
-        mainDocumentHeaders: [makeHeader('x-xss-protection', '1; mode=block')],
+        documentHeaders: makeDocumentHeaders([makeHeader('x-xss-protection', '1; mode=block')]),
       });
       const result = xssProtection.run(payload);
       expect(result.severity).toBe('notice');

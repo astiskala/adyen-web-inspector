@@ -3,14 +3,10 @@
  * and locale.
  */
 
-import {
-  ADYEN_ANALYTICS_DOMAINS,
-  ADYEN_CHECKOUTSHOPPER_DOMAINS,
-  ADYEN_WEB_TRANSLATION_LOCALES,
-  ORIGIN_KEY_PREFIX,
-} from '../../shared/constants.js';
+import { readAdyenEndpoint } from '../../shared/adyen-endpoint.js';
+import { ADYEN_WEB_TRANSLATION_LOCALES, ORIGIN_KEY_PREFIX } from '../../shared/constants.js';
 import { readCheckoutField } from '../../shared/scan-evidence.js';
-import { extractHostname } from '../../shared/utils.js';
+import type { InferenceSignal } from '../../shared/types.js';
 import { SKIP_REASONS } from './constants.js';
 import { createRegistry } from './registry.js';
 
@@ -73,11 +69,18 @@ const CATEGORY = 'auth' as const;
 const SUPPORTED_LOCALES = new Set<string>(
   ADYEN_WEB_TRANSLATION_LOCALES.map((l) => l.toLowerCase())
 );
-const CLIENT_KEY_AUTHENTICATED_HOSTS = new Set<string>([
-  ...ADYEN_CHECKOUTSHOPPER_DOMAINS,
-  ...ADYEN_ANALYTICS_DOMAINS,
-]);
 const REJECTED_STATUS_CODES = new Set([401, 403]);
+
+/** Checkoutshopper and analytics endpoints authenticate the browser with the client key. */
+function isClientKeyAuthenticated(url: string): boolean {
+  const role = readAdyenEndpoint(url)?.role;
+  return role === 'checkoutshopper' || role === 'analytics';
+}
+
+/** Where an inferred value was observed, for notice wording. */
+function inferredFrom(signal: InferenceSignal | undefined): string {
+  return signal === 'page-json' ? 'in JSON the page parsed' : 'in an Adyen request';
+}
 
 // Paths and query strings can contain the client key, so only the origin is reported.
 function describeRejectedRequests(
@@ -110,10 +113,9 @@ export const AUTH_CHECKS = createRegistry(CATEGORY)
     return pass(STRINGS.CLIENT_KEY_PASS_TITLE);
   })
   .add('auth-client-key-rejected', (payload, { pass, fail, skip }) => {
-    const responses = payload.capturedRequests.filter((request) => {
-      const host = extractHostname(request.url);
-      return host !== null && CLIENT_KEY_AUTHENTICATED_HOSTS.has(host) && request.statusCode > 0;
-    });
+    const responses = payload.capturedRequests.filter(
+      (request) => request.statusCode > 0 && isClientKeyAuthenticated(request.url)
+    );
     if (responses.length === 0) {
       return skip(STRINGS.KEY_REJECTED_SKIP_TITLE, STRINGS.KEY_REJECTED_SKIP_REASON);
     }
@@ -134,7 +136,7 @@ export const AUTH_CHECKS = createRegistry(CATEGORY)
       if (countryCode.source === 'inferred') {
         return notice(
           STRINGS.COUNTRY_CODE_PARTIAL_NOTICE_TITLE,
-          `countryCode "${countryCode.value}" was observed in an Adyen request, but its presence in checkout configuration could not be verified.`
+          `countryCode "${countryCode.value}" was observed ${inferredFrom(countryCode.signal)}, but its presence in checkout configuration could not be verified.`
         );
       }
       return pass(STRINGS.COUNTRY_CODE_PASS_TITLE);
@@ -173,7 +175,7 @@ export const AUTH_CHECKS = createRegistry(CATEGORY)
       if (evidence.source === 'inferred') {
         return notice(
           STRINGS.LOCALE_PARTIAL_NOTICE_TITLE,
-          `locale "${locale}" was observed in an Adyen request, but its presence in checkout configuration could not be verified.`
+          `locale "${locale}" was observed ${inferredFrom(evidence.signal)}, but its presence in checkout configuration could not be verified.`
         );
       }
       if (!SUPPORTED_LOCALES.has(locale.toLowerCase())) {

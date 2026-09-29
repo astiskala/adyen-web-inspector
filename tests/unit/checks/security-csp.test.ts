@@ -6,6 +6,9 @@ import {
   makeScanPayload,
   makeHeader,
   makeCheckoutPage,
+  makeCapturedConfig,
+  makeDocumentHeaders,
+  UNAVAILABLE_DOCUMENT_HEADERS,
 } from '../../fixtures/makeScanPayload';
 import { requireCheck } from './requireCheck';
 
@@ -21,18 +24,18 @@ const cspReporting = requireCheck(CSP_CHECKS, 'security-csp-reporting');
 describe('csp-present', () => {
   it('passes when CSP header is present', () => {
     const payload = makeScanPayload({
-      mainDocumentHeaders: [
+      documentHeaders: makeDocumentHeaders([
         makeHeader(
           'content-security-policy',
           "default-src 'self'; script-src 'self' https://checkoutshopper-test.adyen.com"
         ),
-      ],
+      ]),
     });
     expect(cspPresent.run(payload).severity).toBe('pass');
   });
 
   it('warns when no CSP header', () => {
-    const payload = makeScanPayload({ mainDocumentHeaders: [] });
+    const payload = makeScanPayload({ documentHeaders: makeDocumentHeaders([]) });
     const result = cspPresent.run(payload);
     expect(result.severity).toBe('warn');
     expect(result.detail).toContain('PCI compliance');
@@ -40,8 +43,7 @@ describe('csp-present', () => {
 
   it('skips CSP checks when response headers could not be captured', () => {
     const payload = makeScanPayload({
-      mainDocumentHeaders: [],
-      mainDocumentHeadersAvailable: false,
+      documentHeaders: UNAVAILABLE_DOCUMENT_HEADERS,
     });
     expect(cspPresent.run(payload).severity).toBe('skip');
     expect(cspScriptSrc.run(payload).severity).toBe('skip');
@@ -58,12 +60,12 @@ describe('csp-script-src', () => {
   it('passes when Adyen CDN is in script-src', () => {
     const payload = makeScanPayload({
       page,
-      mainDocumentHeaders: [
+      documentHeaders: makeDocumentHeaders([
         makeHeader(
           'content-security-policy',
           "script-src 'self' https://checkoutshopper-test.adyen.com"
         ),
-      ],
+      ]),
     });
     expect(cspScriptSrc.run(payload).severity).toBe('pass');
   });
@@ -71,12 +73,12 @@ describe('csp-script-src', () => {
   it('passes when Adyen CDN is in default-src', () => {
     const payload = makeScanPayload({
       page,
-      mainDocumentHeaders: [
+      documentHeaders: makeDocumentHeaders([
         makeHeader(
           'content-security-policy',
           "default-src 'self' https://checkoutshopper-test.adyen.com"
         ),
-      ],
+      ]),
     });
     expect(cspScriptSrc.run(payload).severity).toBe('pass');
   });
@@ -84,7 +86,9 @@ describe('csp-script-src', () => {
   it('warns when Adyen CDN is missing from script-src', () => {
     const payload = makeScanPayload({
       page,
-      mainDocumentHeaders: [makeHeader('content-security-policy', "default-src 'self'")],
+      documentHeaders: makeDocumentHeaders([
+        makeHeader('content-security-policy', "default-src 'self'"),
+      ]),
     });
     const result = cspScriptSrc.run(payload);
     expect(result.severity).toBe('warn');
@@ -94,15 +98,15 @@ describe('csp-script-src', () => {
   it('warns when script-src contains lookalike domains but not Adyen', () => {
     const payload = makeScanPayload({
       page,
-      mainDocumentHeaders: [
+      documentHeaders: makeDocumentHeaders([
         makeHeader('content-security-policy', "script-src 'self' https://notadyen.com"),
-      ],
+      ]),
     });
     expect(cspScriptSrc.run(payload).severity).toBe('warn');
   });
 
   it('returns skip when no CSP present', () => {
-    const payload = makeScanPayload({ mainDocumentHeaders: [] });
+    const payload = makeScanPayload({ documentHeaders: makeDocumentHeaders([]) });
     expect(cspScriptSrc.run(payload).severity).toBe('skip');
   });
 
@@ -111,9 +115,9 @@ describe('csp-script-src', () => {
       page: makeCheckoutPage({
         scripts: [{ src: 'https://checkoutshopper-test.adyen.com/checkoutshopper/sdk.js' }],
       }),
-      mainDocumentHeaders: [
+      documentHeaders: makeDocumentHeaders([
         makeHeader('content-security-policy', "default-src https:; script-src 'self'"),
-      ],
+      ]),
     });
     expect(cspScriptSrc.run(payload).severity).toBe('warn');
   });
@@ -123,10 +127,10 @@ describe('csp-script-src', () => {
       page: makeCheckoutPage({
         scripts: [{ src: 'https://checkoutshopper-test.adyen.com/checkoutshopper/sdk.js' }],
       }),
-      mainDocumentHeaders: [
+      documentHeaders: makeDocumentHeaders([
         makeHeader('content-security-policy', 'script-src https://*.adyen.com'),
         makeHeader('content-security-policy', "script-src 'self'"),
-      ],
+      ]),
     });
     expect(cspScriptSrc.run(payload).severity).toBe('warn');
   });
@@ -134,9 +138,9 @@ describe('csp-script-src', () => {
   it('requires all policies in a combined CSP header to allow the script', () => {
     const payload = makeScanPayload({
       page,
-      mainDocumentHeaders: [
+      documentHeaders: makeDocumentHeaders([
         makeHeader('content-security-policy', "script-src https://*.adyen.com, script-src 'self'"),
-      ],
+      ]),
     });
     expect(cspScriptSrc.run(payload).severity).toBe('warn');
   });
@@ -147,7 +151,9 @@ describe('csp-script-src', () => {
         adyenMetadata: { version: '6.31.0' },
         scripts: [{ src: 'https://merchant.example/app.js' }],
       }),
-      mainDocumentHeaders: [makeHeader('content-security-policy', "script-src 'self'")],
+      documentHeaders: makeDocumentHeaders([
+        makeHeader('content-security-policy', "script-src 'self'"),
+      ]),
     });
     expect(cspScriptSrc.run(payload).severity).toBe('skip');
   });
@@ -156,23 +162,25 @@ describe('csp-script-src', () => {
 describe('csp-frame-src', () => {
   it('passes when frame-src wildcard is configured', () => {
     const payload = makeScanPayload({
-      mainDocumentHeaders: [makeHeader('content-security-policy', 'frame-src *')],
+      documentHeaders: makeDocumentHeaders([makeHeader('content-security-policy', 'frame-src *')]),
     });
     expect(cspFrameSrc.run(payload).severity).toBe('pass');
   });
 
   it('passes when frame-src allows all HTTPS origins', () => {
     const payload = makeScanPayload({
-      mainDocumentHeaders: [makeHeader('content-security-policy', 'frame-src https:')],
+      documentHeaders: makeDocumentHeaders([
+        makeHeader('content-security-policy', 'frame-src https:'),
+      ]),
     });
     expect(cspFrameSrc.run(payload).severity).toBe('pass');
   });
 
   it('warns when frame-src is restrictive', () => {
     const payload = makeScanPayload({
-      mainDocumentHeaders: [
+      documentHeaders: makeDocumentHeaders([
         makeHeader('content-security-policy', "frame-src 'self' https://*.adyen.com"),
-      ],
+      ]),
     });
     const result = cspFrameSrc.run(payload);
     expect(result.severity).toBe('warn');
@@ -181,9 +189,9 @@ describe('csp-frame-src', () => {
 
   it('warns that a restrictive inherited default-src blocks issuer iframes', () => {
     const payload = makeScanPayload({
-      mainDocumentHeaders: [
+      documentHeaders: makeDocumentHeaders([
         makeHeader('content-security-policy', "default-src 'self' https://*.adyen.com"),
-      ],
+      ]),
     });
     const result = cspFrameSrc.run(payload);
     expect(result.severity).toBe('warn');
@@ -193,7 +201,9 @@ describe('csp-frame-src', () => {
 
   it('warns that frame-src is not explicit when default-src allows HTTPS', () => {
     const payload = makeScanPayload({
-      mainDocumentHeaders: [makeHeader('content-security-policy', 'default-src https:')],
+      documentHeaders: makeDocumentHeaders([
+        makeHeader('content-security-policy', 'default-src https:'),
+      ]),
     });
     const result = cspFrameSrc.run(payload);
     expect(result.severity).toBe('warn');
@@ -202,27 +212,29 @@ describe('csp-frame-src', () => {
 
   it('warns that frame-src is not explicit when the policy has no fetch fallback', () => {
     const payload = makeScanPayload({
-      mainDocumentHeaders: [makeHeader('content-security-policy', "script-src 'self'")],
+      documentHeaders: makeDocumentHeaders([
+        makeHeader('content-security-policy', "script-src 'self'"),
+      ]),
     });
     expect(cspFrameSrc.run(payload).title).toBe('CSP frame-src/child-src is not explicitly set.');
   });
 
   it('passes when child-src allows HTTPS iframes', () => {
     const payload = makeScanPayload({
-      mainDocumentHeaders: [
+      documentHeaders: makeDocumentHeaders([
         makeHeader('content-security-policy', "default-src 'self'; child-src https:"),
-      ],
+      ]),
     });
     expect(cspFrameSrc.run(payload).severity).toBe('pass');
   });
 
   it('returns skip when no CSP present', () => {
-    const payload = makeScanPayload({ mainDocumentHeaders: [] });
+    const payload = makeScanPayload({ documentHeaders: makeDocumentHeaders([]) });
     expect(cspFrameSrc.run(payload).severity).toBe('skip');
   });
 
   it('returns skip when response headers could not be captured', () => {
-    const payload = makeScanPayload({ mainDocumentHeadersAvailable: false });
+    const payload = makeScanPayload({ documentHeaders: UNAVAILABLE_DOCUMENT_HEADERS });
     expect(cspFrameSrc.run(payload).severity).toBe('skip');
   });
 });
@@ -230,10 +242,9 @@ describe('csp-frame-src', () => {
 function withCsp(policy: string, config: Partial<CheckoutConfig> = {}): ScanPayload {
   return makeScanPayload({
     page: makeCheckoutPage({
-      checkoutConfig: makeCheckoutConfig(config),
-      checkoutConfigComplete: true,
+      capturedConfig: makeCapturedConfig(makeCheckoutConfig(config), true),
     }),
-    mainDocumentHeaders: [makeHeader('content-security-policy', policy)],
+    documentHeaders: makeDocumentHeaders([makeHeader('content-security-policy', policy)]),
   });
 }
 
@@ -294,7 +305,9 @@ describe('csp-connect-src', () => {
   it('uses the test environment from client key evidence when config has no environment', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({ inferredConfig: { clientKey: 'test_ABCDEFGHIJK' } }),
-      mainDocumentHeaders: [makeHeader('content-security-policy', "connect-src 'self'")],
+      documentHeaders: makeDocumentHeaders([
+        makeHeader('content-security-policy', "connect-src 'self'"),
+      ]),
     });
     const result = cspConnectSrc.run(payload);
     expect(result.severity).toBe('warn');
@@ -303,7 +316,9 @@ describe('csp-connect-src', () => {
 
   it('skips when the environment cannot be determined', () => {
     const payload = makeScanPayload({
-      mainDocumentHeaders: [makeHeader('content-security-policy', "connect-src 'self'")],
+      documentHeaders: makeDocumentHeaders([
+        makeHeader('content-security-policy', "connect-src 'self'"),
+      ]),
     });
     expect(cspConnectSrc.run(payload)).toMatchObject({
       severity: 'skip',
@@ -314,7 +329,7 @@ describe('csp-connect-src', () => {
   it('skips without a CSP or captured headers', () => {
     expect(cspConnectSrc.run(makeScanPayload()).severity).toBe('skip');
     expect(
-      cspConnectSrc.run(makeScanPayload({ mainDocumentHeadersAvailable: false })).severity
+      cspConnectSrc.run(makeScanPayload({ documentHeaders: UNAVAILABLE_DOCUMENT_HEADERS })).severity
     ).toBe('skip');
   });
 });
@@ -338,13 +353,15 @@ describe('csp-img-src', () => {
 
   it('skips when the environment, CSP, or headers are unavailable', () => {
     const noEnvironment = makeScanPayload({
-      mainDocumentHeaders: [makeHeader('content-security-policy', "img-src 'self'")],
+      documentHeaders: makeDocumentHeaders([
+        makeHeader('content-security-policy', "img-src 'self'"),
+      ]),
     });
     expect(cspImgSrc.run(noEnvironment).severity).toBe('skip');
     expect(cspImgSrc.run(makeScanPayload()).severity).toBe('skip');
-    expect(cspImgSrc.run(makeScanPayload({ mainDocumentHeadersAvailable: false })).severity).toBe(
-      'skip'
-    );
+    expect(
+      cspImgSrc.run(makeScanPayload({ documentHeaders: UNAVAILABLE_DOCUMENT_HEADERS })).severity
+    ).toBe('skip');
   });
 });
 
@@ -371,10 +388,10 @@ describe('csp-form-action', () => {
 
   it('warns when any enforced policy restricts form-action', () => {
     const payload = makeScanPayload({
-      mainDocumentHeaders: [
+      documentHeaders: makeDocumentHeaders([
         makeHeader('content-security-policy', 'form-action *'),
         makeHeader('content-security-policy', "form-action 'self'"),
-      ],
+      ]),
     });
     expect(cspFormAction.run(payload).severity).toBe('warn');
   });
@@ -382,7 +399,7 @@ describe('csp-form-action', () => {
   it('skips without a CSP or captured headers', () => {
     expect(cspFormAction.run(makeScanPayload()).severity).toBe('skip');
     expect(
-      cspFormAction.run(makeScanPayload({ mainDocumentHeadersAvailable: false })).severity
+      cspFormAction.run(makeScanPayload({ documentHeaders: UNAVAILABLE_DOCUMENT_HEADERS })).severity
     ).toBe('skip');
   });
 });
@@ -390,21 +407,25 @@ describe('csp-form-action', () => {
 describe('csp-frame-ancestors', () => {
   it('passes when frame-ancestors directive is set', () => {
     const payload = makeScanPayload({
-      mainDocumentHeaders: [makeHeader('content-security-policy', "frame-ancestors 'self'")],
+      documentHeaders: makeDocumentHeaders([
+        makeHeader('content-security-policy', "frame-ancestors 'self'"),
+      ]),
     });
     expect(cspFrameAncestors.run(payload).severity).toBe('pass');
   });
 
   it('passes when X-Frame-Options header is set', () => {
     const payload = makeScanPayload({
-      mainDocumentHeaders: [makeHeader('x-frame-options', 'SAMEORIGIN')],
+      documentHeaders: makeDocumentHeaders([makeHeader('x-frame-options', 'SAMEORIGIN')]),
     });
     expect(cspFrameAncestors.run(payload).severity).toBe('pass');
   });
 
   it('warns when neither frame-ancestors nor X-Frame-Options present', () => {
     const payload = makeScanPayload({
-      mainDocumentHeaders: [makeHeader('content-security-policy', "default-src 'self'")],
+      documentHeaders: makeDocumentHeaders([
+        makeHeader('content-security-policy', "default-src 'self'"),
+      ]),
     });
     const result = cspFrameAncestors.run(payload);
     expect(result.severity).toBe('warn');
@@ -413,7 +434,7 @@ describe('csp-frame-ancestors', () => {
   });
 
   it('warns when no headers at all', () => {
-    const payload = makeScanPayload({ mainDocumentHeaders: [] });
+    const payload = makeScanPayload({ documentHeaders: makeDocumentHeaders([]) });
     expect(cspFrameAncestors.run(payload).severity).toBe('warn');
   });
 });
@@ -421,44 +442,46 @@ describe('csp-frame-ancestors', () => {
 describe('csp-reporting', () => {
   it('passes when report-to and Reporting-Endpoints are configured', () => {
     const payload = makeScanPayload({
-      mainDocumentHeaders: [
+      documentHeaders: makeDocumentHeaders([
         makeHeader('content-security-policy', "default-src 'self'; report-to csp-endpoint"),
         makeHeader('reporting-endpoints', 'csp-endpoint="https://example.com/csp-reports"'),
-      ],
+      ]),
     });
     expect(cspReporting.run(payload).severity).toBe('pass');
   });
 
   it('warns when report-to is set but Reporting-Endpoints is missing', () => {
     const payload = makeScanPayload({
-      mainDocumentHeaders: [
+      documentHeaders: makeDocumentHeaders([
         makeHeader('content-security-policy', "default-src 'self'; report-to csp-endpoint"),
-      ],
+      ]),
     });
     expect(cspReporting.run(payload).severity).toBe('warn');
   });
 
   it('returns info when report-uri is configured', () => {
     const payload = makeScanPayload({
-      mainDocumentHeaders: [
+      documentHeaders: makeDocumentHeaders([
         makeHeader(
           'content-security-policy',
           "default-src 'self'; report-uri https://reporting.example.com/csp"
         ),
-      ],
+      ]),
     });
     expect(cspReporting.run(payload).severity).toBe('info');
   });
 
   it('returns info when CSP present but no reporting configured', () => {
     const payload = makeScanPayload({
-      mainDocumentHeaders: [makeHeader('content-security-policy', "default-src 'self'")],
+      documentHeaders: makeDocumentHeaders([
+        makeHeader('content-security-policy', "default-src 'self'"),
+      ]),
     });
     expect(cspReporting.run(payload).severity).toBe('info');
   });
 
   it('returns info when no CSP (check skipped)', () => {
-    const payload = makeScanPayload({ mainDocumentHeaders: [] });
+    const payload = makeScanPayload({ documentHeaders: makeDocumentHeaders([]) });
     expect(cspReporting.run(payload).severity).toBe('info');
   });
 });

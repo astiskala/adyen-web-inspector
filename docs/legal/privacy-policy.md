@@ -1,6 +1,6 @@
 # Privacy Policy
 
-Last updated: 2026-09-28
+Last updated: 2026-09-29
 
 Adyen Web Inspector is a browser extension that analyzes browser-visible Adyen Web integrations. Its passive detector and MAIN-world configuration interceptor run on matching HTTP(S) pages, including before you request a scan. The detector checks for Adyen elements; the interceptor wraps selected page APIs to capture checkout configuration and infer values from URLs and parsed objects. Full inspection runs only when you start a scan.
 
@@ -25,7 +25,7 @@ The extension can make network requests to:
 - The currently scanned page URL (`HEAD`, falling back to `GET` for response-header probing, with page credentials) and same-host script URLs (SDK version fallback, without credentials)
 - `https://registry.npmjs.org/@adyen/adyen-web` to check the latest SDK version and SDK release dates
 
-During a scan, page and Adyen-related response headers and selected Adyen checkout analytics POST fields are passively observed via `chrome.webRequest`; the extension does not replay those page requests.
+During a scan, the inspected tab's response headers and its Adyen checkout analytics POST bodies are passively observed in memory via `chrome.webRequest`. The scan keeps only the response headers of the inspected page and Adyen-related requests, and the selected analytics fields listed above; the extension does not replay those page requests.
 
 ## Data sharing
 

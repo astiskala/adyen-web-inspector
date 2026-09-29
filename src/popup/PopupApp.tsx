@@ -11,6 +11,7 @@ import { DetectedReady } from './components/DetectedReady.js';
 import { VersionOutdated } from './components/VersionOutdated.js';
 import { ScanError } from './components/ScanError.js';
 import { StandardComplianceBadge } from './components/StandardComplianceBadge.js';
+import { chromeTabStateClient } from './components/chrome-tab-state-client.js';
 import { useScanLifecycle } from './components/useScanLifecycle.js';
 import styles from './PopupApp.module.css';
 
@@ -20,7 +21,7 @@ function getActiveTabId(): Promise<number | undefined> {
   return chrome.tabs.query({ active: true, currentWindow: true }).then((tabs) => tabs[0]?.id);
 }
 
-const popupTabAdapter = { getTabId: getActiveTabId, resetDelayMs: 400 } as const;
+const activeTab = { getTabId: getActiveTabId } as const;
 
 type PopupView =
   | { readonly state: 'loading' | 'error' | 'detected' | 'ready' | 'not-detected' }
@@ -47,7 +48,7 @@ function getPopupView(session: ReturnType<typeof useScanLifecycle>): PopupView {
  * Popup root that loads scan state for the active tab and handles scan actions.
  */
 export function Popup(): JSX.Element {
-  const session = useScanLifecycle(popupTabAdapter);
+  const session = useScanLifecycle(activeTab, chromeTabStateClient);
   const { result, scanning, scan } = session;
   const view = getPopupView(session);
   const { state } = view;

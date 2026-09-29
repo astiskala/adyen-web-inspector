@@ -54,11 +54,13 @@ const SEAM_RULES = [
   {
     name: 'scan-through-browser-port',
     comment:
-      'The Scan (orchestrator, assessment, and frame merge) reaches the browser only through the ScanBrowser port',
+      'The Scan (orchestrator, assessment, frame merge, and captured traffic) reaches the browser only through the ScanBrowser port',
     severity: 'error',
-    from: { path: '^src/background/(scan-orchestrator|scan-assessment|frame-merge)\\.ts$' },
+    from: {
+      path: '^src/background/(scan-orchestrator|scan-assessment|frame-merge|captured-traffic)\\.ts$',
+    },
     to: {
-      path: '^src/background/(chrome-[a-z-]+-browser|header-collector|npm-registry|worker|tab-state)\\.ts$',
+      path: '^src/background/(chrome-[a-z-]+-browser|network-recorder|npm-registry|worker|tab-state)\\.ts$',
     },
   },
   {
@@ -68,7 +70,7 @@ const SEAM_RULES = [
     severity: 'error',
     from: { path: '^src/background/tab-state\\.ts$' },
     to: {
-      path: '^src/background/(chrome-[a-z-]+-browser|header-collector|npm-registry|worker|scan-orchestrator|scan-assessment)\\.ts$',
+      path: '^src/background/(chrome-[a-z-]+-browser|network-recorder|npm-registry|worker|scan-orchestrator|scan-assessment|captured-traffic)\\.ts$',
     },
   },
   {
@@ -88,10 +90,18 @@ const SEAM_RULES = [
   },
   {
     name: 'browser-io-behind-chrome-adapter',
-    comment: 'Network capture and npm lookups are browser I/O owned by the Chrome adapter',
+    comment: 'Network recording and npm lookups are browser I/O owned by the Chrome adapter',
     severity: 'error',
     from: { path: '^src/', pathNot: '^src/background/chrome-scan-browser\\.ts$' },
-    to: { path: '^src/background/(header-collector|npm-registry)\\.ts$' },
+    to: { path: '^src/background/(network-recorder|npm-registry)\\.ts$' },
+  },
+  {
+    name: 'tab-state-client-wired-by-views',
+    comment:
+      'Only the popup and DevTools panel roots select the Chrome adapter for the tab state client; the scan lifecycle hook takes the client as an argument',
+    severity: 'error',
+    from: { path: '^src/', pathNot: '^src/(popup/PopupApp\\.tsx|devtools/panel/Panel\\.tsx)$' },
+    to: { path: '^src/popup/components/chrome-tab-state-client\\.ts$' },
   },
   {
     name: 'config-schema-inline-safe',
@@ -100,6 +110,44 @@ const SEAM_RULES = [
     severity: 'error',
     from: { path: '^src/shared/checkout-config-schema\\.ts$' },
     to: { path: '^src/', pathNot: '^src/shared/types\\.ts$' },
+  },
+  {
+    name: 'adyen-endpoint-inline-safe',
+    comment:
+      'The Adyen endpoint reading is inlined into every content script, so it may depend on shared types only',
+    severity: 'error',
+    from: { path: '^src/shared/adyen-endpoint\\.ts$' },
+    to: { path: '^src/', pathNot: '^src/shared/types\\.ts$' },
+  },
+  {
+    name: 'evidence-inline-safe',
+    comment:
+      'Configuration evidence and SDK presence are inlined into the detector through the checkout signals, so they may depend on types and the Adyen endpoint reading only',
+    severity: 'error',
+    from: { path: '^src/shared/(scan-evidence|sdk-presence)\\.ts$' },
+    to: { path: '^src/', pathNot: '^src/shared/(types|adyen-endpoint)\\.ts$' },
+  },
+  {
+    name: 'checkout-capture-inline-safe',
+    comment:
+      'The capture record is inlined into the config interceptor and page extractor, so it may depend on types, the config field schema, and the Adyen endpoint reading only',
+    severity: 'error',
+    from: { path: '^src/shared/checkout-capture\\.ts$' },
+    to: {
+      path: '^src/',
+      pathNot: '^src/shared/(types|checkout-config-schema|adyen-endpoint)\\.ts$',
+    },
+  },
+  {
+    name: 'checkout-signals-inline-safe',
+    comment:
+      'The checkout signals are inlined into the detector and page extractor, so they may depend on types, the Adyen endpoint reading, configuration evidence, and SDK presence only',
+    severity: 'error',
+    from: { path: '^src/shared/checkout-signals\\.ts$' },
+    to: {
+      path: '^src/',
+      pathNot: '^src/shared/(types|adyen-endpoint|scan-evidence|sdk-presence)\\.ts$',
+    },
   },
 ];
 

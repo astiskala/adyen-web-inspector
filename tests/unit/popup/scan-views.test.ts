@@ -3,13 +3,14 @@ import { act } from 'preact/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Panel } from '../../../src/devtools/panel/Panel';
 import { Popup } from '../../../src/popup/PopupApp';
-import type { CheckoutActivity, TabSnapshot } from '../../../src/shared/messages';
+import type { CheckoutActivity, TabScanStatus, TabSnapshot } from '../../../src/shared/messages';
 import type { ScanResult } from '../../../src/shared/types';
 import { makeScanResult } from '../../fixtures/makeScanPayload';
 
 interface Message {
   readonly type: string;
   readonly tabId: number;
+  readonly snapshot: TabSnapshot;
 }
 
 let host: HTMLDivElement;
@@ -23,8 +24,21 @@ function makeResult(): ScanResult {
   });
 }
 
-function snapshot(result: ScanResult | null, checkoutActivity?: CheckoutActivity): TabSnapshot {
-  return { result, checkoutActivity: checkoutActivity ?? { detected: false } };
+const IDLE: TabScanStatus = { state: 'idle' };
+
+function snapshot(
+  result: ScanResult | null,
+  checkoutActivity?: CheckoutActivity,
+  scan = IDLE
+): TabSnapshot {
+  return { result, checkoutActivity: checkoutActivity ?? { detected: false }, scan };
+}
+
+async function publish(tabSnapshot: TabSnapshot): Promise<void> {
+  await act(async () => {
+    listener?.({ type: 'TAB_STATE_CHANGED', tabId: 3, snapshot: tabSnapshot });
+    await Promise.resolve();
+  });
 }
 
 async function clickButton(label: string): Promise<void> {
@@ -81,15 +95,21 @@ describe('scan views', () => {
       expect(host.textContent).toContain('Adyen Web Version Outdated');
     });
 
-    sendMessage.mockResolvedValue(snapshot(makeResult()));
-    await act(async () => {
-      listener?.({ type: 'SCAN_COMPLETE', tabId: 3 });
-      await Promise.resolve();
-      await Promise.resolve();
-    });
+    await publish(snapshot(makeResult()));
     await vi.waitFor(() => {
       expect(host.textContent).toContain('Re-run Scan');
     });
+  });
+
+  it('shows a Scan already running when the popup opens', async () => {
+    sendMessage.mockResolvedValue(snapshot(null, { detected: true }, { state: 'running' }));
+    await mount(Popup);
+
+    await vi.waitFor(() => {
+      expect(host.textContent).toContain('Scanning…');
+    });
+    const button = [...host.querySelectorAll('button')].find((b) => b.textContent === 'Scanning…');
+    expect(button?.disabled).toBe(true);
   });
 
   it('offers a scan when the detector saw checkout activity on a supported version', async () => {
@@ -114,11 +134,7 @@ describe('scan views', () => {
 
   it('shows the scan error view with a retry after a failed scan', async () => {
     await mount(Popup);
-    await act(async () => {
-      listener?.({ type: 'SCAN_ERROR', tabId: 3 });
-      await Promise.resolve();
-      await Promise.resolve();
-    });
+    await publish(snapshot(null, undefined, { state: 'failed', error: 'Blocked page' }));
 
     await vi.waitFor(() => {
       expect(host.textContent).toContain('Scan failed');

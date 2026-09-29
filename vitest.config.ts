@@ -11,11 +11,12 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'lcov', 'html'],
       include: [
+        'src/background/captured-traffic.ts',
         'src/background/checks/**/*.ts',
         'src/background/chrome-scan-browser.ts',
         'src/background/chrome-tab-state-browser.ts',
         'src/background/frame-merge.ts',
-        'src/background/header-collector.ts',
+        'src/background/network-recorder.ts',
         'src/background/npm-registry.ts',
         'src/background/scan-assessment.ts',
         'src/background/scan-orchestrator.ts',
@@ -45,19 +46,21 @@ export default defineConfig({
           branches: 88,
           statements: 95,
         },
-        'src/shared/{checkout-config-schema,scan-evidence,sdk-presence,sdk-version}.ts': {
-          lines: 98,
-          functions: 100,
-          branches: 98,
-          statements: 98,
-        },
-        'src/background/{frame-merge,scan-assessment,scan-orchestrator,tab-state}.ts': {
-          lines: 100,
-          functions: 100,
-          branches: 100,
-          statements: 100,
-        },
-        'src/background/{header-collector,npm-registry}.ts': {
+        'src/shared/{adyen-endpoint,checkout-capture,checkout-config-schema,checkout-signals,scan-evidence,sdk-presence,sdk-version}.ts':
+          {
+            lines: 98,
+            functions: 100,
+            branches: 98,
+            statements: 98,
+          },
+        'src/background/{captured-traffic,frame-merge,scan-assessment,scan-orchestrator,tab-state}.ts':
+          {
+            lines: 100,
+            functions: 100,
+            branches: 100,
+            statements: 100,
+          },
+        'src/background/{network-recorder,npm-registry}.ts': {
           lines: 100,
           functions: 100,
           branches: 100,
@@ -76,10 +79,10 @@ export default defineConfig({
           statements: 98,
         },
         'src/content/config-interceptor.ts': {
-          lines: 85,
+          lines: 94,
           functions: 95,
-          branches: 68,
-          statements: 85,
+          branches: 80,
+          statements: 94,
         },
         'src/popup/**': {
           lines: 85,

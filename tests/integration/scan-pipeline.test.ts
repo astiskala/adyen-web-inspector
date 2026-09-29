@@ -21,6 +21,8 @@ import {
   makeAdyenMetadata,
   makeCheckoutConfig,
   makeVersionInfo,
+  makeCapturedConfig,
+  makeDocumentHeaders,
 } from '../fixtures/makeScanPayload';
 
 async function runPipeline(payload: ScanPayload): Promise<{
@@ -32,12 +34,11 @@ async function runPipeline(payload: ScanPayload): Promise<{
     {
       tabId: payload.tabId,
       page: payload.page,
-      collected: {
-        mainDocumentHeaders: payload.mainDocumentHeaders,
+      traffic: {
+        documentHeaders: payload.documentHeaders,
         capturedRequests: payload.capturedRequests,
         analyticsData: payload.analyticsData,
       },
-      mainDocumentHeaders: payload.mainDocumentHeaders,
       latestVersion: payload.versionInfo.latest,
       scannedAt: payload.scannedAt,
     },
@@ -111,18 +112,20 @@ function makeGoodPayload(): ScanPayload {
         bundleType: 'esm',
         variants: ['dropin'],
       }),
-      checkoutConfig: makeCheckoutConfig({
-        clientKey: 'live_ABCDEFGHIJK',
-        environment: 'live',
-        locale: 'en-US',
-        countryCode: 'US',
-        onSubmit: 'checkout',
-        onAdditionalDetails: 'checkout',
-        onPaymentCompleted: 'checkout',
-        onPaymentFailed: 'checkout',
-        onError: 'checkout',
-        hasSession: true,
-      }),
+      capturedConfig: makeCapturedConfig(
+        makeCheckoutConfig({
+          clientKey: 'live_ABCDEFGHIJK',
+          environment: 'live',
+          locale: 'en-US',
+          countryCode: 'US',
+          onSubmit: 'checkout',
+          onAdditionalDetails: 'checkout',
+          onPaymentCompleted: 'checkout',
+          onPaymentFailed: 'checkout',
+          onError: 'checkout',
+          hasSession: true,
+        })
+      ),
       hasDropinDOM: true,
       pageUrl: 'https://merchant.com/checkout',
       pageProtocol: 'https:',
@@ -143,12 +146,12 @@ function makeGoodPayload(): ScanPayload {
       ],
       iframes: [{ name: 'dfIframe' }],
     }),
-    mainDocumentHeaders: [
+    documentHeaders: makeDocumentHeaders([
       makeHeader('content-security-policy', cspValue),
       makeHeader('strict-transport-security', 'max-age=31536000; includeSubDomains'),
       makeHeader('x-content-type-options', 'nosniff'),
       makeHeader('referrer-policy', 'strict-origin-when-cross-origin'),
-    ],
+    ]),
     capturedRequests: [
       makeRequest('https://checkoutshopper-live.adyen.com/checkoutshopper/sdk/6.30.0/adyen.js', {
         type: 'script',
@@ -191,10 +194,12 @@ describe('Misconfigured integration', () => {
           pageUrl: 'http://insecure.example.com',
           pageProtocol: 'http:',
           adyenMetadata: makeAdyenMetadata(),
-          checkoutConfig: makeCheckoutConfig({
-            environment: 'live',
-            clientKey: 'live_ABCDEFGHIJK',
-          }),
+          capturedConfig: makeCapturedConfig(
+            makeCheckoutConfig({
+              environment: 'live',
+              clientKey: 'live_ABCDEFGHIJK',
+            })
+          ),
         }),
         capturedRequests: [
           makeRequest(
@@ -267,7 +272,7 @@ describe('Health score tiers from check results', () => {
         pageUrl: 'http://insecure.test',
         pageProtocol: 'http:',
         adyenMetadata: makeAdyenMetadata(),
-        checkoutConfig: makeCheckoutConfig(),
+        capturedConfig: makeCapturedConfig(makeCheckoutConfig()),
       }),
     });
 

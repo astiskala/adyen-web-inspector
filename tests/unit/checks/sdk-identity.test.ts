@@ -8,6 +8,7 @@ import {
   makeAnalyticsData,
   makeRequest,
   makeCheckoutConfig,
+  makeCapturedConfig,
 } from '../../fixtures/makeScanPayload';
 import { requireCheck } from './requireCheck';
 
@@ -206,7 +207,7 @@ describe('sdk-flavor', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
         adyenMetadata: makeAdyenMetadata(),
-        checkoutConfig: makeCheckoutConfig(),
+        capturedConfig: makeCapturedConfig(makeCheckoutConfig()),
         hasDropinDOM: true,
       }),
     });
@@ -276,7 +277,7 @@ describe('sdk-flavor', () => {
   it('prefers analytics data over heuristic fallback', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
-        checkoutConfig: { clientKey: 'test_ABC', environment: 'test' },
+        capturedConfig: makeCapturedConfig({ clientKey: 'test_ABC', environment: 'test' }),
       }),
       analyticsData: makeAnalyticsData({ flavor: 'dropin' }),
     });
@@ -370,7 +371,7 @@ describe('sdk-analytics', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
         adyenMetadata: makeAdyenMetadata(),
-        checkoutConfig: { clientKey: 'test_X' },
+        capturedConfig: makeCapturedConfig({ clientKey: 'test_X' }),
       }),
     });
     expect(sdkAnalytics.run(payload).severity).toBe('skip');

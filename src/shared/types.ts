@@ -188,15 +188,37 @@ export interface AdyenStyleInfo {
   readonly customPropertyCount: number;
 }
 
+/** Options captured directly from AdyenCheckout or component calls. */
+export interface CapturedCheckoutOptions {
+  readonly options: CheckoutConfig;
+  /** True when AdyenCheckout's options were captured whole, so options missing from them are absent. */
+  readonly complete: boolean;
+}
+
+/** The partial signal an inferred configuration value was read from. */
+export type InferenceSignal = 'adyen-request' | 'page-json';
+
+/**
+ * The capture record: everything the config interceptor observed in one
+ * frame, published on a page global for the page extractor.
+ */
+export interface CheckoutCapture {
+  readonly captured: CapturedCheckoutOptions | null;
+  /** Values inferred from partial signals, per signal; newer values win within a signal. */
+  readonly inferred: Readonly<Partial<Record<InferenceSignal, CheckoutConfig>>>;
+  /** Number of AdyenCheckout initialisations. */
+  readonly initCount: number;
+}
+
 /** One frame's page extraction, produced by the page extractor in each accessible frame. */
 export interface PageExtractResult {
   readonly adyenMetadata: AdyenWebMetadata | null;
-  /** Selected fields captured from checkout/component runtime objects; null if unavailable. */
-  readonly checkoutConfig: CheckoutConfig | null;
-  /** True when this frame directly captured AdyenCheckout options; only then can missing options be treated as absent. */
-  readonly checkoutConfigComplete?: boolean;
-  /** Partial configuration inferred from URL or parsed-object signals. */
+  /** Options captured from AdyenCheckout and component calls; null when none were. */
+  readonly capturedConfig: CapturedCheckoutOptions | null;
+  /** Values inferred from Adyen request URLs, such as environment, clientKey, and locale. */
   readonly inferredConfig: CheckoutConfig | null;
+  /** Option-shaped values found in JSON the page parsed; any page data can carry them. */
+  readonly pageJsonConfig: CheckoutConfig | null;
   /** Config found in mounted Adyen Preact trees (including bundled integrations). */
   readonly componentConfig: CheckoutConfig | null;
   /** Number of vnode mount points whose trees exposed Adyen core options. */
@@ -229,9 +251,9 @@ export interface PageExtractResult {
 /** Fields of the Checkout page that the frame merge reads from more than the selected frame. */
 type MergedFrameField =
   | 'adyenMetadata'
-  | 'checkoutConfig'
-  | 'checkoutConfigComplete'
+  | 'capturedConfig'
   | 'inferredConfig'
+  | 'pageJsonConfig'
   | 'componentConfig'
   | 'hasDropinDOM'
   | 'hasCardDOM'
@@ -248,12 +270,12 @@ type MergedFrameField =
 export interface CheckoutPage extends Omit<PageExtractResult, MergedFrameField> {
   /** Selected frame, else the first frame that exposed SDK metadata. */
   readonly adyenMetadata: AdyenWebMetadata | null;
-  /** All frames; earlier frames win per field. */
-  readonly checkoutConfig: CheckoutConfig | null;
-  /** All frames: true when any frame directly captured AdyenCheckout options, so missing options are absent. */
-  readonly checkoutConfigComplete?: boolean;
+  /** All frames; earlier frames win per option, and the capture is complete when any frame's is. */
+  readonly capturedConfig: CapturedCheckoutOptions | null;
   /** All frames; earlier frames win per field. */
   readonly inferredConfig: CheckoutConfig | null;
+  /** All frames; earlier frames win per field. */
+  readonly pageJsonConfig: CheckoutConfig | null;
   /** All frames; earlier frames win per field. */
   readonly componentConfig: CheckoutConfig | null;
   /** Selected frame or any merchant frame: a `.adyen-checkout__dropin` element is present. */
@@ -348,13 +370,27 @@ export interface VersionInfo {
   readonly detectedReleasedAt?: string;
 }
 
+/**
+ * The checkout document's response headers. Unavailable means neither the
+ * tab's response nor a separate request exposed them, so header checks cannot
+ * tell a missing header from an unseen one.
+ */
+export type DocumentHeaders =
+  | { readonly status: 'unavailable' }
+  | {
+      readonly status: 'observed';
+      /** URL of the document the headers belong to. */
+      readonly url: string;
+      /** `captured`: the tab's own response during the scan; `fetched`: a separate request for the URL. */
+      readonly source: 'captured' | 'fetched';
+      readonly headers: readonly CapturedHeader[];
+    };
+
 export interface ScanPayload {
   readonly tabId: number;
   readonly pageUrl: string;
   readonly page: CheckoutPage;
-  readonly mainDocumentHeaders: CapturedHeader[];
-  /** False when no main-document response was observed, so header checks cannot run. */
-  readonly mainDocumentHeadersAvailable: boolean;
+  readonly documentHeaders: DocumentHeaders;
   readonly capturedRequests: CapturedRequest[];
   readonly versionInfo: VersionInfo;
   /** Data extracted from Adyen checkout analytics POST requests (merged from multiple calls). */

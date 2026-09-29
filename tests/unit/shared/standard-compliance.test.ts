@@ -8,6 +8,7 @@ import {
   makeCheckoutConfig,
   makeAnalyticsData,
   makeVersionInfo,
+  makeCapturedConfig,
 } from '../../fixtures/makeScanPayload';
 
 function assess(payload: ScanPayload): ReturnType<typeof computeStandardCompliance> {
@@ -21,7 +22,7 @@ describe('computeStandardCompliance', () => {
   it('returns aligned when minimum version, Sessions flow, and Drop-in are detected', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
-        checkoutConfig: makeCheckoutConfig({ hasSession: true }),
+        capturedConfig: makeCapturedConfig(makeCheckoutConfig({ hasSession: true })),
       }),
       analyticsData: makeAnalyticsData({ flavor: 'dropin', sessionId: 'session-123' }),
       versionInfo: makeVersionInfo({ detected: '6.30.0' }),
@@ -36,7 +37,7 @@ describe('computeStandardCompliance', () => {
   it('accepts a newer version without requiring the exact latest release', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
-        checkoutConfig: makeCheckoutConfig({ hasSession: true }),
+        capturedConfig: makeCapturedConfig(makeCheckoutConfig({ hasSession: true })),
       }),
       analyticsData: makeAnalyticsData({ flavor: 'dropin', sessionId: 'session-123' }),
       versionInfo: makeVersionInfo({ detected: '6.31.1', latest: '6.32.0' }),
@@ -50,7 +51,7 @@ describe('computeStandardCompliance', () => {
   it('returns not aligned when the version is below the documented minimum', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
-        checkoutConfig: makeCheckoutConfig({ hasSession: true }),
+        capturedConfig: makeCapturedConfig(makeCheckoutConfig({ hasSession: true })),
       }),
       analyticsData: makeAnalyticsData({ flavor: 'dropin', sessionId: 'session-123' }),
       versionInfo: makeVersionInfo({ detected: '6.29.0' }),
@@ -65,7 +66,7 @@ describe('computeStandardCompliance', () => {
   it('returns not aligned when not using Sessions flow', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
-        checkoutConfig: makeCheckoutConfig(),
+        capturedConfig: makeCapturedConfig(makeCheckoutConfig()),
       }),
       analyticsData: makeAnalyticsData({ flavor: 'dropin' }),
       versionInfo: makeVersionInfo({ detected: '6.30.0' }),
@@ -80,7 +81,7 @@ describe('computeStandardCompliance', () => {
   it('returns not aligned when not using Drop-in', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
-        checkoutConfig: makeCheckoutConfig({ hasSession: true }),
+        capturedConfig: makeCapturedConfig(makeCheckoutConfig({ hasSession: true })),
       }),
       analyticsData: makeAnalyticsData({ flavor: 'components', sessionId: 'session-123' }),
       versionInfo: makeVersionInfo({ detected: '6.30.0' }),
@@ -95,7 +96,7 @@ describe('computeStandardCompliance', () => {
   it('returns all three reasons when none of the criteria are met', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
-        checkoutConfig: makeCheckoutConfig(),
+        capturedConfig: makeCapturedConfig(makeCheckoutConfig()),
       }),
       analyticsData: makeAnalyticsData({ flavor: 'components' }),
       versionInfo: makeVersionInfo({ detected: '6.29.0' }),
@@ -113,7 +114,7 @@ describe('computeStandardCompliance', () => {
   it('returns not aligned when the SDK version cannot be verified', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
-        checkoutConfig: makeCheckoutConfig({ hasSession: true }),
+        capturedConfig: makeCapturedConfig(makeCheckoutConfig({ hasSession: true })),
       }),
       analyticsData: makeAnalyticsData({ flavor: 'dropin', sessionId: 'session-123' }),
       versionInfo: makeVersionInfo({ detected: null }),
@@ -128,7 +129,7 @@ describe('computeStandardCompliance', () => {
   it('detects Drop-in from DOM presence when analytics not available', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
-        checkoutConfig: makeCheckoutConfig({ hasSession: true }),
+        capturedConfig: makeCapturedConfig(makeCheckoutConfig({ hasSession: true })),
         hasDropinDOM: true,
       }),
       versionInfo: makeVersionInfo({ detected: '6.30.0', latest: '6.30.0' }),

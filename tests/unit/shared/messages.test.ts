@@ -1,13 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  EMPTY_TAB_SNAPSHOT,
   MSG_CHECKOUT_ACTIVITY_CLEARED,
   MSG_CHECKOUT_ACTIVITY_DETECTED,
   MSG_GET_TAB_STATE,
-  MSG_SCAN_COMPLETE,
-  MSG_SCAN_ERROR,
   MSG_SCAN_REQUEST,
-  MSG_SCAN_RESET,
-  MSG_SCAN_STARTED,
+  MSG_TAB_STATE_CHANGED,
 } from '../../../src/shared/messages';
 
 describe('shared message constants', () => {
@@ -16,23 +14,25 @@ describe('shared message constants', () => {
       MSG_CHECKOUT_ACTIVITY_DETECTED,
       MSG_CHECKOUT_ACTIVITY_CLEARED,
       MSG_SCAN_REQUEST,
-      MSG_SCAN_STARTED,
-      MSG_SCAN_COMPLETE,
-      MSG_SCAN_ERROR,
-      MSG_SCAN_RESET,
       MSG_GET_TAB_STATE,
+      MSG_TAB_STATE_CHANGED,
     ];
 
     expect(messageTypes).toEqual([
       'CHECKOUT_ACTIVITY_DETECTED',
       'CHECKOUT_ACTIVITY_CLEARED',
       'SCAN_REQUEST',
-      'SCAN_STARTED',
-      'SCAN_COMPLETE',
-      'SCAN_ERROR',
-      'SCAN_RESET',
       'GET_TAB_STATE',
+      'TAB_STATE_CHANGED',
     ]);
     expect(new Set(messageTypes)).toHaveProperty('size', messageTypes.length);
+  });
+
+  it('describes an empty tab as idle with nothing detected or stored', () => {
+    expect(EMPTY_TAB_SNAPSHOT).toEqual({
+      result: null,
+      checkoutActivity: { detected: false },
+      scan: { state: 'idle' },
+    });
   });
 });

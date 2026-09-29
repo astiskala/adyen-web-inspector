@@ -6,6 +6,7 @@ import {
   makeAdyenMetadata,
   makeCheckoutConfig,
   makeScanPayload,
+  makeCapturedConfig,
 } from '../../fixtures/makeScanPayload';
 import { requireCheck } from './requireCheck';
 
@@ -24,7 +25,7 @@ describe('Styling Checks', () => {
       const payload = makeScanPayload({
         page: makeCheckoutPage({
           adyenMetadata: makeAdyenMetadata(),
-          checkoutConfig: makeCheckoutConfig(),
+          capturedConfig: makeCapturedConfig(makeCheckoutConfig()),
           adyenStyles: {
             classOverrideCount: 0,
             classOverrideSelectors: [],
@@ -57,7 +58,7 @@ describe('Styling Checks', () => {
       const payload = makeScanPayload({
         page: makeCheckoutPage({
           adyenMetadata: makeAdyenMetadata(),
-          checkoutConfig: makeCheckoutConfig(),
+          capturedConfig: makeCapturedConfig(makeCheckoutConfig()),
           adyenStyles: {
             classOverrideCount: 2,
             classOverrideSelectors: ['.adyen-checkout__button', '.adyen-checkout__input'],

@@ -1,5 +1,6 @@
 import type { JSX } from 'preact';
 import { useState } from 'preact/hooks';
+import { chromeTabStateClient } from '../../popup/components/chrome-tab-state-client.js';
 import { useScanLifecycle } from '../../popup/components/useScanLifecycle.js';
 import { buildJsonExport } from '../../shared/export-json.js';
 import { buildPrintableReportMetadata } from '../../shared/export-metadata.js';
@@ -38,7 +39,7 @@ function getInspectedTabId(): number {
   return chrome.devtools.inspectedWindow.tabId;
 }
 
-const devtoolsTabAdapter = { getTabId: getInspectedTabId } as const;
+const inspectedTab = { getTabId: getInspectedTabId } as const;
 
 function isContextInvalidated(error: unknown): boolean {
   return describeError(error).includes(CONTEXT_INVALIDATED_ERROR_TEXT);
@@ -46,7 +47,9 @@ function isContextInvalidated(error: unknown): boolean {
 
 function getPanelErrorMessage(error: ReturnType<typeof useScanLifecycle>['error']): string {
   if (error === null) return '';
-  if (error.kind === 'scan') return error.message ?? 'Scan failed. Try reloading the page.';
+  if (error.kind === 'scan') {
+    return error.message === '' ? 'Scan failed. Try reloading the page.' : error.message;
+  }
   if (error.kind === 'tab') return RUNTIME_ERROR_UI_MESSAGE;
   if (isContextInvalidated(error.cause)) return CONTEXT_INVALIDATED_UI_MESSAGE;
   return error.kind === 'request'
@@ -59,7 +62,7 @@ function getPanelErrorMessage(error: ReturnType<typeof useScanLifecycle>['error'
  */
 export function Panel(): JSX.Element {
   const [activeTab, setActiveTab] = useState<TabName>('Overview');
-  const { result, scanning, error, scan } = useScanLifecycle(devtoolsTabAdapter);
+  const { result, scanning, error, scan } = useScanLifecycle(inspectedTab, chromeTabStateClient);
   const errorMsg = getPanelErrorMessage(error);
 
   function handleExportJson(): void {

@@ -62,8 +62,9 @@ describe('page extractor', () => {
   it('reports an empty top-level page', async () => {
     await expect(extractPage()).resolves.toEqual({
       adyenMetadata: null,
-      checkoutConfig: null,
+      capturedConfig: null,
       inferredConfig: null,
+      pageJsonConfig: null,
       componentConfig: null,
       scripts: [],
       links: [],
@@ -76,35 +77,38 @@ describe('page extractor', () => {
     });
   });
 
-  it('reads the interceptor captures and SDK metadata from page globals', async () => {
+  it('reads the capture record and SDK metadata from page globals', async () => {
     pageGlobals['AdyenWebMetadata'] = { version: '6.31.0', bundleType: 'esm' };
-    pageGlobals[PAGE_GLOBALS.capturedConfig] = { clientKey: 'test_KEY', onSubmit: 'checkout' };
-    pageGlobals[PAGE_GLOBALS.directConfigCaptured] = true;
-    pageGlobals[PAGE_GLOBALS.inferredConfig] = { locale: 'nl-NL' };
-    pageGlobals[PAGE_GLOBALS.checkoutInitCount] = 2;
+    pageGlobals[PAGE_GLOBALS.checkoutCapture] = {
+      captured: { options: { clientKey: 'test_KEY', onSubmit: 'checkout' }, complete: true },
+      inferred: { 'adyen-request': { locale: 'nl-NL' }, 'page-json': { countryCode: 'NL' } },
+      initCount: 2,
+    };
 
     await expect(extractPage()).resolves.toMatchObject({
       adyenMetadata: { version: '6.31.0', bundleType: 'esm' },
-      checkoutConfig: { clientKey: 'test_KEY', onSubmit: 'checkout' },
-      checkoutConfigComplete: true,
+      capturedConfig: { options: { clientKey: 'test_KEY', onSubmit: 'checkout' }, complete: true },
       inferredConfig: { locale: 'nl-NL' },
+      pageJsonConfig: { countryCode: 'NL' },
       checkoutInitCount: 2,
     });
   });
 
-  it('treats empty captures as missing unless options were captured directly', async () => {
-    pageGlobals[PAGE_GLOBALS.capturedConfig] = {};
-    pageGlobals[PAGE_GLOBALS.inferredConfig] = {};
-    pageGlobals[PAGE_GLOBALS.checkoutInitCount] = 'many';
+  it('tolerates a capture record that page scripts overwrote', async () => {
+    pageGlobals[PAGE_GLOBALS.checkoutCapture] = {
+      captured: { options: 'x' },
+      inferred: { 'adyen-request': {}, 'page-json': 'x' },
+      initCount: 'many',
+    };
 
-    const partial = await extractPage();
-    pageGlobals[PAGE_GLOBALS.directConfigCaptured] = true;
-    const direct = await extractPage();
+    const page = await extractPage();
 
-    expect(partial).toMatchObject({ checkoutConfig: null, inferredConfig: null });
-    expect(partial).not.toHaveProperty('checkoutInitCount');
-    expect(partial).not.toHaveProperty('checkoutConfigComplete');
-    expect(direct).toMatchObject({ checkoutConfig: {}, checkoutConfigComplete: true });
+    expect(page).toMatchObject({
+      capturedConfig: null,
+      inferredConfig: null,
+      pageJsonConfig: null,
+    });
+    expect(page).not.toHaveProperty('checkoutInitCount');
   });
 
   it('collects script, stylesheet and iframe tags with their security attributes', async () => {
@@ -288,13 +292,17 @@ describe('page extractor API key exposure', () => {
     [
       'captured configuration',
       (): void => {
-        pageGlobals[PAGE_GLOBALS.capturedConfig] = { clientKey: FAKE_API_KEY };
+        pageGlobals[PAGE_GLOBALS.checkoutCapture] = {
+          captured: { options: { clientKey: FAKE_API_KEY }, complete: false },
+        };
       },
     ],
     [
       'inferred configuration',
       (): void => {
-        pageGlobals[PAGE_GLOBALS.inferredConfig] = { clientKey: FAKE_API_KEY };
+        pageGlobals[PAGE_GLOBALS.checkoutCapture] = {
+          inferred: { 'page-json': { clientKey: FAKE_API_KEY } },
+        };
       },
     ],
   ])('detects an Adyen API key in %s', async (_label, expose) => {
@@ -304,7 +312,9 @@ describe('page extractor API key exposure', () => {
   });
 
   it('does not flag client keys', async () => {
-    pageGlobals[PAGE_GLOBALS.capturedConfig] = { clientKey: 'live_ABCDEFGHIJK' };
+    pageGlobals[PAGE_GLOBALS.checkoutCapture] = {
+      captured: { options: { clientKey: 'live_ABCDEFGHIJK' }, complete: true },
+    };
 
     await expect(extractPage()).resolves.not.toHaveProperty('apiKeyDetected');
   });

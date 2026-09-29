@@ -1,190 +1,220 @@
 import { h, render, type JSX } from 'preact';
 import { act } from 'preact/test-utils';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { useScanLifecycle } from '../../../src/popup/components/useScanLifecycle';
-import type { TabSnapshot } from '../../../src/shared/messages';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { createTabState } from '../../../src/background/tab-state';
+import {
+  useScanLifecycle,
+  type TabStateClient,
+} from '../../../src/popup/components/useScanLifecycle';
 import type { ScanResult } from '../../../src/shared/types';
+import {
+  createFakeTabStateBrowser,
+  type FakeTabStateBrowser,
+} from '../../fixtures/fakeTabStateBrowser';
+import { connectTabStateClient } from '../../fixtures/inMemoryTabStateClient';
 import { makeScanResult } from '../../fixtures/makeScanPayload';
 
 type ScanSession = ReturnType<typeof useScanLifecycle>;
-type Adapter = Parameters<typeof useScanLifecycle>[0];
-interface Message {
-  readonly type: string;
-  readonly tabId: number;
-  readonly error?: string;
+type TabTarget = Parameters<typeof useScanLifecycle>[0];
+
+const TAB = 3;
+
+interface PendingScan {
+  resolve(result: ScanResult): void;
+  reject(error: Error): void;
 }
 
 let host: HTMLDivElement;
 let session: ScanSession;
-let listener: ((message: Message) => void) | undefined;
-let sendMessage: ReturnType<typeof vi.fn>;
-let removeListener: ReturnType<typeof vi.fn>;
+let browser: FakeTabStateBrowser;
+let tabState: ReturnType<typeof createTabState>;
+let client: TabStateClient;
+let pending: PendingScan[];
 
-function TestView({ adapter }: { readonly adapter: Adapter }): JSX.Element | null {
-  session = useScanLifecycle(adapter);
+function TestView({
+  target,
+  tabClient,
+}: {
+  readonly target: TabTarget;
+  readonly tabClient: TabStateClient;
+}): JSX.Element | null {
+  session = useScanLifecycle(target, tabClient);
   return null;
 }
 
-function makeResult(): ScanResult {
-  return makeScanResult({ tabId: 3, pageUrl: 'https://merchant.example/checkout' });
-}
-
-function snapshotOf(result: ScanResult | null): TabSnapshot {
-  return { result, checkoutActivity: { detected: result !== null, version: '6.31.0' } };
-}
-
-async function mount(adapter: Adapter): Promise<void> {
+/** Lets queued tab state transitions and view updates finish. */
+async function settle(): Promise<void> {
   await act(async () => {
-    render(h(TestView, { adapter }), host);
-  });
-  await act(async () => {
-    await Promise.resolve();
-    await Promise.resolve();
+    for (let i = 0; i < 12; i += 1) await Promise.resolve();
   });
 }
 
-async function dispatch(message: Message): Promise<void> {
+const INSPECTED_TAB: TabTarget = { getTabId: () => TAB };
+
+async function mount(target = INSPECTED_TAB, tabClient = client): Promise<void> {
   await act(async () => {
-    listener?.(message);
-    await Promise.resolve();
+    render(h(TestView, { target, tabClient }), host);
   });
+  await settle();
+}
+
+async function startScan(): Promise<void> {
+  await act(async () => {
+    session.scan();
+  });
+  await settle();
 }
 
 beforeEach(() => {
   host = document.createElement('div');
   document.body.append(host);
-  listener = undefined;
-  sendMessage = vi.fn().mockResolvedValue(null);
-  removeListener = vi.fn();
-  vi.stubGlobal('chrome', {
-    runtime: {
-      sendMessage,
-      onMessage: {
-        addListener: vi.fn((fn: (message: Message) => void) => {
-          listener = fn;
-        }),
-        removeListener,
-      },
-    },
-  });
+  browser = createFakeTabStateBrowser();
+  pending = [];
+  tabState = createTabState(
+    browser,
+    () =>
+      new Promise<ScanResult>((resolve, reject) => {
+        pending.push({ resolve, reject });
+      })
+  );
+  client = connectTabStateClient(tabState, browser);
 });
 
 afterEach(() => {
   render(null, host);
   host.remove();
-  vi.unstubAllGlobals();
-  vi.useRealTimers();
 });
 
 describe('useScanLifecycle', () => {
-  it('loads a result, starts a scan and reloads after completion', async () => {
-    const result = makeResult();
-    sendMessage.mockResolvedValue(snapshotOf(result));
-    await mount({ getTabId: async () => 3 });
+  it('loads the tab snapshot, then follows a Scan to its stored result', async () => {
+    await tabState.checkoutActivityDetected(TAB, '6.31.0');
+    await mount();
 
-    expect(session.result).toEqual(result);
-    expect(session.checkoutActivity).toEqual({ detected: true, version: '6.31.0' });
-    expect(session.loading).toBe(false);
-    await act(async () => {
-      session.scan();
-      await Promise.resolve();
-      await Promise.resolve();
+    expect(session).toMatchObject({
+      result: null,
+      checkoutActivity: { detected: true, version: '6.31.0' },
+      scanning: false,
+      loading: false,
+      error: null,
     });
-    expect(sendMessage).toHaveBeenCalledWith({ type: 'SCAN_REQUEST', tabId: 3 });
-    expect(session.scanning).toBe(true);
 
-    await dispatch({ type: 'SCAN_STARTED', tabId: 12 });
+    await startScan();
     expect(session.scanning).toBe(true);
-    await dispatch({ type: 'SCAN_COMPLETE', tabId: 3 });
-    expect(sendMessage).toHaveBeenLastCalledWith({ type: 'GET_TAB_STATE', tabId: 3 });
-    expect(session.result).toEqual(result);
-    expect(session.scanning).toBe(false);
-    expect(session.error).toBeNull();
+    expect(pending).toHaveLength(1);
+
+    const result = makeScanResult({ tabId: TAB });
+    pending[0]?.resolve(result);
+    await settle();
+    expect(session).toMatchObject({ result, scanning: false, error: null });
   });
 
-  it('waits for the popup reset delay before reloading, but clears the prior result at once', async () => {
-    sendMessage.mockResolvedValue(snapshotOf(makeResult()));
-    await mount({ getTabId: async () => 3, resetDelayMs: 400 });
-    vi.useFakeTimers();
-    sendMessage.mockResolvedValue(null);
+  it('shows a Scan that was already running when the view opened', async () => {
+    tabState.requestScan(TAB).catch(() => {});
+    await settle();
+    await mount();
 
-    await dispatch({ type: 'SCAN_RESET', tabId: 3 });
-    expect(session.result).toBeNull();
+    expect(session.scanning).toBe(true);
+  });
+
+  it('shows checkout activity the detector reports while the view is open', async () => {
+    await mount();
     expect(session.checkoutActivity).toEqual({ detected: false });
-    expect(session.loading).toBe(true);
-    expect(sendMessage).toHaveBeenCalledTimes(1);
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(400);
+
+    await tabState.checkoutActivityDetected(TAB, '6.31.0');
+    await settle();
+    expect(session.checkoutActivity).toEqual({ detected: true, version: '6.31.0' });
+  });
+
+  it('clears the view when the tab navigates', async () => {
+    await tabState.checkoutActivityDetected(TAB);
+    await mount();
+    await startScan();
+    pending[0]?.resolve(makeScanResult({ tabId: TAB }));
+    await settle();
+    expect(session.result).not.toBeNull();
+
+    await tabState.navigated(TAB);
+    await settle();
+    expect(session).toMatchObject({
+      result: null,
+      checkoutActivity: { detected: false },
+      scanning: false,
     });
-    expect(sendMessage).toHaveBeenCalledTimes(2);
-    expect(session.loading).toBe(false);
   });
 
-  it('clears the inspected tab without a reset reload', async () => {
-    sendMessage.mockResolvedValue(snapshotOf(makeResult()));
-    await mount({ getTabId: () => 3 });
+  it('ignores snapshots published for other tabs', async () => {
+    await mount({ getTabId: async () => TAB });
+    await tabState.checkoutActivityDetected(TAB + 1);
+    tabState.requestScan(TAB + 1).catch(() => {});
+    await settle();
 
-    await dispatch({ type: 'SCAN_RESET', tabId: 3 });
-    expect(session.result).toBeNull();
-    expect(session.loading).toBe(false);
-    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(session).toMatchObject({ scanning: false, checkoutActivity: { detected: false } });
   });
 
-  it('cancels a pending popup reset reload when another scan starts', async () => {
-    await mount({ getTabId: async () => 3, resetDelayMs: 400 });
-    vi.useFakeTimers();
-
-    await dispatch({ type: 'SCAN_RESET', tabId: 3 });
-    await dispatch({ type: 'SCAN_STARTED', tabId: 3 });
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(400);
+  it('shows a failed Scan and clears the failure when a retry starts', async () => {
+    await mount();
+    await startScan();
+    pending[0]?.reject(new Error('Blocked page'));
+    await settle();
+    expect(session).toMatchObject({
+      scanning: false,
+      error: { kind: 'scan', message: 'Blocked page' },
     });
-    expect(session.scanning).toBe(true);
-    expect(sendMessage).toHaveBeenCalledTimes(1);
+
+    await startScan();
+    expect(session).toMatchObject({ scanning: true, error: null });
   });
 
-  it('ignores a result loaded before a reset', async () => {
-    let resolveResult: ((snapshot: TabSnapshot) => void) | undefined;
-    sendMessage.mockReturnValueOnce(
-      new Promise<TabSnapshot>((resolve) => {
-        resolveResult = resolve;
-      })
-    );
-    await mount({ getTabId: async () => 3, resetDelayMs: 400 });
-    await dispatch({ type: 'SCAN_RESET', tabId: 3 });
-
-    expect(resolveResult).toBeDefined();
-    await act(async () => {
-      resolveResult?.(snapshotOf(makeResult()));
-      await Promise.resolve();
+  it('surfaces a scan request that cannot be sent', async () => {
+    const cause = new Error('Extension context invalidated');
+    await mount(undefined, {
+      ...client,
+      requestScan: async () => {
+        throw cause;
+      },
     });
-    expect(session.result).toBeNull();
+    await startScan();
+
+    expect(session).toMatchObject({ scanning: false, error: { kind: 'request', cause } });
   });
 
-  it('uses the inspected tab adapter, ignores other tabs and preserves scan errors', async () => {
-    await mount({ getTabId: () => 4 });
-    await dispatch({ type: 'SCAN_STARTED', tabId: 3 });
-    expect(session.scanning).toBe(false);
-    await dispatch({ type: 'SCAN_STARTED', tabId: 4 });
-    expect(session.scanning).toBe(true);
-    await dispatch({ type: 'SCAN_ERROR', tabId: 4, error: 'Blocked page' });
-    expect(session.scanning).toBe(false);
-    expect(session.error).toEqual({ kind: 'scan', message: 'Blocked page' });
+  it('reports a view without an inspectable tab', async () => {
+    await mount({ getTabId: () => undefined });
+    expect(session).toMatchObject({ loading: false, error: null, result: null });
+
+    await startScan();
+    expect(session).toMatchObject({ scanning: false, error: { kind: 'tab' } });
   });
 
-  it('surfaces request errors and cleans up the listener on unmount', async () => {
-    await mount({ getTabId: () => 4 });
-    sendMessage.mockRejectedValueOnce(new Error('Extension context invalidated'));
-    await act(async () => {
-      session.scan();
-      await Promise.resolve();
-      await Promise.resolve();
+  it('reports a runtime failure when the tab cannot be resolved or read', async () => {
+    const cause = new Error('Extension context invalidated');
+    await mount({
+      getTabId: () => {
+        throw cause;
+      },
     });
-    expect(session.error?.kind).toBe('request');
-    if (session.error?.kind === 'request') {
-      expect(session.error.cause).toBeInstanceOf(Error);
-    }
+    expect(session).toMatchObject({ loading: false, error: { kind: 'runtime', cause } });
+
+    await startScan();
+    expect(session.error).toEqual({ kind: 'runtime', cause });
+
     render(null, host);
-    expect(removeListener).toHaveBeenCalledWith(listener);
+    await mount(undefined, {
+      ...client,
+      read: async () => {
+        throw cause;
+      },
+    });
+    expect(session.error).toEqual({ kind: 'runtime', cause });
+  });
+
+  it('stops following the tab after unmounting', async () => {
+    await mount();
+    render(null, host);
+    const before = session;
+
+    await tabState.checkoutActivityDetected(TAB);
+    await settle();
+    expect(session).toBe(before);
   });
 });

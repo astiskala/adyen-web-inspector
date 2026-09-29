@@ -4,6 +4,8 @@
  * Reports checkout activity (a mounted Drop-in, Component, or Adyen iframe) to
  * the background service worker. SDK presence is established by a scan.
  */
+import { readAdyenEndpoint } from '../shared/adyen-endpoint.js';
+import { readCheckoutDom, showsMountedCheckout } from '../shared/checkout-signals.js';
 import {
   MSG_CHECKOUT_ACTIVITY_CLEARED,
   MSG_CHECKOUT_ACTIVITY_DETECTED,
@@ -20,35 +22,19 @@ const DETECTION_DEBOUNCE_MS = 200;
 let pendingTimer: ReturnType<typeof globalThis.setTimeout> | undefined;
 let lastSentState: string | null = null;
 
-/** Reads the SDK version from Adyen checkoutshopper script tags (supplementary data). */
+/** Reads the SDK version from Adyen-hosted script URLs (supplementary data). */
 function extractVersionFromScripts(): string | undefined {
-  const scripts = document.querySelectorAll<HTMLScriptElement>('script[src*="checkoutshopper"]');
-  return findSdkVersionInUrls([...scripts].map((script) => script.src)) ?? undefined;
+  const urls = [...document.scripts]
+    .map((script) => script.src)
+    .filter((src) => readAdyenEndpoint(src) !== null);
+  return findSdkVersionInUrls(urls) ?? undefined;
 }
 
+/** Reports mounted checkout as the checkout signals define it; SDK script tags alone do not count. */
 function detectCheckoutActivity(): CheckoutActivity {
-  // Only report "found" when a Drop-in or Component is actually mounted on the page.
-  // SDK script tags alone (including datacollection.js / risk module) do NOT count.
-
-  // Check for Adyen Drop-in / Component DOM mount points
-  const dropinContainer = document.querySelector(
-    '.adyen-checkout__dropin, .adyen-checkout, [class*="adyen-checkout"]'
-  );
-  if (dropinContainer) {
-    const version = extractVersionFromScripts();
-    return { found: true, ...(version === undefined ? {} : { version }) };
-  }
-
-  // Check for Adyen checkout iframe (card component, 3DS)
-  const adyenIframe = document.querySelector<HTMLIFrameElement>(
-    'iframe[name^="adyen-"], iframe[title*="Adyen"], iframe[src*="adyenpayments.com"]'
-  );
-  if (adyenIframe) {
-    const version = extractVersionFromScripts();
-    return { found: true, ...(version === undefined ? {} : { version }) };
-  }
-
-  return { found: false };
+  if (!showsMountedCheckout(readCheckoutDom(document))) return { found: false };
+  const version = extractVersionFromScripts();
+  return { found: true, ...(version === undefined ? {} : { version }) };
 }
 
 function buildStateKey(result: CheckoutActivity): string {

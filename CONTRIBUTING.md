@@ -107,16 +107,17 @@ Module boundaries are enforced by [dependency-cruiser](https://github.com/sverwe
 - `content/` cannot import from `background/`, `popup/`, or `devtools/`
 - `shared/` cannot import from any other layer
 - Check modules (`background/checks/`) may only import from `shared/` and `background/checks/`
-- The Scan (`scan-orchestrator.ts`, `scan-assessment.ts`, `frame-merge.ts`) reaches the browser only through the `ScanBrowser` port in `scan-browser.ts`, and the tab state (`tab-state.ts`) only through its `TabStateBrowser` port; only the service worker imports the Chrome adapters (`chrome-scan-browser.ts`, `chrome-tab-state-browser.ts`), and only the Chrome scan adapter imports the header collector and npm registry
-- The config field schema (`shared/checkout-config-schema.ts`) and the port (`scan-browser.ts`) may import `shared/types.ts` only
+- The Scan (`scan-orchestrator.ts`, `scan-assessment.ts`, `frame-merge.ts`, `captured-traffic.ts`) reaches the browser only through the `ScanBrowser` port in `scan-browser.ts`, and the tab state (`tab-state.ts`) only through its `TabStateBrowser` port; only the service worker imports the Chrome adapters (`chrome-scan-browser.ts`, `chrome-tab-state-browser.ts`), and only the Chrome scan adapter imports the network recorder and npm registry
+- Only the popup and DevTools panel roots import the Chrome tab state client (`popup/components/chrome-tab-state-client.ts`)
+- The config field schema (`shared/checkout-config-schema.ts`), the Adyen endpoint reading (`shared/adyen-endpoint.ts`), and the port (`scan-browser.ts`) may import `shared/types.ts` only; the other shared modules that content scripts inline (capture record, configuration evidence, SDK presence, checkout signals) have their own allow-lists
 
 Run `pnpm depcruise` to verify.
 
 ESLint enforces the seams that dependency-cruiser cannot see:
 
-- Checks read checkout configuration through `readCheckoutField()` (`shared/scan-evidence.ts`), never through the raw `checkoutConfig`, `componentConfig`, or `inferredConfig` slots.
-- Checks read CSP through `readPagePolicy()` (`background/checks/page-policy.ts`).
-- Checks, the Scan, and the tab state do not use `chrome`, `fetch`, `setTimeout`, or `Date.now`.
+- Checks and the implementation-attribute rules read checkout configuration through `shared/scan-evidence.ts`, never through the raw `capturedConfig`, `componentConfig`, `inferredConfig`, or `pageJsonConfig` slots.
+- Checks read response headers through `readDocumentHeader()` and CSP through `readPagePolicy()` (`background/checks/page-policy.ts`), never `payload.documentHeaders`.
+- Checks, the Scan, and the tab state do not use `chrome`, `fetch`, `setTimeout`, or `Date.now`; the scan lifecycle hook does not use `chrome`.
 - Popup, DevTools, and the worker read `ScanResult.sdkPresence` and do not reference the `sdk-detected` check.
 - Popup, DevTools, and the worker read `ScanResult.attributes` and render issue rows from the finding projection; they do not import the implementation-attribute rules, `shared/results.ts`, or the `STORAGE_*` key prefixes.
 
@@ -128,7 +129,7 @@ The build fails if a content-script bundle contains ESM `import`/`export` statem
 
 Every check is a **pure function** — synchronous, no side effects, independently testable. Checks should distinguish verified absence from partial or inferred evidence; skip when evidence is insufficient and use `notice` when a finding needs manual verification rather than claiming an unverified failure.
 
-Read implementation attributes (integration flavor and flow, environment, region, import method, checkout activity) from the runner context's `attributes`; the Scan derives them once per payload. Read checkout configuration with `readCheckoutField(payload, key)`. It returns `present` (with the value and its source: `captured`, `component`, or `inferred`), `absent` (proven by directly captured AdyenCheckout options), or `unobserved` (with reason `no-config` or `partial-config`). Pass `{ includeInferred: false }` when inferred values must not count. Each check decides the severity for each state; only `absent` may justify a missing-field failure.
+Read implementation attributes (integration flavor and flow, environment, region, import method, checkout activity) from the runner context's `attributes`; the Scan derives them once per payload. Read checkout configuration with `readCheckoutField(payload, key)`. It returns `present` (with the value and its source: `captured`, `component`, or `inferred`, plus the `signal` for inferred values: `adyen-request` or `page-json`), `absent` (proven by AdyenCheckout options captured whole), or `unobserved` (with reason `no-config` or `partial-config`). Pass `{ includeInferred: false }` when inferred values must not count. Each check decides the severity for each state; only `absent` may justify a missing-field failure. Read response headers with `readDocumentHeader(payload, name)`, which returns `present`, `absent`, or `unavailable`; skip header checks when headers are unavailable.
 
 ### 1. Create the check
 
@@ -166,8 +167,9 @@ Create or update a test file in `tests/unit/checks/`. Use the fixture factories 
 ```typescript
 import { SECURITY_CHECKS } from '../../../src/background/checks/security';
 import {
+  makeCapturedConfig,
   makeCheckoutConfig,
-  makePageExtract,
+  makeCheckoutPage,
   makeScanPayload,
 } from '../../fixtures/makeScanPayload';
 import { requireCheck } from './requireCheck';
@@ -176,9 +178,9 @@ const httpsCheck = requireCheck(SECURITY_CHECKS, 'security-https');
 
 it('fails for live checkout over HTTP', () => {
   const payload = makeScanPayload({
-    page: makePageExtract({
+    page: makeCheckoutPage({
       pageProtocol: 'http:',
-      checkoutConfig: makeCheckoutConfig({ environment: 'live' }),
+      capturedConfig: makeCapturedConfig(makeCheckoutConfig({ environment: 'live' })),
     }),
   });
   expect(httpsCheck.run(payload).severity).toBe('fail');

@@ -10,14 +10,20 @@
  *    not read request bodies or initiate additional network requests.
  * 3. Wrapped JSON.parse inspects parsed objects for config-shaped fields.
  *
- * Directly captured settings and inferred values are published separately on
- * page globals for the on-demand page extractor to read.
+ * Everything observed goes into one capture record (shared/checkout-capture.ts),
+ * published on a page global for the on-demand page extractor to read.
  */
 
-import { applyCapturedOptions, readCheckoutOptions } from '../shared/checkout-config-schema.js';
+import {
+  EMPTY_CHECKOUT_CAPTURE,
+  readRequestInference,
+  recordCheckoutInit,
+  recordCheckoutOptions,
+  recordInference,
+} from '../shared/checkout-capture.js';
+import { readCheckoutOptions } from '../shared/checkout-config-schema.js';
 import { PAGE_GLOBALS, type PageGlobalValues } from '../shared/constants.js';
-import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
-import { extractLocaleFromUrl, isAdyenHost } from '../shared/utils.js';
+import type { CallbackSource, CheckoutCapture } from '../shared/types.js';
 
 (function configInterceptor(): void {
   const WRAPPED = '__awInspectorWrapped';
@@ -25,11 +31,7 @@ import { extractLocaleFromUrl, isAdyenHost } from '../shared/utils.js';
   type PlainRecord = Record<string, unknown>;
   type SdkCallable = (this: unknown, ...args: unknown[]) => unknown;
 
-  type PublishedConfigKey = typeof PAGE_GLOBALS.capturedConfig | typeof PAGE_GLOBALS.inferredConfig;
-
   const ADYEN_INSTANCE_MARKER = '__adyenInstance';
-  const LIVE_ENVIRONMENT_PATTERN = /(?:^|\.|-)(live(?:-[a-z]{2,4})?)(?:\.|$)/;
-  const TEST_ENVIRONMENT_PATTERN = /(?:^|\.|-)(test)(?:\.|$)/;
   const pageGlobals = globalThis as typeof globalThis & PageGlobalValues;
 
   if (pageGlobals[PAGE_GLOBALS.interceptorInstalled] === true) {
@@ -38,39 +40,25 @@ import { extractLocaleFromUrl, isAdyenHost } from '../shared/utils.js';
   pageGlobals[PAGE_GLOBALS.interceptorInstalled] = true;
 
   // ---------------------------------------------------------------------------
-  // Merging & Publishing
+  // Capture record
   // ---------------------------------------------------------------------------
 
-  let captured: CheckoutConfig | null = null;
-  let inferred: CheckoutConfig | null = null;
+  let capture: CheckoutCapture = EMPTY_CHECKOUT_CAPTURE;
 
-  function publish(key: PublishedConfigKey, config: CheckoutConfig): void {
+  /** Keeps and publishes a changed record; recording functions return the same record when nothing changed. */
+  function commit(next: CheckoutCapture): void {
+    if (next === capture) return;
+    capture = next;
     try {
-      pageGlobals[key] = structuredClone(config);
+      pageGlobals[PAGE_GLOBALS.checkoutCapture] = structuredClone(capture);
     } catch {
       /* ignore */
     }
   }
 
-  function mergeAndPublishInferred(incoming: CheckoutConfig | null): void {
-    if (incoming === null || Object.keys(incoming).length === 0) {
-      return;
-    }
-    inferred = { ...inferred, ...incoming };
-    publish(PAGE_GLOBALS.inferredConfig, inferred);
-  }
-
   function captureConfig(raw: unknown, source: CallbackSource): void {
     try {
-      const fields = readCheckoutOptions(raw, source);
-      // Options passed straight to AdyenCheckout are the full checkout config, so absent fields are known absent.
-      const complete = source === 'checkout' && fields !== null && !Array.isArray(raw);
-      if (fields === null || (Object.keys(fields).length === 0 && !complete)) {
-        return;
-      }
-      captured = applyCapturedOptions(captured, fields);
-      publish(PAGE_GLOBALS.capturedConfig, captured);
-      if (complete) pageGlobals[PAGE_GLOBALS.directConfigCaptured] = true;
+      commit(recordCheckoutOptions(capture, raw, source));
     } catch {
       /* ignore */
     }
@@ -82,39 +70,8 @@ import { extractLocaleFromUrl, isAdyenHost } from '../shared/utils.js';
 
   function tryCaptureFromUrl(url: string): void {
     try {
-      const u = new URL(url, globalThis.location.href);
-      if (!isAdyenHost(u.hostname)) {
-        return;
-      }
-
-      const liveMatch = LIVE_ENVIRONMENT_PATTERN.exec(u.hostname);
-      const testMatch = TEST_ENVIRONMENT_PATTERN.exec(u.hostname);
-
-      if (liveMatch !== null) {
-        mergeAndPublishInferred({ environment: liveMatch[1] as string });
-      } else if (testMatch !== null) {
-        mergeAndPublishInferred({ environment: 'test' });
-      }
-
-      const clientKey = u.searchParams.get('clientKey');
-      if (clientKey !== null && clientKey !== '') {
-        mergeAndPublishInferred({ clientKey });
-      }
-
-      const localeFromParams = u.searchParams.get('locale');
-      if (localeFromParams !== null && localeFromParams !== '') {
-        mergeAndPublishInferred({ locale: localeFromParams });
-      }
-
-      const countryCode = u.searchParams.get('countryCode');
-      if (countryCode !== null && countryCode !== '') {
-        mergeAndPublishInferred({ countryCode });
-      }
-
-      const localeFromUrl = extractLocaleFromUrl(u.pathname);
-      if (localeFromUrl !== null) {
-        mergeAndPublishInferred({ locale: localeFromUrl });
-      }
+      const inferred = readRequestInference(url, globalThis.location.href);
+      commit(recordInference(capture, 'adyen-request', inferred));
     } catch {
       /* ignore */
     }
@@ -128,7 +85,7 @@ import { extractLocaleFromUrl, isAdyenHost } from '../shared/utils.js';
     const result = originalParse.call(JSON, text, reviver) as unknown;
     if (result !== null && typeof result === 'object') {
       try {
-        mergeAndPublishInferred(readCheckoutOptions(result, 'checkout'));
+        commit(recordInference(capture, 'page-json', readCheckoutOptions(result, 'checkout')));
       } catch {
         return result;
       }
@@ -245,12 +202,7 @@ import { extractLocaleFromUrl, isAdyenHost } from '../shared/utils.js';
   }
 
   function incrementInitCount(): void {
-    try {
-      const count: unknown = pageGlobals[PAGE_GLOBALS.checkoutInitCount];
-      pageGlobals[PAGE_GLOBALS.checkoutInitCount] = typeof count === 'number' ? count + 1 : 1;
-    } catch {
-      /* ignore */
-    }
+    commit(recordCheckoutInit(capture));
   }
 
   function observeCheckoutFactoryResult(result: Promise<unknown>): void {
@@ -261,10 +213,8 @@ import { extractLocaleFromUrl, isAdyenHost } from '../shared/utils.js';
       .catch(() => {});
   }
 
+  /** Wraps an AdyenCheckout factory; callers skip factories that are already wrapped. */
   function wrapCheckoutFactory(original: SdkCallable): SdkCallable {
-    if (isWrapped(original)) {
-      return original;
-    }
     const wrapped: SdkCallable = function (this: unknown, ...args: unknown[]): unknown {
       incrementInitCount();
       captureConfig(args[0], 'checkout');
@@ -279,10 +229,8 @@ import { extractLocaleFromUrl, isAdyenHost } from '../shared/utils.js';
     return wrapped;
   }
 
+  /** Wraps a component constructor; callers skip constructors that are already wrapped. */
   function wrapComponentConstructor(original: SdkCallable): SdkCallable {
-    if (isWrapped(original)) {
-      return original;
-    }
     const wrapped: SdkCallable = function (this: unknown, ...args: unknown[]): unknown {
       if (args.length > 1) {
         captureConfig(args[1], 'component');

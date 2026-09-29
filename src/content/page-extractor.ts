@@ -4,11 +4,15 @@
  * serialises a plain result onto a page global for the background scan to read.
  */
 
+import { readAdyenEndpoint } from '../shared/adyen-endpoint.js';
+import { readCheckoutCapture } from '../shared/checkout-capture.js';
+import { readCheckoutDom } from '../shared/checkout-signals.js';
 import { mergeCheckoutConfigs, readCheckoutOptions } from '../shared/checkout-config-schema.js';
 import { PAGE_GLOBALS, type PageGlobalValues } from '../shared/constants.js';
 import type {
   AdyenStyleInfo,
   AdyenWebMetadata,
+  CheckoutCapture,
   CheckoutConfig,
   IframeInfo,
   LinkTag,
@@ -65,31 +69,6 @@ function extractMetadata(g: GlobalWithAdyen): AdyenWebMetadata | null {
   return g.AdyenWebMetadata ?? null;
 }
 
-/**
- * Reads the checkout config published by the MAIN-world config-interceptor.
- * The interceptor captures actual runtime values from AdyenCheckout() and
- * component constructor calls, so no static analysis is needed here.
- */
-function extractCheckoutConfig(g: GlobalWithAdyen): CheckoutConfig | null {
-  const captured = g[PAGE_GLOBALS.capturedConfig];
-  if (
-    captured &&
-    typeof captured === 'object' &&
-    (Object.keys(captured).length > 0 || g[PAGE_GLOBALS.directConfigCaptured] === true)
-  ) {
-    return captured;
-  }
-  return null;
-}
-
-function extractInferredConfig(g: GlobalWithAdyen): CheckoutConfig | null {
-  const inferred = g[PAGE_GLOBALS.inferredConfig];
-  if (inferred && typeof inferred === 'object' && Object.keys(inferred).length > 0) {
-    return inferred;
-  }
-  return null;
-}
-
 function extractScripts(): ScriptTag[] {
   return [...document.querySelectorAll<HTMLScriptElement>('script[src]')].map((s) => {
     const tag: { src: string; integrity?: string; crossorigin?: string; blockingMode?: string } = {
@@ -118,14 +97,6 @@ function extractLinks(): LinkTag[] {
     return tag;
   });
 }
-
-function hasElement(selector: string): boolean {
-  return document.querySelector(selector) !== null;
-}
-
-// Stored-card forms use the same wrapper, so only new-card forms are counted.
-const NEW_CARD_FORM_SELECTOR =
-  '.adyen-checkout__card__form:not(.adyen-checkout__card__form--oneClick)';
 
 function extractIframes(): IframeInfo[] {
   return [...document.querySelectorAll<HTMLIFrameElement>('iframe')].map((f) => {
@@ -313,32 +284,16 @@ function extractComponentConfig(): ComponentExtraction {
  */
 const ADYEN_API_KEY_PATTERN = /AQ[A-Za-z0-9+/]+==-[A-Za-z0-9+/]+=-[A-Za-z0-9+/]+/;
 
-function detectApiKeyExposure(g: GlobalWithAdyen): boolean {
-  // Scan inline <script> tag contents
+/** Looks for an Adyen API key in inline scripts and in everything the capture record holds. */
+function detectApiKeyExposure(capture: CheckoutCapture): boolean {
   const scripts = document.querySelectorAll<HTMLScriptElement>('script:not([src])');
   for (const script of scripts) {
     if (ADYEN_API_KEY_PATTERN.test(script.textContent)) {
       return true;
     }
   }
-
-  // Scan captured config objects
-  const capturedConfig = g[PAGE_GLOBALS.capturedConfig];
-  const inferredConfig = g[PAGE_GLOBALS.inferredConfig];
-
-  if (capturedConfig !== undefined && ADYEN_API_KEY_PATTERN.test(JSON.stringify(capturedConfig))) {
-    return true;
-  }
-
-  if (inferredConfig !== undefined && ADYEN_API_KEY_PATTERN.test(JSON.stringify(inferredConfig))) {
-    return true;
-  }
-
-  return false;
+  return ADYEN_API_KEY_PATTERN.test(JSON.stringify(capture));
 }
-
-/** Adyen CDN stylesheet host patterns — rules from these sheets are not overrides. */
-const ADYEN_CDN_HREF_PATTERN = /checkoutshopper[-.]|adyen\.com/i;
 
 /**
  * When Adyen Web is loaded via npm, the SDK's own CSS is bundled into a
@@ -390,10 +345,9 @@ function walkCssRules(rules: CSSRuleList, acc: StyleAccumulator): void {
   }
 }
 
-/** Returns true when the stylesheet is likely Adyen's own CSS (CDN or npm bundle). */
+/** Returns true when the stylesheet is likely Adyen's own CSS (Adyen-hosted or npm bundle). */
 function isAdyenOwnStylesheet(sheet: CSSStyleSheet, rules: CSSRuleList): boolean {
-  const href = sheet.href ?? '';
-  if (href !== '' && ADYEN_CDN_HREF_PATTERN.test(href)) return true;
+  if (sheet.href !== null && readAdyenEndpoint(sheet.href) !== null) return true;
 
   const sheetAcc: StyleAccumulator = {
     overrideCount: 0,
@@ -428,28 +382,26 @@ function extract(): PageExtractResult {
 
   const metadata = extractMetadata(g);
   const { config: componentConfig, mountCount } = extractComponentConfig();
-  const checkoutConfig = extractCheckoutConfig(g);
-  const inferredConfig = extractInferredConfig(g);
-  const apiKeyDetected = detectApiKeyExposure(g);
+  const capture = readCheckoutCapture(g[PAGE_GLOBALS.checkoutCapture]);
+  const apiKeyDetected = detectApiKeyExposure(capture);
+  const dom = readCheckoutDom(document);
 
   return {
     adyenMetadata: metadata,
-    checkoutConfig,
-    ...(g[PAGE_GLOBALS.directConfigCaptured] === true ? { checkoutConfigComplete: true } : {}),
-    inferredConfig,
+    capturedConfig: capture.captured,
+    inferredConfig: capture.inferred['adyen-request'] ?? null,
+    pageJsonConfig: capture.inferred['page-json'] ?? null,
     componentConfig,
     scripts: extractScripts(),
     links: extractLinks(),
     iframes: extractIframes(),
     observedRequests: extractObservedRequests(),
-    ...(typeof g[PAGE_GLOBALS.checkoutInitCount] === 'number'
-      ? { checkoutInitCount: g[PAGE_GLOBALS.checkoutInitCount] }
-      : {}),
+    ...(capture.initCount > 0 ? { checkoutInitCount: capture.initCount } : {}),
     ...(mountCount > 0 ? { componentMountCount: mountCount } : {}),
-    ...(hasElement('.adyen-checkout__dropin') ? { hasDropinDOM: true } : {}),
-    ...(hasElement('.adyen-checkout__card-input') ? { hasCardDOM: true } : {}),
-    ...(hasElement(NEW_CARD_FORM_SELECTOR) ? { hasNewCardFormDOM: true } : {}),
-    ...(hasElement('.adyen-checkout__card__holderName') ? { hasCardHolderNameDOM: true } : {}),
+    ...(dom.dropin ? { hasDropinDOM: true } : {}),
+    ...(dom.card ? { hasCardDOM: true } : {}),
+    ...(dom.newCardForm ? { hasNewCardFormDOM: true } : {}),
+    ...(dom.cardHolderName ? { hasCardHolderNameDOM: true } : {}),
     ...(apiKeyDetected ? { apiKeyDetected: true } : {}),
     adyenStyles: extractAdyenStyles(),
     isInsideIframe: globalThis.self !== globalThis.top,

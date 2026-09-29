@@ -4,8 +4,9 @@
  */
 
 import type { ImplementationAttributes } from '../../shared/types.js';
-import { getHeader, isAdyenCheckoutResource } from '../../shared/utils.js';
+import { isAdyenCheckoutResource, readAdyenEndpoint } from '../../shared/adyen-endpoint.js';
 import { SKIP_REASONS } from './constants.js';
+import { readDocumentHeader, type DocumentHeaderEvidence } from './page-policy.js';
 import { createRegistry } from './registry.js';
 
 const PCI_GUIDE_URL = 'https://docs.adyen.com/development-resources/pci-dss-compliance-guide/';
@@ -114,6 +115,11 @@ function hasMissingSriAttributes(resource: SriAttributableResource): boolean {
   );
 }
 
+/** An observed header's value, or null when the document did not send it. */
+function valueOf(header: Exclude<DocumentHeaderEvidence, { state: 'unavailable' }>): string | null {
+  return header.state === 'present' ? header.value : null;
+}
+
 function isLiveEnvironment(attributes: ImplementationAttributes): boolean {
   const environment = attributes.environment.value;
   return environment === 'live' || environment === 'live-in';
@@ -185,10 +191,11 @@ export const SECURITY_CHECKS = createRegistry(CATEGORY)
   .add(
     'security-referrer-policy',
     (payload, { pass, notice, skip }) => {
-      if (!payload.mainDocumentHeadersAvailable) {
+      const header = readDocumentHeader(payload, 'Referrer-Policy');
+      if (header.state === 'unavailable') {
         return skip(STRINGS.REFERRER_POLICY_SKIP_TITLE, SKIP_REASONS.HEADERS_UNAVAILABLE);
       }
-      const value = getHeader(payload, 'Referrer-Policy');
+      const value = valueOf(header);
       if (value !== null && ACCEPTED_REFERRER_POLICIES.has(value)) {
         return pass(`Referrer-Policy is set to "${value}".`);
       }
@@ -206,11 +213,11 @@ export const SECURITY_CHECKS = createRegistry(CATEGORY)
   .add(
     'security-x-content-type',
     (payload, { pass, notice, skip }) => {
-      if (!payload.mainDocumentHeadersAvailable) {
+      const header = readDocumentHeader(payload, 'X-Content-Type-Options');
+      if (header.state === 'unavailable') {
         return skip(STRINGS.XCTO_SKIP_TITLE, SKIP_REASONS.HEADERS_UNAVAILABLE);
       }
-      const value = getHeader(payload, 'X-Content-Type-Options');
-      if (value?.toLowerCase() === 'nosniff') {
+      if (valueOf(header)?.toLowerCase() === 'nosniff') {
         return pass(STRINGS.XCTO_PASS_TITLE);
       }
       return notice(
@@ -225,11 +232,11 @@ export const SECURITY_CHECKS = createRegistry(CATEGORY)
   .add(
     'security-xss-protection',
     (payload, { pass, notice, skip }) => {
-      if (!payload.mainDocumentHeadersAvailable) {
+      const header = readDocumentHeader(payload, 'X-XSS-Protection');
+      if (header.state === 'unavailable') {
         return skip(STRINGS.XSS_SKIP_TITLE, SKIP_REASONS.HEADERS_UNAVAILABLE);
       }
-      const value = getHeader(payload, 'X-XSS-Protection');
-      if (DISABLED_XSS_PROTECTION_VALUES.has(value)) {
+      if (DISABLED_XSS_PROTECTION_VALUES.has(valueOf(header))) {
         return pass(STRINGS.XSS_PASS_TITLE);
       }
       return notice(
@@ -247,10 +254,11 @@ export const SECURITY_CHECKS = createRegistry(CATEGORY)
       if (!isLiveEnvironment(attributes)) {
         return skip(STRINGS.HSTS_SKIP_TITLE, STRINGS.HSTS_SKIP_REASON);
       }
-      if (!payload.mainDocumentHeadersAvailable) {
+      const header = readDocumentHeader(payload, 'Strict-Transport-Security');
+      if (header.state === 'unavailable') {
         return skip(STRINGS.HSTS_SKIP_TITLE, SKIP_REASONS.HEADERS_UNAVAILABLE);
       }
-      const value = getHeader(payload, 'Strict-Transport-Security');
+      const value = valueOf(header);
       if (value !== null && value !== '') return pass(STRINGS.HSTS_PASS_TITLE);
       return notice(
         STRINGS.HSTS_NOTICE_TITLE,
@@ -264,8 +272,7 @@ export const SECURITY_CHECKS = createRegistry(CATEGORY)
   .add('security-iframe-referrerpolicy', (payload, { pass, info }) => {
     const { iframes } = payload.page;
     const adyenIframes = iframes.filter(
-      (f) =>
-        f.src !== undefined && f.src !== '' && /\.(?:adyen\.com|adyenpayments\.com)/.test(f.src)
+      (f) => f.src !== undefined && readAdyenEndpoint(f.src) !== null
     );
     if (adyenIframes.length === 0) return info(STRINGS.IFRAME_RP_NO_ADYEN_INFO_TITLE);
 

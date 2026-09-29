@@ -7,6 +7,7 @@ import {
   makeAdyenPayload,
   makeCheckoutPage,
   makeScanPayload,
+  UNAVAILABLE_DOCUMENT_HEADERS,
 } from '../../fixtures/makeScanPayload';
 
 interface CatalogEntry {
@@ -157,7 +158,7 @@ describe('check catalog documentation', () => {
       makeAdyenPayload(),
       makeScanPayload({
         page: makeCheckoutPage({ inferredConfig: { countryCode: 'NL', locale: 'nl-NL' } }),
-        mainDocumentHeadersAvailable: false,
+        documentHeaders: UNAVAILABLE_DOCUMENT_HEADERS,
       }),
     ];
 

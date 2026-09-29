@@ -4,9 +4,9 @@
  */
 
 import type { ImplementationAttributes } from '../../shared/types.js';
+import { isAdyenCheckoutResource } from '../../shared/adyen-endpoint.js';
 import { readCheckoutField } from '../../shared/scan-evidence.js';
 import { detectSdkPresence } from '../../shared/sdk-presence.js';
-import { isAdyenCheckoutResource } from '../../shared/utils.js';
 import { docsIntegration } from './constants.js';
 import { createRegistry } from './registry.js';
 

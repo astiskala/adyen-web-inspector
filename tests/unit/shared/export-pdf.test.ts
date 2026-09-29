@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { buildPrintableHtml } from '../../../src/shared/export-pdf';
 import type { PrintableReportMetadata } from '../../../src/shared/export-pdf';
 import type { CheckResult, ScanResult } from '../../../src/shared/types';
-import { makeCheckoutPage, makeScanPayload, makeScanResult } from '../../fixtures/makeScanPayload';
+import {
+  makeCheckoutPage,
+  makeScanPayload,
+  makeScanResult,
+  makeCapturedConfig,
+} from '../../fixtures/makeScanPayload';
 
 function makeResult(overrides: Partial<ScanResult> = {}): ScanResult {
   return makeScanResult({
@@ -121,7 +126,7 @@ describe('buildPrintableHtml', () => {
           },
         ],
         page: makeCheckoutPage({
-          checkoutConfig: { clientKey: 'live_CLIENTKEY', environment: 'live' },
+          capturedConfig: makeCapturedConfig({ clientKey: 'live_CLIENTKEY', environment: 'live' }),
           componentConfig: { countryCode: 'NL' },
         }),
       }),

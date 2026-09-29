@@ -5,12 +5,12 @@
 import { PAGE_GLOBALS } from '../shared/constants.js';
 import type { CapturedHeader, PageExtractResult } from '../shared/types.js';
 import { describeError } from '../shared/utils.js';
-import { HeaderCollector } from './header-collector.js';
+import { NetworkRecorder } from './network-recorder.js';
 import { getAdyenWebReleaseInfo } from './npm-registry.js';
 import type {
-  CollectedNetwork,
   FrameExtraction,
   NetworkCapture,
+  ObservedNetwork,
   ScanBrowser,
 } from './scan-browser.js';
 
@@ -122,12 +122,12 @@ async function extractFrames(tabId: number): Promise<FrameExtraction[]> {
 }
 
 function captureNetwork(tabId: number): NetworkCapture {
-  const collector = new HeaderCollector(tabId);
-  collector.start();
+  const recorder = new NetworkRecorder(tabId);
+  recorder.start();
   return {
-    stop: (): CollectedNetwork => {
-      collector.stop();
-      return collector.getResult();
+    stop: (): ObservedNetwork => {
+      recorder.stop();
+      return recorder.result();
     },
   };
 }

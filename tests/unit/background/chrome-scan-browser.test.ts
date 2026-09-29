@@ -133,11 +133,7 @@ describe('chromeScanBrowser.captureNetwork', () => {
       ['responseHeaders']
     );
 
-    expect(capture.stop()).toEqual({
-      mainDocumentHeaders: [],
-      capturedRequests: [],
-      analyticsData: null,
-    });
+    expect(capture.stop()).toEqual({ responses: [], posts: [] });
     expect(webRequest.onHeadersReceived.removeListener).toHaveBeenCalled();
   });
 });

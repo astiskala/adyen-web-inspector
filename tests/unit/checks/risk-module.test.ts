@@ -5,6 +5,7 @@ import {
   makeScanPayload,
   makeCheckoutPage,
   makeCheckoutConfig,
+  makeCapturedConfig,
 } from '../../fixtures/makeScanPayload';
 import { DF_IFRAME_NAME } from '../../../src/shared/constants';
 import { requireCheck } from './requireCheck';
@@ -38,7 +39,7 @@ describe('risk-df-iframe', () => {
 describe('risk-module-not-disabled', () => {
   it('skips when checkout config is not detected', () => {
     const payload = makeScanPayload({
-      page: makeCheckoutPage({ checkoutConfig: null }),
+      page: makeCheckoutPage({ capturedConfig: null }),
     });
     expect(riskNotDisabled.run(payload).severity).toBe('skip');
   });
@@ -46,11 +47,7 @@ describe('risk-module-not-disabled', () => {
   it('passes when riskEnabled is not explicitly false in verified checkout config', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
-        checkoutConfig: {
-          clientKey: 'test_X',
-          environment: 'test',
-        },
-        checkoutConfigComplete: true,
+        capturedConfig: makeCapturedConfig({ clientKey: 'test_X', environment: 'test' }, true),
       }),
     });
     expect(riskNotDisabled.run(payload).severity).toBe('pass');
@@ -60,11 +57,11 @@ describe('risk-module-not-disabled', () => {
   it('warns when riskEnabled is false', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
-        checkoutConfig: {
+        capturedConfig: makeCapturedConfig({
           clientKey: 'test_X',
           environment: 'test',
           riskEnabled: false,
-        },
+        }),
       }),
     });
     expect(riskNotDisabled.run(payload).severity).toBe('warn');
@@ -72,7 +69,7 @@ describe('risk-module-not-disabled', () => {
 
   it('skips when the risk setting is absent from partial config', () => {
     const payload = makeScanPayload({
-      page: makeCheckoutPage({ checkoutConfig: { clientKey: 'test_X' } }),
+      page: makeCheckoutPage({ capturedConfig: makeCapturedConfig({ clientKey: 'test_X' }) }),
     });
     expect(riskNotDisabled.run(payload).severity).toBe('skip');
   });
@@ -80,7 +77,7 @@ describe('risk-module-not-disabled', () => {
   it('detects a disabled setting in a component when captured config is partial', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
-        checkoutConfig: { clientKey: 'test_X' },
+        capturedConfig: makeCapturedConfig({ clientKey: 'test_X' }),
         componentConfig: { riskEnabled: false },
       }),
     });
@@ -90,7 +87,7 @@ describe('risk-module-not-disabled', () => {
   it('skips when riskEnabled is undefined and no full config', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
-        checkoutConfig: null,
+        capturedConfig: null,
         inferredConfig: {
           clientKey: 'test_X',
           environment: 'test',

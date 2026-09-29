@@ -1,19 +1,51 @@
 import { describe, expect, it } from 'vitest';
-import { readPagePolicy } from '../../../src/background/checks/page-policy';
-import { makeHeader, makeScanPayload } from '../../fixtures/makeScanPayload';
+import { readDocumentHeader, readPagePolicy } from '../../../src/background/checks/page-policy';
+import {
+  makeHeader,
+  makeScanPayload,
+  makeDocumentHeaders,
+  UNAVAILABLE_DOCUMENT_HEADERS,
+} from '../../fixtures/makeScanPayload';
 
 function policyFor(...csp: string[]): ReturnType<typeof readPagePolicy> {
   return readPagePolicy(
     makeScanPayload({
       pageUrl: 'https://merchant.example/checkout',
-      mainDocumentHeaders: csp.map((value) => makeHeader('Content-Security-Policy', value)),
+      documentHeaders: makeDocumentHeaders(
+        csp.map((value) => makeHeader('Content-Security-Policy', value))
+      ),
     })
   );
 }
 
+describe('readDocumentHeader', () => {
+  it('tells an unavailable header from an absent one, reading names case-insensitively', () => {
+    const payload = makeScanPayload({
+      documentHeaders: makeDocumentHeaders([
+        makeHeader('X-Frame-Options', 'DENY'),
+        makeHeader('x-frame-options', 'SAMEORIGIN'),
+      ]),
+    });
+
+    expect(readDocumentHeader(payload, 'x-frame-options')).toEqual({
+      state: 'present',
+      value: 'DENY',
+    });
+    expect(readDocumentHeader(payload, 'Referrer-Policy')).toEqual({ state: 'absent' });
+    expect(
+      readDocumentHeader(
+        makeScanPayload({ documentHeaders: UNAVAILABLE_DOCUMENT_HEADERS }),
+        'X-Frame-Options'
+      )
+    ).toEqual({ state: 'unavailable' });
+  });
+});
+
 describe('readPagePolicy', () => {
   it('reports unavailable headers and absent policies', () => {
-    expect(readPagePolicy(makeScanPayload({ mainDocumentHeadersAvailable: false }))).toEqual({
+    expect(
+      readPagePolicy(makeScanPayload({ documentHeaders: UNAVAILABLE_DOCUMENT_HEADERS }))
+    ).toEqual({
       status: 'unavailable',
     });
     expect(policyFor()).toEqual({ status: 'absent' });

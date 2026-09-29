@@ -6,7 +6,7 @@
  * rows in projection order; none of them sorts or rewords issues itself.
  */
 
-import { extractHostname, isAdyenHost } from './utils.js';
+import { readAdyenEndpoint } from './adyen-endpoint.js';
 import { getImpactLevel, IMPACT_LABELS, isIssue, ISSUE_IMPACT_ORDER } from './results.js';
 import type {
   AdyenEnvironment,
@@ -15,6 +15,7 @@ import type {
   CheckCategory,
   CheckId,
   CheckImpact,
+  CheckoutConfig,
   CheckResult,
   ImplementationAttributes,
   IntegrationFlavor,
@@ -89,9 +90,13 @@ interface ExportNetworkData {
 }
 
 interface ExportRawConfigData {
-  readonly checkoutConfig: ScanResult['payload']['page']['checkoutConfig'];
-  readonly componentConfig: ScanResult['payload']['page']['componentConfig'];
-  readonly inferredCheckoutConfig: ScanResult['payload']['page']['inferredConfig'];
+  /** Options captured from AdyenCheckout and component calls. */
+  readonly checkoutConfig: CheckoutConfig | null;
+  /** True when AdyenCheckout's options were captured whole. */
+  readonly checkoutConfigComplete: boolean;
+  readonly componentConfig: CheckoutConfig | null;
+  readonly inferredCheckoutConfig: CheckoutConfig | null;
+  readonly pageJsonCheckoutConfig: CheckoutConfig | null;
   readonly sdkMetadata: ScanResult['payload']['page']['adyenMetadata'];
 }
 
@@ -227,14 +232,9 @@ function buildSkippedChecks(result: ScanResult): ExportSkippedCheck[] {
 }
 
 function buildNetworkData(result: ScanResult): ExportNetworkData {
-  const capturedRequests = result.payload.capturedRequests.filter((request) => {
-    if (request.type !== 'other') {
-      return true;
-    }
-
-    const host = extractHostname(request.url);
-    return host !== null && isAdyenHost(host);
-  });
+  const capturedRequests = result.payload.capturedRequests.filter(
+    (request) => request.type !== 'other' || readAdyenEndpoint(request.url) !== null
+  );
 
   return { capturedRequests };
 }
@@ -263,16 +263,23 @@ export function buildRawConfigSections(rawConfig: ExportRawConfigData): RawConfi
       title: 'Inferred Checkout Fields',
       text: formatConfig(rawConfig.inferredCheckoutConfig, 'No inferred config captured.'),
     },
+    {
+      title: 'Page JSON Fields',
+      text: formatConfig(rawConfig.pageJsonCheckoutConfig, 'No option-shaped page JSON captured.'),
+    },
     { title: 'SDK Metadata', text: JSON.stringify(rawConfig.sdkMetadata, null, 2) },
   ];
 }
 
 function buildRawConfigData(result: ScanResult): ExportRawConfigData {
+  const { page } = result.payload;
   return {
-    checkoutConfig: result.payload.page.checkoutConfig,
-    componentConfig: result.payload.page.componentConfig,
-    inferredCheckoutConfig: result.payload.page.inferredConfig,
-    sdkMetadata: result.payload.page.adyenMetadata,
+    checkoutConfig: page.capturedConfig?.options ?? null,
+    checkoutConfigComplete: page.capturedConfig?.complete ?? false,
+    componentConfig: page.componentConfig,
+    inferredCheckoutConfig: page.inferredConfig,
+    pageJsonCheckoutConfig: page.pageJsonConfig,
+    sdkMetadata: page.adyenMetadata,
   };
 }
 

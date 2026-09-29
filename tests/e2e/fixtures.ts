@@ -232,20 +232,27 @@ export async function scanFixture(
     const scanPromise = popup.evaluate(
       (targetTabId) =>
         new Promise<ScanResult>((resolve, reject) => {
+          let started = false;
           const listener = (message: {
             type: string;
             tabId?: number;
-            result?: ScanResult;
-            error?: string;
+            snapshot?: {
+              result: ScanResult | null;
+              scan: { state: string; error?: string };
+            };
           }): void => {
-            if (message.tabId !== targetTabId) return;
-            if (message.type === 'SCAN_COMPLETE' && message.result !== undefined) {
-              chrome.runtime.onMessage.removeListener(listener);
-              resolve(message.result);
-            } else if (message.type === 'SCAN_ERROR') {
-              chrome.runtime.onMessage.removeListener(listener);
-              reject(new Error(message.error ?? 'Scan failed.'));
+            if (message.type !== 'TAB_STATE_CHANGED' || message.tabId !== targetTabId) return;
+            const scan = message.snapshot?.scan;
+            if (scan === undefined) return;
+            if (scan.state === 'running') {
+              started = true;
+              return;
             }
+            if (!started) return;
+            chrome.runtime.onMessage.removeListener(listener);
+            const result = message.snapshot?.result ?? null;
+            if (scan.state === 'idle' && result !== null) resolve(result);
+            else reject(new Error(scan.error ?? 'Scan finished without a result.'));
           };
           chrome.runtime.onMessage.addListener(listener);
           chrome.runtime

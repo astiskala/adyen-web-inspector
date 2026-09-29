@@ -49,15 +49,28 @@ const BASE_RESTRICTED_IMPORT_PATHS = [
 
 // ─── Architecture seams (see AGENTS.md → Key Seams) ─────────────────────────
 
-const RAW_CONFIG_SLOT =
-  '/^(checkoutConfig|componentConfig|inferredConfig|checkoutConfigComplete)$/';
+const RAW_CONFIG_SLOT = '/^(capturedConfig|componentConfig|inferredConfig|pageJsonConfig)$/';
 const RAW_CONFIG_MESSAGE =
-  'Read checkout configuration through readCheckoutField() in shared/scan-evidence.ts; it owns source precedence and the absence rule.';
+  'Read checkout configuration through shared/scan-evidence.ts (readCheckoutField(), checkoutConfigSources()); it owns source precedence, the absence rule, and what page JSON may show.';
+const RAW_CONFIG_RULES = [
+  { selector: `MemberExpression[property.name=${RAW_CONFIG_SLOT}]`, message: RAW_CONFIG_MESSAGE },
+  {
+    selector: `ObjectPattern > Property[key.name=${RAW_CONFIG_SLOT}]`,
+    message: RAW_CONFIG_MESSAGE,
+  },
+];
+const DOCUMENT_HEADERS_RULE = {
+  selector: "MemberExpression[property.name='documentHeaders']",
+  message:
+    'Read response headers through readDocumentHeader() or readPagePolicy() in checks/page-policy.ts; they tell unavailable headers from absent ones.',
+};
 const PURE_CHECK_MESSAGE = 'Checks are pure: no chrome.* APIs, network, or clock.';
 const SCAN_PORT_MESSAGE =
   'The Scan and tab state reach the browser, network, and clock only through their ports.';
 const SDK_PRESENCE_MESSAGE =
   'Read ScanResult.sdkPresence instead of inferring SDK presence from the sdk-detected check.';
+const TAB_STATE_CLIENT_MESSAGE =
+  'The scan lifecycle hook reaches the tab state only through its TabStateClient argument.';
 
 const restrictGlobals = (names, message) => ['error', ...names.map((name) => ({ name, message }))];
 
@@ -266,14 +279,8 @@ export default defineConfig([
       'no-restricted-syntax': [
         'error',
         ...SOURCE_RESTRICTED_SYNTAX,
-        {
-          selector: `MemberExpression[property.name=${RAW_CONFIG_SLOT}]`,
-          message: RAW_CONFIG_MESSAGE,
-        },
-        {
-          selector: `ObjectPattern > Property[key.name=${RAW_CONFIG_SLOT}]`,
-          message: RAW_CONFIG_MESSAGE,
-        },
+        ...RAW_CONFIG_RULES,
+        DOCUMENT_HEADERS_RULE,
       ],
       'no-restricted-globals': restrictGlobals(
         ['chrome', 'fetch', 'setTimeout'],
@@ -284,6 +291,28 @@ export default defineConfig([
         { object: 'Date', property: 'now', message: PURE_CHECK_MESSAGE },
         { object: 'globalThis', property: 'chrome', message: PURE_CHECK_MESSAGE },
         { object: 'globalThis', property: 'fetch', message: PURE_CHECK_MESSAGE },
+      ],
+    },
+  },
+  {
+    files: ['src/background/checks/page-policy.ts'],
+    rules: {
+      'no-restricted-syntax': ['error', ...SOURCE_RESTRICTED_SYNTAX, ...RAW_CONFIG_RULES],
+    },
+  },
+  {
+    files: ['src/shared/implementation-attributes.ts'],
+    rules: {
+      'no-restricted-syntax': ['error', ...SOURCE_RESTRICTED_SYNTAX, ...RAW_CONFIG_RULES],
+    },
+  },
+  {
+    files: ['src/popup/components/useScanLifecycle.ts'],
+    rules: {
+      'no-restricted-globals': restrictGlobals(['chrome'], TAB_STATE_CLIENT_MESSAGE),
+      'no-restricted-properties': [
+        'error',
+        { object: 'globalThis', property: 'chrome', message: TAB_STATE_CLIENT_MESSAGE },
       ],
     },
   },
@@ -312,6 +341,7 @@ export default defineConfig([
       'src/background/scan-orchestrator.ts',
       'src/background/scan-assessment.ts',
       'src/background/frame-merge.ts',
+      'src/background/captured-traffic.ts',
       'src/background/tab-state.ts',
     ],
     rules: {

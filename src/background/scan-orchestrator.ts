@@ -5,6 +5,7 @@
 import type { CheckoutPage, ScanResult } from '../shared/types.js';
 import { hasCapturedCheckoutConfig } from '../shared/scan-evidence.js';
 import { detectSdkPresence, hasAdyenScriptHint } from '../shared/sdk-presence.js';
+import { readCapturedTraffic } from './captured-traffic.js';
 import { mergeFrames } from './frame-merge.js';
 import { assessScan } from './scan-assessment.js';
 import type { ScanBrowser } from './scan-browser.js';
@@ -27,21 +28,17 @@ export async function runScan(tabId: number, browser: ScanBrowser): Promise<Scan
     await browser.waitForTabComplete(tabId, TAB_READY_TIMEOUT_MS);
     await browser.sleep(SPA_SETTLE_MS);
 
-    const pageData = await extractPageData(browser, tabId);
+    const page = await extractPageData(browser, tabId);
     const release = await releasePromise;
-    const collected = capture.stop();
-
-    const mainDocumentHeaders =
-      !pageData.checkoutInIframe && collected.mainDocumentHeaders.length > 0
-        ? collected.mainDocumentHeaders
-        : await browser.fetchDocumentHeaders(pageData.pageUrl);
+    const traffic = await readCapturedTraffic(capture.stop(), page, (url) =>
+      browser.fetchDocumentHeaders(url)
+    );
 
     return await assessScan(
       {
         tabId,
-        page: pageData,
-        collected,
-        mainDocumentHeaders,
+        page,
+        traffic,
         latestVersion: release?.latest ?? null,
         ...(release === null ? {} : { releaseDates: release.releaseDates }),
         scannedAt: new Date(browser.now()).toISOString(),

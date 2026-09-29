@@ -4,14 +4,14 @@
 
 import type { ScanPayload } from '../../shared/types.js';
 import {
-  ADYEN_WEB_ENVIRONMENT_URLS,
-  ADYEN_WEB_TRANSLATION_LOCALES,
-  type AdyenWebEnvironmentOrigins,
-} from '../../shared/constants.js';
+  isAdyenCheckoutResource,
+  resolveAdyenWebOrigins,
+  type AdyenWebOrigins,
+} from '../../shared/adyen-endpoint.js';
+import { ADYEN_WEB_TRANSLATION_LOCALES } from '../../shared/constants.js';
 import { readCheckoutField } from '../../shared/scan-evidence.js';
-import { getHeader, isAdyenCheckoutResource } from '../../shared/utils.js';
 import { COMMON_DETAILS, SKIP_REASONS } from './constants.js';
-import { readPagePolicy, type PagePolicy } from './page-policy.js';
+import { readDocumentHeader, readPagePolicy, type PagePolicy } from './page-policy.js';
 import { createRegistry, type CheckContext, type CheckOutcome } from './registry.js';
 
 const CATEGORY = 'security' as const;
@@ -116,28 +116,14 @@ function skipUnenforced(
     : skip(title, STRINGS.NO_CSP_SKIP_REASON);
 }
 
-function isAdyenWebEnvironment(name: string): name is keyof typeof ADYEN_WEB_ENVIRONMENT_URLS {
-  return Object.hasOwn(ADYEN_WEB_ENVIRONMENT_URLS, name);
-}
-
-/**
- * Mirrors Adyen Web v6 environment URL resolution: names are lowercased and
- * unknown environment names fall back to the default live endpoints.
- */
+/** The origins Adyen Web uses for the configured environment, else for a test environment signal. */
 function resolveAdyenWebUrls(
   payload: ScanPayload,
   { attributes }: CheckContext
-): AdyenWebEnvironmentOrigins | null {
+): AdyenWebOrigins | null {
   const environment = readCheckoutField(payload, 'environment');
-  if (environment.state === 'present') {
-    const name = environment.value.toLowerCase();
-    return isAdyenWebEnvironment(name)
-      ? ADYEN_WEB_ENVIRONMENT_URLS[name]
-      : ADYEN_WEB_ENVIRONMENT_URLS.live;
-  }
-  if (attributes.environment.value === 'test') {
-    return ADYEN_WEB_ENVIRONMENT_URLS.test;
-  }
+  if (environment.state === 'present') return resolveAdyenWebOrigins(environment.value);
+  if (attributes.environment.value === 'test') return resolveAdyenWebOrigins('test');
   return null;
 }
 
@@ -325,7 +311,7 @@ export const CSP_CHECKS = createRegistry(CATEGORY)
       return skip(STRINGS.FRAME_ANCESTORS_SKIP_TITLE, SKIP_REASONS.HEADERS_UNAVAILABLE);
     }
     const hasFrameAncestors = policy.status === 'enforced' && policy.declares('frame-ancestors');
-    const hasXfo = getHeader(payload, 'x-frame-options') !== null;
+    const hasXfo = readDocumentHeader(payload, 'x-frame-options').state === 'present';
 
     if (hasFrameAncestors || hasXfo) {
       return pass(
@@ -347,7 +333,7 @@ export const CSP_CHECKS = createRegistry(CATEGORY)
     if (policy.status === 'unavailable') {
       return skip(STRINGS.REPORTING_SKIP_TITLE, SKIP_REASONS.HEADERS_UNAVAILABLE);
     }
-    const reportingEndpoints = getHeader(payload, 'reporting-endpoints');
+    const reportingEndpoints = readDocumentHeader(payload, 'reporting-endpoints');
 
     if (policy.status === 'absent') {
       return info(STRINGS.REPORTING_SKIP_INFO_TITLE);
@@ -356,7 +342,7 @@ export const CSP_CHECKS = createRegistry(CATEGORY)
     const hasReportTo = policy.declares('report-to');
     const hasReportUri = policy.declares('report-uri');
 
-    if (hasReportTo && Boolean(reportingEndpoints)) {
+    if (hasReportTo && reportingEndpoints.state === 'present' && reportingEndpoints.value !== '') {
       return pass(STRINGS.REPORTING_PASS_TITLE);
     }
 

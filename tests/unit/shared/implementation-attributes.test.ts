@@ -6,6 +6,7 @@ import {
   makeCheckoutPage,
   makeRequest,
   makeScanPayload,
+  makeCapturedConfig,
 } from '../../fixtures/makeScanPayload';
 
 describe('readImplementationAttributes', () => {
@@ -47,7 +48,7 @@ describe('environment and region', () => {
     const { environment } = readImplementationAttributes(
       makeScanPayload({
         page: makeCheckoutPage({
-          checkoutConfig: { clientKey: 'pub.v2.ORIGIN' },
+          capturedConfig: makeCapturedConfig({ clientKey: 'pub.v2.ORIGIN' }),
           inferredConfig: { clientKey: 'test_INFERRED' },
         }),
       })
@@ -76,11 +77,13 @@ describe('environment and region', () => {
   });
 
   it.each([
-    ['https://checkoutanalytics-live.adyen.com/checkoutanalytics/v3/setup', 'live', 'unknown'],
+    ['https://checkoutanalytics-live.adyen.com/checkoutanalytics/v3/setup', 'live', 'EU'],
+    ['https://checkoutanalytics-live-us.adyen.com/checkoutanalytics/v3/setup', 'live', 'US'],
     ['https://checkoutanalytics-test.adyen.com/checkoutanalytics/v3/setup', 'test', 'unknown'],
+    ['https://checkout-test.adyen.com/v71/sessions', 'test', 'unknown'],
     ['https://checkout-live.adyenpayments.com/v71/sessions', 'live', 'EU'],
     ['https://checkout-live-nea.adyenpayments.com/v71/sessions', 'live', 'NEA'],
-    ['https://checkout-live-in-x.adyenpayments.com/v71/paymentMethods', 'live-in', 'unknown'],
+    ['https://checkout-live-in-x.adyenpayments.com/v71/paymentMethods', 'live-in', 'IN'],
     ['https://pal-live.adyen.com/v71/payments/details', 'live', 'unknown'],
   ])('reads the network environment from %s', (url, env, region) => {
     const attributes = readImplementationAttributes(
@@ -125,12 +128,57 @@ describe('integration flow', () => {
   it('derives Advanced flow from checkout configuration', () => {
     expect(readImplementationAttributes(makeAdyenPayload()).flow.value).toBe('advanced');
   });
+
+  it('derives Sessions flow from a captured session object', () => {
+    const { flow } = readImplementationAttributes(
+      makeScanPayload({
+        page: makeCheckoutPage({ componentConfig: { hasSession: true } }),
+      })
+    );
+
+    expect(flow).toMatchObject({ value: 'sessions', signals: { hasSessionConfig: true } });
+  });
+});
+
+describe('option-shaped page JSON', () => {
+  it('does not make an SDK-loaded page look configured, active, or Components', () => {
+    const attributes = readImplementationAttributes(
+      makeScanPayload({
+        page: makeCheckoutPage({
+          adyenMetadata: { version: '6.31.0' },
+          pageJsonConfig: { locale: 'en-GB' },
+        }),
+      })
+    );
+
+    expect(attributes).toMatchObject({
+      checkoutActivity: false,
+      flow: { value: 'unknown', signals: { hasCheckoutConfig: false } },
+      flavor: { value: 'Unknown', source: 'sdk-loaded-no-checkout' },
+    });
+  });
+
+  it('does not turn a session object in page JSON into Sessions flow', () => {
+    const { flow } = readImplementationAttributes(
+      makeScanPayload({
+        page: makeCheckoutPage({
+          capturedConfig: makeCapturedConfig({ clientKey: 'test_K' }),
+          pageJsonConfig: { hasSession: true },
+        }),
+      })
+    );
+
+    expect(flow).toMatchObject({ value: 'advanced', signals: { hasSessionConfig: false } });
+  });
 });
 
 describe('integration flavor, import method, and checkout activity', () => {
   it('uses analytics as the primary flavor signal, over the Drop-in DOM', () => {
     const payload = makeScanPayload({
-      page: makeCheckoutPage({ checkoutConfig: { clientKey: 'test_ABC' }, hasDropinDOM: true }),
+      page: makeCheckoutPage({
+        capturedConfig: makeCapturedConfig({ clientKey: 'test_ABC' }),
+        hasDropinDOM: true,
+      }),
       analyticsData: makeAnalyticsData({ flavor: 'components' }),
     });
 

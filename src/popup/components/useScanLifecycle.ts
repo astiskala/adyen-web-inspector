@@ -1,27 +1,33 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import {
-  MSG_GET_TAB_STATE,
-  MSG_SCAN_COMPLETE,
-  MSG_SCAN_ERROR,
-  MSG_SCAN_REQUEST,
-  MSG_SCAN_RESET,
-  MSG_SCAN_STARTED,
-  type BswToUiMessage,
+  EMPTY_TAB_SNAPSHOT,
   type CheckoutActivity,
   type TabSnapshot,
 } from '../../shared/messages.js';
 import type { ScanResult } from '../../shared/types.js';
-import { isRecord, isScanResult } from '../../shared/utils.js';
+
+/**
+ * What the popup and DevTools panel need from the tab state. Chrome runtime
+ * messaging is the production adapter; tests connect the real tab state.
+ */
+export interface TabStateClient {
+  /** Reads the tab's snapshot; rejects when the extension runtime is unreachable. */
+  read(tabId: number): Promise<TabSnapshot>;
+  /** Asks the tab state to scan the tab; rejects when the request cannot be sent. */
+  requestScan(tabId: number): Promise<void>;
+  /** Delivers every snapshot the tab state publishes; returns an unsubscribe function. */
+  subscribe(listener: (tabId: number, snapshot: TabSnapshot) => void): () => void;
+}
+
+/** Which tab a view inspects. */
+interface TabTarget {
+  getTabId(): number | undefined | Promise<number | undefined>;
+}
 
 type ScanFailure =
-  | { readonly kind: 'scan'; readonly message?: string }
+  | { readonly kind: 'scan'; readonly message: string }
   | { readonly kind: 'runtime' | 'request'; readonly cause: unknown }
   | { readonly kind: 'tab' };
-
-interface TabAdapter {
-  getTabId(): number | undefined | Promise<number | undefined>;
-  readonly resetDelayMs?: number;
-}
 
 interface ScanState {
   readonly result: ScanResult | null;
@@ -31,184 +37,95 @@ interface ScanState {
   readonly error: ScanFailure | null;
 }
 
-const EMPTY_SNAPSHOT: TabSnapshot = { result: null, checkoutActivity: { detected: false } };
-
 const INITIAL_STATE: ScanState = {
-  ...EMPTY_SNAPSHOT,
+  result: null,
+  checkoutActivity: EMPTY_TAB_SNAPSHOT.checkoutActivity,
   scanning: false,
   loading: true,
   error: null,
 };
 
-/** Reads the worker's tab snapshot, tolerating a missing or malformed response. */
-function readSnapshot(value: unknown): TabSnapshot {
-  if (!isRecord(value)) return EMPTY_SNAPSHOT;
-  const { result, checkoutActivity: activity } = value;
-  const version = isRecord(activity) ? activity['version'] : undefined;
-  const detected = isRecord(activity) && activity['detected'] === true;
+function fromSnapshot({ result, checkoutActivity, scan }: TabSnapshot): ScanState {
   return {
-    result: isScanResult(result) ? result : null,
-    checkoutActivity:
-      detected && typeof version === 'string' ? { detected, version } : { detected },
+    result,
+    checkoutActivity,
+    scanning: scan.state === 'running',
+    loading: false,
+    error: scan.state === 'failed' ? { kind: 'scan', message: scan.error } : null,
   };
 }
 
-const SCAN_LIFECYCLE_TYPES: ReadonlySet<string> = new Set([
-  MSG_SCAN_STARTED,
-  MSG_SCAN_COMPLETE,
-  MSG_SCAN_ERROR,
-  MSG_SCAN_RESET,
-]);
-
-function isScanLifecycleMessage(message: { readonly type: string }): message is BswToUiMessage {
-  return SCAN_LIFECYCLE_TYPES.has(message.type);
+function failed(error: ScanFailure): (previous: ScanState) => ScanState {
+  return (previous) => ({ ...previous, scanning: false, loading: false, error });
 }
 
 /**
- * Tracks one tab's state (its scan result and checkout activity) and scan
- * progress, and exposes a scan trigger shared by the popup and DevTools panel.
+ * Renders one tab's snapshot as the tab state publishes it, and exposes a
+ * scan trigger shared by the popup and DevTools panel.
  */
-export function useScanLifecycle(adapter: TabAdapter): ScanState & { readonly scan: () => void } {
+export function useScanLifecycle(
+  target: TabTarget,
+  client: TabStateClient
+): ScanState & { readonly scan: () => void } {
   const [state, setState] = useState<ScanState>(INITIAL_STATE);
-  const generation = useRef(0);
+  const tabId = useRef<Promise<number | undefined> | null>(null);
   const mounted = useRef(false);
 
-  async function loadResult(): Promise<void> {
-    const current = ++generation.current;
-    setState((previous) => ({ ...previous, loading: true }));
-    try {
-      const tabId = await adapter.getTabId();
-      const snapshot: unknown =
-        tabId === undefined
-          ? null
-          : await chrome.runtime.sendMessage({ type: MSG_GET_TAB_STATE, tabId });
-      if (mounted.current && current === generation.current) {
-        setState({ ...readSnapshot(snapshot), scanning: false, loading: false, error: null });
-      }
-    } catch (error) {
-      if (mounted.current && current === generation.current) {
-        setState((previous) => ({
-          ...previous,
-          scanning: false,
-          loading: false,
-          error: { kind: 'runtime', cause: error },
-        }));
-      }
-    }
-  }
-
-  function reload(): void {
-    loadResult().catch(() => {});
-  }
-
-  function scan(): void {
-    const current = ++generation.current;
-    setState((previous) => ({ ...previous, scanning: true, loading: false, error: null }));
-    async function requestScan(): Promise<void> {
-      let tabId: number | undefined;
-      try {
-        tabId = await adapter.getTabId();
-      } catch (error) {
-        if (mounted.current && current === generation.current) {
-          setState((previous) => ({
-            ...previous,
-            scanning: false,
-            error: { kind: 'runtime', cause: error },
-          }));
-        }
-        return;
-      }
-      if (tabId === undefined) {
-        if (mounted.current && current === generation.current) {
-          setState((previous) => ({ ...previous, scanning: false, error: { kind: 'tab' } }));
-        }
-        return;
-      }
-
-      try {
-        // chrome.runtime.sendMessage returns a promise; await handles rejected sends.
-        // Synchronous context invalidation also reaches this request error path.
-        await chrome.runtime.sendMessage({ type: MSG_SCAN_REQUEST, tabId });
-      } catch (error) {
-        if (mounted.current && current === generation.current) {
-          setState((previous) => ({
-            ...previous,
-            scanning: false,
-            error: { kind: 'request', cause: error },
-          }));
-        }
-      }
-    }
-    requestScan().catch(() => {});
+  function update(next: ScanState | ((previous: ScanState) => ScanState)): void {
+    if (mounted.current) setState(next);
   }
 
   useEffect(() => {
     mounted.current = true;
-    let resetTimer: ReturnType<typeof setTimeout> | undefined;
-    reload();
+    let unsubscribe = (): void => {};
+    const resolved = Promise.resolve().then(() => target.getTabId());
+    tabId.current = resolved;
 
-    async function handleMessage(message: BswToUiMessage): Promise<void> {
-      let tabId: number | undefined;
-      try {
-        tabId = await adapter.getTabId();
-      } catch (error) {
-        if (!mounted.current) return;
-        setState((previous) => ({
-          ...previous,
-          scanning: false,
-          error: { kind: 'runtime', cause: error },
-        }));
+    async function follow(): Promise<void> {
+      const id = await resolved;
+      if (!mounted.current) return;
+      if (id === undefined) {
+        update(fromSnapshot(EMPTY_TAB_SNAPSHOT));
         return;
       }
-      if (!mounted.current || tabId === undefined || message.tabId !== tabId) return;
-
-      if (resetTimer !== undefined) {
-        globalThis.clearTimeout(resetTimer);
-        resetTimer = undefined;
-      }
-      if (message.type === MSG_SCAN_STARTED) {
-        ++generation.current;
-        setState((previous) => ({ ...previous, scanning: true, loading: false, error: null }));
-        return;
-      }
-      if (message.type === MSG_SCAN_RESET) {
-        ++generation.current;
-        setState({
-          ...EMPTY_SNAPSHOT,
-          scanning: false,
-          loading: adapter.resetDelayMs !== undefined,
-          error: null,
-        });
-        if (adapter.resetDelayMs !== undefined) {
-          resetTimer = globalThis.setTimeout(reload, adapter.resetDelayMs);
-        }
-        return;
-      }
-      if (message.type === MSG_SCAN_COMPLETE) {
-        reload();
-        return;
-      }
-      ++generation.current;
-      setState((previous) => ({
-        ...previous,
-        scanning: false,
-        loading: false,
-        error: { kind: 'scan', message: message.error },
-      }));
+      unsubscribe = client.subscribe((changedTabId, snapshot) => {
+        if (changedTabId === id) update(fromSnapshot(snapshot));
+      });
+      update(fromSnapshot(await client.read(id)));
     }
 
-    const listener = (message: { readonly type: string }): void => {
-      if (!isScanLifecycleMessage(message)) return;
-      handleMessage(message).catch(() => {});
-    };
-    chrome.runtime.onMessage.addListener(listener);
+    follow().catch((error: unknown) => {
+      update(failed({ kind: 'runtime', cause: error }));
+    });
     return (): void => {
       mounted.current = false;
-      ++generation.current;
-      if (resetTimer !== undefined) globalThis.clearTimeout(resetTimer);
-      chrome.runtime.onMessage.removeListener(listener);
+      unsubscribe();
     };
-  }, [adapter]);
+  }, [target, client]);
+
+  async function requestScan(): Promise<void> {
+    let id: number | undefined;
+    try {
+      id = await (tabId.current ?? target.getTabId());
+    } catch (error: unknown) {
+      update(failed({ kind: 'runtime', cause: error }));
+      return;
+    }
+    if (id === undefined) {
+      update(failed({ kind: 'tab' }));
+      return;
+    }
+    try {
+      await client.requestScan(id);
+    } catch (error: unknown) {
+      update(failed({ kind: 'request', cause: error }));
+    }
+  }
+
+  function scan(): void {
+    update((previous) => ({ ...previous, scanning: true, loading: false, error: null }));
+    requestScan().catch(() => {});
+  }
 
   return { ...state, scan };
 }

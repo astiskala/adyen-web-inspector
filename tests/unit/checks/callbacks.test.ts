@@ -7,6 +7,7 @@ import {
   makeRequest,
   makeCheckoutConfig,
   makeAnalyticsData,
+  makeCapturedConfig,
 } from '../../fixtures/makeScanPayload';
 import { requireCheck } from './requireCheck';
 
@@ -43,7 +44,7 @@ function makePartialCheckoutConfigPayload(
 ): ReturnType<typeof makeScanPayload> {
   return makeScanPayload({
     page: makeCheckoutPage({
-      checkoutConfig: { countryCode: 'SG' },
+      capturedConfig: makeCapturedConfig({ countryCode: 'SG' }),
       componentConfig: makeCheckoutConfig(componentConfigOverrides),
     }),
   });
@@ -111,7 +112,7 @@ describe('flow-type', () => {
   it('reports sessions flow when hasSession is true and no network match', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
-        checkoutConfig: makeCheckoutConfig({ hasSession: true }),
+        capturedConfig: makeCapturedConfig(makeCheckoutConfig({ hasSession: true })),
       }),
     });
     const result = flowType.run(payload);
@@ -134,7 +135,7 @@ describe('flow-type', () => {
     const payload = makeScanPayload({
       capturedRequests: sessionsRequests,
       page: makeCheckoutPage({
-        checkoutConfig: makeCheckoutConfig({ hasSession: true }),
+        capturedConfig: makeCapturedConfig(makeCheckoutConfig({ hasSession: true })),
       }),
     });
     const result = flowType.run(payload);
@@ -164,7 +165,7 @@ describe('callback-on-additional-details', () => {
 
   it('skips when no config', () => {
     const payload = makeScanPayload({
-      page: makeCheckoutPage({ checkoutConfig: null }),
+      page: makeCheckoutPage({ capturedConfig: null }),
     });
     expect(onAdditionalDetails.run(payload).severity).toBe('skip');
   });
@@ -172,7 +173,7 @@ describe('callback-on-additional-details', () => {
   it('skips when missing and no full config', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
-        checkoutConfig: null,
+        capturedConfig: null,
         inferredConfig: makeCheckoutConfig({ onAdditionalDetails: undefined }),
       }),
     });
@@ -219,7 +220,7 @@ describe('callback-on-submit', () => {
 describe('callback-on-submit-filtering', () => {
   it('skips when no checkout config present', () => {
     const payload = makeScanPayload({
-      page: makeCheckoutPage({ checkoutConfig: null }),
+      page: makeCheckoutPage({ capturedConfig: null }),
     });
     expect(onSubmitSelectiveHandling.run(payload).severity).toBe('skip');
   });
@@ -464,7 +465,7 @@ describe('callback-on-payment-completed', () => {
 
   it('skips when no config', () => {
     const payload = makeScanPayload({
-      page: makeCheckoutPage({ checkoutConfig: null }),
+      page: makeCheckoutPage({ capturedConfig: null }),
     });
     expect(onPaymentCompleted.run(payload).severity).toBe('skip');
   });
@@ -472,7 +473,7 @@ describe('callback-on-payment-completed', () => {
   it('skips when missing and no full config', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
-        checkoutConfig: null,
+        capturedConfig: null,
         inferredConfig: makeCheckoutConfig({ onPaymentCompleted: undefined }),
       }),
     });
@@ -482,8 +483,7 @@ describe('callback-on-payment-completed', () => {
   it('fails for sessions flow detected via hasSession (no network)', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
-        checkoutConfig: makeCheckoutConfig({ hasSession: true }),
-        checkoutConfigComplete: true,
+        capturedConfig: makeCapturedConfig(makeCheckoutConfig({ hasSession: true }), true),
       }),
     });
     expect(onPaymentCompleted.run(payload).severity).toBe('fail');
@@ -545,7 +545,7 @@ describe('callback-on-payment-failed', () => {
 
   it('skips when no config', () => {
     const payload = makeScanPayload({
-      page: makeCheckoutPage({ checkoutConfig: null }),
+      page: makeCheckoutPage({ capturedConfig: null }),
     });
     expect(onPaymentFailed.run(payload).severity).toBe('skip');
   });
@@ -553,7 +553,7 @@ describe('callback-on-payment-failed', () => {
   it('skips when missing and no full config', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
-        checkoutConfig: null,
+        capturedConfig: null,
         inferredConfig: makeCheckoutConfig({ onPaymentFailed: undefined }),
       }),
     });
@@ -576,7 +576,7 @@ describe('callback-on-payment-failed', () => {
 describe('callback-on-error', () => {
   it('skips when no checkout config present', () => {
     const payload = makeScanPayload({
-      page: makeCheckoutPage({ checkoutConfig: null }),
+      page: makeCheckoutPage({ capturedConfig: null }),
     });
     expect(onError.run(payload).severity).toBe('skip');
   });
@@ -604,7 +604,7 @@ describe('callback-on-error', () => {
   it('skips when missing and no full config', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
-        checkoutConfig: null,
+        capturedConfig: null,
         inferredConfig: makeCheckoutConfig({ onError: undefined }),
       }),
     });
@@ -615,7 +615,7 @@ describe('callback-on-error', () => {
 describe('callback-before-submit', () => {
   it('skips when no checkout config present', () => {
     const payload = makeScanPayload({
-      page: makeCheckoutPage({ checkoutConfig: null }),
+      page: makeCheckoutPage({ capturedConfig: null }),
     });
     expect(beforeSubmit.run(payload).severity).toBe('skip');
   });
@@ -662,7 +662,7 @@ describe('callback-actions-pattern', () => {
 
   it('skips when no config', () => {
     const payload = makeScanPayload({
-      page: makeCheckoutPage({ checkoutConfig: null }),
+      page: makeCheckoutPage({ capturedConfig: null }),
     });
     expect(actionsPattern.run(payload).severity).toBe('skip');
   });
@@ -685,7 +685,7 @@ describe('callback-actions-pattern', () => {
 describe('callback-multiple-submissions', () => {
   it('skips when no checkout config present', () => {
     const payload = makeScanPayload({
-      page: makeCheckoutPage({ checkoutConfig: null }),
+      page: makeCheckoutPage({ capturedConfig: null }),
     });
     expect(multipleSubmissions.run(payload).severity).toBe('skip');
   });
@@ -841,7 +841,7 @@ describe('componentConfig fallback', () => {
 describe('partial checkoutConfig fallback', () => {
   it('does not report absent callbacks as failures without direct checkout options', () => {
     const payload = makeScanPayload({
-      page: makeCheckoutPage({ checkoutConfig: { countryCode: 'SG' } }),
+      page: makeCheckoutPage({ capturedConfig: makeCapturedConfig({ countryCode: 'SG' }) }),
     });
     expect(onSubmit.run(payload).severity).toBe('skip');
     expect(onError.run(payload).severity).toBe('skip');

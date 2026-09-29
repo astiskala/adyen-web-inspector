@@ -1,7 +1,7 @@
 import type {
   AdyenWebReleaseInfo,
-  CollectedNetwork,
   FrameExtraction,
+  ObservedNetwork,
   ScanBrowser,
 } from '../../src/background/scan-browser';
 import type { CapturedHeader, PageExtractResult } from '../../src/shared/types';
@@ -9,7 +9,8 @@ import type { CapturedHeader, PageExtractResult } from '../../src/shared/types';
 export interface FakeScanBrowserOptions {
   /** Successive extractFrames results; the last one repeats once exhausted. */
   readonly extractions?: readonly (readonly FrameExtraction[])[];
-  readonly network?: Partial<CollectedNetwork>;
+  /** Raw network traffic the capture reports when stopped. */
+  readonly network?: Partial<ObservedNetwork>;
   readonly documentHeaders?: CapturedHeader[];
   /** Script text served by URL; other scripts are unavailable. */
   readonly scriptTexts?: Readonly<Record<string, string>>;
@@ -35,12 +36,7 @@ export function createFakeScanBrowser(options: FakeScanBrowserOptions = {}): Fak
   const extractions = options.extractions ?? [[]];
   let extractionIndex = 0;
   let clock = options.startTime ?? Date.parse('2026-09-28T00:00:00.000Z');
-  const network: CollectedNetwork = {
-    mainDocumentHeaders: [],
-    capturedRequests: [],
-    analyticsData: null,
-    ...options.network,
-  };
+  const network: ObservedNetwork = { responses: [], posts: [], ...options.network };
 
   const browser: FakeScanBrowser = {
     calls: [],
@@ -59,7 +55,7 @@ export function createFakeScanBrowser(options: FakeScanBrowserOptions = {}): Fak
     captureNetwork: () => {
       browser.calls.push('captureNetwork');
       return {
-        stop: (): CollectedNetwork => {
+        stop: (): ObservedNetwork => {
           browser.networkStops += 1;
           return network;
         },
