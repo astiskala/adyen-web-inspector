@@ -4,10 +4,13 @@ import {
   makeScanPayload,
   makeAdyenPayload,
   makeHeader,
-  makePageExtract,
+  makeCheckoutPage,
   makeCheckoutConfig,
   makeAdyenMetadata,
   makeRequest,
+  makeCapturedConfig,
+  makeDocumentHeaders,
+  UNAVAILABLE_DOCUMENT_HEADERS,
 } from '../../fixtures/makeScanPayload';
 import { requireCheck } from './requireCheck';
 
@@ -31,25 +34,42 @@ describe('Security Checks', () => {
     });
 
     it('fails when live env is served over http', () => {
-      const page = makePageExtract({
+      const page = makeCheckoutPage({
         pageProtocol: 'http:',
         pageUrl: 'http://example.com',
-        checkoutConfig: makeCheckoutConfig({ clientKey: 'live_XXXX', environment: 'live' }),
+        capturedConfig: makeCapturedConfig(
+          makeCheckoutConfig({ clientKey: 'live_XXXX', environment: 'live' })
+        ),
         adyenMetadata: makeAdyenMetadata(),
       });
       expect(securityHttps.run(makeScanPayload({ page })).severity).toBe('fail');
     });
 
+    it('fails when India live environment is served over http', () => {
+      const page = makeCheckoutPage({
+        pageProtocol: 'http:',
+        capturedConfig: makeCapturedConfig(
+          makeCheckoutConfig({ environment: 'live-in', clientKey: 'live_XXXX' })
+        ),
+      });
+      expect(securityHttps.run(makeScanPayload({ page })).severity).toBe('fail');
+    });
+
+    it('passes when India live environment is served over https', () => {
+      const payload = makeAdyenPayload({}, { environment: 'live-in', clientKey: 'live_XXXX' });
+      expect(securityHttps.run(payload).severity).toBe('pass');
+    });
+
     it('skips when test environment', () => {
       const payload = makeScanPayload({
-        page: makePageExtract({ pageProtocol: 'http:', pageUrl: 'http://example.com' }),
+        page: makeCheckoutPage({ pageProtocol: 'http:', pageUrl: 'http://example.com' }),
       });
       expect(securityHttps.run(payload).severity).toBe('skip');
     });
 
     it('skips when only live CDN traffic (no config env signal)', () => {
       const payload = makeScanPayload({
-        page: makePageExtract({ pageProtocol: 'http:', pageUrl: 'http://example.com' }),
+        page: makeCheckoutPage({ pageProtocol: 'http:', pageUrl: 'http://example.com' }),
         capturedRequests: [
           makeRequest('https://checkoutshopper-live.cdn.adyen.com/checkoutshopper/sdk.js'),
         ],
@@ -61,7 +81,7 @@ describe('Security Checks', () => {
   describe('SRI Scripts', () => {
     it('returns skip when no Adyen scripts are present', () => {
       const payload = makeScanPayload({
-        page: makePageExtract({
+        page: makeCheckoutPage({
           scripts: [{ src: 'https://example.com/app.js' }],
         }),
       });
@@ -70,7 +90,7 @@ describe('Security Checks', () => {
 
     it('returns pass when Adyen CDN script has SRI attributes', () => {
       const payload = makeScanPayload({
-        page: makePageExtract({
+        page: makeCheckoutPage({
           scripts: [
             {
               src: 'https://checkoutshopper-test.adyen.com/checkoutshopper-sdk/5.67.0/adyen.js',
@@ -83,9 +103,35 @@ describe('Security Checks', () => {
       expect(sriScript.run(payload).severity).toBe('pass');
     });
 
+    it('accepts SRI on the CDN script path documented for v6 integrations', () => {
+      const payload = makeScanPayload({
+        page: makeCheckoutPage({
+          scripts: [
+            {
+              src: 'https://checkoutshopper-test.cdn.adyen.com/sdk/6.31.0/adyen.js',
+              integrity: 'sha384-ABC',
+              crossorigin: 'anonymous',
+            },
+          ],
+        }),
+      });
+      expect(sriScript.run(payload).severity).toBe('pass');
+    });
+
+    it('does not trust a non-Adyen host with a matching SDK path', () => {
+      const payload = makeScanPayload({
+        page: makeCheckoutPage({
+          scripts: [
+            { src: 'https://checkoutshopper-test.cdn.adyen.com.example.org/sdk/6.31.0/adyen.js' },
+          ],
+        }),
+      });
+      expect(sriScript.run(payload).severity).toBe('skip');
+    });
+
     it('returns fail when Adyen CDN script is missing SRI', () => {
       const payload = makeScanPayload({
-        page: makePageExtract({
+        page: makeCheckoutPage({
           scripts: [
             { src: 'https://checkoutshopper-test.adyen.com/checkoutshopper-sdk/5.67.0/adyen.js' },
           ],
@@ -98,7 +144,7 @@ describe('Security Checks', () => {
 
     it('returns warn when Adyen CDN stylesheet is missing SRI', () => {
       const payload = makeScanPayload({
-        page: makePageExtract({
+        page: makeCheckoutPage({
           links: [
             {
               rel: 'stylesheet',
@@ -116,7 +162,7 @@ describe('Security Checks', () => {
   describe('SRI CSS', () => {
     it('returns skip when no Adyen stylesheets are present', () => {
       const payload = makeScanPayload({
-        page: makePageExtract({
+        page: makeCheckoutPage({
           links: [{ rel: 'stylesheet', href: 'https://example.com/app.css' }],
         }),
       });
@@ -125,7 +171,7 @@ describe('Security Checks', () => {
 
     it('returns pass when Adyen CDN stylesheet has SRI attributes', () => {
       const payload = makeScanPayload({
-        page: makePageExtract({
+        page: makeCheckoutPage({
           links: [
             {
               rel: 'stylesheet',
@@ -143,13 +189,15 @@ describe('Security Checks', () => {
   describe('Referrer-Policy', () => {
     it('passes when strict policy is set', () => {
       const payload = makeScanPayload({
-        mainDocumentHeaders: [makeHeader('referrer-policy', 'strict-origin-when-cross-origin')],
+        documentHeaders: makeDocumentHeaders([
+          makeHeader('referrer-policy', 'strict-origin-when-cross-origin'),
+        ]),
       });
       expect(referrerPolicy.run(payload).severity).toBe('pass');
     });
 
     it('returns notice when header is missing', () => {
-      const payload = makeScanPayload({ mainDocumentHeaders: [] });
+      const payload = makeScanPayload({ documentHeaders: makeDocumentHeaders([]) });
       const result = referrerPolicy.run(payload);
       expect(result.severity).toBe('notice');
       expect(result.detail).toContain('referrer policy');
@@ -157,7 +205,7 @@ describe('Security Checks', () => {
 
     it('passes when same-origin is set', () => {
       const payload = makeScanPayload({
-        mainDocumentHeaders: [makeHeader('Referrer-Policy', 'same-origin')],
+        documentHeaders: makeDocumentHeaders([makeHeader('Referrer-Policy', 'same-origin')]),
       });
       expect(referrerPolicy.run(payload).severity).toBe('pass');
     });
@@ -166,14 +214,14 @@ describe('Security Checks', () => {
   describe('X-Content-Type-Options', () => {
     it('passes when nosniff is set', () => {
       const payload = makeScanPayload({
-        mainDocumentHeaders: [makeHeader('x-content-type-options', 'nosniff')],
+        documentHeaders: makeDocumentHeaders([makeHeader('x-content-type-options', 'nosniff')]),
       });
       expect(xContentType.run(payload).severity).toBe('pass');
     });
 
     it('returns notice with impact detail when nosniff is missing', () => {
       const payload = makeScanPayload({
-        mainDocumentHeaders: [],
+        documentHeaders: makeDocumentHeaders([]),
       });
       const result = xContentType.run(payload);
       expect(result.severity).toBe('notice');
@@ -199,7 +247,27 @@ describe('Security Checks', () => {
         {},
         { clientKey: 'live_XXXX', environment: 'live' },
         {
-          mainDocumentHeaders: [makeHeader('strict-transport-security', 'max-age=31536000')],
+          documentHeaders: makeDocumentHeaders([
+            makeHeader('strict-transport-security', 'max-age=31536000'),
+          ]),
+        }
+      );
+      expect(hsts.run(payload).severity).toBe('pass');
+    });
+
+    it('returns notice when missing on India live', () => {
+      const payload = makeAdyenPayload({}, { clientKey: 'live_XXXX', environment: 'live-in' });
+      expect(hsts.run(payload).severity).toBe('notice');
+    });
+
+    it('passes when present on India live', () => {
+      const payload = makeAdyenPayload(
+        {},
+        { clientKey: 'live_XXXX', environment: 'live-in' },
+        {
+          documentHeaders: makeDocumentHeaders([
+            makeHeader('strict-transport-security', 'max-age=31536000'),
+          ]),
         }
       );
       expect(hsts.run(payload).severity).toBe('pass');
@@ -209,14 +277,14 @@ describe('Security Checks', () => {
   describe('X-XSS-Protection', () => {
     it('passes when header is disabled', () => {
       const payload = makeScanPayload({
-        mainDocumentHeaders: [makeHeader('x-xss-protection', '0')],
+        documentHeaders: makeDocumentHeaders([makeHeader('x-xss-protection', '0')]),
       });
       expect(xssProtection.run(payload).severity).toBe('pass');
     });
 
     it('returns notice when header is enabled', () => {
       const payload = makeScanPayload({
-        mainDocumentHeaders: [makeHeader('x-xss-protection', '1; mode=block')],
+        documentHeaders: makeDocumentHeaders([makeHeader('x-xss-protection', '1; mode=block')]),
       });
       const result = xssProtection.run(payload);
       expect(result.severity).toBe('notice');
@@ -227,7 +295,7 @@ describe('Security Checks', () => {
   describe('Iframe referrerpolicy', () => {
     it('returns info when no Adyen iframes are present', () => {
       const payload = makeScanPayload({
-        page: makePageExtract({
+        page: makeCheckoutPage({
           iframes: [{ src: 'https://example.com/embedded-content' }],
         }),
       });
@@ -236,7 +304,7 @@ describe('Security Checks', () => {
 
     it('passes when all Adyen iframes have referrerpolicy', () => {
       const payload = makeScanPayload({
-        page: makePageExtract({
+        page: makeCheckoutPage({
           iframes: [
             {
               src: 'https://checkoutshopper-test.adyen.com/checkoutshopper/sdk/iframe.html',
@@ -254,7 +322,7 @@ describe('Security Checks', () => {
 
     it('returns info when an Adyen iframe is missing referrerpolicy', () => {
       const payload = makeScanPayload({
-        page: makePageExtract({
+        page: makeCheckoutPage({
           iframes: [
             {
               src: 'https://checkoutshopper-test.adyen.com/checkoutshopper/sdk/iframe.html',
@@ -278,7 +346,7 @@ describe('Security Checks', () => {
 
     it('fails when API key is detected in frontend code', () => {
       const payload = makeScanPayload({
-        page: makePageExtract({ apiKeyDetected: true }),
+        page: makeCheckoutPage({ apiKeyDetected: true }),
       });
       const result = apiKeyExposed.run(payload);
       expect(result.severity).toBe('fail');
@@ -290,16 +358,43 @@ describe('Security Checks', () => {
 
     it('passes when apiKeyDetected is undefined', () => {
       const payload = makeScanPayload({
-        page: makePageExtract(),
+        page: makeCheckoutPage(),
       });
       expect(apiKeyExposed.run(payload).severity).toBe('pass');
     });
 
     it('passes when apiKeyDetected is false', () => {
       const payload = makeScanPayload({
-        page: makePageExtract({ apiKeyDetected: false }),
+        page: makeCheckoutPage({ apiKeyDetected: false }),
       });
       expect(apiKeyExposed.run(payload).severity).toBe('pass');
     });
+  });
+});
+
+describe('response header edge cases', () => {
+  it.each([
+    ['an empty Referrer-Policy as not set', '', 'Referrer-Policy header is not set.'],
+    [
+      'a permissive Referrer-Policy by value',
+      'unsafe-url',
+      'Referrer-Policy is "unsafe-url". Consider using the recommended value.',
+    ],
+  ])('reports %s', (_label, value, title) => {
+    const payload = makeScanPayload({
+      documentHeaders: makeDocumentHeaders([makeHeader('referrer-policy', value)]),
+    });
+
+    expect(referrerPolicy.run(payload)).toMatchObject({ severity: 'notice', title });
+  });
+
+  it('skips HSTS on live when the document headers are unavailable', () => {
+    const payload = makeAdyenPayload(
+      {},
+      { clientKey: 'live_XXXX', environment: 'live' },
+      { documentHeaders: UNAVAILABLE_DOCUMENT_HEADERS }
+    );
+
+    expect(hsts.run(payload).severity).toBe('skip');
   });
 });

@@ -1,46 +1,74 @@
-import { defineConfig, type Plugin } from 'vite';
+import { build, defineConfig, type Plugin } from 'vite';
 import preact from '@preact/preset-vite';
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, relative, resolve } from 'node:path';
 
 const root = import.meta.dirname;
+const OUT_DIR = resolve(root, 'dist');
+
+/** Fails the build if a content script would need ESM loading, which Chrome does not provide. */
+async function assertClassicScript(file: string): Promise<void> {
+  const code = await readFile(file, 'utf8');
+  if (/^(?:import|export)\b/m.test(code)) {
+    throw new Error(
+      `${relative(root, file)} must be a self-contained classic script, but it contains ESM import/export statements.`
+    );
+  }
+}
+
+/** Scripts Chrome runs as classic scripts: manifest content scripts and executeScript files. */
+const CONTENT_SCRIPTS = {
+  'config-interceptor': 'src/content/config-interceptor.ts',
+  detector: 'src/content/detector.ts',
+  'page-extractor': 'src/content/page-extractor.ts',
+} as const;
 
 /**
- * Vite plugin that moves HTML outputs from dist/src/… to dist/… so that
- * file paths match what manifest.json expects (e.g. popup/index.html).
- * Also adjusts relative asset references to account for the new depth.
+ * Builds each content script as its own self-contained IIFE after the main
+ * build. A multi-entry build would move shared modules into chunks and emit
+ * ESM imports, which classic scripts cannot load. The IIFE scope also keeps
+ * repeated executeScript injections free of redeclared top-level bindings.
  */
-/**
- * Wraps MAIN-world scripts in a block scope so that re-injection via
- * chrome.scripting.executeScript doesn't cause "Identifier already declared"
- * errors from top-level const/let declarations.
- *
- * Uses a bare block `{ … }` rather than an IIFE because executeScript
- * captures the script's *completion value*. A block preserves that (the
- * value of the last expression statement), whereas an IIFE without an
- * explicit `return` would yield `undefined`.
- */
-function wrapMainWorldScriptsInBlock(): Plugin {
-  const targetFiles = new Set(['page-extractor.js']);
+function buildContentScripts(): Plugin {
   return {
-    name: 'wrap-main-world-block-scope',
-    enforce: 'post',
-    generateBundle(_options, bundle): void {
-      for (const [fileName, chunk] of Object.entries(bundle)) {
-        if (!targetFiles.has(fileName)) continue;
-        if (chunk.type === 'chunk' && typeof chunk.code === 'string') {
-          if (/^\s*import\s/m.test(chunk.code)) {
-            throw new Error(
-              `${fileName} must be self-contained because chrome.scripting.executeScript injects it as a classic script.`
-            );
-          }
-          chunk.code = `{\n${chunk.code}\n}\n`;
+    name: 'build-content-scripts',
+    apply: 'build',
+    async buildStart(): Promise<void> {
+      for (const directory of ['src/content', 'src/shared']) {
+        const entries = await readdir(resolve(root, directory));
+        for (const entry of entries.filter((name) => name.endsWith('.ts'))) {
+          this.addWatchFile(resolve(root, directory, entry));
         }
+      }
+    },
+    async closeBundle(): Promise<void> {
+      for (const [name, entry] of Object.entries(CONTENT_SCRIPTS)) {
+        await build({
+          configFile: false,
+          logLevel: 'warn',
+          build: {
+            outDir: OUT_DIR,
+            emptyOutDir: false,
+            copyPublicDir: false,
+            sourcemap: false,
+            minify: false,
+            modulePreload: false,
+            rollupOptions: {
+              input: resolve(root, entry),
+              output: { format: 'iife', entryFileNames: `${name}.js` },
+            },
+          },
+        });
+        await assertClassicScript(resolve(OUT_DIR, `${name}.js`));
       }
     },
   };
 }
 
+/**
+ * Moves HTML outputs from dist/src/… to dist/… to match manifest paths such as
+ * popup/index.html, and adjusts relative asset references for the new depth.
+ */
 function chromeExtensionHtmlFlatten(): Plugin {
   return {
     name: 'chrome-extension-html-flatten',
@@ -65,7 +93,7 @@ function chromeExtensionHtmlFlatten(): Plugin {
           /(['"(])((?:\.\.\/)+)/g,
           (_match: string, quote: string, dots: string) => {
             const levels = dots.length / 3;
-            return levels > 1 ? quote + '../'.repeat(levels - 1) : quote + './';
+            return levels > 1 ? `${quote}${'../'.repeat(levels - 1)}` : `${quote}./`;
           }
         );
 
@@ -105,19 +133,16 @@ async function collectHtmlFiles(directory: string): Promise<string[]> {
 }
 
 export default defineConfig({
-  plugins: [preact(), wrapMainWorldScriptsInBlock(), chromeExtensionHtmlFlatten()],
+  plugins: [preact(), buildContentScripts(), chromeExtensionHtmlFlatten()],
   base: '',
   build: {
-    outDir: 'dist',
+    outDir: OUT_DIR,
     emptyOutDir: true,
     sourcemap: false,
     minify: false,
     rollupOptions: {
       input: {
         worker: resolve(root, 'src/background/worker.ts'),
-        detector: resolve(root, 'src/content/detector.ts'),
-        'config-interceptor': resolve(root, 'src/content/config-interceptor.ts'),
-        'page-extractor': resolve(root, 'src/content/page-extractor.ts'),
         popup: resolve(root, 'src/popup/index.html'),
         devtools: resolve(root, 'src/devtools/devtools.html'),
         panel: resolve(root, 'src/devtools/panel/panel.html'),
@@ -128,11 +153,6 @@ export default defineConfig({
         chunkFileNames: 'chunks/[name]-[hash].js',
         assetFileNames: 'assets/[name][extname]',
       },
-    },
-  },
-  resolve: {
-    alias: {
-      '~shared': resolve(root, 'src/shared'),
     },
   },
 });

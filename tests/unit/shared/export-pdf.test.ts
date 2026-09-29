@@ -1,36 +1,19 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import {
-  buildPrintableHtml,
-  buildPdfReportUrl,
-  exportPdf,
-  getPdfReportStorageKey,
-  PDF_REPORT_TOKEN_PARAM,
-} from '../../../src/shared/export-pdf';
+import { describe, expect, it } from 'vitest';
+import { buildPrintableHtml } from '../../../src/shared/export-pdf';
 import type { PrintableReportMetadata } from '../../../src/shared/export-pdf';
 import type { CheckResult, ScanResult } from '../../../src/shared/types';
-import { makeScanPayload } from '../../fixtures/makeScanPayload';
+import {
+  makeCheckoutPage,
+  makeScanPayload,
+  makeScanResult,
+  makeCapturedConfig,
+  makeAdyenPayload,
+  makeVersionInfo,
+} from '../../fixtures/makeScanPayload';
 
-interface MockChrome {
-  runtime: {
-    getURL: ReturnType<typeof vi.fn>;
-  };
-  storage: {
-    session: {
-      set: ReturnType<typeof vi.fn>;
-      remove: ReturnType<typeof vi.fn>;
-    };
-  };
-  tabs: {
-    create: ReturnType<typeof vi.fn>;
-  };
-}
-
-function makeResult(): ScanResult {
-  return {
-    tabId: 1,
-    pageUrl: 'https://example.com/checkout',
+function makeResult(overrides: Partial<ScanResult> = {}): ScanResult {
+  return makeScanResult({
     scannedAt: '2026-03-18T00:00:00.000Z',
-    checks: [],
     health: {
       score: 100,
       passing: 1,
@@ -40,8 +23,8 @@ function makeResult(): ScanResult {
       tier: 'excellent',
     },
     standardCompliance: { compliant: true, reasons: [] },
-    payload: makeScanPayload(),
-  };
+    ...overrides,
+  });
 }
 
 function makeCheck(overrides: Partial<CheckResult>): CheckResult {
@@ -55,74 +38,6 @@ function makeCheck(overrides: Partial<CheckResult>): CheckResult {
   };
 }
 
-function stubChrome(mockChrome: MockChrome): void {
-  vi.stubGlobal('chrome', mockChrome);
-}
-
-function makeChromeMock(): MockChrome {
-  return {
-    runtime: {
-      getURL: vi.fn((path: string) => `chrome-extension://test-id/${path}`),
-    },
-    storage: {
-      session: {
-        set: vi.fn().mockResolvedValue(undefined),
-        remove: vi.fn().mockResolvedValue(undefined),
-      },
-    },
-    tabs: {
-      create: vi.fn().mockResolvedValue({ id: 99 }),
-    },
-  };
-}
-
-afterEach(() => {
-  vi.restoreAllMocks();
-  vi.unstubAllGlobals();
-});
-
-describe('PDF export handoff', () => {
-  const token = '00000000-0000-0000-0000-000000000000';
-
-  it('builds the report URL with the expected token parameter', () => {
-    const chromeMock = makeChromeMock();
-    stubChrome(chromeMock);
-
-    const url = new URL(buildPdfReportUrl(token));
-
-    expect(url.protocol).toBe('chrome-extension:');
-    expect(url.host).toBe('test-id');
-    expect(url.pathname).toBe('/report/report.html');
-    expect(url.searchParams.get(PDF_REPORT_TOKEN_PARAM)).toBe(token);
-  });
-
-  it('stores the result and opens the report page in a new tab', async () => {
-    const chromeMock = makeChromeMock();
-    stubChrome(chromeMock);
-    vi.spyOn(globalThis.crypto, 'randomUUID').mockReturnValue(token);
-
-    const result = makeResult();
-    await exportPdf(result);
-
-    expect(chromeMock.storage.session.set).toHaveBeenCalledWith({
-      [getPdfReportStorageKey(token)]: result,
-    });
-    expect(chromeMock.tabs.create).toHaveBeenCalledWith({
-      url: `chrome-extension://test-id/report/report.html?token=${token}`,
-    });
-  });
-
-  it('cleans up stored state when the report tab cannot be opened', async () => {
-    const chromeMock = makeChromeMock();
-    chromeMock.tabs.create.mockRejectedValue(new Error('tab creation failed'));
-    stubChrome(chromeMock);
-    vi.spyOn(globalThis.crypto, 'randomUUID').mockReturnValue(token);
-
-    await expect(exportPdf(makeResult())).rejects.toThrow('tab creation failed');
-    expect(chromeMock.storage.session.remove).toHaveBeenCalledWith(getPdfReportStorageKey(token));
-  });
-});
-
 describe('buildPrintableHtml', () => {
   const metadata: PrintableReportMetadata = {
     extensionVersion: '1.2.3',
@@ -130,8 +45,7 @@ describe('buildPrintableHtml', () => {
   };
 
   it('renders issues and successful checks in separate sections', () => {
-    const result: ScanResult = {
-      ...makeResult(),
+    const result = makeResult({
       pageUrl: 'https://example.com/checkout?cart=123',
       checks: [
         makeCheck({
@@ -167,14 +81,12 @@ describe('buildPrintableHtml', () => {
           detail: 'No third-party scripts detected.',
         }),
       ],
-    };
+    });
 
     const html = buildPrintableHtml(result, metadata);
     const doc = new DOMParser().parseFromString(html, 'text/html');
 
-    const headings = Array.from(doc.querySelectorAll('h2')).map((heading) =>
-      heading.textContent.trim()
-    );
+    const headings = [...doc.querySelectorAll('h2')].map((heading) => heading.textContent.trim());
     expect(headings).toEqual([
       'Implementation Attributes',
       'Best Practices',
@@ -182,7 +94,7 @@ describe('buildPrintableHtml', () => {
       'Successful Checks',
       'Skipped Checks',
       'Network',
-      'Raw Config',
+      'Extracted Config',
     ]);
 
     const successfulChecksHeading = doc.querySelector('h2:nth-of-type(4)');
@@ -193,12 +105,62 @@ describe('buildPrintableHtml', () => {
     expect(doc.body.textContent).toContain('Checkout page is not served over HTTPS.');
   });
 
+  it('renders unmet criteria, captured traffic, extracted config and empty sections', () => {
+    const result = makeResult({
+      health: { score: 0, passing: 0, failing: 1, warnings: 0, total: 1, tier: 'critical' },
+      standardCompliance: { compliant: false, reasons: ['Not using Drop-in.'] },
+      checks: [
+        makeCheck({
+          id: 'security-https',
+          category: 'security',
+          severity: 'fail',
+          title: 'Checkout page is not served over HTTPS.',
+          detail: 'Page protocol is "http:".',
+        }),
+      ],
+      payload: makeScanPayload({
+        capturedRequests: [
+          {
+            url: 'https://checkoutshopper-live.adyen.com/checkoutshopper/v1/sessions',
+            type: 'other',
+            responseHeaders: [],
+            statusCode: 0,
+          },
+        ],
+        page: makeCheckoutPage({
+          capturedConfig: makeCapturedConfig({ clientKey: 'live_CLIENTKEY', environment: 'live' }),
+          componentConfig: { countryCode: 'NL' },
+        }),
+      }),
+    });
+
+    const doc = new DOMParser().parseFromString(buildPrintableHtml(result, metadata), 'text/html');
+    const text = doc.body.textContent;
+
+    expect(text).toContain('Standard Drop-in criteria not met');
+    expect(text).toContain('Not using Drop-in.');
+    expect(text).toContain('Page protocol is "http:".');
+    expect(text).toContain('Region');
+    expect(text).toContain('No best-practice issues identified.');
+    expect(text).toContain('No successful security checks recorded.');
+    expect(text).toContain('No checks were skipped.');
+    expect(text).toContain('checkoutshopper-live.adyen.com/checkoutshopper/v1/sessions');
+    expect(text).toContain('live_CLIENTKEY');
+    expect(text).toContain('No inferred config captured.');
+    expect(
+      [...doc.querySelectorAll('.docs-link')].map((link) => link.getAttribute('href'))
+    ).toEqual([
+      'https://docs.adyen.com/standard',
+      'https://docs.adyen.com/online-payments/web-best-practices/',
+    ]);
+  });
+
   it('includes inspected URL, extension version, and browser details', () => {
     const result = makeResult();
     const html = buildPrintableHtml(result, metadata);
     const doc = new DOMParser().parseFromString(html, 'text/html');
     const bodyText = doc.body.textContent;
-    const bodyChildren = Array.from(doc.body.children);
+    const bodyChildren = [...doc.body.children];
 
     expect(bodyText).toContain('Inspected URL');
     expect(bodyText).toContain('https://example.com/checkout');
@@ -209,5 +171,27 @@ describe('buildPrintableHtml', () => {
     expect(bodyText).toContain('Generated by Adyen Web Inspector v1.2.3');
     expect(bodyChildren[1]?.className).toBe('meta-table');
     expect(bodyChildren[2]?.className).toBe('score-block');
+  });
+});
+
+describe('buildPrintableHtml attributes', () => {
+  const metadata: PrintableReportMetadata = { extensionVersion: '1.2.3', browser: 'Test' };
+
+  it('colours the score by tier and leaves out what a test integration does not have', () => {
+    const html = buildPrintableHtml(
+      makeResult({
+        health: { score: 50, passing: 1, failing: 0, warnings: 1, total: 2, tier: 'issues' },
+        payload: makeAdyenPayload(
+          {},
+          { environment: 'test' },
+          { versionInfo: makeVersionInfo({ detected: null }) }
+        ),
+      }),
+      metadata
+    );
+
+    expect(html).toContain('#f29900');
+    expect(html).toMatch(/SDK Version<\/[^>]+>\s*<[^>]+>Unknown/);
+    expect(html).not.toContain('>Region<');
   });
 });

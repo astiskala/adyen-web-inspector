@@ -1,4 +1,4 @@
-/* DevTools panel — extends popup.css variables */
+/* DevTools panel — extends the shared/base.css variables */
 
 /* DevTools panel root sizing */
 :global(html),
@@ -77,6 +77,11 @@
   flex: 1;
 }
 
+.toolbarScore {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+
 .errorBanner {
   padding: 6px 12px;
   border-bottom: 1px solid var(--color-border);
@@ -145,16 +150,6 @@
   background: var(--color-surface);
 }
 
-.checkSummary {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 8px 10px;
-  cursor: pointer;
-  list-style: none;
-}
-
 .checkSummaryStatic {
   display: flex;
   justify-content: space-between;
@@ -163,54 +158,42 @@
   padding: 8px 10px;
 }
 
-.checkSummary::marker,
-.checkSummary::-webkit-details-marker {
-  display: none;
-  content: '';
-}
-
-.checkSummary:hover {
-  background: var(--color-surface-alt);
-}
-
 .checkSummaryTitle {
   flex: 1;
 }
 
-.passBadge {
-  color: var(--color-green);
-  font-weight: 600;
+.severity {
+  flex-shrink: 0;
   font-size: 11px;
+  font-weight: 600;
   text-transform: uppercase;
-  flex-shrink: 0;
 }
 
-.summaryRight {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
+.severityPass {
+  color: var(--color-green);
 }
 
-.expandHint {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 1px 6px;
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
-  font-size: 10px;
+.severityFail {
+  color: var(--color-red);
+}
+
+.severityWarn {
+  color: var(--color-amber);
+}
+
+.severityNotice,
+.severityInfo {
+  color: var(--color-blue);
+}
+
+.severitySkip,
+.skipReason {
   color: var(--color-text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
 }
 
-.expandChevron {
-  transition: transform 0.15s ease;
-}
-
-.checkCard[open] .expandChevron {
-  transform: rotate(180deg);
+.skipReason {
+  flex-shrink: 0;
+  font-size: 11px;
 }
 
 .checkBody {
@@ -241,25 +224,6 @@
 
 .overviewIssues {
   padding: 8px 12px 12px;
-}
-
-/* ── Key-value table ── */
-.kvTable {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 12px;
-}
-
-.kvTable td {
-  padding: 4px 8px;
-  border-bottom: 1px solid var(--color-border);
-  vertical-align: top;
-}
-
-.kvTable td:first-child {
-  width: 40%;
-  color: var(--color-text-secondary);
-  font-weight: 500;
 }
 
 /* ── Raw config ── */

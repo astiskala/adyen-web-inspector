@@ -1,9 +1,29 @@
-import type { ScanResult, StandardCompliance } from './types';
-import type { ExportIssueRow } from './utils';
-import { buildReportExportData, type ExportCategorySection } from './export-report';
+/**
+ * Printable report — the self-contained HTML the report page prints, and the
+ * storage key and URL parameter of the scan result handed to that page.
+ */
+
+import {
+  HEALTH_TIER_COLORS,
+  INTEGRATION_FLOW_LABELS,
+  SEVERITY_COLORS,
+  STATUS_COLORS,
+} from './constants.js';
+import type { ScanResult, StandardCompliance } from './types.js';
+import {
+  buildFindingProjection,
+  buildRawConfigSections,
+  summarizeImplementation,
+  type IssueGroup,
+} from './export-report.js';
+import { STANDARD_COMPLIANCE_COPY } from './standard-compliance.js';
+
+type FindingProjection = ReturnType<typeof buildFindingProjection>;
+type FindingSection = FindingProjection['bestPractices'];
 
 const PDF_REPORT_STORAGE_PREFIX = 'pdf-report:' as const;
-const PDF_REPORT_PAGE_PATH = 'report/report.html' as const;
+/** Extension page that renders and prints the report. */
+export const PDF_REPORT_PAGE_PATH = 'report/report.html' as const;
 export const PDF_REPORT_TOKEN_PARAM = 'token' as const;
 
 export interface PrintableReportMetadata {
@@ -11,89 +31,10 @@ export interface PrintableReportMetadata {
   readonly browser: string;
 }
 
-function getChromeApi(): typeof chrome | null {
-  if (typeof chrome === 'undefined') {
-    return null;
-  }
-  return chrome;
-}
-
 /** Returns the session-storage key used for a pending PDF export handoff. */
 export function getPdfReportStorageKey(token: string): string {
   return `${PDF_REPORT_STORAGE_PREFIX}${token}`;
 }
-
-/** Builds the extension report page URL for the given export token. */
-export function buildPdfReportUrl(token: string): string {
-  const chromeApi = getChromeApi();
-  if (chromeApi === null) {
-    throw new Error('PDF export requires the extension runtime');
-  }
-
-  const url = new URL(chromeApi.runtime.getURL(PDF_REPORT_PAGE_PATH));
-  url.searchParams.set(PDF_REPORT_TOKEN_PARAM, token);
-  return url.toString();
-}
-
-async function openPdfReportTab(url: string): Promise<void> {
-  const chromeApi = getChromeApi();
-  if (chromeApi !== null) {
-    await chromeApi.tabs.create({ url });
-    return;
-  }
-
-  const popup = globalThis.open(url, '_blank');
-  if (popup === null) {
-    throw new Error('Unable to open PDF report tab');
-  }
-}
-
-/**
- * Stores the current scan result and opens a dedicated report page that can
- * render and print independently of the popup or DevTools lifecycle.
- */
-export async function exportPdf(result: ScanResult): Promise<void> {
-  const chromeApi = getChromeApi();
-  if (chromeApi === null) {
-    throw new Error('PDF export requires chrome.storage.session');
-  }
-
-  const token = globalThis.crypto.randomUUID();
-  const storageKey = getPdfReportStorageKey(token);
-  await chromeApi.storage.session.set({ [storageKey]: result });
-
-  try {
-    await openPdfReportTab(buildPdfReportUrl(token));
-  } catch (error) {
-    await chromeApi.storage.session.remove(storageKey).catch(() => {});
-    throw error;
-  }
-}
-
-function severityColor(severity: string): string {
-  if (severity === 'fail') return '#e53935';
-  if (severity === 'warn') return '#f59e0b';
-  if (severity === 'notice') return '#2563eb';
-  if (severity === 'pass') return '#16a34a';
-  if (severity === 'info') return '#2563eb';
-  return '#6b7280';
-}
-
-function scoreColor(tier: string): string {
-  if (tier === 'excellent') return severityColor('pass');
-  if (tier === 'issues') return severityColor('warn');
-  return severityColor('fail');
-}
-
-type IssueImpactGroup = ExportIssueRow['impactLevel'];
-
-const ISSUE_IMPACT_GROUP_ORDER: readonly IssueImpactGroup[] = ['high', 'medium', 'low', 'manual'];
-const ISSUE_IMPACT_GROUP_LABEL: Record<IssueImpactGroup, string> = {
-  high: 'High Impact',
-  medium: 'Medium Impact',
-  low: 'Low Impact',
-  manual: 'Manual Verification',
-};
 
 function escapeHtml(str: string): string {
   return str
@@ -109,15 +50,8 @@ interface ImplementationAttribute {
 }
 
 function buildAttributes(
-  implementationAttributes: ReturnType<typeof buildReportExportData>['implementationAttributes']
+  implementationAttributes: ReturnType<typeof summarizeImplementation>
 ): ImplementationAttribute[] {
-  let flowLabel = 'Unknown';
-  if (implementationAttributes.flow === 'sessions') {
-    flowLabel = 'Sessions';
-  } else if (implementationAttributes.flow === 'advanced') {
-    flowLabel = 'Advanced';
-  }
-
   return [
     { label: 'SDK Version', value: implementationAttributes.sdkVersion },
     {
@@ -132,12 +66,12 @@ function buildAttributes(
       : [{ label: 'Region', value: implementationAttributes.region }]),
     { label: 'Integration Flavor', value: implementationAttributes.flavor },
     { label: 'Import Method', value: implementationAttributes.importMethod },
-    { label: 'Integration Flow', value: flowLabel },
+    { label: 'Integration Flow', value: INTEGRATION_FLOW_LABELS[implementationAttributes.flow] },
   ];
 }
 
 function buildAttributesHtml(
-  implementationAttributes: ReturnType<typeof buildReportExportData>['implementationAttributes']
+  implementationAttributes: ReturnType<typeof summarizeImplementation>
 ): string {
   const attrs = buildAttributes(implementationAttributes);
   const rows = attrs
@@ -149,9 +83,7 @@ function buildAttributesHtml(
   return `<table class="attr-table"><tbody>${rows}</tbody></table>`;
 }
 
-function buildSkippedRows(
-  skippedChecks: ReturnType<typeof buildReportExportData>['skippedChecks']
-): string {
+function buildSkippedRows(skippedChecks: FindingProjection['skippedChecks']): string {
   if (skippedChecks.length === 0) {
     return '<tr><td colspan="2">No checks were skipped.</td></tr>';
   }
@@ -166,32 +98,26 @@ function buildSkippedRows(
     .join('');
 }
 
-function buildIssueTableForSection(section: ExportCategorySection, emptyMessage: string): string {
-  const issues = section.issues;
-  if (issues.length === 0) {
+function buildIssueTableForSection(
+  issueGroups: readonly IssueGroup[],
+  emptyMessage: string
+): string {
+  if (issueGroups.length === 0) {
     return `<p style="color:#6b7280">${escapeHtml(emptyMessage)}</p>`;
   }
 
   const rows: string[] = [];
 
-  for (const impactGroup of ISSUE_IMPACT_GROUP_ORDER) {
-    const groupIssues = issues.filter((issue) => issue.impactLevel === impactGroup);
-    if (groupIssues.length === 0) {
-      continue;
-    }
-
+  for (const group of issueGroups) {
     rows.push(`
       <tr class="impact-row">
-        <td colspan="3">${escapeHtml(ISSUE_IMPACT_GROUP_LABEL[impactGroup])} (${groupIssues.length})</td>
+        <td colspan="3">${escapeHtml(group.label)} (${group.issues.length})</td>
       </tr>`);
 
-    for (const issue of groupIssues) {
-      const color = severityColor(issue.severity);
+    for (const issue of group.issues) {
+      const color = SEVERITY_COLORS[issue.severity];
       const detail = issue.detail === null ? '' : `<br><small>${escapeHtml(issue.detail)}</small>`;
-      const docsLink =
-        issue.docsUrl === null
-          ? ''
-          : `<br><a class="docs-link" href="${escapeHtml(issue.docsUrl)}" target="_blank" rel="noopener noreferrer">Read documentation</a>`;
+      const docsLink = `<br><a class="docs-link" href="${escapeHtml(issue.docsUrl)}" target="_blank" rel="noopener noreferrer">Read documentation</a>`;
       rows.push(`
       <tr>
         <td style="color:${color};font-weight:600;text-transform:uppercase;white-space:nowrap">${escapeHtml(issue.severity)}</td>
@@ -216,7 +142,7 @@ function buildIssueTableForSection(section: ExportCategorySection, emptyMessage:
 }
 
 function buildSuccessfulChecksTableForCategory(
-  section: ExportCategorySection,
+  section: FindingSection,
   emptyMessage: string
 ): string {
   const checks = section.successfulChecks;
@@ -227,7 +153,7 @@ function buildSuccessfulChecksTableForCategory(
   const rows = checks
     .map(
       (check) =>
-        `<tr><td style="color:#16a34a;font-weight:600;text-transform:uppercase;white-space:nowrap;width:80px">PASS</td><td>${escapeHtml(check.title)}</td></tr>`
+        `<tr><td style="color:${STATUS_COLORS.pass};font-weight:600;text-transform:uppercase;white-space:nowrap;width:80px">PASS</td><td>${escapeHtml(check.title)}</td></tr>`
     )
     .join('');
 
@@ -273,11 +199,10 @@ function buildReportMetadataHtml(
   `;
 }
 
-function buildNetworkHtml(network: ReturnType<typeof buildReportExportData>['network']): string {
+function buildNetworkHtml(network: FindingProjection['network']): string {
   const reqs = network.capturedRequests;
-  const parts: string[] = [];
+  const parts: string[] = ['<h3 style="font-size:12px;margin:12px 0 6px">Captured Requests</h3>'];
 
-  parts.push('<h3 style="font-size:12px;margin:12px 0 6px">Captured Requests</h3>');
   if (reqs.length === 0) {
     parts.push('<p style="color:#6b7280">No Adyen requests captured.</p>');
   } else {
@@ -297,45 +222,25 @@ function buildNetworkHtml(network: ReturnType<typeof buildReportExportData>['net
   return parts.join('');
 }
 
-function buildRawConfigHtml(
-  rawConfig: ReturnType<typeof buildReportExportData>['rawConfig']
-): string {
-  const config = rawConfig.checkoutConfig;
-  const component = rawConfig.componentConfig;
-  const inferred = rawConfig.inferredCheckoutConfig;
-  const metadata = rawConfig.sdkMetadata;
-
-  const configText = config ? JSON.stringify(config, null, 2) : 'No config captured.';
-  const componentText = component
-    ? JSON.stringify(component, null, 2)
-    : 'No component config captured.';
-  const inferredText = inferred
-    ? JSON.stringify(inferred, null, 2)
-    : 'No inferred config captured.';
-  const metaText = JSON.stringify(metadata ?? null, null, 2);
-
+function buildRawConfigHtml(rawConfig: FindingProjection['rawConfig']): string {
   const preStyle =
     'font-family:monospace;font-size:11px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:4px;padding:10px;white-space:pre-wrap;word-break:break-all;overflow:auto;max-height:400px';
   const h3Style = 'font-size:12px;margin:12px 0 6px';
 
-  return `
-    <h3 style="${h3Style}">Raw Checkout Config</h3>
-    <pre style="${preStyle}">${escapeHtml(configText)}</pre>
-    <h3 style="${h3Style}">Component Config (NPM)</h3>
-    <pre style="${preStyle}">${escapeHtml(componentText)}</pre>
-    <h3 style="${h3Style}">Inferred Checkout Config</h3>
-    <pre style="${preStyle}">${escapeHtml(inferredText)}</pre>
-    <h3 style="${h3Style}">SDK Metadata</h3>
-    <pre style="${preStyle}">${escapeHtml(metaText)}</pre>
-  `;
+  return buildRawConfigSections(rawConfig)
+    .map(
+      ({ title, text }) =>
+        `<h3 style="${h3Style}">${escapeHtml(title)}</h3><pre style="${preStyle}">${escapeHtml(text)}</pre>`
+    )
+    .join('');
 }
 
 function buildComplianceHtml(compliance: StandardCompliance): string {
   const icon = compliance.compliant ? '\u2713' : '\u2717';
-  const iconColor = compliance.compliant ? '#16a34a' : '#e53935';
+  const iconColor = compliance.compliant ? STATUS_COLORS.pass : STATUS_COLORS.fail;
   const label = compliance.compliant
-    ? 'Standard Drop-in frontend criteria met'
-    : 'Standard Drop-in criteria not met';
+    ? STANDARD_COMPLIANCE_COPY.metLabel
+    : STANDARD_COMPLIANCE_COPY.unmetLabel;
 
   const reasonsList =
     !compliance.compliant && compliance.reasons.length > 0
@@ -346,8 +251,8 @@ function buildComplianceHtml(compliance: StandardCompliance): string {
 
   const caveat =
     '<div style="margin-top:6px;font-size:11px;color:#6b7280;line-height:1.4">' +
-    'This is not a compliance determination. Server-side API version, webhooks, account setup, security, testing, and go-live requirements require manual review. ' +
-    'See the <a class="docs-link" href="https://docs.adyen.com/standard" target="_blank" rel="noopener noreferrer">Standard integration checklist</a>.' +
+    `${escapeHtml(STANDARD_COMPLIANCE_COPY.caveat)} ` +
+    `See the <a class="docs-link" href="${STANDARD_COMPLIANCE_COPY.checklistUrl}" target="_blank" rel="noopener noreferrer">${escapeHtml(STANDARD_COMPLIANCE_COPY.checklistLabel)}</a>.` +
     '</div>';
 
   return `<div style="border:1px solid #e5e7eb;border-radius:6px;padding:10px 16px;margin-bottom:20px">
@@ -360,20 +265,12 @@ function buildComplianceHtml(compliance: StandardCompliance): string {
   </div>`;
 }
 
-const DEFAULT_REPORT_METADATA: PrintableReportMetadata = {
-  extensionVersion: 'Unknown',
-  browser: 'Unknown',
-};
-
 /** Builds the self-contained HTML document used by the printable export tab. */
-export function buildPrintableHtml(
-  result: ScanResult,
-  metadata: PrintableReportMetadata = DEFAULT_REPORT_METADATA
-): string {
+export function buildPrintableHtml(result: ScanResult, metadata: PrintableReportMetadata): string {
   const date = new Date(result.scannedAt).toLocaleString();
   const { score, passing, total, tier } = result.health;
-  const tierColor = scoreColor(tier);
-  const reportData = buildReportExportData(result);
+  const tierColor = HEALTH_TIER_COLORS[tier];
+  const projection = buildFindingProjection(result);
 
   return `<!doctype html>
 <html lang="en">
@@ -421,25 +318,25 @@ export function buildPrintableHtml(
     </div>
   </div>
 
-  ${buildComplianceHtml(reportData.standardCompliance)}
+  ${buildComplianceHtml(result.standardCompliance)}
 
   <h2>Implementation Attributes</h2>
-  ${buildAttributesHtml(reportData.implementationAttributes)}
+  ${buildAttributesHtml(summarizeImplementation(result))}
 
   <h2>Best Practices</h2>
-  ${buildIssueTableForSection(reportData.bestPractices, 'No best-practice issues identified.')}
+  ${buildIssueTableForSection(projection.bestPractices.issueGroups, 'No best-practice issues identified.')}
 
   <h2>Security</h2>
-  ${buildIssueTableForSection(reportData.security, 'No security issues identified.')}
+  ${buildIssueTableForSection(projection.security.issueGroups, 'No security issues identified.')}
 
   <h2>Successful Checks</h2>
   <h3 style="font-size:12px;margin:8px 0 6px">Best Practices</h3>
   ${buildSuccessfulChecksTableForCategory(
-    reportData.bestPractices,
+    projection.bestPractices,
     'No successful best-practice checks recorded.'
   )}
   <h3 style="font-size:12px;margin:8px 0 6px">Security</h3>
-  ${buildSuccessfulChecksTableForCategory(reportData.security, 'No successful security checks recorded.')}
+  ${buildSuccessfulChecksTableForCategory(projection.security, 'No successful security checks recorded.')}
 
   <h2>Skipped Checks</h2>
   <table>
@@ -450,15 +347,15 @@ export function buildPrintableHtml(
       </tr>
     </thead>
     <tbody>
-      ${buildSkippedRows(reportData.skippedChecks)}
+      ${buildSkippedRows(projection.skippedChecks)}
     </tbody>
   </table>
 
   <h2>Network</h2>
-  ${buildNetworkHtml(reportData.network)}
+  ${buildNetworkHtml(projection.network)}
 
-  <h2>Raw Config</h2>
-  ${buildRawConfigHtml(reportData.rawConfig)}
+  <h2>Extracted Config</h2>
+  ${buildRawConfigHtml(projection.rawConfig)}
 
   <div class="footer">
     Generated by Adyen Web Inspector v${escapeHtml(metadata.extensionVersion)} &mdash; ${escapeHtml(

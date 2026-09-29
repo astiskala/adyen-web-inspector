@@ -1,0 +1,52 @@
+.container {
+  padding: 24px 12px;
+  text-align: center;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.icon {
+  font-size: 28px;
+  margin-bottom: 8px;
+}
+
+.title {
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: var(--color-text);
+}
+
+.titleWarning {
+  margin-bottom: 6px;
+  color: var(--color-amber);
+  font-size: 13px;
+}
+
+.body {
+  padding: 4px 8px;
+}
+
+.body strong {
+  color: var(--color-text);
+}
+
+.action {
+  margin-top: 12px;
+}
+
+.actionHint {
+  margin-bottom: 6px;
+}
+
+.actionButton {
+  min-width: 120px;
+}
+
+.link {
+  display: inline-block;
+  margin-top: 6px;
+  color: var(--color-blue);
+  text-decoration: none;
+  font-size: 11px;
+}

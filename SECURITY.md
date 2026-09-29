@@ -10,7 +10,7 @@ During scans, the extension can make network requests to:
 
 - The scanned page URL (header probing via `HEAD`/`GET`)
 - Same-host script URLs (bundle/config detection fallback)
-- `https://registry.npmjs.org/@adyen/adyen-web/latest` (latest SDK version check, cached in `chrome.storage.local` for 24 hours)
+- `https://registry.npmjs.org/@adyen/adyen-web` (latest SDK version and release dates, cached in `chrome.storage.local` for 24 hours)
 
 In addition to those extension-initiated requests, Adyen network traffic triggered by the page is passively observed via `chrome.webRequest` for local analysis.
 
@@ -38,19 +38,19 @@ The extension requests `host_permissions: ["<all_urls>"]` because it needs to in
 
 ### Content Security
 
-- The config interceptor (`config-interceptor.ts`) runs as a MAIN-world content script at `document_start`. It installs lightweight property traps on `window.AdyenCheckout` / `window.AdyenWeb` and wraps `Promise.prototype.then` to detect SDK initialisation by object shape. It does not modify the DOM, inject scripts, or make network calls.
-- The page-world extractor (`page-extractor.ts`) runs via `chrome.scripting.executeScript` with `world: "MAIN"` — it reads globals but does not modify the page DOM or inject any scripts.
-- The passive detector (`detector.ts`) uses lightweight DOM selectors and route/mutation listeners to detect checkout mounts; it does not execute remote code or make network calls.
+- The config interceptor (`config-interceptor.ts`) runs in all matching frames in the MAIN world at `document_start`, including before a scan. It wraps Adyen globals and page `fetch`, `XMLHttpRequest.open`, and `JSON.parse` to capture checkout settings and infer values from request URLs/parsed objects. It attaches a handler to promises returned by wrapped checkout factories; it does **not** wrap `Promise.prototype.then`. It stores selected fields on page globals, does not read request bodies or initiate network requests, and does not modify the DOM.
+- The page-world extractor (`page-extractor.ts`) runs via `chrome.scripting.executeScript` with `world: "MAIN"` during a scan — it reads globals, DOM elements, stylesheets, and resource timing in accessible frames but does not modify the page DOM.
+- The passive detector (`detector.ts`) uses lightweight DOM selectors and route/mutation listeners to report checkout activity (mounted Drop-in, Components, or Adyen iframes) before a scan; it does not execute remote code or make network calls.
+- Content scripts are bundled at build time into self-contained classic scripts; the build fails if a bundle would need to load another module, and no content script loads code at runtime.
 - No `eval()`, `new Function()`, or `document.write()` is used anywhere in the codebase.
 - CSP is not relaxed in the manifest — the extension runs with Chrome's default extension CSP.
 
 ### Storage
 
-- Per-tab scan results are stored in `chrome.storage.session`.
+- Per-tab scan results and the detector's checkout activity flag are stored in `chrome.storage.session` and cleared on tab close or navigation start.
 - Latest npm version cache is stored in `chrome.storage.local` with a 24-hour TTL.
 
 ### Dependencies
 
-- Production dependency: **Preact** only (3KB, well-audited).
-- All other dependencies are dev-only (build tools, linters, test frameworks).
-- `pnpm` strict hoisting prevents phantom dependencies.
+- The only direct runtime package dependency is **Preact**; the remaining declared dependencies support building, linting, and testing.
+- Dependencies are managed with `pnpm` and a lockfile.

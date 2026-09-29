@@ -1,39 +1,36 @@
 /**
- * Category 1 — SDK Identity checks.
+ * SDK identity checks (`sdk-identity`) — SDK presence, integration flavor, import method, bundle
+ * type, analytics, and initialisation count.
  */
 
-import type { ScanPayload } from '../../shared/types.js';
-import {
-  detectImportMethod,
-  detectIntegrationFlow,
-  hasCheckoutActivity,
-  isCdnCheckoutScriptUrl,
-  resolveIntegrationFlavor,
-  type IntegrationFlow,
-} from '../../shared/implementation-attributes.js';
-import { isAdyenCheckoutResource } from '../../shared/utils.js';
+import type { ImplementationAttributes } from '../../shared/types.js';
+import { isAdyenCheckoutResource } from '../../shared/adyen-endpoint.js';
+import { readCheckoutField } from '../../shared/scan-evidence.js';
+import { detectSdkPresence } from '../../shared/sdk-presence.js';
+import { docsIntegration } from './constants.js';
 import { createRegistry } from './registry.js';
 
 const STRINGS = {
   DETECTED_INFO_TITLE: 'Adyen Web SDK detected on this page.',
   DETECTED_FAIL_TITLE: 'Adyen Web SDK was not detected on this page.',
-  DETECTED_FAIL_DETAIL: 'No window.AdyenWebMetadata or CDN script tag was found.',
+  DETECTED_FAIL_DETAIL: 'No AdyenWebMetadata or Adyen-hosted checkout script tag was found.',
   DETECTED_FAIL_REMEDIATION:
     'Verify that the Adyen Web SDK is correctly loaded on this page. If using an npm import, enable exposeLibraryMetadata in your AdyenCheckout configuration so the inspector can detect the SDK. If using a CDN script tag, confirm the script URL is from an Adyen-hosted domain.',
   DETECTED_FAIL_URL: 'https://docs.adyen.com/online-payments/build-your-integration/',
 
   FLAVOR_ANALYTICS_DETAIL: 'Detected from Adyen checkout analytics data.',
-  FLAVOR_DROPIN_DETAIL: 'Detected based on CDN resource URL patterns.',
+  FLAVOR_DROPIN_DETAIL: 'Detected based on Drop-in resource URL patterns.',
   FLAVOR_DROPIN_DOM_DETAIL: 'Detected based on Drop-in DOM element present on the page.',
   FLAVOR_CONFIG_DETAIL:
     'Detected based on checkout config presence (analytics disabled or unavailable).',
-  FLAVOR_NO_CHECKOUT_TITLE: 'No Adyen Web checkout was mounted on this page.',
+  FLAVOR_NO_CHECKOUT_TITLE: 'No active Adyen Web checkout was identified on this page.',
   FLAVOR_NO_CHECKOUT_DETAIL:
-    'The Adyen Web SDK JavaScript is loaded, but no Drop-in or Component appears to have been initialised. Navigate to the page where checkout is rendered and scan again.',
+    'The Adyen Web SDK JavaScript is loaded, but no Drop-in or Component activity was observed. Navigate to the page where checkout is rendered and scan again.',
   FLAVOR_UNKNOWN_DETAIL:
     'Could not determine the integration flavor from analytics, URL patterns, or page config.',
 
-  IMPORT_METHOD_NPM_DETAIL: 'SDK bundled via npm import (no Adyen-hosted script tag detected).',
+  IMPORT_METHOD_UNKNOWN_DETAIL:
+    'No Adyen-hosted SDK script tag was observed; the import method cannot be verified.',
   IMPORT_METHOD_CDN_DETAIL: 'SDK loaded via <script src> from *.cdn.adyen.com.',
   IMPORT_METHOD_ADYEN_DETAIL: 'SDK loaded via <script src> from *.adyen.com (non-CDN host).',
 
@@ -43,11 +40,15 @@ const STRINGS = {
   BUNDLE_TYPE_UNKNOWN_SKIP_REASON: 'AdyenWebMetadata not available.',
 
   BUNDLE_AUTO_NOTICE_TITLE: 'Using the NPM auto bundle.',
+  BUNDLE_AUTO_NOTICE_DETAIL:
+    'The auto bundle includes all payment methods, increasing bundle size. This is a flexible option if you expect to add new payment methods in the future.',
   BUNDLE_AUTO_NOTICE_REMEDIATION:
     'Consider switching to tree-shakable imports. Instead of importing the entire Adyen Web package, import only the specific payment method components your integration uses. This significantly reduces JavaScript bundle size and improves checkout page load time.',
 
   ANALYTICS_SKIP_TITLE: 'Analytics check skipped.',
   ANALYTICS_SKIP_REASON: 'SDK not active on this page.',
+  ANALYTICS_PARTIAL_SKIP_REASON: 'Analytics setting could not be verified in partial config.',
+  ANALYTICS_INFERRED_SKIP_REASON: 'Analytics setting was only inferred.',
   ANALYTICS_WARN_TITLE: 'Checkout analytics appear to be disabled.',
   ANALYTICS_WARN_DETAIL:
     'Checkout config sets analytics.enabled to false. When analytics is disabled, Adyen cannot optimise payment performance and the inspector must rely on fallback detection for flavor, version, and build type.',
@@ -57,6 +58,8 @@ const STRINGS = {
   ANALYTICS_PASS_TITLE: 'Checkout analytics are not explicitly disabled.',
   ANALYTICS_PASS_DETAIL: 'analytics.enabled is not set to false in checkout config.',
 
+  MULTI_INIT_SKIP_TITLE: 'Initialization count check skipped.',
+  MULTI_INIT_SKIP_REASON: 'AdyenCheckout initialization not detected.',
   MULTI_INIT_PASS_TITLE: 'AdyenCheckout initialised only once.',
   MULTI_INIT_WARN_TITLE: 'AdyenCheckout initialised multiple times.',
   MULTI_INIT_WARN_DETAIL:
@@ -86,9 +89,7 @@ const CATEGORY = 'sdk-identity' as const;
 
 export const SDK_IDENTITY_CHECKS = createRegistry(CATEGORY)
   .add('sdk-detected', (payload, { info, fail }) => {
-    const { adyenMetadata, scripts } = payload.page;
-    const hasAdyenScript = scripts.some((s) => isAdyenCheckoutResource(s.src));
-    if (adyenMetadata !== null || hasAdyenScript) {
+    if (detectSdkPresence(payload.page).detected) {
       return info(STRINGS.DETECTED_INFO_TITLE);
     }
     return fail(
@@ -98,42 +99,35 @@ export const SDK_IDENTITY_CHECKS = createRegistry(CATEGORY)
       STRINGS.DETECTED_FAIL_URL
     );
   })
-  .add('sdk-flavor', (payload, { info }) => {
-    const flavorResolution = resolveIntegrationFlavor(payload);
+  .add('sdk-flavor', (_payload, { attributes, info }) => {
+    const { value: flavor, source } = attributes.flavor;
 
-    if (flavorResolution.source === 'analytics') {
-      return info(
-        `Integration flavor: ${flavorResolution.flavor}.`,
-        STRINGS.FLAVOR_ANALYTICS_DETAIL
-      );
+    if (source === 'analytics') {
+      return info(`Integration flavor: ${flavor}.`, STRINGS.FLAVOR_ANALYTICS_DETAIL);
     }
 
-    if (flavorResolution.source === 'dropin-pattern') {
-      return info(`Integration flavor: ${flavorResolution.flavor}.`, STRINGS.FLAVOR_DROPIN_DETAIL);
+    if (source === 'dropin-pattern') {
+      return info(`Integration flavor: ${flavor}.`, STRINGS.FLAVOR_DROPIN_DETAIL);
     }
 
-    if (flavorResolution.source === 'dropin-dom') {
-      return info(
-        `Integration flavor: ${flavorResolution.flavor}.`,
-        STRINGS.FLAVOR_DROPIN_DOM_DETAIL
-      );
+    if (source === 'dropin-dom') {
+      return info(`Integration flavor: ${flavor}.`, STRINGS.FLAVOR_DROPIN_DOM_DETAIL);
     }
 
-    if (flavorResolution.source === 'checkout-config') {
-      return info(`Integration flavor: ${flavorResolution.flavor}.`, STRINGS.FLAVOR_CONFIG_DETAIL);
+    if (source === 'checkout-config') {
+      return info(`Integration flavor: ${flavor}.`, STRINGS.FLAVOR_CONFIG_DETAIL);
     }
 
-    if (flavorResolution.source === 'sdk-loaded-no-checkout') {
+    if (source === 'sdk-loaded-no-checkout') {
       return info(STRINGS.FLAVOR_NO_CHECKOUT_TITLE, STRINGS.FLAVOR_NO_CHECKOUT_DETAIL);
     }
 
-    return info(`Integration flavor: ${flavorResolution.flavor}.`, STRINGS.FLAVOR_UNKNOWN_DETAIL);
+    return info(`Integration flavor: ${flavor}.`, STRINGS.FLAVOR_UNKNOWN_DETAIL);
   })
-  .add('sdk-import-method', (payload, { info }) => {
-    const { scripts } = payload.page;
-    const method = detectImportMethod(scripts);
+  .add('sdk-import-method', (_payload, { attributes, info }) => {
+    const method = attributes.importMethod;
 
-    let detail: string = STRINGS.IMPORT_METHOD_NPM_DETAIL;
+    let detail: string = STRINGS.IMPORT_METHOD_UNKNOWN_DETAIL;
     if (method === 'CDN') {
       detail = STRINGS.IMPORT_METHOD_CDN_DETAIL;
     } else if (method === 'Adyen') {
@@ -142,42 +136,52 @@ export const SDK_IDENTITY_CHECKS = createRegistry(CATEGORY)
 
     return info(`Import method: ${method}.`, detail);
   })
-  .add('sdk-bundle-type', (payload, { skip, notice, pass }) => {
-    const { adyenMetadata, scripts } = payload.page;
-    const isCdn = scripts.some((s) => isCdnCheckoutScriptUrl(s.src));
+  .add(
+    'sdk-bundle-type',
+    (payload, { attributes, skip, notice, pass }) => {
+      const { adyenMetadata, scripts } = payload.page;
+      const isCdn = scripts.some((s) => isAdyenCheckoutResource(s.src));
 
-    if (isCdn) {
-      return skip(STRINGS.BUNDLE_TYPE_CDN_SKIP_TITLE, STRINGS.BUNDLE_TYPE_CDN_SKIP_REASON);
-    }
+      if (isCdn) {
+        return skip(STRINGS.BUNDLE_TYPE_CDN_SKIP_TITLE, STRINGS.BUNDLE_TYPE_CDN_SKIP_REASON);
+      }
 
-    const bundleType = adyenMetadata?.bundleType ?? payload.analyticsData?.buildType ?? 'unknown';
+      const bundleType = adyenMetadata?.bundleType ?? payload.analyticsData?.buildType ?? 'unknown';
 
-    if (adyenMetadata === null && payload.analyticsData?.buildType === undefined) {
-      return skip(STRINGS.BUNDLE_TYPE_UNKNOWN_SKIP_TITLE, STRINGS.BUNDLE_TYPE_UNKNOWN_SKIP_REASON);
-    }
+      if (adyenMetadata === null && payload.analyticsData?.buildType === undefined) {
+        return skip(
+          STRINGS.BUNDLE_TYPE_UNKNOWN_SKIP_TITLE,
+          STRINGS.BUNDLE_TYPE_UNKNOWN_SKIP_REASON
+        );
+      }
 
-    if (bundleType === 'auto') {
-      const flow = detectIntegrationFlow(payload);
-      const docsUrl = getFlowSensitiveBundleDocsUrl(payload, flow);
-      return notice(
-        STRINGS.BUNDLE_AUTO_NOTICE_TITLE,
-        'The auto bundle includes all payment methods, increasing bundle size. This is a flexible option if you expect to add new payment methods in the future.',
-        STRINGS.BUNDLE_AUTO_NOTICE_REMEDIATION,
-        docsUrl
-      );
-    }
+      if (bundleType === 'auto') {
+        const docsUrl = getFlowSensitiveBundleDocsUrl(attributes);
+        return notice(
+          STRINGS.BUNDLE_AUTO_NOTICE_TITLE,
+          STRINGS.BUNDLE_AUTO_NOTICE_DETAIL,
+          STRINGS.BUNDLE_AUTO_NOTICE_REMEDIATION,
+          docsUrl
+        );
+      }
 
-    return pass(`Bundle type "${bundleType}" is optimised.`);
-  })
-  .add('sdk-analytics', (payload, { skip, warn, pass }) => {
-    const sdkLoaded =
-      payload.page.adyenMetadata !== null ||
-      payload.page.scripts.some((s) => isAdyenCheckoutResource(s.src));
-    if (!sdkLoaded || !hasCheckoutActivity(payload)) {
+      return pass(`Bundle type "${bundleType}" is optimised.`);
+    },
+    { noticeImpact: 'low' }
+  )
+  .add('sdk-analytics', (payload, { attributes, skip, warn, pass }) => {
+    if (!detectSdkPresence(payload.page).detected || !attributes.checkoutActivity) {
       return skip(STRINGS.ANALYTICS_SKIP_TITLE, STRINGS.ANALYTICS_SKIP_REASON);
     }
 
-    if ((payload.page.checkoutConfig ?? payload.page.componentConfig)?.analyticsEnabled === false) {
+    const analytics = readCheckoutField(payload, 'analyticsEnabled');
+    if (analytics.state === 'unobserved') {
+      return skip(STRINGS.ANALYTICS_SKIP_TITLE, STRINGS.ANALYTICS_PARTIAL_SKIP_REASON);
+    }
+    if (analytics.state === 'present' && analytics.source === 'inferred') {
+      return skip(STRINGS.ANALYTICS_SKIP_TITLE, STRINGS.ANALYTICS_INFERRED_SKIP_REASON);
+    }
+    if (analytics.state === 'present' && !analytics.value) {
       return warn(
         STRINGS.ANALYTICS_WARN_TITLE,
         STRINGS.ANALYTICS_WARN_DETAIL,
@@ -191,10 +195,7 @@ export const SDK_IDENTITY_CHECKS = createRegistry(CATEGORY)
   .add('sdk-multi-init', (payload, { pass, warn, skip }) => {
     const initCount = payload.page.checkoutInitCount ?? payload.page.componentMountCount;
     if (initCount === undefined || initCount === 0) {
-      return skip(
-        'Initialization count check skipped.',
-        'AdyenCheckout initialization not detected.'
-      );
+      return skip(STRINGS.MULTI_INIT_SKIP_TITLE, STRINGS.MULTI_INIT_SKIP_REASON);
     }
 
     if (initCount > 1) {
@@ -210,11 +211,7 @@ export const SDK_IDENTITY_CHECKS = createRegistry(CATEGORY)
   })
   .getChecks();
 
-function getFlowSensitiveBundleDocsUrl(payload: ScanPayload, flow: IntegrationFlow): string {
-  const callbackDocFlavor =
-    resolveIntegrationFlavor(payload).flavor === 'Drop-in' ? 'Drop-in' : 'Components';
-  if (flow === 'sessions') {
-    return BUNDLE_AUTO_DOCS.sessions[callbackDocFlavor];
-  }
-  return BUNDLE_AUTO_DOCS.advanced[callbackDocFlavor];
+function getFlowSensitiveBundleDocsUrl(attributes: ImplementationAttributes): string {
+  const flow = attributes.flow.value === 'sessions' ? 'sessions' : 'advanced';
+  return BUNDLE_AUTO_DOCS[flow][docsIntegration(attributes)];
 }

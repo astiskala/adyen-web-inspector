@@ -1,3 +1,8 @@
 allowBuilds:
-  esbuild: set this to true or false
-  unrs-resolver: set this to true or false
+  esbuild: true
+  unrs-resolver: false
+
+overrides:
+  tmp@<=0.2.3: '>=0.2.4'
+  minimatch@>=10.0.0 <10.2.3: '>=10.2.3'
+  typescript: ^6.0.3

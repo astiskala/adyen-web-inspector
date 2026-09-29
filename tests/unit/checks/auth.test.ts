@@ -3,8 +3,10 @@ import { AUTH_CHECKS } from '../../../src/background/checks/auth';
 import {
   makeScanPayload,
   makeAdyenPayload,
-  makePageExtract,
+  makeCheckoutPage,
   makeCheckoutConfig,
+  makeRequest,
+  makeCapturedConfig,
 } from '../../fixtures/makeScanPayload';
 import { requireCheck } from './requireCheck';
 
@@ -30,8 +32,8 @@ describe('auth-client-key', () => {
 
   it('skips (no client key) when no client key is configured', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
-        checkoutConfig: makeCheckoutConfig({ clientKey: undefined }),
+      page: makeCheckoutPage({
+        capturedConfig: makeCapturedConfig(makeCheckoutConfig({ clientKey: undefined })),
       }),
     });
     expect(authClientKey.run(payload).severity).toBe('skip');
@@ -51,36 +53,50 @@ describe('auth-country-code', () => {
     expect(result.title).toBe('countryCode is set correctly.');
   });
 
-  it('fails when country code is missing', () => {
+  it('fails when country code is missing from verified config', () => {
     const payload = makeAdyenPayload({}, { countryCode: undefined });
     expect(authCountryCode.run(payload).severity).toBe('fail');
   });
 
+  it('does not fail when country code is missing from partial config', () => {
+    const payload = makeScanPayload({
+      page: makeCheckoutPage({ capturedConfig: makeCapturedConfig({ clientKey: 'test_X' }) }),
+    });
+    expect(authCountryCode.run(payload).severity).toBe('notice');
+  });
+
   it('skips when no checkout config present', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({ checkoutConfig: null }),
+      page: makeCheckoutPage({ capturedConfig: null }),
     });
     expect(authCountryCode.run(payload).severity).toBe('skip');
   });
 
   it('skips when country code is missing and only inferred config is present', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
-        checkoutConfig: null,
+      page: makeCheckoutPage({
+        capturedConfig: null,
         inferredConfig: makeCheckoutConfig({ countryCode: undefined }),
       }),
     });
     expect(authCountryCode.run(payload).severity).toBe('skip');
   });
 
-  it('passes when country code is set in inferred config', () => {
+  it('does not claim that an inferred country code was verified in checkout config', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
-        checkoutConfig: null,
+      page: makeCheckoutPage({ inferredConfig: { countryCode: 'IN' } }),
+    });
+    expect(authCountryCode.run(payload).severity).toBe('notice');
+  });
+
+  it('returns notice when country code is found only in inferred config', () => {
+    const payload = makeScanPayload({
+      page: makeCheckoutPage({
+        capturedConfig: null,
         inferredConfig: makeCheckoutConfig({ countryCode: 'IN' }),
       }),
     });
-    expect(authCountryCode.run(payload).severity).toBe('pass');
+    expect(authCountryCode.run(payload).severity).toBe('notice');
   });
 });
 
@@ -104,33 +120,50 @@ describe('auth-locale', () => {
     expect(result.title).toContain('not in the supported Adyen Web translations list');
   });
 
-  it('warns when locale is missing', () => {
+  it('warns when locale is missing from verified config', () => {
     const payload = makeAdyenPayload({}, { locale: undefined });
     expect(authLocale.run(payload).severity).toBe('warn');
   });
 
+  it('does not warn when locale is missing from partial config', () => {
+    const payload = makeScanPayload({
+      page: makeCheckoutPage({ capturedConfig: makeCapturedConfig({ clientKey: 'test_X' }) }),
+    });
+    expect(authLocale.run(payload).severity).toBe('notice');
+  });
+
   it('skips when no checkout config present', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({ checkoutConfig: null }),
+      page: makeCheckoutPage({ capturedConfig: null }),
     });
     expect(authLocale.run(payload).severity).toBe('skip');
   });
 
-  it('warns when locale is missing but inferred config is present', () => {
+  it('skips when locale is missing and only inferred config is present', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
-        checkoutConfig: null,
+      page: makeCheckoutPage({
+        capturedConfig: null,
         inferredConfig: makeCheckoutConfig({ locale: undefined }),
       }),
     });
-    expect(authLocale.run(payload).severity).toBe('warn');
+    expect(authLocale.run(payload).severity).toBe('skip');
   });
 
-  it('passes when locale is set in inferred config', () => {
+  it('returns notice when locale is set only in inferred config', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
-        checkoutConfig: null,
+      page: makeCheckoutPage({
+        capturedConfig: null,
         inferredConfig: makeCheckoutConfig({ locale: 'en-US' }),
+      }),
+    });
+    expect(authLocale.run(payload).severity).toBe('notice');
+  });
+
+  it('falls back to a component locale when captured locale is empty', () => {
+    const payload = makeScanPayload({
+      page: makeCheckoutPage({
+        capturedConfig: makeCapturedConfig({ locale: '' }),
+        componentConfig: { locale: 'nl-NL' },
       }),
     });
     expect(authLocale.run(payload).severity).toBe('pass');
@@ -140,7 +173,7 @@ describe('auth-locale', () => {
 describe('componentConfig fallback', () => {
   it('auth-client-key resolves from componentConfig', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
+      page: makeCheckoutPage({
         componentConfig: makeCheckoutConfig({ clientKey: 'test_COMPONENT' }),
       }),
     });
@@ -149,7 +182,7 @@ describe('componentConfig fallback', () => {
 
   it('auth-country-code resolves from componentConfig', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
+      page: makeCheckoutPage({
         componentConfig: makeCheckoutConfig({ countryCode: 'NL' }),
       }),
     });
@@ -158,10 +191,91 @@ describe('componentConfig fallback', () => {
 
   it('auth-locale resolves from componentConfig', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
+      page: makeCheckoutPage({
         componentConfig: makeCheckoutConfig({ locale: 'nl-NL' }),
       }),
     });
     expect(authLocale.run(payload).severity).toBe('pass');
+  });
+});
+
+describe('auth-client-key-rejected', () => {
+  const authKeyRejected = requireCheck(AUTH_CHECKS, 'auth-client-key-rejected');
+  const sessionsUrl =
+    'https://checkoutshopper-test.adyen.com/checkoutshopper/v1/sessions/CS123/setup?clientKey=test_SECRETVALUE';
+
+  it('skips when no Adyen client-side responses were captured', () => {
+    const payload = makeScanPayload({
+      capturedRequests: [
+        makeRequest(
+          'https://checkoutshopper-test.cdn.adyen.com/checkoutshopper/sdk/6.0.0/adyen.js'
+        ),
+        makeRequest(sessionsUrl, { statusCode: 0 }),
+      ],
+    });
+    expect(authKeyRejected.run(payload).severity).toBe('skip');
+  });
+
+  it('passes when Adyen accepted the client-side requests', () => {
+    const payload = makeScanPayload({
+      capturedRequests: [
+        makeRequest(sessionsUrl, { type: 'other' }),
+        makeRequest('https://checkoutanalytics-live-us.adyen.com/checkoutanalytics/v3/analytics', {
+          statusCode: 204,
+        }),
+      ],
+    });
+    expect(authKeyRejected.run(payload).severity).toBe('pass');
+  });
+
+  it('fails on 401 or 403 responses and reports only the rejecting origins', () => {
+    const payload = makeScanPayload({
+      capturedRequests: [
+        makeRequest(sessionsUrl, { statusCode: 401 }),
+        makeRequest(sessionsUrl, { statusCode: 401 }),
+        makeRequest(
+          'https://checkoutanalytics-test.adyen.com/checkoutanalytics/v3/analytics?clientKey=test_SECRETVALUE',
+          {
+            statusCode: 403,
+          }
+        ),
+        makeRequest('https://merchant.example/api/payments', { statusCode: 401 }),
+      ],
+    });
+    const result = authKeyRejected.run(payload);
+    expect(result.severity).toBe('fail');
+    expect(result.detail).toContain(
+      'HTTP 401 from https://checkoutshopper-test.adyen.com, HTTP 403 from https://checkoutanalytics-test.adyen.com.'
+    );
+    expect(result.detail).not.toContain('SECRETVALUE');
+    expect(result.detail).not.toContain('merchant.example');
+  });
+});
+
+describe('auth-country-code edge cases', () => {
+  it('warns rather than fails when Sessions flow lacks countryCode', () => {
+    const payload = makeScanPayload({
+      page: makeCheckoutPage({
+        capturedConfig: makeCapturedConfig(
+          makeCheckoutConfig({ countryCode: undefined, hasSession: true }),
+          true
+        ),
+      }),
+    });
+
+    expect(authCountryCode.run(payload).severity).toBe('warn');
+  });
+
+  it('says a countryCode seen only in page JSON came from JSON the page parsed', () => {
+    const payload = makeScanPayload({
+      page: makeCheckoutPage({
+        capturedConfig: makeCapturedConfig({ clientKey: 'test_K' }),
+        pageJsonConfig: { countryCode: 'NL' },
+      }),
+    });
+
+    const result = authCountryCode.run(payload);
+    expect(result.severity).toBe('notice');
+    expect(result.detail).toContain('in JSON the page parsed');
   });
 });

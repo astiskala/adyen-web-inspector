@@ -1,15 +1,9 @@
 /**
- * Category 3 — Environment & Region checks.
+ * Environment checks (`environment`) — CDN and API environment, region, client key prefix, and
+ * iframe embedding.
  */
 
-import {
-  detectEnvironmentFromCdnRequests,
-  detectEnvironmentFromClientKey,
-  detectEnvironmentFromRequests,
-  detectRegionFromCdnRequests,
-  resolveEnvironment,
-  resolveRegion,
-} from '../../shared/implementation-attributes.js';
+import { readCheckoutField } from '../../shared/scan-evidence.js';
 import { createRegistry } from './registry.js';
 
 const STRINGS = {
@@ -18,6 +12,10 @@ const STRINGS = {
   CDN_ENV_UNKNOWN_SKIP_REASON: 'Configured environment unknown.',
   CDN_MISMATCH_FAIL_URL:
     'https://docs.adyen.com/online-payments/web-best-practices/#embed-script-and-stylesheet',
+
+  REGION_MISMATCH_SKIP_TITLE: 'CDN region check skipped.',
+  REGION_MISMATCH_NO_CDN_SKIP_REASON: 'No regional Adyen CDN requests detected.',
+  REGION_MISMATCH_NO_CONFIG_SKIP_REASON: 'Configured region unknown.',
 
   REGION_SKIP_TITLE: 'Region check skipped.',
   REGION_SKIP_REASON: 'Environment is test, which uses a global endpoint.',
@@ -35,11 +33,18 @@ const STRINGS = {
 
   IFRAME_WARN_TITLE: 'Checkout appears to be rendered inside an <iframe>.',
   IFRAME_WARN_DETAIL:
-    'Embedding checkout in an iframe may cause issues with redirects, cookies, and payment methods that require navigation to another domain.',
+    'Redirect payment flows can fail when checkout runs in an iframe on a different domain from its parent: the frame cannot redirect the top-level page. Embedding checkout can also affect cookies and other payment methods.',
   IFRAME_WARN_REMEDIATION:
-    'Render Drop-in or Components directly in the top-level page. If an iframe is unavoidable, host it on the same domain as the parent page.',
-  IFRAME_WARN_URL: 'https://docs.adyen.com/online-payments/web-best-practices/#iframe',
+    'Render Drop-in or Components in the top-level page for redirect-based payment methods and 3DS. If an iframe is unavoidable, host it on the same domain as its parent. Set redirectFromTopWhenInIframe to true if redirects should navigate the top-level window, and test the return flow.',
+  IFRAME_WARN_URL:
+    'https://docs.adyen.com/online-payments/web-best-practices/#avoid-iframe-elements',
   IFRAME_PASS_TITLE: 'Checkout is not embedded inside an iframe.',
+  IFRAME_TOP_REDIRECT_NOTICE_TITLE:
+    'Checkout runs in an iframe with redirectFromTopWhenInIframe enabled.',
+  IFRAME_TOP_REDIRECT_NOTICE_DETAIL:
+    'Adyen Web will redirect the top-level window for redirect payment methods. Browsers can still block top-level navigation from a cross-origin iframe, for example when the iframe sandbox omits allow-top-navigation, and cookies or storage in the frame may be partitioned.',
+  IFRAME_TOP_REDIRECT_NOTICE_REMEDIATION:
+    'Test redirect payment methods and 3DS end to end in this embedded setup, including the return to your checkout. Prefer rendering checkout in the top-level page where possible.',
 
   REGION_MISMATCH_WARN_TITLE: 'CDN region does not match configured region.',
   REGION_MISMATCH_WARN_DETAIL:
@@ -51,13 +56,13 @@ const STRINGS = {
 const CATEGORY = 'environment' as const;
 
 export const ENVIRONMENT_CHECKS = createRegistry(CATEGORY)
-  .add('env-cdn-mismatch', (payload, { skip, pass, fail }) => {
-    const cdnEnv = detectEnvironmentFromCdnRequests(payload);
+  .add('env-cdn-mismatch', (_payload, { attributes, skip, pass, fail }) => {
+    const cdnEnv = attributes.environment.cdn;
     if (cdnEnv === null) {
       return skip(STRINGS.CDN_SKIP_TITLE, STRINGS.CDN_NO_REQUESTS_SKIP_REASON);
     }
 
-    const configuredEnv = resolveEnvironment(payload).env;
+    const configuredEnv = attributes.environment.value;
     if (configuredEnv === null) {
       return skip(STRINGS.CDN_SKIP_TITLE, STRINGS.CDN_ENV_UNKNOWN_SKIP_REASON);
     }
@@ -73,15 +78,18 @@ export const ENVIRONMENT_CHECKS = createRegistry(CATEGORY)
 
     return pass(`CDN environment matches configured environment (${configuredEnv}).`);
   })
-  .add('env-region-mismatch', (payload, { skip, pass, warn }) => {
-    const cdnRegion = detectRegionFromCdnRequests(payload);
+  .add('env-region-mismatch', (_payload, { attributes, skip, pass, warn }) => {
+    const cdnRegion = attributes.region.cdn;
     if (cdnRegion === 'unknown') {
-      return skip('CDN region check skipped.', 'No regional Adyen CDN requests detected.');
+      return skip(STRINGS.REGION_MISMATCH_SKIP_TITLE, STRINGS.REGION_MISMATCH_NO_CDN_SKIP_REASON);
     }
 
-    const configuredRegion = resolveRegion(payload).region;
+    const configuredRegion = attributes.region.value;
     if (configuredRegion === 'unknown') {
-      return skip('CDN region check skipped.', 'Configured region unknown.');
+      return skip(
+        STRINGS.REGION_MISMATCH_SKIP_TITLE,
+        STRINGS.REGION_MISMATCH_NO_CONFIG_SKIP_REASON
+      );
     }
 
     if (cdnRegion !== configuredRegion) {
@@ -95,34 +103,27 @@ export const ENVIRONMENT_CHECKS = createRegistry(CATEGORY)
 
     return pass(`CDN region matches configured region (${configuredRegion}).`);
   })
-  .add('env-region', (payload, { skip, info }) => {
-    const env = resolveEnvironment(payload).env;
-    if (env === 'test') {
+  .add('env-region', (_payload, { attributes, skip, info }) => {
+    if (attributes.environment.value === 'test') {
       return skip(STRINGS.REGION_SKIP_TITLE, STRINGS.REGION_SKIP_REASON);
     }
 
-    const regionResolution = resolveRegion(payload);
-    const region = regionResolution.region;
+    const { value: region, source } = attributes.region;
     let detail: string = STRINGS.REGION_SOURCE_NETWORK_DETAIL;
-    if (regionResolution.source === 'config') {
+    if (source === 'config') {
       detail = STRINGS.REGION_SOURCE_CONFIG_DETAIL;
-    } else if (regionResolution.source === 'unknown') {
+    } else if (source === 'unknown') {
       detail = STRINGS.REGION_SOURCE_UNKNOWN_DETAIL;
     }
 
     return info(`Region: ${region}.`, detail);
   })
-  .add('env-key-mismatch', (payload, { skip, fail, pass }) => {
-    const clientKey =
-      payload.page.checkoutConfig?.clientKey ??
-      payload.page.componentConfig?.clientKey ??
-      payload.page.inferredConfig?.clientKey;
-    if (clientKey === undefined || clientKey === '') {
+  .add('env-key-mismatch', (payload, { attributes, skip, fail, pass }) => {
+    if (readCheckoutField(payload, 'clientKey').state !== 'present') {
       return skip(STRINGS.KEY_SKIP_TITLE, STRINGS.KEY_NO_KEY_SKIP_REASON);
     }
 
-    const envFromKey = detectEnvironmentFromClientKey(clientKey);
-    const envFromRequests = detectEnvironmentFromRequests(payload);
+    const { clientKey: envFromKey, network: envFromRequests } = attributes.environment;
 
     if (envFromKey === null || envFromRequests === null) {
       return skip(STRINGS.KEY_SKIP_TITLE, STRINGS.KEY_NO_ENV_SKIP_REASON);
@@ -139,8 +140,17 @@ export const ENVIRONMENT_CHECKS = createRegistry(CATEGORY)
 
     return pass(STRINGS.KEY_PASS_TITLE);
   })
-  .add('env-not-iframe', (payload, { pass, warn }) => {
-    if (payload.page.isInsideIframe) {
+  .add('env-not-iframe', (payload, { pass, warn, notice }) => {
+    if (payload.page.checkoutInIframe) {
+      const topRedirect = readCheckoutField(payload, 'redirectFromTopWhenInIframe');
+      if (topRedirect.state === 'present' && topRedirect.value) {
+        return notice(
+          STRINGS.IFRAME_TOP_REDIRECT_NOTICE_TITLE,
+          STRINGS.IFRAME_TOP_REDIRECT_NOTICE_DETAIL,
+          STRINGS.IFRAME_TOP_REDIRECT_NOTICE_REMEDIATION,
+          STRINGS.IFRAME_WARN_URL
+        );
+      }
       return warn(
         STRINGS.IFRAME_WARN_TITLE,
         STRINGS.IFRAME_WARN_DETAIL,

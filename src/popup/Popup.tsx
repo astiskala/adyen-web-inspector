@@ -1,10 +1,10 @@
 import { render } from 'preact';
-import { Popup } from './PopupApp';
-import './popup.css';
+import '../shared/base.css';
+import { Popup } from './PopupApp.js';
 
 document.body.classList.add('popup-body');
 
-const root = document.getElementById('root');
+const root = document.querySelector('#root');
 if (root) {
   render(<Popup />, root);
 }

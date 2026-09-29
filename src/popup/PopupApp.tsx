@@ -1,253 +1,94 @@
 import type { JSX } from 'preact';
-import { useState, useEffect } from 'preact/hooks';
-import type { ScanResult } from '~shared/types';
-import {
-  MSG_GET_RESULT,
-  MSG_SCAN_COMPLETE,
-  MSG_SCAN_ERROR,
-  MSG_SCAN_REQUEST,
-  MSG_SCAN_RESET,
-  MSG_SCAN_STARTED,
-} from '~shared/messages';
-import {
-  MIN_SUPPORTED_MAJOR_VERSION,
-  STORAGE_DETECTED_PREFIX,
-  STORAGE_VERSION_PREFIX,
-} from '~shared/constants';
-import { parseVersion } from '~shared/utils';
-import { exportPdf } from '~shared/export-pdf';
-import { IdentityCard } from './components/IdentityCard';
-import { HealthScore } from './components/HealthScore';
-import { IssueList } from './components/IssueList';
-import { NotDetected } from './components/NotDetected';
-import { DetectedReady } from './components/DetectedReady';
-import { VersionOutdated } from './components/VersionOutdated';
-import { ScanError } from './components/ScanError';
-import { StandardComplianceBadge } from './components/StandardComplianceBadge';
+import { MIN_SUPPORTED_MAJOR_VERSION } from '../shared/constants.js';
+import type { CheckoutActivity } from '../shared/messages.js';
+import type { ScanResult } from '../shared/types.js';
+import { parseVersion } from '../shared/utils.js';
+import { exportPdf } from './components/pdf-export.js';
+import { IdentityCard } from './components/IdentityCard.js';
+import { HealthScore } from './components/HealthScore.js';
+import { IssueList } from './components/IssueList.js';
+import { NotDetected } from './components/NotDetected.js';
+import { DetectedReady } from './components/DetectedReady.js';
+import { VersionOutdated } from './components/VersionOutdated.js';
+import { ScanError } from './components/ScanError.js';
+import { StandardComplianceBadge } from './components/StandardComplianceBadge.js';
+import { chromeTabStateClient } from './components/chrome-tab-state-client.js';
+import { scanButtonLabel, useScanLifecycle } from './components/useScanLifecycle.js';
+import styles from './PopupApp.module.css';
+import { cssModule } from './components/css-module.js';
 
-type PopupState = 'loading' | 'ready' | 'detected' | 'not-detected' | 'error' | 'version-outdated';
-interface RuntimeMessage {
-  readonly type: string;
-  readonly tabId?: number;
-  readonly error?: string;
-}
+const s = cssModule(styles);
 
 function getActiveTabId(): Promise<number | undefined> {
   return chrome.tabs.query({ active: true, currentWindow: true }).then((tabs) => tabs[0]?.id);
 }
 
-function isScanLifecycleMessage(messageType: string): boolean {
-  return (
-    messageType === MSG_SCAN_STARTED ||
-    messageType === MSG_SCAN_COMPLETE ||
-    messageType === MSG_SCAN_ERROR ||
-    messageType === MSG_SCAN_RESET
-  );
+const activeTab = { getTabId: getActiveTabId } as const;
+
+type PopupView =
+  | { readonly state: 'loading' | 'error' | 'ready' | 'not-detected' }
+  | { readonly state: 'version-outdated'; readonly version: string }
+  | { readonly state: 'result'; readonly result: ScanResult };
+
+/** Resolves the view for a tab without a scan result from the detector's checkout activity. */
+function getIdleView({ detected, version }: CheckoutActivity): PopupView {
+  if (!detected) return { state: 'not-detected' };
+  const major = parseVersion(version ?? '')?.major;
+  if (version !== undefined && major !== undefined && major < MIN_SUPPORTED_MAJOR_VERSION) {
+    return { state: 'version-outdated', version };
+  }
+  return { state: 'ready' };
+}
+
+/** A scan that found no SDK offers another attempt, like a page where none was detected. */
+function getPopupView(session: ReturnType<typeof useScanLifecycle>): PopupView {
+  const { loading, error, result, checkoutActivity } = session;
+  if (loading && result === null) return { state: 'loading' };
+  if (error !== null) return { state: 'error' };
+  if (result === null) return getIdleView(checkoutActivity);
+  return result.sdkPresence.detected ? { state: 'result', result } : { state: 'not-detected' };
 }
 
 /**
  * Popup root that loads scan state for the active tab and handles scan actions.
  */
 export function Popup(): JSX.Element {
-  const [state, setState] = useState<PopupState>('loading');
-  const [result, setResult] = useState<ScanResult | null>(null);
-  const [scanning, setScanning] = useState<boolean>(false);
-  const [outdatedVersion, setOutdatedVersion] = useState<string>('');
-
-  function checkVersionGate(tabId: number): void {
-    const versionKey = `${STORAGE_VERSION_PREFIX}${tabId}`;
-    chrome.storage.session
-      .get(versionKey)
-      .then((stored: Record<string, unknown>) => {
-        const version = stored[versionKey];
-        if (typeof version === 'string') {
-          const parsed = parseVersion(version);
-          if (parsed && parsed.major < MIN_SUPPORTED_MAJOR_VERSION) {
-            setOutdatedVersion(version);
-            setState('version-outdated');
-            return;
-          }
-        }
-        setState('ready');
-      })
-      .catch(() => {
-        setState('ready');
-      });
-  }
-
-  function loadResult(tabId: number): void {
-    chrome.runtime
-      .sendMessage({ type: MSG_GET_RESULT, tabId })
-      .then((res: unknown) => {
-        if (typeof res === 'object' && res !== null && 'checks' in res) {
-          setResult(res as ScanResult);
-          setState('detected');
-        } else {
-          setResult(null);
-          const detectedKey = `${STORAGE_DETECTED_PREFIX}${tabId}`;
-          chrome.storage.session
-            .get(detectedKey)
-            .then((stored: Record<string, unknown>) => {
-              if (stored[detectedKey] === true) {
-                checkVersionGate(tabId);
-              } else {
-                setState('not-detected');
-              }
-            })
-            .catch(() => {
-              setState('not-detected');
-            });
-        }
-      })
-      .catch(() => {
-        setResult(null);
-        setState('not-detected');
-      });
-  }
-
-  async function handleRuntimeMessage(message: RuntimeMessage): Promise<void> {
-    if (!isScanLifecycleMessage(message.type)) {
-      return;
-    }
-
-    const tabId = await getActiveTabId();
-    if (tabId === undefined || message.tabId !== tabId) {
-      return;
-    }
-
-    if (message.type === MSG_SCAN_STARTED) {
-      setScanning(true);
-      return;
-    }
-
-    if (message.type === MSG_SCAN_RESET) {
-      setScanning(false);
-      setResult(null);
-      setOutdatedVersion('');
-      setState('loading');
-      globalThis.setTimeout(() => {
-        loadResult(tabId);
-      }, 400);
-      return;
-    }
-
-    if (message.type === MSG_SCAN_COMPLETE) {
-      setScanning(false);
-      loadResult(tabId);
-      return;
-    }
-
-    setScanning(false);
-    setState('error');
-  }
-
-  useEffect(() => {
-    getActiveTabId()
-      .then((tabId) => {
-        if (tabId === undefined) {
-          setState('not-detected');
-          return;
-        }
-        loadResult(tabId);
-      })
-      .catch(() => {
-        setState('not-detected');
-      });
-
-    const listener = (message: RuntimeMessage): void => {
-      handleRuntimeMessage(message).catch(() => {});
-    };
-
-    chrome.runtime.onMessage.addListener(listener);
-    return (): void => {
-      chrome.runtime.onMessage.removeListener(listener);
-    };
-  }, []);
-
-  function handleScan(): void {
-    setScanning(true);
-    getActiveTabId()
-      .then((tabId) => {
-        if (tabId === undefined) {
-          setScanning(false);
-          setState('error');
-          return;
-        }
-
-        chrome.runtime.sendMessage({ type: MSG_SCAN_REQUEST, tabId, source: 'popup' }).catch(() => {
-          setScanning(false);
-          setState('error');
-        });
-      })
-      .catch(() => {
-        setScanning(false);
-        setState('error');
-      });
-  }
-
-  function handleExportPdf(): void {
-    if (!result) return;
-    exportPdf(result).catch(() => {});
-  }
-
-  const isDetected = state === 'detected' && result !== null;
-  const sdkDetectedCheck =
-    result === null ? undefined : result.checks.find((check) => check.id === 'sdk-detected');
-  const sdkNotDetected = isDetected && sdkDetectedCheck?.severity === 'fail';
-  const showScanControls = (state === 'ready' || state === 'detected') && !sdkNotDetected;
-  let scanButtonText = 'Run Scan';
-  if (scanning) {
-    scanButtonText = 'Scanning…';
-  } else if (result) {
-    scanButtonText = 'Re-run Scan';
-  }
+  const session = useScanLifecycle(activeTab, chromeTabStateClient);
+  const { scanning, scan } = session;
+  const view = getPopupView(session);
 
   return (
     <div>
-      {state === 'loading' && (
-        <div
-          style={{
-            padding: '24px',
-            textAlign: 'center',
-            color: 'var(--color-text-secondary)',
-            fontSize: '12px',
-          }}
-        >
-          Loading…
-        </div>
-      )}
-      {state === 'error' && <ScanError onRetry={handleScan} scanning={scanning} />}
-      {state === 'ready' && <DetectedReady />}
-      {state === 'not-detected' && <NotDetected onAttemptScan={handleScan} scanning={scanning} />}
-      {state === 'version-outdated' && <VersionOutdated version={outdatedVersion} />}
-      {isDetected && !sdkNotDetected && (
+      {view.state === 'loading' && <div class={s('loading')}>Loading…</div>}
+      {view.state === 'error' && <ScanError onRetry={scan} scanning={scanning} />}
+      {view.state === 'ready' && <DetectedReady />}
+      {view.state === 'not-detected' && <NotDetected onAttemptScan={scan} scanning={scanning} />}
+      {view.state === 'version-outdated' && <VersionOutdated version={view.version} />}
+      {view.state === 'result' && (
         <>
-          <IdentityCard result={result} />
-          <HealthScore result={result} />
-          <StandardComplianceBadge compliance={result.standardCompliance} />
-          <IssueList checks={result.checks} />
+          <IdentityCard result={view.result} />
+          <HealthScore result={view.result} />
+          <StandardComplianceBadge compliance={view.result.standardCompliance} />
+          <IssueList checks={view.result.checks} />
         </>
       )}
-      {sdkNotDetected && <NotDetected onAttemptScan={handleScan} scanning={scanning} />}
-      {showScanControls && (
-        <div
-          style={{
-            display: 'flex',
-            gap: '6px',
-            padding: '8px 12px',
-            borderTop: '1px solid var(--color-border)',
-          }}
-        >
+      {(view.state === 'ready' || view.state === 'result') && (
+        <div class={s('toolbar')}>
           <button
-            class={`btn ${scanning ? '' : 'btnPrimary'}`}
-            onClick={handleScan}
+            class={`btn ${scanning ? '' : 'btnPrimary'} ${s('scanButton')}`}
+            onClick={scan}
             disabled={scanning}
-            style={{ flex: 1 }}
           >
-            {scanButtonText}
+            {scanButtonLabel(session)}
           </button>
-          {isDetected && (
-            <button class="btn" onClick={handleExportPdf} title="Export PDF report">
+          {view.state === 'result' && (
+            <button
+              class="btn"
+              onClick={() => {
+                exportPdf(view.result).catch(() => {});
+              }}
+              title="Export PDF report"
+            >
               Export PDF
             </button>
           )}
