@@ -240,32 +240,31 @@ describe('config-interceptor', () => {
   });
 
   describe('Network interception', () => {
-    it('captures environment from fetch URL (live)', async () => {
-      await globalThis.fetch(
-        'https://checkoutshopper-live.adyen.com/checkoutshopper/v1/sdk-identity'
-      );
+    it.each([
+      {
+        label: 'fetch URL (live)',
+        url: 'https://checkoutshopper-live.adyen.com/checkoutshopper/v1/sdk-identity',
+        environment: 'live',
+      },
+      {
+        label: 'fetch URL (test)',
+        url: 'https://checkoutshopper-test.adyen.com/checkoutshopper/v1/sdk-identity',
+        environment: 'test',
+      },
+      {
+        label: 'adyenpayments.com URL (live-in)',
+        url: 'https://checkout-live-in.adyenpayments.com/checkout/v1/sdk-identity',
+        environment: 'live-in',
+      },
+      {
+        label: 'regional live URL (live-us)',
+        url: 'https://checkout-live-us.adyen.com/checkout/v1/sdk-identity',
+        environment: 'live-us',
+      },
+    ])('captures environment from $label', async ({ url, environment }) => {
+      await globalThis.fetch(url);
       const config = getInferredConfig();
-      expect(config?.['environment']).toBe('live');
-    });
-
-    it('captures environment from fetch URL (test)', async () => {
-      await globalThis.fetch(
-        'https://checkoutshopper-test.adyen.com/checkoutshopper/v1/sdk-identity'
-      );
-      const config = getInferredConfig();
-      expect(config?.['environment']).toBe('test');
-    });
-
-    it('captures environment from adyenpayments.com URL (live-in)', async () => {
-      await globalThis.fetch('https://checkout-live-in.adyenpayments.com/checkout/v1/sdk-identity');
-      const config = getInferredConfig();
-      expect(config?.['environment']).toBe('live-in');
-    });
-
-    it('captures environment from regional live URL (live-us)', async () => {
-      await globalThis.fetch('https://checkout-live-us.adyen.com/checkout/v1/sdk-identity');
-      const config = getInferredConfig();
-      expect(config?.['environment']).toBe('live-us');
+      expect(config?.['environment']).toBe(environment);
     });
 
     it('captures clientKey from fetch query parameters', async () => {
