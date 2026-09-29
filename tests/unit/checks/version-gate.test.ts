@@ -12,33 +12,13 @@ function requireParsedVersion(version: string): NonNullable<ReturnType<typeof pa
 }
 
 describe('version gate — pre-v6 detection', () => {
-  it('blocks v5 versions', () => {
-    const parsed = requireParsedVersion('5.1.0');
+  it.each(['5.1.0', '4.7.3', '3.0.0'])('blocks v%s versions', (version) => {
+    const parsed = requireParsedVersion(version);
     expect(parsed.major).toBeLessThan(MIN_SUPPORTED_MAJOR_VERSION);
   });
 
-  it('blocks v4 versions', () => {
-    const parsed = requireParsedVersion('4.7.3');
-    expect(parsed.major).toBeLessThan(MIN_SUPPORTED_MAJOR_VERSION);
-  });
-
-  it('blocks v3 versions', () => {
-    const parsed = requireParsedVersion('3.0.0');
-    expect(parsed.major).toBeLessThan(MIN_SUPPORTED_MAJOR_VERSION);
-  });
-
-  it('allows v6 versions', () => {
-    const parsed = requireParsedVersion('6.0.0');
-    expect(parsed.major).toBeGreaterThanOrEqual(MIN_SUPPORTED_MAJOR_VERSION);
-  });
-
-  it('allows v6 latest', () => {
-    const parsed = requireParsedVersion('6.31.1');
-    expect(parsed.major).toBeGreaterThanOrEqual(MIN_SUPPORTED_MAJOR_VERSION);
-  });
-
-  it('allows future v7 versions', () => {
-    const parsed = requireParsedVersion('7.0.0');
+  it.each(['6.0.0', '6.31.1', '7.0.0'])('allows v%s versions', (version) => {
+    const parsed = requireParsedVersion(version);
     expect(parsed.major).toBeGreaterThanOrEqual(MIN_SUPPORTED_MAJOR_VERSION);
   });
 
