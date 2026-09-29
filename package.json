@@ -37,7 +37,7 @@
     "prepare": "husky"
   },
   "dependencies": {
-    "preact": "^10.29.7"
+    "preact": "^10.29.8"
   },
   "devDependencies": {
     "@commitlint/cli": "^20.5.3",
