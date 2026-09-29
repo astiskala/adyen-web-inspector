@@ -12,12 +12,16 @@ export default defineConfig({
       reporter: ['text', 'lcov', 'html'],
       include: [
         'src/background/checks/**/*.ts',
+        'src/background/chrome-scan-browser.ts',
+        'src/background/chrome-tab-state-browser.ts',
+        'src/background/frame-merge.ts',
         'src/background/header-collector.ts',
         'src/background/npm-registry.ts',
-        'src/background/payload-builder.ts',
         'src/background/scan-assessment.ts',
         'src/background/scan-orchestrator.ts',
+        'src/background/tab-state.ts',
         'src/content/config-interceptor.ts',
+        'src/content/page-extractor.ts',
         'src/shared/**/*.ts',
         'src/popup/**/*.{ts,tsx}',
         'src/devtools/**/*.{ts,tsx}',
@@ -41,13 +45,13 @@ export default defineConfig({
           branches: 88,
           statements: 95,
         },
-        'src/shared/{checkout-config-schema,scan-evidence,sdk-presence}.ts': {
+        'src/shared/{checkout-config-schema,scan-evidence,sdk-presence,sdk-version}.ts': {
           lines: 98,
           functions: 100,
           branches: 98,
           statements: 98,
         },
-        'src/background/scan-{assessment,orchestrator}.ts': {
+        'src/background/{frame-merge,scan-assessment,scan-orchestrator,tab-state}.ts': {
           lines: 100,
           functions: 100,
           branches: 100,
@@ -59,8 +63,14 @@ export default defineConfig({
           branches: 100,
           statements: 100,
         },
-        'src/background/payload-builder.ts': {
-          lines: 98,
+        'src/background/chrome-{scan,tab-state}-browser.ts': {
+          lines: 100,
+          functions: 100,
+          branches: 95,
+          statements: 98,
+        },
+        'src/content/page-extractor.ts': {
+          lines: 99,
           functions: 100,
           branches: 95,
           statements: 98,

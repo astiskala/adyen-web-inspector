@@ -54,19 +54,22 @@ const SEAM_RULES = [
   {
     name: 'scan-through-browser-port',
     comment:
-      'The Scan (orchestrator and assessment) reaches the browser only through the ScanBrowser port',
+      'The Scan (orchestrator, assessment, and frame merge) reaches the browser only through the ScanBrowser port',
     severity: 'error',
-    from: { path: '^src/background/scan-(orchestrator|assessment)\\.ts$' },
+    from: { path: '^src/background/(scan-orchestrator|scan-assessment|frame-merge)\\.ts$' },
     to: {
-      path: '^src/background/(chrome-scan-browser|header-collector|npm-registry|worker)\\.ts$',
+      path: '^src/background/(chrome-[a-z-]+-browser|header-collector|npm-registry|worker|tab-state)\\.ts$',
     },
   },
   {
-    name: 'scan-orchestrator-no-network-probes',
-    comment: 'Document and bundle fetches are port operations; the orchestrator must not call them',
+    name: 'tab-state-through-port',
+    comment:
+      'The tab state reaches Chrome only through its port and receives the Scan as a function',
     severity: 'error',
-    from: { path: '^src/background/scan-orchestrator\\.ts$' },
-    to: { path: '^src/background/payload-builder\\.ts$' },
+    from: { path: '^src/background/tab-state\\.ts$' },
+    to: {
+      path: '^src/background/(chrome-[a-z-]+-browser|header-collector|npm-registry|worker|scan-orchestrator|scan-assessment)\\.ts$',
+    },
   },
   {
     name: 'scan-port-types-only',
@@ -77,10 +80,11 @@ const SEAM_RULES = [
   },
   {
     name: 'chrome-adapter-wired-by-worker',
-    comment: 'Only the service worker selects the Chrome adapter for the ScanBrowser port',
+    comment:
+      'Only the service worker selects the Chrome adapters for the ScanBrowser and tab state ports',
     severity: 'error',
     from: { path: '^src/', pathNot: '^src/background/worker\\.ts$' },
-    to: { path: '^src/background/chrome-scan-browser\\.ts$' },
+    to: { path: '^src/background/chrome-(scan|tab-state)-browser\\.ts$' },
   },
   {
     name: 'browser-io-behind-chrome-adapter',

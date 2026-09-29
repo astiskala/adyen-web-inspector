@@ -5,7 +5,7 @@ import {
   makeCheckoutConfig,
   makeScanPayload,
   makeHeader,
-  makePageExtract,
+  makeCheckoutPage,
 } from '../../fixtures/makeScanPayload';
 import { requireCheck } from './requireCheck';
 
@@ -51,7 +51,7 @@ describe('csp-present', () => {
 });
 
 describe('csp-script-src', () => {
-  const page = makePageExtract({
+  const page = makeCheckoutPage({
     scripts: [{ src: 'https://checkoutshopper-test.adyen.com/checkoutshopper/sdk.js' }],
   });
 
@@ -108,7 +108,7 @@ describe('csp-script-src', () => {
 
   it('honors explicit script-src over an allowing default-src', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
+      page: makeCheckoutPage({
         scripts: [{ src: 'https://checkoutshopper-test.adyen.com/checkoutshopper/sdk.js' }],
       }),
       mainDocumentHeaders: [
@@ -120,7 +120,7 @@ describe('csp-script-src', () => {
 
   it('requires each enforced CSP header to allow the observed Adyen script', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
+      page: makeCheckoutPage({
         scripts: [{ src: 'https://checkoutshopper-test.adyen.com/checkoutshopper/sdk.js' }],
       }),
       mainDocumentHeaders: [
@@ -143,7 +143,7 @@ describe('csp-script-src', () => {
 
   it('skips the Adyen CDN script requirement for npm-only pages', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
+      page: makeCheckoutPage({
         adyenMetadata: { version: '6.31.0' },
         scripts: [{ src: 'https://merchant.example/app.js' }],
       }),
@@ -229,7 +229,7 @@ describe('csp-frame-src', () => {
 
 function withCsp(policy: string, config: Partial<CheckoutConfig> = {}): ScanPayload {
   return makeScanPayload({
-    page: makePageExtract({
+    page: makeCheckoutPage({
       checkoutConfig: makeCheckoutConfig(config),
       checkoutConfigComplete: true,
     }),
@@ -293,7 +293,7 @@ describe('csp-connect-src', () => {
 
   it('uses the test environment from client key evidence when config has no environment', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({ inferredConfig: { clientKey: 'test_ABCDEFGHIJK' } }),
+      page: makeCheckoutPage({ inferredConfig: { clientKey: 'test_ABCDEFGHIJK' } }),
       mainDocumentHeaders: [makeHeader('content-security-policy', "connect-src 'self'")],
     });
     const result = cspConnectSrc.run(payload);

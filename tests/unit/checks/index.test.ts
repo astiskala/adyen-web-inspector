@@ -1,7 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { ALL_CHECKS } from '../../../src/background/checks/index';
 import { getImpactLevel } from '../../../src/shared/results';
-import { makeAdyenPayload, makePageExtract, makeScanPayload } from '../../fixtures/makeScanPayload';
+import {
+  makeAdyenPayload,
+  makeCheckoutPage,
+  makeScanPayload,
+} from '../../fixtures/makeScanPayload';
 import { requireCheck } from './requireCheck';
 
 describe('ALL_CHECKS registry', () => {
@@ -31,7 +35,7 @@ describe('ALL_CHECKS registry', () => {
     const risk = requireCheck(ALL_CHECKS, 'risk-df-iframe').run(makeAdyenPayload());
     const sri = requireCheck(ALL_CHECKS, 'security-sri-css').run(
       makeScanPayload({
-        page: makePageExtract({
+        page: makeCheckoutPage({
           links: [
             {
               href: 'https://checkoutshopper-test.adyen.com/checkoutshopper/sdk.css',

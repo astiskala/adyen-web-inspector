@@ -3,7 +3,11 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ALL_CHECKS } from '../../../src/background/checks/index';
 import type { Severity } from '../../../src/shared/types';
-import { makeAdyenPayload, makePageExtract, makeScanPayload } from '../../fixtures/makeScanPayload';
+import {
+  makeAdyenPayload,
+  makeCheckoutPage,
+  makeScanPayload,
+} from '../../fixtures/makeScanPayload';
 
 interface CatalogEntry {
   readonly category: string;
@@ -152,7 +156,7 @@ describe('check catalog documentation', () => {
       makeScanPayload(),
       makeAdyenPayload(),
       makeScanPayload({
-        page: makePageExtract({ inferredConfig: { countryCode: 'NL', locale: 'nl-NL' } }),
+        page: makeCheckoutPage({ inferredConfig: { countryCode: 'NL', locale: 'nl-NL' } }),
         mainDocumentHeadersAvailable: false,
       }),
     ];

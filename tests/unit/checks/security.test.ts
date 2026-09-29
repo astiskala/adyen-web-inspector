@@ -4,7 +4,7 @@ import {
   makeScanPayload,
   makeAdyenPayload,
   makeHeader,
-  makePageExtract,
+  makeCheckoutPage,
   makeCheckoutConfig,
   makeAdyenMetadata,
   makeRequest,
@@ -31,7 +31,7 @@ describe('Security Checks', () => {
     });
 
     it('fails when live env is served over http', () => {
-      const page = makePageExtract({
+      const page = makeCheckoutPage({
         pageProtocol: 'http:',
         pageUrl: 'http://example.com',
         checkoutConfig: makeCheckoutConfig({ clientKey: 'live_XXXX', environment: 'live' }),
@@ -41,7 +41,7 @@ describe('Security Checks', () => {
     });
 
     it('fails when India live environment is served over http', () => {
-      const page = makePageExtract({
+      const page = makeCheckoutPage({
         pageProtocol: 'http:',
         checkoutConfig: makeCheckoutConfig({ environment: 'live-in', clientKey: 'live_XXXX' }),
       });
@@ -55,14 +55,14 @@ describe('Security Checks', () => {
 
     it('skips when test environment', () => {
       const payload = makeScanPayload({
-        page: makePageExtract({ pageProtocol: 'http:', pageUrl: 'http://example.com' }),
+        page: makeCheckoutPage({ pageProtocol: 'http:', pageUrl: 'http://example.com' }),
       });
       expect(securityHttps.run(payload).severity).toBe('skip');
     });
 
     it('skips when only live CDN traffic (no config env signal)', () => {
       const payload = makeScanPayload({
-        page: makePageExtract({ pageProtocol: 'http:', pageUrl: 'http://example.com' }),
+        page: makeCheckoutPage({ pageProtocol: 'http:', pageUrl: 'http://example.com' }),
         capturedRequests: [
           makeRequest('https://checkoutshopper-live.cdn.adyen.com/checkoutshopper/sdk.js'),
         ],
@@ -74,7 +74,7 @@ describe('Security Checks', () => {
   describe('SRI Scripts', () => {
     it('returns skip when no Adyen scripts are present', () => {
       const payload = makeScanPayload({
-        page: makePageExtract({
+        page: makeCheckoutPage({
           scripts: [{ src: 'https://example.com/app.js' }],
         }),
       });
@@ -83,7 +83,7 @@ describe('Security Checks', () => {
 
     it('returns pass when Adyen CDN script has SRI attributes', () => {
       const payload = makeScanPayload({
-        page: makePageExtract({
+        page: makeCheckoutPage({
           scripts: [
             {
               src: 'https://checkoutshopper-test.adyen.com/checkoutshopper-sdk/5.67.0/adyen.js',
@@ -98,7 +98,7 @@ describe('Security Checks', () => {
 
     it('accepts SRI on the CDN script path documented for v6 integrations', () => {
       const payload = makeScanPayload({
-        page: makePageExtract({
+        page: makeCheckoutPage({
           scripts: [
             {
               src: 'https://checkoutshopper-test.cdn.adyen.com/sdk/6.31.0/adyen.js',
@@ -113,7 +113,7 @@ describe('Security Checks', () => {
 
     it('does not trust a non-Adyen host with a matching SDK path', () => {
       const payload = makeScanPayload({
-        page: makePageExtract({
+        page: makeCheckoutPage({
           scripts: [
             { src: 'https://checkoutshopper-test.cdn.adyen.com.example.org/sdk/6.31.0/adyen.js' },
           ],
@@ -124,7 +124,7 @@ describe('Security Checks', () => {
 
     it('returns fail when Adyen CDN script is missing SRI', () => {
       const payload = makeScanPayload({
-        page: makePageExtract({
+        page: makeCheckoutPage({
           scripts: [
             { src: 'https://checkoutshopper-test.adyen.com/checkoutshopper-sdk/5.67.0/adyen.js' },
           ],
@@ -137,7 +137,7 @@ describe('Security Checks', () => {
 
     it('returns warn when Adyen CDN stylesheet is missing SRI', () => {
       const payload = makeScanPayload({
-        page: makePageExtract({
+        page: makeCheckoutPage({
           links: [
             {
               rel: 'stylesheet',
@@ -155,7 +155,7 @@ describe('Security Checks', () => {
   describe('SRI CSS', () => {
     it('returns skip when no Adyen stylesheets are present', () => {
       const payload = makeScanPayload({
-        page: makePageExtract({
+        page: makeCheckoutPage({
           links: [{ rel: 'stylesheet', href: 'https://example.com/app.css' }],
         }),
       });
@@ -164,7 +164,7 @@ describe('Security Checks', () => {
 
     it('returns pass when Adyen CDN stylesheet has SRI attributes', () => {
       const payload = makeScanPayload({
-        page: makePageExtract({
+        page: makeCheckoutPage({
           links: [
             {
               rel: 'stylesheet',
@@ -280,7 +280,7 @@ describe('Security Checks', () => {
   describe('Iframe referrerpolicy', () => {
     it('returns info when no Adyen iframes are present', () => {
       const payload = makeScanPayload({
-        page: makePageExtract({
+        page: makeCheckoutPage({
           iframes: [{ src: 'https://example.com/embedded-content' }],
         }),
       });
@@ -289,7 +289,7 @@ describe('Security Checks', () => {
 
     it('passes when all Adyen iframes have referrerpolicy', () => {
       const payload = makeScanPayload({
-        page: makePageExtract({
+        page: makeCheckoutPage({
           iframes: [
             {
               src: 'https://checkoutshopper-test.adyen.com/checkoutshopper/sdk/iframe.html',
@@ -307,7 +307,7 @@ describe('Security Checks', () => {
 
     it('returns info when an Adyen iframe is missing referrerpolicy', () => {
       const payload = makeScanPayload({
-        page: makePageExtract({
+        page: makeCheckoutPage({
           iframes: [
             {
               src: 'https://checkoutshopper-test.adyen.com/checkoutshopper/sdk/iframe.html',
@@ -331,7 +331,7 @@ describe('Security Checks', () => {
 
     it('fails when API key is detected in frontend code', () => {
       const payload = makeScanPayload({
-        page: makePageExtract({ apiKeyDetected: true }),
+        page: makeCheckoutPage({ apiKeyDetected: true }),
       });
       const result = apiKeyExposed.run(payload);
       expect(result.severity).toBe('fail');
@@ -343,14 +343,14 @@ describe('Security Checks', () => {
 
     it('passes when apiKeyDetected is undefined', () => {
       const payload = makeScanPayload({
-        page: makePageExtract(),
+        page: makeCheckoutPage(),
       });
       expect(apiKeyExposed.run(payload).severity).toBe('pass');
     });
 
     it('passes when apiKeyDetected is false', () => {
       const payload = makeScanPayload({
-        page: makePageExtract({ apiKeyDetected: false }),
+        page: makeCheckoutPage({ apiKeyDetected: false }),
       });
       expect(apiKeyExposed.run(payload).severity).toBe('pass');
     });

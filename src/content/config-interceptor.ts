@@ -15,7 +15,7 @@
  */
 
 import { applyCapturedOptions, readCheckoutOptions } from '../shared/checkout-config-schema.js';
-import { PAGE_GLOBALS } from '../shared/constants.js';
+import { PAGE_GLOBALS, type PageGlobalValues } from '../shared/constants.js';
 import type { CallbackSource, CheckoutConfig } from '../shared/types.js';
 import { extractLocaleFromUrl, isAdyenHost } from '../shared/utils.js';
 
@@ -25,14 +25,17 @@ import { extractLocaleFromUrl, isAdyenHost } from '../shared/utils.js';
   type PlainRecord = Record<string, unknown>;
   type SdkCallable = (this: unknown, ...args: unknown[]) => unknown;
 
+  type PublishedConfigKey = typeof PAGE_GLOBALS.capturedConfig | typeof PAGE_GLOBALS.inferredConfig;
+
   const ADYEN_INSTANCE_MARKER = '__adyenInstance';
   const LIVE_ENVIRONMENT_PATTERN = /(?:^|\.|-)(live(?:-[a-z]{2,4})?)(?:\.|$)/;
   const TEST_ENVIRONMENT_PATTERN = /(?:^|\.|-)(test)(?:\.|$)/;
+  const pageGlobals = globalThis as typeof globalThis & PageGlobalValues;
 
-  if ((globalThis as PlainRecord)[PAGE_GLOBALS.interceptorInstalled] === true) {
+  if (pageGlobals[PAGE_GLOBALS.interceptorInstalled] === true) {
     return;
   }
-  (globalThis as PlainRecord)[PAGE_GLOBALS.interceptorInstalled] = true;
+  pageGlobals[PAGE_GLOBALS.interceptorInstalled] = true;
 
   // ---------------------------------------------------------------------------
   // Merging & Publishing
@@ -41,9 +44,9 @@ import { extractLocaleFromUrl, isAdyenHost } from '../shared/utils.js';
   let captured: CheckoutConfig | null = null;
   let inferred: CheckoutConfig | null = null;
 
-  function publish(key: string, config: CheckoutConfig): void {
+  function publish(key: PublishedConfigKey, config: CheckoutConfig): void {
     try {
-      (globalThis as PlainRecord)[key] = structuredClone(config);
+      pageGlobals[key] = structuredClone(config);
     } catch {
       /* ignore */
     }
@@ -67,7 +70,7 @@ import { extractLocaleFromUrl, isAdyenHost } from '../shared/utils.js';
       }
       captured = applyCapturedOptions(captured, fields);
       publish(PAGE_GLOBALS.capturedConfig, captured);
-      if (complete) (globalThis as PlainRecord)[PAGE_GLOBALS.directConfigCaptured] = true;
+      if (complete) pageGlobals[PAGE_GLOBALS.directConfigCaptured] = true;
     } catch {
       /* ignore */
     }
@@ -243,9 +246,8 @@ import { extractLocaleFromUrl, isAdyenHost } from '../shared/utils.js';
 
   function incrementInitCount(): void {
     try {
-      const count = (globalThis as PlainRecord)[PAGE_GLOBALS.checkoutInitCount];
-      const nextCount = typeof count === 'number' ? count + 1 : 1;
-      (globalThis as PlainRecord)[PAGE_GLOBALS.checkoutInitCount] = nextCount;
+      const count: unknown = pageGlobals[PAGE_GLOBALS.checkoutInitCount];
+      pageGlobals[PAGE_GLOBALS.checkoutInitCount] = typeof count === 'number' ? count + 1 : 1;
     } catch {
       /* ignore */
     }

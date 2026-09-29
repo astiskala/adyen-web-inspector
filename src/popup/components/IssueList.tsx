@@ -1,7 +1,6 @@
 import type { JSX } from 'preact';
-import { groupIssuesByImpact, type ImpactGroupChecks } from '../../shared/export-report.js';
+import { groupIssuesByImpact, type IssueGroup, type IssueRow } from '../../shared/export-report.js';
 import type { CheckResult } from '../../shared/types.js';
-import { getRemediationText, IMPACT_LABELS, isIssue } from '../../shared/results.js';
 import styles from './IssueList.module.css';
 
 const s = (key: string): string => styles[key] ?? '';
@@ -11,41 +10,24 @@ interface Props {
 }
 
 interface IssueItemProps {
-  readonly check: CheckResult;
+  readonly issue: IssueRow;
   readonly dotClass: string;
 }
 
-function IssueItem({ check, dotClass }: IssueItemProps): JSX.Element {
-  const showRemediation = isIssue(check);
-  const hasDetail = Boolean(check.detail ?? check.remediation ?? check.docsUrl ?? showRemediation);
-  const remediation = getRemediationText(check);
-
-  if (!hasDetail) {
-    return (
-      <li class={s('item')}>
-        <div class={s('summary')}>
-          <span class={dotClass} />
-          <span class={s('checkTitle')}>{check.title}</span>
-        </div>
-      </li>
-    );
-  }
-
+function IssueItem({ issue, dotClass }: IssueItemProps): JSX.Element {
   return (
     <li class={s('item')}>
       <details>
         <summary class={s('summary')}>
           <span class={dotClass} />
-          <span class={s('checkTitle')}>{check.title}</span>
+          <span class={s('checkTitle')}>{issue.title}</span>
         </summary>
         <div class={s('detail')}>
-          {check.detail !== undefined && <div>{check.detail}</div>}
-          {showRemediation && <div class={s('remediation')}>{remediation}</div>}
-          {check.docsUrl !== undefined && (
-            <a class={s('docsLink')} href={check.docsUrl} target="_blank" rel="noopener noreferrer">
-              Documentation →
-            </a>
-          )}
+          {issue.detail !== null && <div>{issue.detail}</div>}
+          <div class={s('remediation')}>{issue.remediation}</div>
+          <a class={s('docsLink')} href={issue.docsUrl} target="_blank" rel="noopener noreferrer">
+            Documentation →
+          </a>
         </div>
       </details>
     </li>
@@ -53,7 +35,7 @@ function IssueItem({ check, dotClass }: IssueItemProps): JSX.Element {
 }
 
 interface ImpactGroupProps {
-  readonly group: ImpactGroupChecks;
+  readonly group: IssueGroup;
   readonly badgeClass: string;
   readonly dotClass: string;
 }
@@ -62,29 +44,37 @@ function ImpactGroup({ group, badgeClass, dotClass }: ImpactGroupProps): JSX.Ele
   return (
     <div>
       <div class={s('priorityHeader')}>
-        <span>{IMPACT_LABELS[group.impact]}</span>
-        <span class={`${s('badge')} ${badgeClass}`}>{group.checks.length}</span>
+        <span>{group.label}</span>
+        <span class={`${s('badge')} ${badgeClass}`}>{group.issues.length}</span>
       </div>
       <ul class={s('list')}>
-        {group.checks.map((c) => (
-          <IssueItem key={c.id} check={c} dotClass={dotClass} />
+        {group.issues.map((issue) => (
+          <IssueItem key={issue.id} issue={issue} dotClass={dotClass} />
         ))}
       </ul>
     </div>
   );
 }
 
-function byTitle(a: CheckResult, b: CheckResult): number {
-  return a.title.localeCompare(b.title);
+function issueGroupsWithSeverity(
+  checks: readonly CheckResult[],
+  severity: CheckResult['severity']
+): IssueGroup[] {
+  return groupIssuesByImpact(checks.filter((check) => check.severity === severity));
+}
+
+function countIssues(groups: readonly IssueGroup[]): number {
+  return groups.flatMap((group) => group.issues).length;
 }
 
 /**
- * Renders issue checks grouped by severity and impact with expandable details.
+ * Renders issue rows from the finding projection by severity, then impact,
+ * with expandable detail, remediation, and documentation.
  */
 export function IssueList({ checks }: Props): JSX.Element {
-  const failures = checks.filter((c) => c.severity === 'fail');
-  const warnings = checks.filter((c) => c.severity === 'warn');
-  const notices = checks.filter((c) => c.severity === 'notice').toSorted(byTitle);
+  const failures = issueGroupsWithSeverity(checks, 'fail');
+  const warnings = issueGroupsWithSeverity(checks, 'warn');
+  const notices = issueGroupsWithSeverity(checks, 'notice').flatMap((group) => group.issues);
 
   if (failures.length === 0 && warnings.length === 0 && notices.length === 0) {
     return <div class={s('empty')}>No issues detected — everything looks good!</div>;
@@ -96,9 +86,9 @@ export function IssueList({ checks }: Props): JSX.Element {
         <details class={s('section')} open>
           <summary class={s('sectionHeader')}>
             <span>Issues</span>
-            <span class={`${s('badge')} ${s('badgeFail')}`}>{failures.length}</span>
+            <span class={`${s('badge')} ${s('badgeFail')}`}>{countIssues(failures)}</span>
           </summary>
-          {groupIssuesByImpact(failures).map((group) => (
+          {failures.map((group) => (
             <ImpactGroup
               key={group.impact}
               group={group}
@@ -112,9 +102,9 @@ export function IssueList({ checks }: Props): JSX.Element {
         <details class={s('section')}>
           <summary class={s('sectionHeader')}>
             <span>Warnings</span>
-            <span class={`${s('badge')} ${s('badgeWarn')}`}>{warnings.length}</span>
+            <span class={`${s('badge')} ${s('badgeWarn')}`}>{countIssues(warnings)}</span>
           </summary>
-          {groupIssuesByImpact(warnings).map((group) => (
+          {warnings.map((group) => (
             <ImpactGroup
               key={group.impact}
               group={group}
@@ -131,8 +121,8 @@ export function IssueList({ checks }: Props): JSX.Element {
             <span class={`${s('badge')} ${s('badgeNotice')}`}>{notices.length}</span>
           </summary>
           <ul class={s('list')}>
-            {notices.map((c) => (
-              <IssueItem key={c.id} check={c} dotClass={s('dot') + ' ' + s('dotNotice')} />
+            {notices.map((issue) => (
+              <IssueItem key={issue.id} issue={issue} dotClass={s('dot') + ' ' + s('dotNotice')} />
             ))}
           </ul>
         </details>

@@ -7,9 +7,11 @@ import type {
   CheckCategory,
   CheckId,
   CheckImpact,
+  ImplementationAttributes,
   ScanPayload,
   Severity,
 } from '../../shared/types.js';
+import { readImplementationAttributes } from '../../shared/implementation-attributes.js';
 import { getDefaultImpact } from '../../shared/results.js';
 
 /**
@@ -34,6 +36,8 @@ type IssueOutcome = (
  * Context provided to check runners.
  */
 export interface CheckContext {
+  /** Implementation attributes of the scan, derived once and shared by every check. */
+  readonly attributes: ImplementationAttributes;
   readonly pass: (title: string, detail?: string) => CheckOutcome;
   readonly fail: IssueOutcome;
   readonly warn: IssueOutcome;
@@ -82,7 +86,7 @@ class CheckRegistry {
   add(id: CheckId, run: CheckRunner, policy: CheckImpactPolicy = {}): this {
     const category = this.category;
 
-    const context: CheckContext = {
+    const helpers: Omit<CheckContext, 'attributes'> = {
       pass: (title, detail) => buildOutcome('pass', title, detail),
       fail: (title, detail, remediation, docsUrl) =>
         buildOutcome('fail', title, detail, remediation, docsUrl),
@@ -98,7 +102,10 @@ class CheckRegistry {
       id,
       category,
       run: (payload) => {
-        const outcome = run(payload, context);
+        const outcome = run(payload, {
+          ...helpers,
+          attributes: readImplementationAttributes(payload),
+        });
         const impact = outcomeImpact(outcome.severity, policy);
         return {
           ...outcome,

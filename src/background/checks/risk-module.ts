@@ -4,7 +4,6 @@
  */
 
 import { DF_IFRAME_NAME, DF_IFRAME_URL_PATTERN } from '../../shared/constants.js';
-import { hasCheckoutActivity } from '../../shared/implementation-attributes.js';
 import { readCheckoutField } from '../../shared/scan-evidence.js';
 import { SKIP_REASONS } from './constants.js';
 import { createRegistry } from './registry.js';
@@ -47,8 +46,8 @@ const STRINGS = {
 export const RISK_CHECKS = createRegistry(CATEGORY)
   .add(
     'risk-df-iframe',
-    (payload, { pass, skip, warn }) => {
-      if (!hasCheckoutActivity(payload)) {
+    (payload, { attributes, pass, skip, warn }) => {
+      if (!attributes.checkoutActivity) {
         return skip(STRINGS.DF_IFRAME_SKIP_TITLE, STRINGS.DF_IFRAME_SKIP_REASON);
       }
 

@@ -1,7 +1,15 @@
 /**
- * Callback source analysis — static inspection of captured onSubmit and beforeSubmit source,
- * used by the callback checks.
+ * Callback source — the Scan's reading of captured onSubmit and beforeSubmit
+ * source for the callback checks. It owns when source can be read at all
+ * (captured checkout or component configuration, outside Sessions flow), the
+ * uncertainty of source cut off at the capture limit, and the static patterns.
+ * The patterns are heuristics: they cannot verify runtime callback behaviour,
+ * so each check keeps its own severity decision.
  */
+
+import { CALLBACK_SOURCE_LIMIT } from '../../shared/checkout-config-schema.js';
+import { hasCapturedCheckoutConfig, readCheckoutField } from '../../shared/scan-evidence.js';
+import type { IntegrationFlow, ScanPayload } from '../../shared/types.js';
 
 interface UnhandledOnSubmitFilters {
   readonly paymentMethod: boolean;
@@ -165,7 +173,7 @@ function hasUnhandledSelectorSwitchStatement(source: string, selectorPattern: Re
  * Detects onSubmit branches that select specific payment methods or action
  * codes without an else or default fallback.
  */
-export function detectUnhandledOnSubmitFilters(source: string): UnhandledOnSubmitFilters {
+function detectUnhandledOnSubmitFilters(source: string): UnhandledOnSubmitFilters {
   return {
     paymentMethod:
       hasUnhandledSelectorIfStatement(source, PAYMENT_METHOD_SELECTOR_PATTERN) ||
@@ -217,7 +225,7 @@ function findCallbackBody(source: string): { param: string; body: string } | nul
  * selected fields such as `state.data.paymentMethod`. Destructured or
  * wholesale-forwarded `state` is `unknown`.
  */
-export function detectStateDataForwarding(source: string): StateDataForwarding {
+function detectStateDataForwarding(source: string): StateDataForwarding {
   const callback = findCallbackBody(source);
   if (callback === null) return { kind: 'unknown', fields: [] };
 
@@ -247,7 +255,7 @@ export function detectStateDataForwarding(source: string): StateDataForwarding {
 }
 
 /** Returns true when callback source appears to guard against duplicate submissions. */
-export function detectsMultipleSubmissions(source: string): boolean {
+function detectsMultipleSubmissions(source: string): boolean {
   // Looks for common patterns like .disabled = true, setLoading(true), .setAttribute('disabled', ...), etc.
   const patterns = [
     /\.disabled\s*=\s*(?:true|1)/,
@@ -257,4 +265,67 @@ export function detectsMultipleSubmissions(source: string): boolean {
     /this\.isSubmitting\s*=\s*true/,
   ];
   return patterns.some((p) => p.test(source));
+}
+
+/** Why captured onSubmit source cannot be read. */
+type SourceUnavailable = 'no-config' | 'sessions-flow' | 'no-source';
+
+/** What static inspection of captured onSubmit source found. */
+export type OnSubmitSource =
+  | { readonly status: 'unavailable'; readonly reason: SourceUnavailable }
+  | {
+      readonly status: 'read';
+      /** The source reached the capture limit, so code after the cut-off was not seen. */
+      readonly truncated: boolean;
+      /** Branches that select payment methods or action codes without a fallback. */
+      readonly unhandledFilters: UnhandledOnSubmitFilters;
+      readonly stateData: StateDataForwarding;
+      /** Calls `actions.resolve()` or `actions.reject()`, the v6 pattern. */
+      readonly resolvesActions: boolean;
+      /** Calls `component.setStatus()` or `component.handleAction()`, the v5 pattern. */
+      readonly usesComponentCallbacks: boolean;
+    };
+
+/** Whether callback source shows a duplicate-submission guard. */
+type SubmissionGuard =
+  | { readonly status: 'unavailable'; readonly reason: 'no-config' | 'no-source' }
+  | { readonly status: 'read'; readonly guarded: boolean };
+
+type CallbackSourceKey = 'onSubmitSource' | 'beforeSubmitSource';
+
+/** Callback source only ever comes from captured options, never from inferred values. */
+function readSource(payload: ScanPayload, key: CallbackSourceKey): string {
+  const evidence = readCheckoutField(payload, key, { includeInferred: false });
+  return evidence.state === 'present' ? evidence.value : '';
+}
+
+/**
+ * Reads the captured onSubmit source. It is unavailable without captured
+ * checkout or component configuration, and in Sessions flow, where Adyen Web
+ * handles submission itself.
+ */
+export function readOnSubmitSource(payload: ScanPayload, flow: IntegrationFlow): OnSubmitSource {
+  if (!hasCapturedCheckoutConfig(payload.page))
+    return { status: 'unavailable', reason: 'no-config' };
+  if (flow === 'sessions') return { status: 'unavailable', reason: 'sessions-flow' };
+  const source = readSource(payload, 'onSubmitSource');
+  if (source === '') return { status: 'unavailable', reason: 'no-source' };
+
+  return {
+    status: 'read',
+    truncated: source.length >= CALLBACK_SOURCE_LIMIT,
+    unhandledFilters: detectUnhandledOnSubmitFilters(source),
+    stateData: detectStateDataForwarding(source),
+    resolvesActions: /actions\.(?:resolve|reject)\(/.test(source),
+    usesComponentCallbacks: /component\.(?:setStatus|handleAction)\(/.test(source),
+  };
+}
+
+/** Looks for a duplicate-submission guard in captured onSubmit and beforeSubmit source. */
+export function readSubmissionGuard(payload: ScanPayload): SubmissionGuard {
+  if (!hasCapturedCheckoutConfig(payload.page))
+    return { status: 'unavailable', reason: 'no-config' };
+  const combined = `${readSource(payload, 'onSubmitSource')}\n${readSource(payload, 'beforeSubmitSource')}`;
+  if (combined.trim() === '') return { status: 'unavailable', reason: 'no-source' };
+  return { status: 'read', guarded: detectsMultipleSubmissions(combined) };
 }

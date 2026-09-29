@@ -1,5 +1,6 @@
 /**
- * Check result factory functions and remediation formatting.
+ * Issue impact — which check results are issues, the impact each carries, and
+ * the labels every view shows for impact groups.
  */
 
 import type { CheckImpact, CheckResult, Severity } from './types.js';
@@ -40,63 +41,4 @@ export function getImpactLevel(check: CheckResult): CheckImpact | 'none' {
   const defaultImpact = getDefaultImpact(check.severity);
   if (defaultImpact === undefined) return 'none';
   return check.impact ?? defaultImpact;
-}
-
-/**
- * Returns a UI-friendly impact label for a check result.
- */
-export function getImpactLabel(check: CheckResult): string {
-  const impactLevel = getImpactLevel(check);
-  if (impactLevel !== 'none') return IMPACT_LABELS[impactLevel];
-  if (check.severity === 'pass') return 'No impact';
-  if (check.severity === 'skip') return 'Not applicable';
-  return 'Informational';
-}
-
-function formatFriendlyRemediation(text: string): string {
-  if (text.startsWith('AdyenCheckout(')) {
-    return `Update your AdyenCheckout configuration. Example: ${text}`;
-  }
-  if (text.startsWith('Content-Security-Policy:')) {
-    return `Update your Content-Security-Policy header on the checkout response. Example: ${text}`;
-  }
-  if (/^[A-Z-]+:\s+/i.test(text)) {
-    return `Set this response header on the checkout page: ${text}`;
-  }
-  if (text.startsWith('<script') || text.startsWith('<link') || text.startsWith('<iframe')) {
-    return `Update your markup to match this secure example: ${text}`;
-  }
-  return text;
-}
-
-interface RemediationOptions {
-  readonly friendly?: boolean;
-}
-
-/**
- * Returns remediation text for a check, with optional friendlier phrasing.
- */
-export function getRemediationText(check: CheckResult, options: RemediationOptions = {}): string {
-  const baseText = check.remediation;
-  if (baseText !== undefined) {
-    return options.friendly === true ? formatFriendlyRemediation(baseText) : baseText;
-  }
-
-  if (check.severity === 'notice') {
-    const impactLevel = getImpactLevel(check);
-    if (impactLevel === 'low') {
-      return options.friendly === true
-        ? 'Review this recommended improvement, apply the change, then rerun the scan.'
-        : 'Review this recommendation and align your integration with Adyen best practices.';
-    }
-    return options.friendly === true
-      ? 'Review this item manually in your site config and network headers before going live.'
-      : 'Validate this area manually based on your page headers and Adyen setup.';
-  }
-  if (check.severity === 'fail' || check.severity === 'warn') {
-    return options.friendly === true
-      ? 'Follow the linked Adyen guidance, apply the configuration change, then rerun the scan.'
-      : 'Review this check and align your integration with Adyen best practices.';
-  }
-  return 'No remediation required.';
 }

@@ -3,17 +3,11 @@
  * type, analytics, and initialisation count.
  */
 
-import type { ScanPayload } from '../../shared/types.js';
-import {
-  detectImportMethod,
-  detectIntegrationFlow,
-  hasCheckoutActivity,
-  resolveIntegrationFlavor,
-  type IntegrationFlow,
-} from '../../shared/implementation-attributes.js';
+import type { ImplementationAttributes } from '../../shared/types.js';
 import { readCheckoutField } from '../../shared/scan-evidence.js';
 import { detectSdkPresence } from '../../shared/sdk-presence.js';
 import { isAdyenCheckoutResource } from '../../shared/utils.js';
+import { docsIntegration } from './constants.js';
 import { createRegistry } from './registry.js';
 
 const STRINGS = {
@@ -105,40 +99,33 @@ export const SDK_IDENTITY_CHECKS = createRegistry(CATEGORY)
       STRINGS.DETECTED_FAIL_URL
     );
   })
-  .add('sdk-flavor', (payload, { info }) => {
-    const flavorResolution = resolveIntegrationFlavor(payload);
+  .add('sdk-flavor', (_payload, { attributes, info }) => {
+    const { value: flavor, source } = attributes.flavor;
 
-    if (flavorResolution.source === 'analytics') {
-      return info(
-        `Integration flavor: ${flavorResolution.flavor}.`,
-        STRINGS.FLAVOR_ANALYTICS_DETAIL
-      );
+    if (source === 'analytics') {
+      return info(`Integration flavor: ${flavor}.`, STRINGS.FLAVOR_ANALYTICS_DETAIL);
     }
 
-    if (flavorResolution.source === 'dropin-pattern') {
-      return info(`Integration flavor: ${flavorResolution.flavor}.`, STRINGS.FLAVOR_DROPIN_DETAIL);
+    if (source === 'dropin-pattern') {
+      return info(`Integration flavor: ${flavor}.`, STRINGS.FLAVOR_DROPIN_DETAIL);
     }
 
-    if (flavorResolution.source === 'dropin-dom') {
-      return info(
-        `Integration flavor: ${flavorResolution.flavor}.`,
-        STRINGS.FLAVOR_DROPIN_DOM_DETAIL
-      );
+    if (source === 'dropin-dom') {
+      return info(`Integration flavor: ${flavor}.`, STRINGS.FLAVOR_DROPIN_DOM_DETAIL);
     }
 
-    if (flavorResolution.source === 'checkout-config') {
-      return info(`Integration flavor: ${flavorResolution.flavor}.`, STRINGS.FLAVOR_CONFIG_DETAIL);
+    if (source === 'checkout-config') {
+      return info(`Integration flavor: ${flavor}.`, STRINGS.FLAVOR_CONFIG_DETAIL);
     }
 
-    if (flavorResolution.source === 'sdk-loaded-no-checkout') {
+    if (source === 'sdk-loaded-no-checkout') {
       return info(STRINGS.FLAVOR_NO_CHECKOUT_TITLE, STRINGS.FLAVOR_NO_CHECKOUT_DETAIL);
     }
 
-    return info(`Integration flavor: ${flavorResolution.flavor}.`, STRINGS.FLAVOR_UNKNOWN_DETAIL);
+    return info(`Integration flavor: ${flavor}.`, STRINGS.FLAVOR_UNKNOWN_DETAIL);
   })
-  .add('sdk-import-method', (payload, { info }) => {
-    const { scripts } = payload.page;
-    const method = detectImportMethod(scripts);
+  .add('sdk-import-method', (_payload, { attributes, info }) => {
+    const method = attributes.importMethod;
 
     let detail: string = STRINGS.IMPORT_METHOD_UNKNOWN_DETAIL;
     if (method === 'CDN') {
@@ -151,7 +138,7 @@ export const SDK_IDENTITY_CHECKS = createRegistry(CATEGORY)
   })
   .add(
     'sdk-bundle-type',
-    (payload, { skip, notice, pass }) => {
+    (payload, { attributes, skip, notice, pass }) => {
       const { adyenMetadata, scripts } = payload.page;
       const isCdn = scripts.some((s) => isAdyenCheckoutResource(s.src));
 
@@ -169,8 +156,7 @@ export const SDK_IDENTITY_CHECKS = createRegistry(CATEGORY)
       }
 
       if (bundleType === 'auto') {
-        const flow = detectIntegrationFlow(payload);
-        const docsUrl = getFlowSensitiveBundleDocsUrl(payload, flow);
+        const docsUrl = getFlowSensitiveBundleDocsUrl(attributes);
         return notice(
           STRINGS.BUNDLE_AUTO_NOTICE_TITLE,
           STRINGS.BUNDLE_AUTO_NOTICE_DETAIL,
@@ -183,8 +169,8 @@ export const SDK_IDENTITY_CHECKS = createRegistry(CATEGORY)
     },
     { noticeImpact: 'low' }
   )
-  .add('sdk-analytics', (payload, { skip, warn, pass }) => {
-    if (!detectSdkPresence(payload.page).detected || !hasCheckoutActivity(payload)) {
+  .add('sdk-analytics', (payload, { attributes, skip, warn, pass }) => {
+    if (!detectSdkPresence(payload.page).detected || !attributes.checkoutActivity) {
       return skip(STRINGS.ANALYTICS_SKIP_TITLE, STRINGS.ANALYTICS_SKIP_REASON);
     }
 
@@ -225,11 +211,7 @@ export const SDK_IDENTITY_CHECKS = createRegistry(CATEGORY)
   })
   .getChecks();
 
-function getFlowSensitiveBundleDocsUrl(payload: ScanPayload, flow: IntegrationFlow): string {
-  const callbackDocFlavor =
-    resolveIntegrationFlavor(payload).flavor === 'Drop-in' ? 'Drop-in' : 'Components';
-  if (flow === 'sessions') {
-    return BUNDLE_AUTO_DOCS.sessions[callbackDocFlavor];
-  }
-  return BUNDLE_AUTO_DOCS.advanced[callbackDocFlavor];
+function getFlowSensitiveBundleDocsUrl(attributes: ImplementationAttributes): string {
+  const flow = attributes.flow.value === 'sessions' ? 'sessions' : 'advanced';
+  return BUNDLE_AUTO_DOCS[flow][docsIntegration(attributes)];
 }

@@ -15,12 +15,27 @@ export const MSG_SCAN_STARTED = 'SCAN_STARTED' as const;
 export const MSG_SCAN_COMPLETE = 'SCAN_COMPLETE' as const;
 export const MSG_SCAN_ERROR = 'SCAN_ERROR' as const;
 export const MSG_SCAN_RESET = 'SCAN_RESET' as const;
-export const MSG_GET_RESULT = 'GET_RESULT' as const;
+export const MSG_GET_TAB_STATE = 'GET_TAB_STATE' as const;
+
+// ─── Tab State ────────────────────────────────────────────────────────────────
+
+/** What the passive detector last reported for the tab's current page. */
+export interface CheckoutActivity {
+  readonly detected: boolean;
+  /** SDK version read from Adyen script URLs, when the detector saw one. */
+  readonly version?: string;
+}
+
+/** A tab's state as the popup and DevTools panel read it through the worker. */
+export interface TabSnapshot {
+  readonly result: ScanResult | null;
+  readonly checkoutActivity: CheckoutActivity;
+}
 
 // ─── Message Payloads ─────────────────────────────────────────────────────────
 
 /** A mounted Drop-in, Component, or Adyen iframe was seen; SDK script tags alone do not count. */
-export interface CheckoutActivityDetectedMessage {
+interface CheckoutActivityDetectedMessage {
   readonly type: typeof MSG_CHECKOUT_ACTIVITY_DETECTED;
   readonly tabId: number;
   readonly version?: string;
@@ -58,8 +73,9 @@ interface ScanResetMessage {
   readonly tabId: number;
 }
 
-interface GetResultMessage {
-  readonly type: typeof MSG_GET_RESULT;
+/** Answered with the tab's {@link TabSnapshot}. */
+interface GetTabStateMessage {
+  readonly type: typeof MSG_GET_TAB_STATE;
   readonly tabId: number;
 }
 
@@ -69,7 +85,7 @@ interface GetResultMessage {
 export type ContentToBswMessage = CheckoutActivityDetectedMessage | CheckoutActivityClearedMessage;
 
 /** Messages sent from the popup or DevTools to the background service worker. */
-type UiToBswMessage = ScanRequestMessage | GetResultMessage;
+type UiToBswMessage = ScanRequestMessage | GetTabStateMessage;
 
 /** Messages sent from the background service worker to the popup or DevTools. */
 export type BswToUiMessage =

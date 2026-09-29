@@ -3,7 +3,7 @@ import { useState } from 'preact/hooks';
 import { useScanLifecycle } from '../../popup/components/useScanLifecycle.js';
 import { buildJsonExport } from '../../shared/export-json.js';
 import { buildPrintableReportMetadata } from '../../shared/export-metadata.js';
-import { exportPdf } from '../../shared/export-pdf.js';
+import { exportPdf } from '../../popup/components/pdf-export.js';
 import { describeError } from '../../shared/utils.js';
 import {
   OverviewTab,

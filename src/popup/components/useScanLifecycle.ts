@@ -1,15 +1,17 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import {
-  MSG_GET_RESULT,
+  MSG_GET_TAB_STATE,
   MSG_SCAN_COMPLETE,
   MSG_SCAN_ERROR,
   MSG_SCAN_REQUEST,
   MSG_SCAN_RESET,
   MSG_SCAN_STARTED,
   type BswToUiMessage,
+  type CheckoutActivity,
+  type TabSnapshot,
 } from '../../shared/messages.js';
 import type { ScanResult } from '../../shared/types.js';
-import { isScanResult } from '../../shared/utils.js';
+import { isRecord, isScanResult } from '../../shared/utils.js';
 
 type ScanFailure =
   | { readonly kind: 'scan'; readonly message?: string }
@@ -23,12 +25,33 @@ interface TabAdapter {
 
 interface ScanState {
   readonly result: ScanResult | null;
+  readonly checkoutActivity: CheckoutActivity;
   readonly scanning: boolean;
   readonly loading: boolean;
   readonly error: ScanFailure | null;
 }
 
-const INITIAL_STATE: ScanState = { result: null, scanning: false, loading: true, error: null };
+const EMPTY_SNAPSHOT: TabSnapshot = { result: null, checkoutActivity: { detected: false } };
+
+const INITIAL_STATE: ScanState = {
+  ...EMPTY_SNAPSHOT,
+  scanning: false,
+  loading: true,
+  error: null,
+};
+
+/** Reads the worker's tab snapshot, tolerating a missing or malformed response. */
+function readSnapshot(value: unknown): TabSnapshot {
+  if (!isRecord(value)) return EMPTY_SNAPSHOT;
+  const { result, checkoutActivity: activity } = value;
+  const version = isRecord(activity) ? activity['version'] : undefined;
+  const detected = isRecord(activity) && activity['detected'] === true;
+  return {
+    result: isScanResult(result) ? result : null,
+    checkoutActivity:
+      detected && typeof version === 'string' ? { detected, version } : { detected },
+  };
+}
 
 const SCAN_LIFECYCLE_TYPES: ReadonlySet<string> = new Set([
   MSG_SCAN_STARTED,
@@ -42,8 +65,8 @@ function isScanLifecycleMessage(message: { readonly type: string }): message is 
 }
 
 /**
- * Tracks the stored scan result and scan progress for one tab, and exposes a
- * scan trigger shared by the popup and DevTools panel.
+ * Tracks one tab's state (its scan result and checkout activity) and scan
+ * progress, and exposes a scan trigger shared by the popup and DevTools panel.
  */
 export function useScanLifecycle(adapter: TabAdapter): ScanState & { readonly scan: () => void } {
   const [state, setState] = useState<ScanState>(INITIAL_STATE);
@@ -55,17 +78,12 @@ export function useScanLifecycle(adapter: TabAdapter): ScanState & { readonly sc
     setState((previous) => ({ ...previous, loading: true }));
     try {
       const tabId = await adapter.getTabId();
-      const result: unknown =
+      const snapshot: unknown =
         tabId === undefined
           ? null
-          : await chrome.runtime.sendMessage({ type: MSG_GET_RESULT, tabId });
+          : await chrome.runtime.sendMessage({ type: MSG_GET_TAB_STATE, tabId });
       if (mounted.current && current === generation.current) {
-        setState({
-          result: isScanResult(result) ? result : null,
-          scanning: false,
-          loading: false,
-          error: null,
-        });
+        setState({ ...readSnapshot(snapshot), scanning: false, loading: false, error: null });
       }
     } catch (error) {
       if (mounted.current && current === generation.current) {
@@ -156,7 +174,7 @@ export function useScanLifecycle(adapter: TabAdapter): ScanState & { readonly sc
       if (message.type === MSG_SCAN_RESET) {
         ++generation.current;
         setState({
-          result: null,
+          ...EMPTY_SNAPSHOT,
           scanning: false,
           loading: adapter.resetDelayMs !== undefined,
           error: null,

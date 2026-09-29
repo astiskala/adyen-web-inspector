@@ -55,7 +55,7 @@ const RAW_CONFIG_MESSAGE =
   'Read checkout configuration through readCheckoutField() in shared/scan-evidence.ts; it owns source precedence and the absence rule.';
 const PURE_CHECK_MESSAGE = 'Checks are pure: no chrome.* APIs, network, or clock.';
 const SCAN_PORT_MESSAGE =
-  'The Scan reaches the browser, network, and clock only through the ScanBrowser port.';
+  'The Scan and tab state reach the browser, network, and clock only through their ports.';
 const SDK_PRESENCE_MESSAGE =
   'Read ScanResult.sdkPresence instead of inferring SDK presence from the sdk-detected check.';
 
@@ -308,7 +308,12 @@ export default defineConfig([
     },
   },
   {
-    files: ['src/background/scan-orchestrator.ts', 'src/background/scan-assessment.ts'],
+    files: [
+      'src/background/scan-orchestrator.ts',
+      'src/background/scan-assessment.ts',
+      'src/background/frame-merge.ts',
+      'src/background/tab-state.ts',
+    ],
     rules: {
       'no-restricted-globals': restrictGlobals(
         ['chrome', 'fetch', 'setTimeout'],
@@ -343,6 +348,30 @@ export default defineConfig([
         'error',
         ...SOURCE_RESTRICTED_SYNTAX,
         { selector: "Literal[value='sdk-detected']", message: SDK_PRESENCE_MESSAGE },
+      ],
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: BASE_RESTRICTED_IMPORT_PATHS,
+          patterns: [
+            {
+              group: ['**/shared/implementation-attributes.js'],
+              message:
+                'Read ScanResult.attributes (summarizeImplementation() for display values) instead of re-deriving them.',
+            },
+            {
+              group: ['**/shared/results.js'],
+              message:
+                'Render issue rows from the finding projection (shared/export-report.ts); it owns grouping and wording.',
+            },
+            {
+              group: ['**/shared/constants.js'],
+              importNamePattern: '^STORAGE_',
+              message:
+                'The tab state owns the storage key scheme; read a tab through MSG_GET_TAB_STATE.',
+            },
+          ],
+        },
       ],
     },
   },

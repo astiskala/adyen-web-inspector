@@ -5,7 +5,8 @@ This glossary names the browser-visible concepts used by Adyen Web Inspector. It
 ## Inspected integration
 
 - **Adyen Web integration** — a merchant's browser-side use of the Adyen Web SDK to render checkout. The inspector observes the integration; it does not operate it.
-- **Checkout page** — the inspected document where checkout may be rendered. Checkout can be in the top frame or an iframe; SDK code can also be loaded on a page without an active checkout.
+- **Checkout page** — the inspected document where checkout may be rendered. Checkout can be in the top frame or an iframe; SDK code can also be loaded on a page without an active checkout. A scan builds the Checkout page (`CheckoutPage`) by merging every accessible frame's page extraction: most fields come from the frame with the strongest checkout signals, configuration merges across all frames, and whether checkout is embedded in an iframe is decided from merchant frames, not Adyen-hosted card fields.
+- **Page extraction** (`PageExtractResult`) — what the page extractor reads in one frame: the DOM, SDK metadata, and the configuration the config interceptor published on page globals.
 - **SDK presence** — evidence that Adyen Web is loaded, such as SDK metadata or an Adyen checkout script. Presence does not establish that a checkout is mounted or in use.
 - **Checkout activity** — observable signs of an active checkout, such as configuration, analytics, Adyen iframes, or checkout network traffic. It is distinct from SDK presence. The passive detector reports checkout activity (a mounted Drop-in, Component, or Adyen iframe) before any scan; only a scan establishes SDK presence, which the scan result records as its SDK presence verdict.
 - **Integration flavor** — how the browser-side checkout is rendered: **Drop-in**, **Components**, **Custom**, or **Unknown**. Flavor is inferred from observed signals and is independent of integration flow.
@@ -15,7 +16,8 @@ This glossary names the browser-visible concepts used by Adyen Web Inspector. It
 - **Configuration evidence** — the scan's answer for one checkout option: **present** (observed, with its source: captured, component, or inferred), **absent** (not observed, and some inspected frame directly captured AdyenCheckout options), or **unobserved** (absence cannot be verified, either because only partial configuration was captured or because none was). Checks choose a severity for each state; unobserved is never treated as absent.
 - **Environment** — the test or live setting associated with checkout. The inspector may infer it from configuration, a client key prefix, or observed traffic; conflicting sources can produce an environment mismatch issue.
 - **Region** — the geographic live endpoint associated with configuration or traffic. Test uses a global endpoint, so a live region is not assigned to a test integration.
-- **SDK version** — the version believed to be running on the inspected page, inferred from available browser signals. The latest npm version is a comparison point, not the detected running version.
+- **SDK version** — the version believed to be running on the inspected page, inferred from the strongest available browser signal: SDK metadata, analytics, Adyen CDN script or request URLs, then same-origin bundle text. The scan records which signal established it. The latest npm version is a comparison point, not the detected running version.
+- **Implementation attributes** — how the integration is built: integration flavor, integration flow, environment (with the environment each signal indicates), region, import method, and checkout activity, each with the signal it came from. A scan derives them once from the scan payload; checks, the Standard Drop-in frontend assessment, views, and reports all read the same record from the scan result.
 
 ## Scan and outcomes
 
@@ -28,8 +30,10 @@ This glossary names the browser-visible concepts used by Adyen Web Inspector. It
 - **Issue** — a check result with severity `fail`, `warn`, or `notice`. Passing, informational, and skipped results are not issues. A `notice` can call for manual review without asserting a verified failure.
 - **Severity** — the kind of outcome: `pass` (met), `warn` (important risk), `fail` (high-confidence problem), `notice` (non-blocking improvement or manual review), `info` (observation), or `skip` (not applicable or insufficient evidence). Severity is distinct from impact grouping.
 - **Impact grouping** — the presentation priority of an issue: high, medium, low, or manual. It is derived from severity and check-specific policy; manual review means acceptability cannot be established automatically.
+- **Finding projection** — how every view presents a scan result: issue rows grouped by impact, each with its remediation and documentation link resolved, plus successful and skipped checks. The popup, DevTools panel, PDF, and JSON reports render the same rows.
 - **Health score** — the percentage of scoreable checks that pass; `info`, `notice`, and `skip` do not contribute. Its current tiers are `critical` if any check fails, `issues` if none fail but some warn, and `excellent` otherwise. A score of 100 with no scoreable checks does not prove a healthy integration.
-- **Scan result** (`ScanResult`) — the time-stamped outcome for a tab: the scan payload, all check results, the health score, and the Standard Drop-in frontend assessment. JSON and PDF reports present this result; they are not separate inspections.
+- **Scan result** (`ScanResult`) — the time-stamped outcome for a tab: the scan payload, its SDK presence verdict and implementation attributes, all check results, the health score, and the Standard Drop-in frontend assessment. JSON and PDF reports present this result; they are not separate inspections.
+- **Tab state** — what the extension keeps for one tab: the passive detector's checkout activity, the stored scan result, and the scan in flight. Navigation clears it, and a scan still running when the tab navigates is discarded, because its result would describe a page that is gone.
 
 ## Named assessments
 

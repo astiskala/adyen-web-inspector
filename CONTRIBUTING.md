@@ -107,7 +107,7 @@ Module boundaries are enforced by [dependency-cruiser](https://github.com/sverwe
 - `content/` cannot import from `background/`, `popup/`, or `devtools/`
 - `shared/` cannot import from any other layer
 - Check modules (`background/checks/`) may only import from `shared/` and `background/checks/`
-- The Scan (`scan-orchestrator.ts`, `scan-assessment.ts`) reaches the browser only through the `ScanBrowser` port in `scan-browser.ts`; only the service worker imports the Chrome adapter (`chrome-scan-browser.ts`), and only the Chrome adapter imports the header collector and npm registry
+- The Scan (`scan-orchestrator.ts`, `scan-assessment.ts`, `frame-merge.ts`) reaches the browser only through the `ScanBrowser` port in `scan-browser.ts`, and the tab state (`tab-state.ts`) only through its `TabStateBrowser` port; only the service worker imports the Chrome adapters (`chrome-scan-browser.ts`, `chrome-tab-state-browser.ts`), and only the Chrome scan adapter imports the header collector and npm registry
 - The config field schema (`shared/checkout-config-schema.ts`) and the port (`scan-browser.ts`) may import `shared/types.ts` only
 
 Run `pnpm depcruise` to verify.
@@ -116,8 +116,9 @@ ESLint enforces the seams that dependency-cruiser cannot see:
 
 - Checks read checkout configuration through `readCheckoutField()` (`shared/scan-evidence.ts`), never through the raw `checkoutConfig`, `componentConfig`, or `inferredConfig` slots.
 - Checks read CSP through `readPagePolicy()` (`background/checks/page-policy.ts`).
-- Checks and the Scan do not use `chrome`, `fetch`, `setTimeout`, or `Date.now`.
+- Checks, the Scan, and the tab state do not use `chrome`, `fetch`, `setTimeout`, or `Date.now`.
 - Popup, DevTools, and the worker read `ScanResult.sdkPresence` and do not reference the `sdk-detected` check.
+- Popup, DevTools, and the worker read `ScanResult.attributes` and render issue rows from the finding projection; they do not import the implementation-attribute rules, `shared/results.ts`, or the `STORAGE_*` key prefixes.
 
 The build fails if a content-script bundle contains ESM `import`/`export` statements, because Chrome runs content scripts as classic scripts.
 
@@ -127,7 +128,7 @@ The build fails if a content-script bundle contains ESM `import`/`export` statem
 
 Every check is a **pure function** — synchronous, no side effects, independently testable. Checks should distinguish verified absence from partial or inferred evidence; skip when evidence is insufficient and use `notice` when a finding needs manual verification rather than claiming an unverified failure.
 
-Read checkout configuration with `readCheckoutField(payload, key)`. It returns `present` (with the value and its source: `captured`, `component`, or `inferred`), `absent` (proven by directly captured AdyenCheckout options), or `unobserved` (with reason `no-config` or `partial-config`). Pass `{ includeInferred: false }` when inferred values must not count. Each check decides the severity for each state; only `absent` may justify a missing-field failure.
+Read implementation attributes (integration flavor and flow, environment, region, import method, checkout activity) from the runner context's `attributes`; the Scan derives them once per payload. Read checkout configuration with `readCheckoutField(payload, key)`. It returns `present` (with the value and its source: `captured`, `component`, or `inferred`), `absent` (proven by directly captured AdyenCheckout options), or `unobserved` (with reason `no-config` or `partial-config`). Pass `{ includeInferred: false }` when inferred values must not count. Each check decides the severity for each state; only `absent` may justify a missing-field failure.
 
 ### 1. Create the check
 
@@ -205,7 +206,9 @@ pnpm test:coverage     # With V8 coverage report
 
 Tests live in `tests/unit/` and use [Vitest](https://vitest.dev) with a `jsdom` environment.
 
-Scan tests drive `runScan()` through the in-memory `ScanBrowser` adapter in `tests/fixtures/fakeScanBrowser.ts` (`createFakeScanBrowser()`, `framesOf()`). It records port calls and uses a virtual clock, so settle, retry, and header-fallback behaviour is tested without Chrome.
+Scan tests drive `runScan()` through the in-memory `ScanBrowser` adapter in `tests/fixtures/fakeScanBrowser.ts` (`createFakeScanBrowser()`, `framesOf()`). It records port calls, serves script text from memory, and uses a virtual clock, so settle, retry, bundle-version, and header-fallback behaviour is tested without Chrome. Frame selection is tested directly through `mergeFrames()`.
+
+Tab state tests drive `createTabState()` through the in-memory adapter in `tests/fixtures/fakeTabStateBrowser.ts`, including navigation while a Scan is pending. Page extraction tests run the real content script against a jsdom document and page globals.
 
 ### Integration tests
 

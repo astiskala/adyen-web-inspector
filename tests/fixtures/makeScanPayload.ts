@@ -1,7 +1,9 @@
+import { readImplementationAttributes } from '../../src/shared/implementation-attributes';
 import type {
   ScanPayload,
   PageExtractResult,
   CheckoutConfig,
+  CheckoutPage,
   AdyenWebMetadata,
   AnalyticsData,
   CapturedHeader,
@@ -11,22 +13,27 @@ import type {
 
 type VersionInfo = ScanPayload['versionInfo'];
 
-/** Default minimal PageExtractResult with all Adyen-related fields set as safe defaults. */
+const EMPTY_PAGE = {
+  adyenMetadata: null,
+  checkoutConfig: null,
+  inferredConfig: null,
+  componentConfig: null,
+  scripts: [],
+  links: [],
+  iframes: [],
+  adyenStyles: { classOverrideCount: 0, classOverrideSelectors: [], customPropertyCount: 0 },
+  pageUrl: 'https://example.com/checkout',
+  pageProtocol: 'https:',
+} as const satisfies Partial<CheckoutPage>;
+
+/** Default minimal Checkout page with all Adyen-related fields set as safe defaults. */
+export function makeCheckoutPage(overrides: Partial<CheckoutPage> = {}): CheckoutPage {
+  return { ...EMPTY_PAGE, checkoutInIframe: false, ...overrides };
+}
+
+/** Default minimal single-frame page extraction, as the page extractor produces it. */
 export function makePageExtract(overrides: Partial<PageExtractResult> = {}): PageExtractResult {
-  return {
-    adyenMetadata: null,
-    checkoutConfig: null,
-    inferredConfig: null,
-    componentConfig: null,
-    scripts: [],
-    links: [],
-    iframes: [],
-    adyenStyles: { classOverrideCount: 0, classOverrideSelectors: [], customPropertyCount: 0 },
-    isInsideIframe: false,
-    pageUrl: 'https://example.com/checkout',
-    pageProtocol: 'https:',
-    ...overrides,
-  };
+  return { ...EMPTY_PAGE, isInsideIframe: false, ...overrides };
 }
 
 /**
@@ -94,7 +101,7 @@ export function makeScanPayload(overrides: Partial<ScanPayload> = {}): ScanPaylo
   return {
     tabId: 1,
     pageUrl: 'https://example.com/checkout',
-    page: makePageExtract(),
+    page: makeCheckoutPage(),
     mainDocumentHeaders: [],
     mainDocumentHeadersAvailable: true,
     capturedRequests: [],
@@ -109,16 +116,18 @@ export function makeScanPayload(overrides: Partial<ScanPayload> = {}): ScanPaylo
  * Creates a stored scan result fixture with no checks and optional overrides.
  */
 export function makeScanResult(overrides: Partial<ScanResult> = {}): ScanResult {
+  const payload = overrides.payload ?? makeScanPayload();
   return {
     tabId: 1,
     pageUrl: 'https://example.com/checkout',
     scannedAt: '2026-09-28T00:00:00.000Z',
     sdkPresence: { detected: true, source: 'metadata' },
+    attributes: readImplementationAttributes(payload),
     checks: [],
     health: { score: 100, passing: 0, failing: 0, warnings: 0, total: 0, tier: 'excellent' },
     standardCompliance: { compliant: false, reasons: [] },
-    payload: makeScanPayload(),
     ...overrides,
+    payload,
   };
 }
 
@@ -131,7 +140,7 @@ export function makeAdyenPayload(
   payloadOverrides: Partial<ScanPayload> = {}
 ): ScanPayload {
   return makeScanPayload({
-    page: makePageExtract({
+    page: makeCheckoutPage({
       adyenMetadata: makeAdyenMetadata(metaOverrides),
       checkoutConfig: makeCheckoutConfig(configOverrides),
       checkoutConfigComplete: true,

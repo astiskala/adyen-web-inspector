@@ -4,14 +4,15 @@ import type {
   FrameExtraction,
   ScanBrowser,
 } from '../../src/background/scan-browser';
-import type { CapturedHeader, PageExtractResult, ScanResult } from '../../src/shared/types';
+import type { CapturedHeader, PageExtractResult } from '../../src/shared/types';
 
 export interface FakeScanBrowserOptions {
   /** Successive extractFrames results; the last one repeats once exhausted. */
   readonly extractions?: readonly (readonly FrameExtraction[])[];
   readonly network?: Partial<CollectedNetwork>;
   readonly documentHeaders?: CapturedHeader[];
-  readonly bundleVersion?: string | null;
+  /** Script text served by URL; other scripts are unavailable. */
+  readonly scriptTexts?: Readonly<Record<string, string>>;
   readonly release?: AdyenWebReleaseInfo | null;
   readonly tabLoadError?: Error;
   readonly startTime?: number;
@@ -20,7 +21,6 @@ export interface FakeScanBrowserOptions {
 export interface FakeScanBrowser extends ScanBrowser {
   /** Port calls in order, for sequencing assertions. */
   readonly calls: string[];
-  readonly stored: ScanResult[];
   readonly sleeps: number[];
   networkStops: number;
 }
@@ -44,7 +44,6 @@ export function createFakeScanBrowser(options: FakeScanBrowserOptions = {}): Fak
 
   const browser: FakeScanBrowser = {
     calls: [],
-    stored: [],
     sleeps: [],
     networkStops: 0,
     waitForTabComplete: async (tabId) => {
@@ -70,17 +69,13 @@ export function createFakeScanBrowser(options: FakeScanBrowserOptions = {}): Fak
       browser.calls.push(`fetchDocumentHeaders:${url}`);
       return options.documentHeaders ?? [];
     },
-    probeBundleVersion: async () => {
-      browser.calls.push('probeBundleVersion');
-      return options.bundleVersion ?? null;
+    fetchScriptText: async (url) => {
+      browser.calls.push(`fetchScriptText:${url}`);
+      return options.scriptTexts?.[url] ?? null;
     },
     getReleaseInfo: async () => {
       browser.calls.push('getReleaseInfo');
       return options.release ?? null;
-    },
-    storeResult: async (result) => {
-      browser.calls.push('storeResult');
-      browser.stored.push(result);
     },
     sleep: async (ms) => {
       browser.sleeps.push(ms);

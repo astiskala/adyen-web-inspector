@@ -3,9 +3,9 @@ import type { ScanResult, CheckResult, Severity } from '../../shared/types.js';
 import {
   buildFindingProjection,
   buildRawConfigSections,
-  type ImpactGroupChecks,
+  type IssueGroup,
+  type IssueRow,
 } from '../../shared/export-report.js';
-import { IMPACT_LABELS } from '../../shared/results.js';
 import { IdentityCard } from '../../popup/components/IdentityCard.js';
 import { HealthScore } from '../../popup/components/HealthScore.js';
 import { IssueList } from '../../popup/components/IssueList.js';
@@ -35,48 +35,40 @@ function SeverityBadge({ severity }: SeverityBadgeProps): JSX.Element {
   return <span class={`${s('severity')} ${s(SEVERITY_CLASSES[severity])}`}>{severity}</span>;
 }
 
-function BestPracticeItem({ check }: { readonly check: CheckResult }): JSX.Element {
-  const hasExpandedBody = Boolean(check.detail ?? check.remediation ?? check.docsUrl);
-
+function IssueItem({ issue }: { readonly issue: IssueRow }): JSX.Element {
   return (
     <div class={s('checkCard')}>
       <div class={s('checkSummaryStatic')}>
-        <span class={s('checkSummaryTitle')}>{check.title}</span>
-        <SeverityBadge severity={check.severity} />
+        <span class={s('checkSummaryTitle')}>{issue.title}</span>
+        <SeverityBadge severity={issue.severity} />
       </div>
-      {hasExpandedBody && (
-        <div class={s('checkBody')}>
-          {check.detail !== undefined && (
-            <div>
-              <strong>Detail:</strong> {check.detail}
-            </div>
-          )}
-          {check.remediation !== undefined && (
-            <div>
-              <strong>Remediation:</strong> {check.remediation}
-            </div>
-          )}
-          {check.docsUrl !== undefined && (
-            <a href={check.docsUrl} target="_blank" rel="noopener noreferrer">
-              Documentation →
-            </a>
-          )}
+      <div class={s('checkBody')}>
+        {issue.detail !== null && (
+          <div>
+            <strong>Detail:</strong> {issue.detail}
+          </div>
+        )}
+        <div>
+          <strong>Remediation:</strong> {issue.remediation}
         </div>
-      )}
+        <a href={issue.docsUrl} target="_blank" rel="noopener noreferrer">
+          Documentation →
+        </a>
+      </div>
     </div>
   );
 }
 
-function BestPracticeImpactSection({ impact, checks }: ImpactGroupChecks): JSX.Element {
+function ImpactGroupSection({ group }: { readonly group: IssueGroup }): JSX.Element {
   return (
     <div class={s('impactGroupSection')}>
       <h3 class={s('impactGroupTitle')}>
-        {IMPACT_LABELS[impact]}
-        <span class={s('impactGroupCount')}>{checks.length}</span>
+        {group.label}
+        <span class={s('impactGroupCount')}>{group.issues.length}</span>
       </h3>
       <div class={s('checkList')}>
-        {checks.map((check) => (
-          <BestPracticeItem key={check.id} check={check} />
+        {group.issues.map((issue) => (
+          <IssueItem key={issue.id} issue={issue} />
         ))}
       </div>
     </div>
@@ -95,7 +87,7 @@ function SuccessfulCheckItem({ check }: { readonly check: CheckResult }): JSX.El
 }
 
 interface CategorizedCheckTabProps {
-  readonly issueGroups: readonly ImpactGroupChecks[];
+  readonly issueGroups: readonly IssueGroup[];
   readonly successfulChecks: readonly CheckResult[];
   readonly issueEmptyState: string;
   readonly successEmptyState: string;
@@ -114,13 +106,7 @@ function CategorizedCheckTab({
         {issueGroups.length === 0 ? (
           <div class={s('emptyStateSubsection')}>{issueEmptyState}</div>
         ) : (
-          issueGroups.map((group) => (
-            <BestPracticeImpactSection
-              key={group.impact}
-              impact={group.impact}
-              checks={group.checks}
-            />
-          ))
+          issueGroups.map((group) => <ImpactGroupSection key={group.impact} group={group} />)
         )}
       </div>
 

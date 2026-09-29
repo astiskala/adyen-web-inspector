@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { SDK_VERSION_CHECKS } from '../../../src/background/checks/sdk-version';
 import {
   makeAdyenPayload,
-  makePageExtract,
+  makeCheckoutPage,
   makeScanPayload,
   makeVersionInfo,
 } from '../../fixtures/makeScanPayload';
@@ -16,6 +16,18 @@ describe('version-detected', () => {
   it('returns info when version is detected', () => {
     const payload = makeScanPayload({ versionInfo: makeVersionInfo({ detected: '5.67.0' }) });
     expect(versionDetected.run(payload).severity).toBe('info');
+  });
+
+  it('reports which signal established the version', () => {
+    const fromBundle = makeScanPayload({
+      versionInfo: makeVersionInfo({ detected: '6.20.0', source: 'bundle' }),
+    });
+    const fromMetadata = makeScanPayload({
+      versionInfo: makeVersionInfo({ detected: '6.20.0', source: 'metadata' }),
+    });
+
+    expect(versionDetected.run(fromBundle).detail).toContain('same-origin bundle');
+    expect(versionDetected.run(fromMetadata).detail).toContain('AdyenWebMetadata');
   });
 
   it('returns warn when version cannot be detected', () => {
@@ -192,7 +204,7 @@ describe('uplift-cobadged-version', () => {
 
   it('does not fail for a versioned SDK with no active checkout', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({ adyenMetadata: { version: '6.15.9' } }),
+      page: makeCheckoutPage({ adyenMetadata: { version: '6.15.9' } }),
       versionInfo: makeVersionInfo({ detected: '6.15.9' }),
     });
     expect(upliftCobadgedVersion.run(payload).severity).toBe('skip');

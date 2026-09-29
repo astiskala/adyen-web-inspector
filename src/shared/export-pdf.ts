@@ -1,16 +1,24 @@
-import { STATUS_COLORS } from './constants.js';
+/**
+ * Printable report — the self-contained HTML the report page prints, and the
+ * storage key and URL parameter of the scan result handed to that page.
+ */
+
+import { INTEGRATION_FLOW_LABELS, STATUS_COLORS } from './constants.js';
 import type { ScanResult, StandardCompliance } from './types.js';
 import {
+  buildFindingProjection,
   buildRawConfigSections,
-  buildReportExportData,
-  type ExportCategorySection,
+  summarizeImplementation,
+  type IssueGroup,
 } from './export-report.js';
 import { STANDARD_COMPLIANCE_COPY } from './standard-compliance.js';
-import { INTEGRATION_FLOW_LABELS } from './implementation-attributes.js';
-import { IMPACT_LABELS, ISSUE_IMPACT_ORDER } from './results.js';
+
+type FindingProjection = ReturnType<typeof buildFindingProjection>;
+type FindingSection = FindingProjection['bestPractices'];
 
 const PDF_REPORT_STORAGE_PREFIX = 'pdf-report:' as const;
-const PDF_REPORT_PAGE_PATH = 'report/report.html' as const;
+/** Extension page that renders and prints the report. */
+export const PDF_REPORT_PAGE_PATH = 'report/report.html' as const;
 export const PDF_REPORT_TOKEN_PARAM = 'token' as const;
 
 export interface PrintableReportMetadata {
@@ -21,29 +29,6 @@ export interface PrintableReportMetadata {
 /** Returns the session-storage key used for a pending PDF export handoff. */
 export function getPdfReportStorageKey(token: string): string {
   return `${PDF_REPORT_STORAGE_PREFIX}${token}`;
-}
-
-function buildPdfReportUrl(token: string): string {
-  const url = new URL(chrome.runtime.getURL(PDF_REPORT_PAGE_PATH));
-  url.searchParams.set(PDF_REPORT_TOKEN_PARAM, token);
-  return url.toString();
-}
-
-/**
- * Stores the current scan result and opens a dedicated report page that can
- * render and print independently of the popup or DevTools lifecycle.
- */
-export async function exportPdf(result: ScanResult): Promise<void> {
-  const token = globalThis.crypto.randomUUID();
-  const storageKey = getPdfReportStorageKey(token);
-  await chrome.storage.session.set({ [storageKey]: result });
-
-  try {
-    await chrome.tabs.create({ url: buildPdfReportUrl(token) });
-  } catch (error) {
-    await chrome.storage.session.remove(storageKey).catch(() => {});
-    throw error;
-  }
 }
 
 function severityColor(severity: string): string {
@@ -74,7 +59,7 @@ interface ImplementationAttribute {
 }
 
 function buildAttributes(
-  implementationAttributes: ReturnType<typeof buildReportExportData>['implementationAttributes']
+  implementationAttributes: ReturnType<typeof summarizeImplementation>
 ): ImplementationAttribute[] {
   return [
     { label: 'SDK Version', value: implementationAttributes.sdkVersion },
@@ -95,7 +80,7 @@ function buildAttributes(
 }
 
 function buildAttributesHtml(
-  implementationAttributes: ReturnType<typeof buildReportExportData>['implementationAttributes']
+  implementationAttributes: ReturnType<typeof summarizeImplementation>
 ): string {
   const attrs = buildAttributes(implementationAttributes);
   const rows = attrs
@@ -107,9 +92,7 @@ function buildAttributesHtml(
   return `<table class="attr-table"><tbody>${rows}</tbody></table>`;
 }
 
-function buildSkippedRows(
-  skippedChecks: ReturnType<typeof buildReportExportData>['skippedChecks']
-): string {
+function buildSkippedRows(skippedChecks: FindingProjection['skippedChecks']): string {
   if (skippedChecks.length === 0) {
     return '<tr><td colspan="2">No checks were skipped.</td></tr>';
   }
@@ -124,26 +107,23 @@ function buildSkippedRows(
     .join('');
 }
 
-function buildIssueTableForSection(section: ExportCategorySection, emptyMessage: string): string {
-  const issues = section.issues;
-  if (issues.length === 0) {
+function buildIssueTableForSection(
+  issueGroups: readonly IssueGroup[],
+  emptyMessage: string
+): string {
+  if (issueGroups.length === 0) {
     return `<p style="color:#6b7280">${escapeHtml(emptyMessage)}</p>`;
   }
 
   const rows: string[] = [];
 
-  for (const impactGroup of ISSUE_IMPACT_ORDER) {
-    const groupIssues = issues.filter((issue) => issue.impactLevel === impactGroup);
-    if (groupIssues.length === 0) {
-      continue;
-    }
-
+  for (const group of issueGroups) {
     rows.push(`
       <tr class="impact-row">
-        <td colspan="3">${escapeHtml(IMPACT_LABELS[impactGroup])} (${groupIssues.length})</td>
+        <td colspan="3">${escapeHtml(group.label)} (${group.issues.length})</td>
       </tr>`);
 
-    for (const issue of groupIssues) {
+    for (const issue of group.issues) {
       const color = severityColor(issue.severity);
       const detail = issue.detail === null ? '' : `<br><small>${escapeHtml(issue.detail)}</small>`;
       const docsLink = `<br><a class="docs-link" href="${escapeHtml(issue.docsUrl)}" target="_blank" rel="noopener noreferrer">Read documentation</a>`;
@@ -171,7 +151,7 @@ function buildIssueTableForSection(section: ExportCategorySection, emptyMessage:
 }
 
 function buildSuccessfulChecksTableForCategory(
-  section: ExportCategorySection,
+  section: FindingSection,
   emptyMessage: string
 ): string {
   const checks = section.successfulChecks;
@@ -228,7 +208,7 @@ function buildReportMetadataHtml(
   `;
 }
 
-function buildNetworkHtml(network: ReturnType<typeof buildReportExportData>['network']): string {
+function buildNetworkHtml(network: FindingProjection['network']): string {
   const reqs = network.capturedRequests;
   const parts: string[] = ['<h3 style="font-size:12px;margin:12px 0 6px">Captured Requests</h3>'];
 
@@ -251,9 +231,7 @@ function buildNetworkHtml(network: ReturnType<typeof buildReportExportData>['net
   return parts.join('');
 }
 
-function buildRawConfigHtml(
-  rawConfig: ReturnType<typeof buildReportExportData>['rawConfig']
-): string {
+function buildRawConfigHtml(rawConfig: FindingProjection['rawConfig']): string {
   const preStyle =
     'font-family:monospace;font-size:11px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:4px;padding:10px;white-space:pre-wrap;word-break:break-all;overflow:auto;max-height:400px';
   const h3Style = 'font-size:12px;margin:12px 0 6px';
@@ -301,7 +279,7 @@ export function buildPrintableHtml(result: ScanResult, metadata: PrintableReport
   const date = new Date(result.scannedAt).toLocaleString();
   const { score, passing, total, tier } = result.health;
   const tierColor = scoreColor(tier);
-  const reportData = buildReportExportData(result);
+  const projection = buildFindingProjection(result);
 
   return `<!doctype html>
 <html lang="en">
@@ -349,25 +327,25 @@ export function buildPrintableHtml(result: ScanResult, metadata: PrintableReport
     </div>
   </div>
 
-  ${buildComplianceHtml(reportData.standardCompliance)}
+  ${buildComplianceHtml(result.standardCompliance)}
 
   <h2>Implementation Attributes</h2>
-  ${buildAttributesHtml(reportData.implementationAttributes)}
+  ${buildAttributesHtml(summarizeImplementation(result))}
 
   <h2>Best Practices</h2>
-  ${buildIssueTableForSection(reportData.bestPractices, 'No best-practice issues identified.')}
+  ${buildIssueTableForSection(projection.bestPractices.issueGroups, 'No best-practice issues identified.')}
 
   <h2>Security</h2>
-  ${buildIssueTableForSection(reportData.security, 'No security issues identified.')}
+  ${buildIssueTableForSection(projection.security.issueGroups, 'No security issues identified.')}
 
   <h2>Successful Checks</h2>
   <h3 style="font-size:12px;margin:8px 0 6px">Best Practices</h3>
   ${buildSuccessfulChecksTableForCategory(
-    reportData.bestPractices,
+    projection.bestPractices,
     'No successful best-practice checks recorded.'
   )}
   <h3 style="font-size:12px;margin:8px 0 6px">Security</h3>
-  ${buildSuccessfulChecksTableForCategory(reportData.security, 'No successful security checks recorded.')}
+  ${buildSuccessfulChecksTableForCategory(projection.security, 'No successful security checks recorded.')}
 
   <h2>Skipped Checks</h2>
   <table>
@@ -378,15 +356,15 @@ export function buildPrintableHtml(result: ScanResult, metadata: PrintableReport
       </tr>
     </thead>
     <tbody>
-      ${buildSkippedRows(reportData.skippedChecks)}
+      ${buildSkippedRows(projection.skippedChecks)}
     </tbody>
   </table>
 
   <h2>Network</h2>
-  ${buildNetworkHtml(reportData.network)}
+  ${buildNetworkHtml(projection.network)}
 
   <h2>Extracted Config</h2>
-  ${buildRawConfigHtml(reportData.rawConfig)}
+  ${buildRawConfigHtml(projection.rawConfig)}
 
   <div class="footer">
     Generated by Adyen Web Inspector v${escapeHtml(metadata.extensionVersion)} &mdash; ${escapeHtml(

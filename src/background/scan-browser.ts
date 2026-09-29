@@ -8,7 +8,6 @@ import type {
   CapturedHeader,
   CapturedRequest,
   PageExtractResult,
-  ScanResult,
 } from '../shared/types.js';
 
 /** One frame's page extraction; null when the frame produced no result. */
@@ -47,12 +46,10 @@ export interface ScanBrowser {
   captureNetwork(tabId: number): NetworkCapture;
   /** Fetches the checkout document's response headers; resolves empty on failure. */
   fetchDocumentHeaders(url: string): Promise<CapturedHeader[]>;
-  /** Reads an SDK version from same-origin bundles; resolves null on failure. */
-  probeBundleVersion(pageUrl: string, scriptUrls: string[]): Promise<string | null>;
+  /** Fetches a script's text without credentials; resolves null on failure. */
+  fetchScriptText(url: string): Promise<string | null>;
   /** Resolves the latest adyen-web release; resolves null on failure. */
   getReleaseInfo(): Promise<AdyenWebReleaseInfo | null>;
-  /** Persists the result for popup and DevTools retrieval. */
-  storeResult(result: ScanResult): Promise<void>;
   sleep(ms: number): Promise<void>;
   /** Current time in Unix milliseconds. */
   now(): number;

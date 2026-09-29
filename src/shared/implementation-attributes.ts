@@ -1,4 +1,10 @@
-import type { AdyenEnvironment, AdyenRegion } from './constants.js';
+/**
+ * Implementation attributes — how the inspected integration is built: its
+ * integration flavor and flow, environment and region, import method, and
+ * checkout activity, each with the signal it came from. The rules live here
+ * and run once per scan payload; everything else reads the resulting record.
+ */
+
 import {
   ADYEN_API_DOMAINS,
   ADYEN_CDN_DOMAINS,
@@ -11,7 +17,13 @@ import {
 } from './constants.js';
 import { checkoutConfigSources, listCheckoutFieldObservations } from './scan-evidence.js';
 import { detectSdkPresence } from './sdk-presence.js';
-import type { ScanPayload } from './types.js';
+import type {
+  AdyenEnvironment,
+  AdyenRegion,
+  ImplementationAttributes,
+  IntegrationFlavor,
+  ScanPayload,
+} from './types.js';
 import { extractHostname, isAdyenHost } from './utils.js';
 
 const API_FALLBACK_PATTERN = /\/v\d+\/(?:payments\/details|paymentMethods)\b/;
@@ -26,64 +38,13 @@ const CHECKOUT_API_TEST_HOST_PREFIX = 'checkout-test.';
 const CHECKOUTSHOPPER_LIVE_HOST_PREFIX = 'checkoutshopper-live';
 const CHECKOUT_API_LIVE_HOST_PREFIX = 'checkout-live';
 
-const ANALYTICS_FLAVOR_MAP: Record<string, ImplementationFlavor> = {
+const ANALYTICS_FLAVOR_MAP: Record<string, IntegrationFlavor> = {
   dropin: 'Drop-in',
   components: 'Components',
   custom: 'Custom',
 };
 
-type EnvironmentSource = 'config' | 'client-key' | 'network' | 'unknown';
-type RegionSource = 'config' | 'network' | 'unknown';
-export type IntegrationFlow = 'sessions' | 'advanced' | 'unknown';
-
-/** Display labels for integration flows, shared by every view. */
-export const INTEGRATION_FLOW_LABELS: Readonly<Record<IntegrationFlow, string>> = {
-  sessions: 'Sessions',
-  advanced: 'Advanced',
-  unknown: 'Unknown',
-};
-
-type ImportMethod = 'CDN' | 'Adyen' | 'Unknown';
-type ImplementationFlavor = 'Drop-in' | 'Components' | 'Custom' | 'Unknown';
-type IntegrationFlavorSource =
-  | 'analytics'
-  | 'dropin-pattern'
-  | 'dropin-dom'
-  | 'checkout-config'
-  | 'sdk-loaded-no-checkout'
-  | 'unknown';
-
-interface EnvironmentResolution {
-  readonly env: AdyenEnvironment | null;
-  readonly source: EnvironmentSource;
-}
-
-interface RegionResolution {
-  readonly region: AdyenRegion;
-  readonly source: RegionSource;
-}
-
-interface ImplementationAttributes {
-  readonly sdkVersion: string;
-  readonly environment: AdyenEnvironment | 'unknown';
-  readonly region: AdyenRegion | null;
-  readonly flow: IntegrationFlow;
-  readonly flavor: ImplementationFlavor;
-  readonly importMethod: ImportMethod;
-}
-
-interface IntegrationFlavorResolution {
-  readonly flavor: ImplementationFlavor;
-  readonly source: IntegrationFlavorSource;
-}
-
-interface IntegrationFlowSignals {
-  readonly hasSessionsRequest: boolean;
-  readonly hasSessionConfig: boolean;
-  readonly hasAnalyticsSessionId: boolean;
-  readonly hasCheckoutConfig: boolean;
-  readonly hasAnalyticsData: boolean;
-}
+type Attribute<K extends keyof ImplementationAttributes> = ImplementationAttributes[K];
 
 function mapRegionToken(token: string | undefined): AdyenRegion {
   if (token === undefined || token === '') return 'unknown';
@@ -130,12 +91,7 @@ function parseConfigEnvironment(environment: string | undefined): {
   return { env, region };
 }
 
-/**
- * Infers environment from client key prefix (`test_`/`live_`).
- */
-export function detectEnvironmentFromClientKey(
-  clientKey: string | undefined
-): AdyenEnvironment | null {
+function detectEnvironmentFromClientKey(clientKey: string | undefined): AdyenEnvironment | null {
   if (clientKey === undefined || clientKey === '') return null;
   if (clientKey.startsWith(CLIENT_KEY_TEST_PREFIX)) return 'test';
   if (clientKey.startsWith(CLIENT_KEY_LIVE_PREFIX)) return 'live';
@@ -223,11 +179,8 @@ function isConfigRelatedHost(url: string, host: string): boolean {
   return isAdyenApiRequest(url) || isAdyenAnalyticsHost(host);
 }
 
-/**
- * Infers environment from CDN / checkoutshopper asset requests only.
- * Used to validate CDN environment consistency independently of the configured environment.
- */
-export function detectEnvironmentFromCdnRequests(payload: ScanPayload): AdyenEnvironment | null {
+/** Environment of CDN / checkoutshopper asset hosts, independent of the configured environment. */
+function detectEnvironmentFromCdnRequests(payload: ScanPayload): AdyenEnvironment | null {
   for (const req of payload.capturedRequests) {
     const host = extractHostname(req.url)?.toLowerCase() ?? '';
     if (isCheckoutshopperHost(host)) {
@@ -239,10 +192,10 @@ export function detectEnvironmentFromCdnRequests(payload: ScanPayload): AdyenEnv
 }
 
 /**
- * Infers environment by inspecting captured Adyen API and analytics request hosts.
- * Excludes CDN/asset requests — those reflect asset delivery, not the configured environment.
+ * Environment of captured Adyen API and analytics request hosts. Excludes
+ * CDN/asset requests, which reflect asset delivery, not the configured environment.
  */
-export function detectEnvironmentFromRequests(payload: ScanPayload): AdyenEnvironment | null {
+function detectEnvironmentFromRequests(payload: ScanPayload): AdyenEnvironment | null {
   for (const req of payload.capturedRequests) {
     const host = extractHostname(req.url)?.toLowerCase() ?? '';
     if (isConfigRelatedHost(req.url, host)) {
@@ -253,63 +206,61 @@ export function detectEnvironmentFromRequests(payload: ScanPayload): AdyenEnviro
   return null;
 }
 
-/**
- * Resolves the most reliable environment and records which signal produced it.
- * Priority: checkout config, client key, then network traffic.
- */
-export function resolveEnvironment(payload: ScanPayload): EnvironmentResolution {
-  const envFromConfig = firstResolved(
+/** Region of regional CDN hosts such as checkoutshopper-live-us.cdn.adyen.com. */
+function detectRegionFromCdnRequests(payload: ScanPayload): AdyenRegion {
+  for (const req of payload.capturedRequests) {
+    const host = extractHostname(req.url)?.toLowerCase() ?? '';
+    if (isCheckoutshopperHost(host)) {
+      const match = /checkoutshopper-live-([a-z0-9]+)\./.exec(host);
+      if (match) return mapRegionToken(match[1]);
+    }
+  }
+  return 'unknown';
+}
+
+/** Priority: checkout config, then client key, then network traffic. */
+function resolveEnvironment(payload: ScanPayload): Attribute<'environment'> {
+  const clientKeys = listCheckoutFieldObservations(payload, 'clientKey');
+  const network = detectEnvironmentFromRequests(payload);
+  const signals = {
+    cdn: detectEnvironmentFromCdnRequests(payload),
+    clientKey: detectEnvironmentFromClientKey(clientKeys[0]?.value),
+    network,
+  };
+
+  const fromConfig = firstResolved(
     listCheckoutFieldObservations(payload, 'environment'),
     detectEnvironmentFromConfig
   );
-  if (envFromConfig !== null) {
-    return { env: envFromConfig, source: 'config' };
-  }
+  if (fromConfig !== null) return { value: fromConfig, source: 'config', ...signals };
 
-  const envFromKey = firstResolved(
-    listCheckoutFieldObservations(payload, 'clientKey'),
-    detectEnvironmentFromClientKey
-  );
-  if (envFromKey !== null) {
-    return { env: envFromKey, source: 'client-key' };
-  }
+  const fromKey = firstResolved(clientKeys, detectEnvironmentFromClientKey);
+  if (fromKey !== null) return { value: fromKey, source: 'client-key', ...signals };
 
-  const envFromRequests = detectEnvironmentFromRequests(payload);
-  if (envFromRequests !== null) {
-    return { env: envFromRequests, source: 'network' };
-  }
-
-  return { env: null, source: 'unknown' };
+  if (network !== null) return { value: network, source: 'network', ...signals };
+  return { value: null, source: 'unknown', ...signals };
 }
 
-/**
- * Resolves region from checkout config first, then captured request hosts.
- */
-export function resolveRegion(payload: ScanPayload): RegionResolution {
-  const regionFromConfig = firstResolved(
+/** Checkout config first, then captured request hosts. */
+function resolveRegion(payload: ScanPayload): Attribute<'region'> {
+  const cdn = detectRegionFromCdnRequests(payload);
+  const fromConfig = firstResolved(
     listCheckoutFieldObservations(payload, 'environment'),
     detectRegionFromConfig
   );
-  if (regionFromConfig !== null) {
-    return { region: regionFromConfig, source: 'config' };
-  }
+  if (fromConfig !== null) return { value: fromConfig, source: 'config', cdn };
 
-  const regionFromRequests = detectRegionFromRequests(payload);
-  if (regionFromRequests !== 'unknown') {
-    return { region: regionFromRequests, source: 'network' };
-  }
-
-  return { region: 'unknown', source: 'unknown' };
+  const fromRequests = detectRegionFromRequests(payload);
+  if (fromRequests !== 'unknown') return { value: fromRequests, source: 'network', cdn };
+  return { value: 'unknown', source: 'unknown', cdn };
 }
 
 function isCdnAdyenHost(host: string): boolean {
   return host.endsWith(ADYEN_CDN_HOST_SUFFIX);
 }
 
-/**
- * Classifies visible Adyen-hosted script origins; other import methods remain unknown.
- */
-export function detectImportMethod(scripts: ScanPayload['page']['scripts']): ImportMethod {
+/** Classifies visible Adyen-hosted script origins; other import methods remain unknown. */
+function detectImportMethod(scripts: ScanPayload['page']['scripts']): Attribute<'importMethod'> {
   let foundAdyenHost = false;
   for (const script of scripts) {
     const scriptHost = extractHostname(script.src);
@@ -327,20 +278,14 @@ export function detectImportMethod(scripts: ScanPayload['page']['scripts']): Imp
     }
   }
 
-  if (foundAdyenHost) {
-    return 'Adyen';
-  }
-
-  return 'Unknown';
+  return foundAdyenHost ? 'Adyen' : 'Unknown';
 }
 
-/**
- * Detects whether checkout activity is present from config, analytics, iframes, or API traffic.
- */
-export function hasCheckoutActivity(payload: ScanPayload): boolean {
+/** Checkout activity from config, analytics, Adyen iframes, or Adyen API traffic. */
+function hasCheckoutActivity(payload: ScanPayload): boolean {
   const { page, capturedRequests, analyticsData } = payload;
 
-  if (checkoutConfigSources(payload).size > 0) return true;
+  if (checkoutConfigSources(payload.page).size > 0) return true;
   if (analyticsData !== null) return true;
 
   if (
@@ -353,18 +298,12 @@ export function hasCheckoutActivity(payload: ScanPayload): boolean {
     return true;
   }
 
-  if (capturedRequests.some((r) => isAdyenApiRequest(r.url))) {
-    return true;
-  }
-
-  return false;
+  return capturedRequests.some((r) => isAdyenApiRequest(r.url));
 }
 
-/**
- * Collects boolean signals used to infer Sessions versus Advanced flow.
- */
-export function collectIntegrationFlowSignals(payload: ScanPayload): IntegrationFlowSignals {
-  return {
+/** A session object, analytics session ID, or Sessions request indicates Sessions; config alone indicates Advanced. */
+function resolveIntegrationFlow(payload: ScanPayload): Attribute<'flow'> {
+  const signals = {
     hasSessionsRequest: payload.capturedRequests.some((request) =>
       SESSIONS_API_PATTERN.test(request.url)
     ),
@@ -372,106 +311,74 @@ export function collectIntegrationFlowSignals(payload: ScanPayload): Integration
       (observation) => observation.value
     ),
     hasAnalyticsSessionId: Boolean(payload.analyticsData?.sessionId),
-    hasCheckoutConfig: checkoutConfigSources(payload).size > 0,
+    hasCheckoutConfig: checkoutConfigSources(payload.page).size > 0,
     hasAnalyticsData: payload.analyticsData !== null,
   };
-}
-
-/**
- * Infers integration flow from observed flow signals.
- */
-export function detectIntegrationFlow(payload: ScanPayload): IntegrationFlow {
-  const signals = collectIntegrationFlowSignals(payload);
   if (signals.hasSessionsRequest || signals.hasSessionConfig || signals.hasAnalyticsSessionId) {
-    return 'sessions';
+    return { value: 'sessions', signals };
   }
-  if (signals.hasCheckoutConfig) {
-    return 'advanced';
-  }
-  return 'unknown';
+  return { value: signals.hasCheckoutConfig ? 'advanced' : 'unknown', signals };
 }
 
-/**
- * Infers region from CDN requests such as checkoutshopper-live-us.cdn.adyen.com.
- */
-export function detectRegionFromCdnRequests(payload: ScanPayload): AdyenRegion {
-  for (const req of payload.capturedRequests) {
-    const host = extractHostname(req.url)?.toLowerCase() ?? '';
-    if (isCheckoutshopperHost(host)) {
-      const match = /checkoutshopper-live-([a-z0-9]+)\./.exec(host);
-      if (match) return mapRegionToken(match[1]);
-    }
-  }
-  return 'unknown';
-}
-
-/**
- * Resolves integration flavor (Drop-in/Components/Custom/Unknown) and source signal.
- */
-export function resolveIntegrationFlavor(payload: ScanPayload): IntegrationFlavorResolution {
+/** Flavor from analytics, then Drop-in URL patterns and DOM, then captured or inferred config. */
+function resolveIntegrationFlavor(
+  payload: ScanPayload,
+  checkoutActivity: boolean
+): Attribute<'flavor'> {
   const analyticsFlavor = payload.analyticsData?.flavor?.toLowerCase();
-  if (analyticsFlavor !== undefined && analyticsFlavor !== '') {
-    const mappedFlavor = ANALYTICS_FLAVOR_MAP[analyticsFlavor];
-    if (mappedFlavor !== undefined) {
-      return {
-        flavor: mappedFlavor,
-        source: 'analytics',
-      };
-    }
+  const mappedFlavor =
+    analyticsFlavor === undefined ? undefined : ANALYTICS_FLAVOR_MAP[analyticsFlavor];
+  if (mappedFlavor !== undefined) {
+    return { value: mappedFlavor, source: 'analytics' };
   }
 
   const hasDropin =
     payload.page.scripts.some((s) => s.src.includes('dropin')) ||
     payload.capturedRequests.some((r) => r.url.includes('dropin'));
   if (hasDropin) {
-    return {
-      flavor: 'Drop-in',
-      source: 'dropin-pattern',
-    };
+    return { value: 'Drop-in', source: 'dropin-pattern' };
   }
 
   if (payload.page.hasDropinDOM === true) {
-    return {
-      flavor: 'Drop-in',
-      source: 'dropin-dom',
-    };
+    return { value: 'Drop-in', source: 'dropin-dom' };
   }
 
-  const configSources = checkoutConfigSources(payload);
+  const configSources = checkoutConfigSources(payload.page);
   if (configSources.has('captured') || configSources.has('inferred')) {
-    return {
-      flavor: 'Components',
-      source: 'checkout-config',
-    };
+    return { value: 'Components', source: 'checkout-config' };
   }
 
-  if (detectSdkPresence(payload.page).detected && !hasCheckoutActivity(payload)) {
-    return {
-      flavor: 'Unknown',
-      source: 'sdk-loaded-no-checkout',
-    };
+  if (detectSdkPresence(payload.page).detected && !checkoutActivity) {
+    return { value: 'Unknown', source: 'sdk-loaded-no-checkout' };
   }
 
+  return { value: 'Unknown', source: 'unknown' };
+}
+
+function deriveImplementationAttributes(payload: ScanPayload): ImplementationAttributes {
+  const checkoutActivity = hasCheckoutActivity(payload);
   return {
-    flavor: 'Unknown',
-    source: 'unknown',
+    flavor: resolveIntegrationFlavor(payload, checkoutActivity),
+    flow: resolveIntegrationFlow(payload),
+    environment: resolveEnvironment(payload),
+    region: resolveRegion(payload),
+    importMethod: detectImportMethod(payload.page.scripts),
+    checkoutActivity,
   };
 }
 
-/**
- * Builds the final implementation-attributes snapshot shown in the UI/export.
- */
-export function buildImplementationAttributes(payload: ScanPayload): ImplementationAttributes {
-  const resolvedEnvironment = resolveEnvironment(payload);
-  const environment = resolvedEnvironment.env ?? 'unknown';
-  const region = environment === 'test' ? null : resolveRegion(payload).region;
+const derived = new WeakMap<ScanPayload, ImplementationAttributes>();
 
-  return {
-    sdkVersion: payload.versionInfo.detected ?? 'Unknown',
-    environment,
-    region,
-    flow: detectIntegrationFlow(payload),
-    flavor: resolveIntegrationFlavor(payload).flavor,
-    importMethod: detectImportMethod(payload.page.scripts),
-  };
+/**
+ * Returns the implementation attributes of a scan payload. They are derived
+ * on first read and shared by every later reader of the same payload, so the
+ * checks, the assessment, and the stored scan result see one record.
+ */
+export function readImplementationAttributes(payload: ScanPayload): ImplementationAttributes {
+  let attributes = derived.get(payload);
+  if (attributes === undefined) {
+    attributes = deriveImplementationAttributes(payload);
+    derived.set(payload, attributes);
+  }
+  return attributes;
 }

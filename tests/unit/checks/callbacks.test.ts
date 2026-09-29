@@ -3,7 +3,7 @@ import { CALLBACK_CHECKS } from '../../../src/background/checks/callbacks';
 import {
   makeScanPayload,
   makeAdyenPayload,
-  makePageExtract,
+  makeCheckoutPage,
   makeRequest,
   makeCheckoutConfig,
   makeAnalyticsData,
@@ -42,7 +42,7 @@ function makePartialCheckoutConfigPayload(
   componentConfigOverrides: Parameters<typeof makeCheckoutConfig>[0] = {}
 ): ReturnType<typeof makeScanPayload> {
   return makeScanPayload({
-    page: makePageExtract({
+    page: makeCheckoutPage({
       checkoutConfig: { countryCode: 'SG' },
       componentConfig: makeCheckoutConfig(componentConfigOverrides),
     }),
@@ -110,7 +110,7 @@ describe('flow-type', () => {
 
   it('reports sessions flow when hasSession is true and no network match', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
+      page: makeCheckoutPage({
         checkoutConfig: makeCheckoutConfig({ hasSession: true }),
       }),
     });
@@ -133,7 +133,7 @@ describe('flow-type', () => {
   it('prefers network detection over hasSession', () => {
     const payload = makeScanPayload({
       capturedRequests: sessionsRequests,
-      page: makePageExtract({
+      page: makeCheckoutPage({
         checkoutConfig: makeCheckoutConfig({ hasSession: true }),
       }),
     });
@@ -164,14 +164,14 @@ describe('callback-on-additional-details', () => {
 
   it('skips when no config', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({ checkoutConfig: null }),
+      page: makeCheckoutPage({ checkoutConfig: null }),
     });
     expect(onAdditionalDetails.run(payload).severity).toBe('skip');
   });
 
   it('skips when missing and no full config', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
+      page: makeCheckoutPage({
         checkoutConfig: null,
         inferredConfig: makeCheckoutConfig({ onAdditionalDetails: undefined }),
       }),
@@ -219,7 +219,7 @@ describe('callback-on-submit', () => {
 describe('callback-on-submit-filtering', () => {
   it('skips when no checkout config present', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({ checkoutConfig: null }),
+      page: makeCheckoutPage({ checkoutConfig: null }),
     });
     expect(onSubmitSelectiveHandling.run(payload).severity).toBe('skip');
   });
@@ -464,14 +464,14 @@ describe('callback-on-payment-completed', () => {
 
   it('skips when no config', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({ checkoutConfig: null }),
+      page: makeCheckoutPage({ checkoutConfig: null }),
     });
     expect(onPaymentCompleted.run(payload).severity).toBe('skip');
   });
 
   it('skips when missing and no full config', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
+      page: makeCheckoutPage({
         checkoutConfig: null,
         inferredConfig: makeCheckoutConfig({ onPaymentCompleted: undefined }),
       }),
@@ -481,7 +481,7 @@ describe('callback-on-payment-completed', () => {
 
   it('fails for sessions flow detected via hasSession (no network)', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
+      page: makeCheckoutPage({
         checkoutConfig: makeCheckoutConfig({ hasSession: true }),
         checkoutConfigComplete: true,
       }),
@@ -545,14 +545,14 @@ describe('callback-on-payment-failed', () => {
 
   it('skips when no config', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({ checkoutConfig: null }),
+      page: makeCheckoutPage({ checkoutConfig: null }),
     });
     expect(onPaymentFailed.run(payload).severity).toBe('skip');
   });
 
   it('skips when missing and no full config', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
+      page: makeCheckoutPage({
         checkoutConfig: null,
         inferredConfig: makeCheckoutConfig({ onPaymentFailed: undefined }),
       }),
@@ -576,7 +576,7 @@ describe('callback-on-payment-failed', () => {
 describe('callback-on-error', () => {
   it('skips when no checkout config present', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({ checkoutConfig: null }),
+      page: makeCheckoutPage({ checkoutConfig: null }),
     });
     expect(onError.run(payload).severity).toBe('skip');
   });
@@ -603,7 +603,7 @@ describe('callback-on-error', () => {
 
   it('skips when missing and no full config', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
+      page: makeCheckoutPage({
         checkoutConfig: null,
         inferredConfig: makeCheckoutConfig({ onError: undefined }),
       }),
@@ -615,7 +615,7 @@ describe('callback-on-error', () => {
 describe('callback-before-submit', () => {
   it('skips when no checkout config present', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({ checkoutConfig: null }),
+      page: makeCheckoutPage({ checkoutConfig: null }),
     });
     expect(beforeSubmit.run(payload).severity).toBe('skip');
   });
@@ -662,7 +662,7 @@ describe('callback-actions-pattern', () => {
 
   it('skips when no config', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({ checkoutConfig: null }),
+      page: makeCheckoutPage({ checkoutConfig: null }),
     });
     expect(actionsPattern.run(payload).severity).toBe('skip');
   });
@@ -685,7 +685,7 @@ describe('callback-actions-pattern', () => {
 describe('callback-multiple-submissions', () => {
   it('skips when no checkout config present', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({ checkoutConfig: null }),
+      page: makeCheckoutPage({ checkoutConfig: null }),
     });
     expect(multipleSubmissions.run(payload).severity).toBe('skip');
   });
@@ -796,7 +796,7 @@ describe('callback-custom-pay-button-compatibility', () => {
 describe('componentConfig fallback', () => {
   it('callback-on-error uses componentConfig when checkoutConfig is null', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
+      page: makeCheckoutPage({
         componentConfig: makeCheckoutConfig({ onError: 'checkout' }),
       }),
       capturedRequests: sessionsRequests,
@@ -807,7 +807,7 @@ describe('componentConfig fallback', () => {
 
   it('callback-on-payment-completed uses componentConfig when checkoutConfig is null', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
+      page: makeCheckoutPage({
         componentConfig: makeCheckoutConfig({ onPaymentCompleted: 'checkout' }),
       }),
       capturedRequests: sessionsRequests,
@@ -818,7 +818,7 @@ describe('componentConfig fallback', () => {
 
   it('callback-on-submit uses componentConfig in advanced flow', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
+      page: makeCheckoutPage({
         componentConfig: makeCheckoutConfig({ onSubmit: 'checkout' }),
       }),
     });
@@ -828,7 +828,7 @@ describe('componentConfig fallback', () => {
 
   it('callback-before-submit uses componentConfig', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
+      page: makeCheckoutPage({
         componentConfig: makeCheckoutConfig({ beforeSubmit: 'checkout' }),
       }),
       capturedRequests: sessionsRequests,
@@ -841,7 +841,7 @@ describe('componentConfig fallback', () => {
 describe('partial checkoutConfig fallback', () => {
   it('does not report absent callbacks as failures without direct checkout options', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({ checkoutConfig: { countryCode: 'SG' } }),
+      page: makeCheckoutPage({ checkoutConfig: { countryCode: 'SG' } }),
     });
     expect(onSubmit.run(payload).severity).toBe('skip');
     expect(onError.run(payload).severity).toBe('skip');

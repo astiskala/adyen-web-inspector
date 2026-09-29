@@ -2,18 +2,62 @@
  * Chrome adapter for the Scan browser port.
  */
 
-import { PAGE_GLOBALS, STORAGE_SCAN_RESULT_PREFIX } from '../shared/constants.js';
-import type { PageExtractResult, ScanResult } from '../shared/types.js';
+import { PAGE_GLOBALS } from '../shared/constants.js';
+import type { CapturedHeader, PageExtractResult } from '../shared/types.js';
 import { describeError } from '../shared/utils.js';
 import { HeaderCollector } from './header-collector.js';
 import { getAdyenWebReleaseInfo } from './npm-registry.js';
-import { extractVersionFromBundles, probeMainDocumentHeaders } from './payload-builder.js';
 import type {
   CollectedNetwork,
   FrameExtraction,
   NetworkCapture,
   ScanBrowser,
 } from './scan-browser.js';
+
+const HEADER_PROBE_TIMEOUT_MS = 5000;
+const SCRIPT_FETCH_TIMEOUT_MS = 2500;
+
+/** Runs a fetch that is aborted after the timeout; resolves null on any failure. */
+async function fetchWithTimeout<T>(
+  url: string,
+  init: RequestInit,
+  timeoutMs: number,
+  read: (response: Response) => T | null | Promise<T | null>
+): Promise<T | null> {
+  const controller = new AbortController();
+  const timeout = globalThis.setTimeout(() => {
+    controller.abort();
+  }, timeoutMs);
+  try {
+    return await read(await fetch(url, { ...init, signal: controller.signal }));
+  } catch {
+    return null;
+  } finally {
+    globalThis.clearTimeout(timeout);
+  }
+}
+
+async function fetchHeaders(url: string, method: 'HEAD' | 'GET'): Promise<CapturedHeader[]> {
+  const headers = await fetchWithTimeout(
+    url,
+    { method, credentials: 'include', cache: 'no-store', redirect: 'follow' },
+    HEADER_PROBE_TIMEOUT_MS,
+    (response) => [...response.headers.entries()].map(([name, value]) => ({ name, value }))
+  );
+  return headers ?? [];
+}
+
+/** Tries `HEAD` first and falls back to `GET` when `HEAD` yields no headers. */
+async function fetchDocumentHeaders(pageUrl: string): Promise<CapturedHeader[]> {
+  const headHeaders = await fetchHeaders(pageUrl, 'HEAD');
+  return headHeaders.length > 0 ? headHeaders : fetchHeaders(pageUrl, 'GET');
+}
+
+function fetchScriptText(url: string): Promise<string | null> {
+  return fetchWithTimeout(url, { credentials: 'omit' }, SCRIPT_FETCH_TIMEOUT_MS, (response) =>
+    response.ok ? response.text() : null
+  );
+}
 
 async function waitForTabComplete(tabId: number, timeoutMs: number): Promise<void> {
   const tab = await chrome.tabs.get(tabId);
@@ -88,31 +132,17 @@ function captureNetwork(tabId: number): NetworkCapture {
   };
 }
 
-function storageKey(tabId: number): string {
-  return `${STORAGE_SCAN_RESULT_PREFIX}${tabId}`;
-}
-
-/** Chrome adapter: drives a real tab through chrome.tabs, scripting, webRequest, and storage. */
+/** Chrome adapter: drives a real tab through chrome.tabs, scripting, webRequest, and fetch. */
 export const chromeScanBrowser: ScanBrowser = {
   waitForTabComplete,
   extractFrames,
   captureNetwork,
-  fetchDocumentHeaders: probeMainDocumentHeaders,
-  probeBundleVersion: extractVersionFromBundles,
+  fetchDocumentHeaders,
+  fetchScriptText,
   getReleaseInfo: getAdyenWebReleaseInfo,
-  storeResult: (result) => chrome.storage.session.set({ [storageKey(result.tabId)]: result }),
   sleep: (ms) =>
     new Promise((resolve) => {
       globalThis.setTimeout(resolve, ms);
     }),
   now: () => Date.now(),
 };
-
-/**
- * Returns the last stored scan result for a tab from session storage.
- */
-export async function getStoredResult(tabId: number): Promise<ScanResult | null> {
-  const key = storageKey(tabId);
-  const result = await chrome.storage.session.get(key);
-  return (result[key] as ScanResult | undefined) ?? null;
-}

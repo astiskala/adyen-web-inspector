@@ -145,7 +145,7 @@ test('Checkout inside a merchant iframe keeps frame config and warns about embed
 }) => {
   const result = await scanFixture(context, extensionId, 'dummy-iframe-merchant.html');
 
-  expect(result.payload.page.isInsideIframe).toBe(true);
+  expect(result.payload.page.checkoutInIframe).toBe(true);
   expect(result.payload.page.checkoutConfig?.hasSession).toBe(true);
   expect(result.payload.page.pageUrl).toContain('scenario=sessions-dropin');
   expect(requireCheck(result, 'env-not-iframe').severity).toBe('warn');

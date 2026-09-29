@@ -3,10 +3,7 @@
  * the Adyen Uplift co-badged card minimum.
  */
 
-import {
-  hasCheckoutActivity,
-  resolveIntegrationFlavor,
-} from '../../shared/implementation-attributes.js';
+import type { SdkVersionSource } from '../../shared/types.js';
 import { compareVersions, parseVersion } from '../../shared/utils.js';
 import { createRegistry } from './registry.js';
 
@@ -29,6 +26,13 @@ const STRINGS = {
     'Enable the exposeLibraryMetadata option in your AdyenCheckout configuration, or load the SDK from a versioned CDN URL. Without version information, the inspector cannot compare your SDK against the latest release and version-dependent checks will be skipped.',
   DETECTED_WARN_URL:
     'https://docs.adyen.com/online-payments/build-your-integration/#expose-library-metadata',
+  // DETECTED_INFO_TITLE stays inline (dynamic: uses the detected version)
+  DETECTED_FROM_METADATA_DETAIL: 'Read from AdyenWebMetadata exposed by the SDK.',
+  DETECTED_FROM_ANALYTICS_DETAIL: 'Read from Adyen checkout analytics data.',
+  DETECTED_FROM_SCRIPT_URL_DETAIL: 'Read from an Adyen CDN script URL.',
+  DETECTED_FROM_REQUEST_URL_DETAIL: 'Read from an Adyen CDN request URL.',
+  DETECTED_FROM_BUNDLE_DETAIL:
+    'Read from same-origin bundle source; this heuristic can match a version string that is not the running SDK.',
 
   PATCH_BEHIND_NOTICE_DETAIL:
     'Consider upgrading to pick up the latest bug fixes and security patches.',
@@ -68,6 +72,14 @@ const STRINGS = {
 
 const CATEGORY = 'version-lifecycle' as const;
 
+const VERSION_SOURCE_DETAILS: Readonly<Record<SdkVersionSource, string>> = {
+  metadata: STRINGS.DETECTED_FROM_METADATA_DETAIL,
+  analytics: STRINGS.DETECTED_FROM_ANALYTICS_DETAIL,
+  'script-url': STRINGS.DETECTED_FROM_SCRIPT_URL_DETAIL,
+  'request-url': STRINGS.DETECTED_FROM_REQUEST_URL_DETAIL,
+  bundle: STRINGS.DETECTED_FROM_BUNDLE_DETAIL,
+};
+
 interface ReleaseAge {
   readonly releasedOn: string;
   readonly stale: boolean;
@@ -98,7 +110,11 @@ export const SDK_VERSION_CHECKS = createRegistry(CATEGORY)
         STRINGS.DETECTED_WARN_URL
       );
     }
-    return info(`Detected adyen-web version: ${detected}.`);
+    const source = payload.versionInfo.source;
+    return info(
+      `Detected adyen-web version: ${detected}.`,
+      source === undefined ? undefined : VERSION_SOURCE_DETAILS[source]
+    );
   })
   .add(
     'version-latest',
@@ -171,9 +187,9 @@ export const SDK_VERSION_CHECKS = createRegistry(CATEGORY)
     },
     { noticeImpact: 'low' }
   )
-  .add('uplift-cobadged-version', (payload, { fail, pass, skip }) => {
-    const flavor = resolveIntegrationFlavor(payload).flavor;
-    if (!hasCheckoutActivity(payload) || (flavor !== 'Drop-in' && flavor !== 'Components')) {
+  .add('uplift-cobadged-version', (payload, { attributes, fail, pass, skip }) => {
+    const flavor = attributes.flavor.value;
+    if (!attributes.checkoutActivity || (flavor !== 'Drop-in' && flavor !== 'Components')) {
       return skip(
         STRINGS.UPLIFT_VERSION_SKIP_TITLE,
         STRINGS.UPLIFT_VERSION_NO_CHECKOUT_SKIP_REASON

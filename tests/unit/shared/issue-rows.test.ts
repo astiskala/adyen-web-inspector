@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { buildIssueExportRows } from '../../../src/shared/export-utils';
+import { groupIssuesByImpact, type IssueRow } from '../../../src/shared/export-report';
 import type { CheckId, CheckResult, Severity } from '../../../src/shared/types';
+
+/** Issue rows in the order every flat view lists them: impact, severity, then title. */
+function buildIssueRows(checks: readonly CheckResult[]): IssueRow[] {
+  return groupIssuesByImpact(checks).flatMap((group) => group.issues);
+}
 
 const ADYEN_WEB_BEST_PRACTICES_DOC = 'https://docs.adyen.com/online-payments/web-best-practices/';
 
@@ -19,7 +24,7 @@ function makeCheck(
 }
 
 /** Asserts that the array has at least one element and returns the first. */
-function first<T>(arr: T[]): T {
+function first<T>(arr: readonly T[]): T {
   expect(arr.length).toBeGreaterThan(0);
   const item = arr[0];
   if (item === undefined) {
@@ -28,9 +33,9 @@ function first<T>(arr: T[]): T {
   return item;
 }
 
-describe('buildIssueExportRows', () => {
+describe('issue rows', () => {
   it('returns an empty array when given no checks', () => {
-    expect(buildIssueExportRows([])).toEqual([]);
+    expect(buildIssueRows([])).toEqual([]);
   });
 
   it('filters out pass, info, and skip severities', () => {
@@ -40,7 +45,7 @@ describe('buildIssueExportRows', () => {
       makeCheck('sdk-import-method', 'skip'),
     ];
 
-    const rows = buildIssueExportRows(checks);
+    const rows = buildIssueRows(checks);
 
     expect(rows).toHaveLength(0);
   });
@@ -55,7 +60,7 @@ describe('buildIssueExportRows', () => {
       makeCheck('sdk-import-method', 'skip'),
     ];
 
-    const rows = buildIssueExportRows(checks);
+    const rows = buildIssueRows(checks);
 
     expect(rows).toHaveLength(3);
     expect(rows.map((r) => r.severity)).toEqual(['fail', 'warn', 'notice']);
@@ -70,7 +75,7 @@ describe('buildIssueExportRows', () => {
       docsUrl: 'https://docs.adyen.com/country-code',
     });
 
-    const row = first(buildIssueExportRows([check]));
+    const row = first(buildIssueRows([check]));
 
     expect(row).toEqual({
       id: 'auth-country-code',
@@ -87,7 +92,7 @@ describe('buildIssueExportRows', () => {
   });
 
   it('sets detail to null when check has no detail', () => {
-    const row = first(buildIssueExportRows([makeCheck('auth-country-code', 'fail')]));
+    const row = first(buildIssueRows([makeCheck('auth-country-code', 'fail')]));
 
     expect(row.detail).toBeNull();
   });
@@ -98,7 +103,7 @@ describe('buildIssueExportRows', () => {
       docsUrl: 'https://example.com/docs',
     });
 
-    const row = first(buildIssueExportRows([check]));
+    const row = first(buildIssueRows([check]));
 
     expect(row.docsUrl).toBe('https://example.com/docs');
   });
@@ -106,21 +111,21 @@ describe('buildIssueExportRows', () => {
   it('falls back to the Adyen best-practices docs when the check has no docsUrl', () => {
     const check = makeCheck('security-https', 'fail', { category: 'security' });
 
-    const row = first(buildIssueExportRows([check]));
+    const row = first(buildIssueRows([check]));
 
     expect(row.docsUrl).toBe(ADYEN_WEB_BEST_PRACTICES_DOC);
   });
 
   describe('impact levels', () => {
     it('maps fail severity to high impact', () => {
-      const row = first(buildIssueExportRows([makeCheck('auth-country-code', 'fail')]));
+      const row = first(buildIssueRows([makeCheck('auth-country-code', 'fail')]));
 
       expect(row.impactLevel).toBe('high');
       expect(row.impact).toBe('High impact');
     });
 
     it('maps warn severity to medium impact by default', () => {
-      const row = first(buildIssueExportRows([makeCheck('auth-locale', 'warn')]));
+      const row = first(buildIssueRows([makeCheck('auth-locale', 'warn')]));
 
       expect(row.impactLevel).toBe('medium');
       expect(row.impact).toBe('Medium impact');
@@ -129,7 +134,7 @@ describe('buildIssueExportRows', () => {
     it('maps warn severity to high impact when the check sets high impact', () => {
       const check = makeCheck('security-sri-css', 'warn', { category: 'security', impact: 'high' });
 
-      const row = first(buildIssueExportRows([check]));
+      const row = first(buildIssueRows([check]));
 
       expect(row.impactLevel).toBe('high');
       expect(row.impact).toBe('High impact');
@@ -138,7 +143,7 @@ describe('buildIssueExportRows', () => {
     it('maps configured notice severity to low impact', () => {
       const check = makeCheck('styling-css-custom-props', 'notice', { impact: 'low' });
 
-      const row = first(buildIssueExportRows([check]));
+      const row = first(buildIssueRows([check]));
 
       expect(row.impactLevel).toBe('low');
       expect(row.impact).toBe('Low impact');
@@ -149,7 +154,7 @@ describe('buildIssueExportRows', () => {
         category: 'callbacks',
       });
 
-      const row = first(buildIssueExportRows([check]));
+      const row = first(buildIssueRows([check]));
 
       expect(row.impactLevel).toBe('manual');
       expect(row.impact).toBe('Manual verification');
@@ -160,7 +165,7 @@ describe('buildIssueExportRows', () => {
         category: 'third-party',
       });
 
-      const row = first(buildIssueExportRows([check]));
+      const row = first(buildIssueRows([check]));
 
       expect(row.impactLevel).toBe('manual');
       expect(row.impact).toBe('Manual verification');
@@ -182,7 +187,7 @@ describe('buildIssueExportRows', () => {
         }),
       ];
 
-      const rows = buildIssueExportRows(checks);
+      const rows = buildIssueRows(checks);
 
       expect(rows.map((r) => r.impactLevel)).toEqual(['high', 'medium', 'low', 'manual']);
     });
@@ -198,7 +203,7 @@ describe('buildIssueExportRows', () => {
         makeCheck('auth-country-code', 'fail', { title: 'Country code fail' }),
       ];
 
-      const rows = buildIssueExportRows(checks);
+      const rows = buildIssueRows(checks);
 
       // fail (severity rank 0) before warn (severity rank 1), both 'high' impact
       expect(rows.map((r) => r.title)).toEqual(['Country code fail', 'SRI warning (high prio)']);
@@ -210,7 +215,7 @@ describe('buildIssueExportRows', () => {
         makeCheck('security-csp-img-src', 'warn', { title: 'B warning', impact: 'low' }),
       ];
 
-      const rows = buildIssueExportRows(checks);
+      const rows = buildIssueRows(checks);
 
       expect(rows.map((r) => r.title)).toEqual(['B warning', 'A notice']);
     });
@@ -222,7 +227,7 @@ describe('buildIssueExportRows', () => {
         makeCheck('auth-locale', 'warn', { title: 'Mike locale' }),
       ];
 
-      const rows = buildIssueExportRows(checks);
+      const rows = buildIssueRows(checks);
 
       expect(rows.map((r) => r.title)).toEqual(['Alpha callback', 'Mike locale', 'Zulu callback']);
     });
@@ -257,7 +262,7 @@ describe('buildIssueExportRows', () => {
         makeCheck('security-https', 'fail', { category: 'security', title: 'HTTPS fail' }),
       ];
 
-      const rows = buildIssueExportRows(checks);
+      const rows = buildIssueRows(checks);
 
       expect(rows.map((r) => r.title)).toEqual([
         // high: fails first (alphabetical)
@@ -282,7 +287,7 @@ describe('buildIssueExportRows', () => {
         remediation: 'AdyenCheckout({ countryCode: "US" })',
       });
 
-      const row = first(buildIssueExportRows([check]));
+      const row = first(buildIssueRows([check]));
 
       expect(row.remediation).toBe(
         'Update your AdyenCheckout configuration. Example: AdyenCheckout({ countryCode: "US" })'
@@ -294,13 +299,13 @@ describe('buildIssueExportRows', () => {
         remediation: 'Set countryCode in your checkout configuration.',
       });
 
-      const row = first(buildIssueExportRows([check]));
+      const row = first(buildIssueRows([check]));
 
       expect(row.remediation).toBe('Set countryCode in your checkout configuration.');
     });
 
     it('returns friendly default remediation for fail without remediation text', () => {
-      const row = first(buildIssueExportRows([makeCheck('auth-country-code', 'fail')]));
+      const row = first(buildIssueRows([makeCheck('auth-country-code', 'fail')]));
 
       expect(row.remediation).toBe(
         'Follow the linked Adyen guidance, apply the configuration change, then rerun the scan.'
@@ -310,7 +315,7 @@ describe('buildIssueExportRows', () => {
     it('returns friendly default remediation for notice without remediation text', () => {
       const check = makeCheck('styling-css-custom-props', 'notice', { impact: 'low' });
 
-      const row = first(buildIssueExportRows([check]));
+      const row = first(buildIssueRows([check]));
 
       expect(row.remediation).toBe(
         'Review this recommended improvement, apply the change, then rerun the scan.'
@@ -322,7 +327,7 @@ describe('buildIssueExportRows', () => {
         category: 'callbacks',
       });
 
-      const row = first(buildIssueExportRows([check]));
+      const row = first(buildIssueRows([check]));
 
       expect(row.remediation).toBe(
         'Review this item manually in your site config and network headers before going live.'
@@ -335,9 +340,20 @@ describe('buildIssueExportRows', () => {
         remediation: 'Content-Security-Policy: script-src https://checkoutshopper-live.adyen.com',
       });
 
-      const row = first(buildIssueExportRows([check]));
+      const row = first(buildIssueRows([check]));
 
       expect(row.remediation).toContain('Update your Content-Security-Policy header');
+    });
+
+    it('wraps markup remediation in friendly text', () => {
+      const check = makeCheck('security-sri-script', 'fail', {
+        category: 'security',
+        remediation: '<script src="adyen.js" integrity="sha384-x" crossorigin="anonymous">',
+      });
+
+      const row = first(buildIssueRows([check]));
+
+      expect(row.remediation).toContain('Update your markup to match this secure example');
     });
 
     it('wraps generic header remediation in friendly text', () => {
@@ -346,7 +362,7 @@ describe('buildIssueExportRows', () => {
         remediation: 'Referrer-Policy: strict-origin-when-cross-origin',
       });
 
-      const row = first(buildIssueExportRows([check]));
+      const row = first(buildIssueRows([check]));
 
       expect(row.remediation).toContain('Set this response header on the checkout page');
     });
@@ -357,7 +373,7 @@ describe('buildIssueExportRows', () => {
       docsUrl: 'https://example.com/specific-docs',
     });
 
-    const row = first(buildIssueExportRows([check]));
+    const row = first(buildIssueRows([check]));
 
     expect(row.docsUrl).toBe('https://example.com/specific-docs');
   });

@@ -3,7 +3,7 @@ import { V6_DEPRECATION_CHECKS } from '../../../src/background/checks/v6-depreca
 import type { ScanPayload } from '../../../src/shared/types';
 import {
   makeAdyenPayload,
-  makePageExtract,
+  makeCheckoutPage,
   makeAdyenMetadata,
   makeCheckoutConfig,
   makeScanPayload,
@@ -27,13 +27,13 @@ function makeV6AdyenPayload(
 
 function noConfigPayload(): ScanPayload {
   return makeScanPayload({
-    page: makePageExtract({ checkoutConfig: null, componentConfig: null }),
+    page: makeCheckoutPage({ checkoutConfig: null, componentConfig: null }),
   });
 }
 
 function emptyConfigPayload(): ScanPayload {
   return makeScanPayload({
-    page: makePageExtract({
+    page: makeCheckoutPage({
       checkoutConfig: {},
     }),
   });
@@ -62,7 +62,7 @@ describe('v6 Deprecation Checks', () => {
 
     it('does not pass an absence check on partial config', () => {
       const payload = makeScanPayload({
-        page: makePageExtract({ checkoutConfig: { clientKey: 'test_X' } }),
+        page: makeCheckoutPage({ checkoutConfig: { clientKey: 'test_X' } }),
         versionInfo: makeVersionInfo({ detected: '6.31.0' }),
       });
       expect(check.run(payload).severity).toBe('skip');
@@ -70,7 +70,7 @@ describe('v6 Deprecation Checks', () => {
 
     it('warns for a positively observed deprecated property even in partial config', () => {
       const payload = makeScanPayload({
-        page: makePageExtract({ checkoutConfig: { setStatusAutomatically: true } }),
+        page: makeCheckoutPage({ checkoutConfig: { setStatusAutomatically: true } }),
         versionInfo: makeVersionInfo({ detected: '6.31.0' }),
       });
       expect(check.run(payload).severity).toBe('warn');
@@ -133,7 +133,7 @@ describe('v6 Deprecation Checks', () => {
     it('detects deprecated properties in componentConfig', () => {
       const payload = makeScanPayload({
         versionInfo: makeVersionInfo({ detected: '6.31.0' }),
-        page: makePageExtract({
+        page: makeCheckoutPage({
           adyenMetadata: makeAdyenMetadata(),
           componentConfig: makeCheckoutConfig({ setStatusAutomatically: true }),
         }),
@@ -212,7 +212,7 @@ describe('v6 Deprecation Checks', () => {
     it('detects deprecated callbacks in componentConfig', () => {
       const payload = makeScanPayload({
         versionInfo: makeVersionInfo({ detected: '6.31.0' }),
-        page: makePageExtract({
+        page: makeCheckoutPage({
           adyenMetadata: makeAdyenMetadata(),
           componentConfig: makeCheckoutConfig({ onShopperDetails: 'component' }),
         }),

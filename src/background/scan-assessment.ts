@@ -1,21 +1,22 @@
 import type {
   CapturedHeader,
   CapturedRequest,
-  PageExtractResult,
+  CheckoutPage,
   ScanPayload,
   ScanResult,
 } from '../shared/types.js';
 import { calculateHealthScore } from '../shared/utils.js';
+import { readImplementationAttributes } from '../shared/implementation-attributes.js';
 import { withRequestDerivedLocale } from '../shared/scan-evidence.js';
 import { detectSdkPresence } from '../shared/sdk-presence.js';
+import { resolveVersionInfo } from '../shared/sdk-version.js';
 import { computeStandardCompliance } from '../shared/standard-compliance.js';
-import { extractVersionFromRequests, extractVersionFromScripts } from './payload-builder.js';
 import { ALL_CHECKS } from './checks/index.js';
 import type { CollectedNetwork } from './scan-browser.js';
 
 interface ScanEvidence {
   readonly tabId: number;
-  readonly page: PageExtractResult;
+  readonly page: CheckoutPage;
   readonly collected: CollectedNetwork;
   readonly mainDocumentHeaders: CapturedHeader[];
   readonly latestVersion: string | null;
@@ -43,7 +44,7 @@ function mergeCapturedRequests(
   return merged;
 }
 
-function buildFallbackRequests(pageData: PageExtractResult): CapturedRequest[] {
+function buildFallbackRequests(pageData: CheckoutPage): CapturedRequest[] {
   const requests: CapturedRequest[] = [
     { url: pageData.pageUrl, type: 'main_frame', responseHeaders: [], statusCode: 0 },
   ];
@@ -65,10 +66,13 @@ function buildFallbackRequests(pageData: PageExtractResult): CapturedRequest[] {
   return requests;
 }
 
-/** Builds the scan payload from collected evidence and runs every check against it. */
+/**
+ * Builds the scan payload from collected evidence and runs every check against
+ * it. Same-origin bundles are fetched only when no stronger version signal exists.
+ */
 export async function assessScan(
   evidence: ScanEvidence,
-  probeBundleVersion: (pageUrl: string, scriptUrls: string[]) => Promise<string | null>
+  fetchScriptText: (url: string) => Promise<string | null>
 ): Promise<ScanResult> {
   const {
     tabId,
@@ -83,14 +87,16 @@ export async function assessScan(
     collected.capturedRequests,
     buildFallbackRequests(pageData)
   );
-  const scriptUrls = pageData.scripts.map((script) => script.src);
-  const knownVersion =
-    pageData.adyenMetadata?.version ??
-    collected.analyticsData?.version ??
-    extractVersionFromScripts(scriptUrls) ??
-    extractVersionFromRequests(capturedRequests);
-  const detectedVersion = knownVersion ?? (await probeBundleVersion(pageData.pageUrl, scriptUrls));
-  const detectedReleasedAt = detectedVersion === null ? undefined : releaseDates?.[detectedVersion];
+  const versionInfo = await resolveVersionInfo(
+    {
+      page: pageData,
+      analyticsData: collected.analyticsData,
+      capturedRequests,
+      latest: latestVersion,
+      ...(releaseDates === undefined ? {} : { releaseDates }),
+    },
+    fetchScriptText
+  );
 
   const payload: ScanPayload = {
     tabId,
@@ -103,14 +109,11 @@ export async function assessScan(
         (request) => request.type === 'main_frame' && request.statusCode > 0
       ),
     capturedRequests,
-    versionInfo: {
-      detected: detectedVersion,
-      latest: latestVersion,
-      ...(detectedReleasedAt === undefined ? {} : { detectedReleasedAt }),
-    },
+    versionInfo,
     analyticsData: collected.analyticsData,
     scannedAt,
   };
+  const attributes = readImplementationAttributes(payload);
   const checks = ALL_CHECKS.map((check) => check.run(payload));
 
   return {
@@ -118,9 +121,10 @@ export async function assessScan(
     pageUrl: payload.pageUrl,
     scannedAt: payload.scannedAt,
     sdkPresence: detectSdkPresence(payload.page),
+    attributes,
     checks,
     health: calculateHealthScore(checks),
-    standardCompliance: computeStandardCompliance(payload),
+    standardCompliance: computeStandardCompliance(versionInfo.detected, attributes),
     payload,
   };
 }

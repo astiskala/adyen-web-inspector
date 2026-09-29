@@ -3,8 +3,7 @@
  * referrer policy, and API key exposure.
  */
 
-import type { ScanPayload } from '../../shared/types.js';
-import { resolveEnvironment } from '../../shared/implementation-attributes.js';
+import type { ImplementationAttributes } from '../../shared/types.js';
 import { getHeader, isAdyenCheckoutResource } from '../../shared/utils.js';
 import { SKIP_REASONS } from './constants.js';
 import { createRegistry } from './registry.js';
@@ -115,14 +114,14 @@ function hasMissingSriAttributes(resource: SriAttributableResource): boolean {
   );
 }
 
-function isLiveEnvironment(payload: ScanPayload): boolean {
-  const environment = resolveEnvironment(payload).env;
+function isLiveEnvironment(attributes: ImplementationAttributes): boolean {
+  const environment = attributes.environment.value;
   return environment === 'live' || environment === 'live-in';
 }
 
 export const SECURITY_CHECKS = createRegistry(CATEGORY)
-  .add('security-https', (payload, { pass, fail, skip }) => {
-    if (!isLiveEnvironment(payload)) {
+  .add('security-https', (payload, { attributes, pass, fail, skip }) => {
+    if (!isLiveEnvironment(attributes)) {
       return skip(STRINGS.HTTPS_SKIP_TITLE, STRINGS.HTTPS_SKIP_REASON);
     }
 
@@ -244,8 +243,8 @@ export const SECURITY_CHECKS = createRegistry(CATEGORY)
   )
   .add(
     'security-hsts',
-    (payload, { pass, notice, skip }) => {
-      if (!isLiveEnvironment(payload)) {
+    (payload, { attributes, pass, notice, skip }) => {
+      if (!isLiveEnvironment(attributes)) {
         return skip(STRINGS.HSTS_SKIP_TITLE, STRINGS.HSTS_SKIP_REASON);
       }
       if (!payload.mainDocumentHeadersAvailable) {

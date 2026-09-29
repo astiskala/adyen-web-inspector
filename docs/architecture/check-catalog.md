@@ -1,13 +1,13 @@
 # Check Catalog
 
-Last validated: 2026-09-28
+Last validated: 2026-09-29
 
 This catalog documents the checks registered in:
 
 - `src/background/checks/index.ts`
 - `src/shared/types.ts` (`CheckId`, `CheckCategory`)
 
-Each check implementation owns its outcomes and exceptional impact policy. Checks read checkout configuration through `readCheckoutField()` in `src/shared/scan-evidence.ts`, which reports each field as present, absent, or unobserved. A field is absent only when some inspected frame directly captured AdyenCheckout options (`checkoutConfigComplete`) and no source shows the field. CSP checks read the enforced policy through `readPagePolicy()` in `src/background/checks/page-policy.ts`.
+Each check implementation owns its outcomes and exceptional impact policy. Checks read checkout configuration through `readCheckoutField()` in `src/shared/scan-evidence.ts`, which reports each field as present, absent, or unobserved. A field is absent only when some inspected frame directly captured AdyenCheckout options (`checkoutConfigComplete`) and no source shows the field. CSP checks read the enforced policy through `readPagePolicy()` in `src/background/checks/page-policy.ts`. Checks read implementation attributes (integration flavor and flow, environment, region, import method, and checkout activity) from the runner context; the Scan derives them once per scan payload and stores the same record on the scan result. Callback checks read captured callback source through `src/background/checks/callback-source.ts`.
 
 ## Totals
 
@@ -79,7 +79,7 @@ Current manual-review notice checks:
 | `sdk-identity`      | `sdk-bundle-type`                          | Assess bundle type (`auto` vs optimised/tree-shakable) for non-CDN integrations; `auto` is a low-impact notice.                                  | `pass`, `notice`, `skip`                 |
 | `sdk-identity`      | `sdk-analytics`                            | Verify checkout analytics is not explicitly disabled (`analytics.enabled !== false`).                                                            | `pass`, `warn`, `skip`                   |
 | `sdk-identity`      | `sdk-multi-init`                           | Warn if `AdyenCheckout` is initialised multiple times.                                                                                           | `pass`, `warn`, `skip`                   |
-| `version-lifecycle` | `version-detected`                         | Verify the inspector can determine the running `adyen-web` version.                                                                              | `info`, `warn`                           |
+| `version-lifecycle` | `version-detected`                         | Verify the inspector can determine the running `adyen-web` version, and report which signal established it.                                      | `info`, `warn`                           |
 | `version-lifecycle` | `version-latest`                           | Compare detected version with latest npm version; warn on releases older than 6 months, low-impact notice for patch or recent minor drift.       | `pass`, `notice`, `warn`, `skip`         |
 | `version-lifecycle` | `uplift-cobadged-version`                  | Verify the Adyen Uplift v6.16.0 minimum for an active Drop-in/Components checkout; otherwise skip.                                               | `pass`, `fail`, `skip`                   |
 | `environment`       | `env-cdn-mismatch`                         | Ensure CDN asset environment matches configured environment.                                                                                     | `pass`, `fail`, `skip`                   |
@@ -136,7 +136,7 @@ Current manual-review notice checks:
 
 When adding, removing, or renaming a check:
 
-1. Update the check implementation in `src/background/checks/`. Read checkout configuration with `readCheckoutField()` and CSP with `readPagePolicy()`; ESLint rejects direct reads of the raw config slots and CSP primitives.
+1. Update the check implementation in `src/background/checks/`. Read checkout configuration with `readCheckoutField()`, CSP with `readPagePolicy()`, and implementation attributes from the runner context; ESLint rejects direct reads of the raw config slots and CSP primitives.
 2. Update `src/shared/types.ts` (`CheckId` and, if needed, `CheckCategory`).
 3. Ensure `src/background/checks/index.ts` exports the check through `ALL_CHECKS`.
 4. Add or update tests in `tests/unit/checks/`.

@@ -3,6 +3,7 @@ import { act } from 'preact/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Panel } from '../../../src/devtools/panel/Panel';
 import { Popup } from '../../../src/popup/PopupApp';
+import type { CheckoutActivity, TabSnapshot } from '../../../src/shared/messages';
 import type { ScanResult } from '../../../src/shared/types';
 import { makeScanResult } from '../../fixtures/makeScanPayload';
 
@@ -14,13 +15,16 @@ interface Message {
 let host: HTMLDivElement;
 let listener: ((message: Message) => void) | undefined;
 let sendMessage: ReturnType<typeof vi.fn>;
-let getStorage: ReturnType<typeof vi.fn>;
 
 function makeResult(): ScanResult {
   return makeScanResult({
     tabId: 3,
     health: { score: 100, passing: 1, failing: 0, warnings: 0, total: 1, tier: 'excellent' },
   });
+}
+
+function snapshot(result: ScanResult | null, checkoutActivity?: CheckoutActivity): TabSnapshot {
+  return { result, checkoutActivity: checkoutActivity ?? { detected: false } };
 }
 
 async function clickButton(label: string): Promise<void> {
@@ -48,7 +52,6 @@ beforeEach(() => {
   document.body.append(host);
   listener = undefined;
   sendMessage = vi.fn().mockResolvedValue(null);
-  getStorage = vi.fn().mockResolvedValue({});
   vi.stubGlobal('chrome', {
     tabs: { query: vi.fn().mockResolvedValue([{ id: 3 }]) },
     devtools: { inspectedWindow: { tabId: 3 } },
@@ -61,7 +64,6 @@ beforeEach(() => {
         removeListener: vi.fn(),
       },
     },
-    storage: { session: { get: getStorage } },
   });
 });
 
@@ -73,13 +75,13 @@ afterEach(() => {
 
 describe('scan views', () => {
   it('keeps the popup version gate and shows a completed scan', async () => {
-    getStorage.mockResolvedValue({ checkout_activity_3: true, adyen_version_3: '5.67.0' });
+    sendMessage.mockResolvedValue(snapshot(null, { detected: true, version: '5.67.0' }));
     await mount(Popup);
     await vi.waitFor(() => {
       expect(host.textContent).toContain('Adyen Web Version Outdated');
     });
 
-    sendMessage.mockResolvedValue(makeResult());
+    sendMessage.mockResolvedValue(snapshot(makeResult()));
     await act(async () => {
       listener?.({ type: 'SCAN_COMPLETE', tabId: 3 });
       await Promise.resolve();
@@ -91,7 +93,7 @@ describe('scan views', () => {
   });
 
   it('offers a scan when the detector saw checkout activity on a supported version', async () => {
-    getStorage.mockResolvedValue({ checkout_activity_3: true, adyen_version_3: '6.31.0' });
+    sendMessage.mockResolvedValue(snapshot(null, { detected: true, version: '6.31.0' }));
     await mount(Popup);
 
     await vi.waitFor(() => {
@@ -125,22 +127,29 @@ describe('scan views', () => {
   });
 
   it('groups popup failures and warnings with the shared impact labels', async () => {
-    getStorage.mockResolvedValue({ checkout_activity_3: true });
     sendMessage.mockResolvedValue(
-      makeScanResult({
-        tabId: 3,
-        checks: [
-          { id: 'auth-country-code', category: 'auth', severity: 'fail', title: 'Missing country' },
-          {
-            id: 'risk-df-iframe',
-            category: 'risk',
-            severity: 'warn',
-            impact: 'high',
-            title: 'No fingerprint',
-          },
-          { id: 'auth-locale', category: 'auth', severity: 'warn', title: 'Locale missing' },
-        ],
-      })
+      snapshot(
+        makeScanResult({
+          tabId: 3,
+          checks: [
+            {
+              id: 'auth-country-code',
+              category: 'auth',
+              severity: 'fail',
+              title: 'Missing country',
+            },
+            {
+              id: 'risk-df-iframe',
+              category: 'risk',
+              severity: 'warn',
+              impact: 'high',
+              title: 'No fingerprint',
+            },
+            { id: 'auth-locale', category: 'auth', severity: 'warn', title: 'Locale missing' },
+          ],
+        }),
+        { detected: true }
+      )
     );
     await mount(Popup);
 
@@ -153,9 +162,32 @@ describe('scan views', () => {
     expect(headers).toEqual(['High impact1', 'High impact1', 'Medium impact1']);
   });
 
+  it('shows the same resolved remediation and documentation in the popup and DevTools', async () => {
+    const withoutGuidance = makeScanResult({
+      tabId: 3,
+      checks: [
+        { id: 'auth-country-code', category: 'auth', severity: 'fail', title: 'No country' },
+      ],
+    });
+    const remediation =
+      'Follow the linked Adyen guidance, apply the configuration change, then rerun the scan.';
+    const docsUrl = 'https://docs.adyen.com/online-payments/web-best-practices/';
+    sendMessage.mockResolvedValue(snapshot(withoutGuidance, { detected: true }));
+
+    for (const View of [Popup, Panel]) {
+      await mount(View);
+      if (View === Panel) await clickButton('Best Practices');
+      await vi.waitFor(() => {
+        expect(host.textContent).toContain(remediation);
+      });
+      expect([...host.querySelectorAll('a')].map((link) => link.href)).toContain(docsUrl);
+      render(null, host);
+    }
+  });
+
   it('uses the scan verdict for SDK presence in the DevTools panel', async () => {
     sendMessage.mockResolvedValue(
-      makeScanResult({ tabId: 3, sdkPresence: { detected: false, source: 'none' } })
+      snapshot(makeScanResult({ tabId: 3, sdkPresence: { detected: false, source: 'none' } }))
     );
     await mount(Panel);
 
@@ -167,27 +199,29 @@ describe('scan views', () => {
 
   it('renders every DevTools panel tab for a detected result', async () => {
     sendMessage.mockResolvedValue(
-      makeScanResult({
-        tabId: 3,
-        checks: [
-          {
-            id: 'auth-locale',
-            category: 'auth',
-            severity: 'warn',
-            title: 'Locale missing',
-            detail: 'No locale was configured.',
-            remediation: 'Set locale.',
-            docsUrl: 'https://docs.adyen.com/online-payments/build-your-integration/',
-          },
-          { id: 'security-https', category: 'security', severity: 'pass', title: 'HTTPS in use' },
-          {
-            id: '3p-no-sri',
-            category: 'third-party',
-            severity: 'skip',
-            title: 'Third-party SRI — No third-party scripts.',
-          },
-        ],
-      })
+      snapshot(
+        makeScanResult({
+          tabId: 3,
+          checks: [
+            {
+              id: 'auth-locale',
+              category: 'auth',
+              severity: 'warn',
+              title: 'Locale missing',
+              detail: 'No locale was configured.',
+              remediation: 'Set locale.',
+              docsUrl: 'https://docs.adyen.com/online-payments/build-your-integration/',
+            },
+            { id: 'security-https', category: 'security', severity: 'pass', title: 'HTTPS in use' },
+            {
+              id: '3p-no-sri',
+              category: 'third-party',
+              severity: 'skip',
+              title: 'Third-party SRI — No third-party scripts.',
+            },
+          ],
+        })
+      )
     );
     await mount(Panel);
     await vi.waitFor(() => {

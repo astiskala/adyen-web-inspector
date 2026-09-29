@@ -1,11 +1,10 @@
 /**
  * Checkout configuration evidence — answers what the scan observed about each
- * checkout option. Owns source precedence, frame merging, and the rule that
- * only directly captured AdyenCheckout options prove a field was not set.
+ * checkout option. Owns source precedence and the rule that only directly
+ * captured AdyenCheckout options prove a field was not set.
  */
 
-import { mergeCheckoutConfigs } from './checkout-config-schema.js';
-import type { CapturedRequest, CheckoutConfig, PageExtractResult, ScanPayload } from './types.js';
+import type { CapturedRequest, CheckoutConfig, CheckoutPage, ScanPayload } from './types.js';
 import { extractLocaleFromUrl } from './utils.js';
 
 /** Where a Checkout configuration value was observed, in precedence order. */
@@ -33,7 +32,7 @@ interface ReadCheckoutFieldOptions {
   readonly includeInferred?: boolean;
 }
 
-type ConfigSlots = Pick<PageExtractResult, 'checkoutConfig' | 'componentConfig' | 'inferredConfig'>;
+type ConfigSlots = Pick<CheckoutPage, 'checkoutConfig' | 'componentConfig' | 'inferredConfig'>;
 
 const SLOT_BY_SOURCE = {
   captured: 'checkoutConfig',
@@ -59,13 +58,13 @@ export function listCheckoutFieldObservations<K extends ConfigKey>(
 }
 
 /** Returns the sources that produced any Checkout configuration. */
-export function checkoutConfigSources(payload: ScanPayload): ReadonlySet<ConfigSource> {
-  return new Set(SOURCES.filter((source) => payload.page[SLOT_BY_SOURCE[source]] !== null));
+export function checkoutConfigSources(page: ConfigSlots): ReadonlySet<ConfigSource> {
+  return new Set(SOURCES.filter((source) => page[SLOT_BY_SOURCE[source]] !== null));
 }
 
 /** Returns true when checkout or component configuration was captured, not merely inferred. */
-export function hasCapturedCheckoutConfig(payload: ScanPayload): boolean {
-  const sources = checkoutConfigSources(payload);
+export function hasCapturedCheckoutConfig(page: ConfigSlots): boolean {
+  const sources = checkoutConfigSources(page);
   return sources.has('captured') || sources.has('component');
 }
 
@@ -85,15 +84,15 @@ export function readCheckoutField<K extends ConfigKey>(
   }
   return {
     state: 'unobserved',
-    reason: hasCapturedCheckoutConfig(payload) ? 'partial-config' : 'no-config',
+    reason: hasCapturedCheckoutConfig(payload.page) ? 'partial-config' : 'no-config',
   };
 }
 
 /** Infers a locale from Adyen translation requests when no configuration shows one. */
 export function withRequestDerivedLocale(
-  page: PageExtractResult,
+  page: CheckoutPage,
   requests: readonly CapturedRequest[]
-): PageExtractResult {
+): CheckoutPage {
   const observed = [page.checkoutConfig, page.componentConfig, page.inferredConfig].some((config) =>
     isObserved(config?.locale)
   );
@@ -105,31 +104,4 @@ export function withRequestDerivedLocale(
   return locale === undefined
     ? page
     : { ...page, inferredConfig: { ...page.inferredConfig, locale } };
-}
-
-function mergeSlot(
-  frames: readonly PageExtractResult[],
-  slot: keyof ConfigSlots
-): CheckoutConfig | null {
-  return mergeCheckoutConfigs(
-    frames.map((frame) => frame[slot]).filter((config) => config !== null)
-  );
-}
-
-/**
- * Merges configuration observed across frames. Earlier frames win per field;
- * absence is provable when any frame captured AdyenCheckout options directly.
- */
-export function mergeFrameCheckoutConfig(
-  frames: readonly PageExtractResult[]
-): ConfigSlots & Pick<PageExtractResult, 'checkoutConfigComplete'> {
-  const complete = frames.some(
-    (frame) => frame.checkoutConfigComplete === true && frame.checkoutConfig !== null
-  );
-  return {
-    checkoutConfig: mergeSlot(frames, 'checkoutConfig'),
-    componentConfig: mergeSlot(frames, 'componentConfig'),
-    inferredConfig: mergeSlot(frames, 'inferredConfig'),
-    ...(complete ? { checkoutConfigComplete: true } : {}),
-  };
 }

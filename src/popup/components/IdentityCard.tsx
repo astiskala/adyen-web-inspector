@@ -1,9 +1,7 @@
 import type { JSX } from 'preact';
 import type { ScanResult } from '../../shared/types.js';
-import {
-  buildImplementationAttributes,
-  INTEGRATION_FLOW_LABELS,
-} from '../../shared/implementation-attributes.js';
+import { summarizeImplementation } from '../../shared/export-report.js';
+import { INTEGRATION_FLOW_LABELS } from '../../shared/constants.js';
 import styles from './IdentityCard.module.css';
 
 interface Props {
@@ -22,7 +20,7 @@ function envBadgeClass(env: string): string {
  * Shows derived implementation attributes for the current checkout page.
  */
 export function IdentityCard({ result }: Props): JSX.Element {
-  const attrs = buildImplementationAttributes(result.payload);
+  const attrs = summarizeImplementation(result);
   const env = attrs.environment;
   const showRegion = attrs.region !== null;
 

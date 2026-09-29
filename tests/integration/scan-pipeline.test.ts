@@ -17,7 +17,7 @@ import {
   makeHeader,
   makeRequest,
   makeScanPayload,
-  makePageExtract,
+  makeCheckoutPage,
   makeAdyenMetadata,
   makeCheckoutConfig,
   makeVersionInfo,
@@ -41,7 +41,7 @@ async function runPipeline(payload: ScanPayload): Promise<{
       latestVersion: payload.versionInfo.latest,
       scannedAt: payload.scannedAt,
     },
-    async () => payload.versionInfo.detected
+    async () => null
   );
   return { checks: result.checks, health: result.health, compliance: result.standardCompliance };
 }
@@ -105,7 +105,7 @@ function makeGoodPayload(): ScanPayload {
 
   return makeScanPayload({
     pageUrl: 'https://merchant.com/checkout',
-    page: makePageExtract({
+    page: makeCheckoutPage({
       adyenMetadata: makeAdyenMetadata({
         version: '6.30.0',
         bundleType: 'esm',
@@ -187,7 +187,7 @@ describe('Misconfigured integration', () => {
       { environment: 'live', clientKey: 'live_ABCDEFGHIJK' },
       {
         pageUrl: 'http://insecure.example.com',
-        page: makePageExtract({
+        page: makeCheckoutPage({
           pageUrl: 'http://insecure.example.com',
           pageProtocol: 'http:',
           adyenMetadata: makeAdyenMetadata(),
@@ -263,7 +263,7 @@ describe('Health score tiers from check results', () => {
   it('returns critical tier when any check fails', async () => {
     const payload = makeScanPayload({
       pageUrl: 'http://insecure.test',
-      page: makePageExtract({
+      page: makeCheckoutPage({
         pageUrl: 'http://insecure.test',
         pageProtocol: 'http:',
         adyenMetadata: makeAdyenMetadata(),
@@ -305,7 +305,7 @@ describe('Version detection cascade', () => {
 
   it('reports missing version when none detected', async () => {
     const payload = makeScanPayload({
-      page: makePageExtract({ adyenMetadata: { bundleType: 'esm', variants: ['dropin'] } }),
+      page: makeCheckoutPage({ adyenMetadata: { bundleType: 'esm', variants: ['dropin'] } }),
       versionInfo: makeVersionInfo({ detected: null }),
     });
 

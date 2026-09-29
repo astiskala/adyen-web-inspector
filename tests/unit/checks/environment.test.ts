@@ -3,7 +3,7 @@ import { ENVIRONMENT_CHECKS } from '../../../src/background/checks/environment';
 import {
   makeScanPayload,
   makeAdyenPayload,
-  makePageExtract,
+  makeCheckoutPage,
   makeRequest,
   makeCheckoutConfig,
 } from '../../fixtures/makeScanPayload';
@@ -52,7 +52,7 @@ describe('env-cdn-mismatch', () => {
 
   it('skips when CDN env is detected but no configured environment', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({ checkoutConfig: null }),
+      page: makeCheckoutPage({ checkoutConfig: null }),
       capturedRequests: [
         makeRequest('https://checkoutshopper-live.cdn.adyen.com/checkoutshopper/sdk.js'),
       ],
@@ -177,14 +177,14 @@ describe('env-key-mismatch', () => {
 describe('env-not-iframe', () => {
   it('passes when page is not inside iframe', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({ isInsideIframe: false }),
+      page: makeCheckoutPage({ checkoutInIframe: false }),
     });
     expect(envNotIframe.run(payload).severity).toBe('pass');
   });
 
   it('warns when page is inside iframe with actionable redirect guidance', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({ isInsideIframe: true }),
+      page: makeCheckoutPage({ checkoutInIframe: true }),
     });
     const result = envNotIframe.run(payload);
     expect(result.severity).toBe('warn');
@@ -198,8 +198,8 @@ describe('env-not-iframe', () => {
 
   it('requests manual review when redirectFromTopWhenInIframe is enabled', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
-        isInsideIframe: true,
+      page: makeCheckoutPage({
+        checkoutInIframe: true,
         checkoutConfig: makeCheckoutConfig({ redirectFromTopWhenInIframe: true }),
       }),
     });
@@ -210,8 +210,8 @@ describe('env-not-iframe', () => {
 
   it('still warns when redirectFromTopWhenInIframe is explicitly disabled', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
-        isInsideIframe: true,
+      page: makeCheckoutPage({
+        checkoutInIframe: true,
         checkoutConfig: makeCheckoutConfig({ redirectFromTopWhenInIframe: false }),
       }),
     });
@@ -264,7 +264,7 @@ describe('env-region-mismatch', () => {
 describe('componentConfig fallback', () => {
   it('env-key-mismatch resolves clientKey from componentConfig', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
+      page: makeCheckoutPage({
         componentConfig: makeCheckoutConfig({ clientKey: 'test_COMPONENT' }),
       }),
       capturedRequests: [makeRequest('https://checkout-test.adyen.com/v71/sessions')],

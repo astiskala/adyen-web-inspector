@@ -8,7 +8,6 @@ import {
   ADYEN_WEB_TRANSLATION_LOCALES,
   type AdyenWebEnvironmentOrigins,
 } from '../../shared/constants.js';
-import { resolveEnvironment } from '../../shared/implementation-attributes.js';
 import { readCheckoutField } from '../../shared/scan-evidence.js';
 import { getHeader, isAdyenCheckoutResource } from '../../shared/utils.js';
 import { COMMON_DETAILS, SKIP_REASONS } from './constants.js';
@@ -125,7 +124,10 @@ function isAdyenWebEnvironment(name: string): name is keyof typeof ADYEN_WEB_ENV
  * Mirrors Adyen Web v6 environment URL resolution: names are lowercased and
  * unknown environment names fall back to the default live endpoints.
  */
-function resolveAdyenWebUrls(payload: ScanPayload): AdyenWebEnvironmentOrigins | null {
+function resolveAdyenWebUrls(
+  payload: ScanPayload,
+  { attributes }: CheckContext
+): AdyenWebEnvironmentOrigins | null {
   const environment = readCheckoutField(payload, 'environment');
   if (environment.state === 'present') {
     const name = environment.value.toLowerCase();
@@ -133,7 +135,7 @@ function resolveAdyenWebUrls(payload: ScanPayload): AdyenWebEnvironmentOrigins |
       ? ADYEN_WEB_ENVIRONMENT_URLS[name]
       : ADYEN_WEB_ENVIRONMENT_URLS.live;
   }
-  if (resolveEnvironment(payload).env === 'test') {
+  if (attributes.environment.value === 'test') {
     return ADYEN_WEB_ENVIRONMENT_URLS.test;
   }
   return null;
@@ -249,7 +251,7 @@ export const CSP_CHECKS = createRegistry(CATEGORY)
     if (policy.status !== 'enforced') {
       return skipUnenforced(policy, STRINGS.CONNECT_SRC_SKIP_TITLE, context);
     }
-    const urls = resolveAdyenWebUrls(payload);
+    const urls = resolveAdyenWebUrls(payload, context);
     if (urls === null) {
       return skip(STRINGS.CONNECT_SRC_SKIP_TITLE, STRINGS.NO_ENV_SKIP_REASON);
     }
@@ -279,7 +281,7 @@ export const CSP_CHECKS = createRegistry(CATEGORY)
       if (policy.status !== 'enforced') {
         return skipUnenforced(policy, STRINGS.IMG_SRC_SKIP_TITLE, context);
       }
-      const urls = resolveAdyenWebUrls(payload);
+      const urls = resolveAdyenWebUrls(payload, context);
       if (urls === null) {
         return skip(STRINGS.IMG_SRC_SKIP_TITLE, STRINGS.NO_ENV_SKIP_REASON);
       }

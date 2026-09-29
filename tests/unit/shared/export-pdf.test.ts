@@ -1,36 +1,12 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import {
-  buildPrintableHtml,
-  exportPdf,
-  getPdfReportStorageKey,
-  PDF_REPORT_TOKEN_PARAM,
-} from '../../../src/shared/export-pdf';
+import { describe, expect, it } from 'vitest';
+import { buildPrintableHtml } from '../../../src/shared/export-pdf';
 import type { PrintableReportMetadata } from '../../../src/shared/export-pdf';
 import type { CheckResult, ScanResult } from '../../../src/shared/types';
-import { makePageExtract, makeScanPayload } from '../../fixtures/makeScanPayload';
+import { makeCheckoutPage, makeScanPayload, makeScanResult } from '../../fixtures/makeScanPayload';
 
-interface MockChrome {
-  runtime: {
-    getURL: ReturnType<typeof vi.fn>;
-  };
-  storage: {
-    session: {
-      set: ReturnType<typeof vi.fn>;
-      remove: ReturnType<typeof vi.fn>;
-    };
-  };
-  tabs: {
-    create: ReturnType<typeof vi.fn>;
-  };
-}
-
-function makeResult(): ScanResult {
-  return {
-    tabId: 1,
-    pageUrl: 'https://example.com/checkout',
+function makeResult(overrides: Partial<ScanResult> = {}): ScanResult {
+  return makeScanResult({
     scannedAt: '2026-03-18T00:00:00.000Z',
-    sdkPresence: { detected: true, source: 'metadata' },
-    checks: [],
     health: {
       score: 100,
       passing: 1,
@@ -40,8 +16,8 @@ function makeResult(): ScanResult {
       tier: 'excellent',
     },
     standardCompliance: { compliant: true, reasons: [] },
-    payload: makeScanPayload(),
-  };
+    ...overrides,
+  });
 }
 
 function makeCheck(overrides: Partial<CheckResult>): CheckResult {
@@ -55,62 +31,6 @@ function makeCheck(overrides: Partial<CheckResult>): CheckResult {
   };
 }
 
-function stubChrome(mockChrome: MockChrome): void {
-  vi.stubGlobal('chrome', mockChrome);
-}
-
-function makeChromeMock(): MockChrome {
-  return {
-    runtime: {
-      getURL: vi.fn((path: string) => `chrome-extension://test-id/${path}`),
-    },
-    storage: {
-      session: {
-        set: vi.fn().mockResolvedValue(undefined),
-        remove: vi.fn().mockResolvedValue(undefined),
-      },
-    },
-    tabs: {
-      create: vi.fn().mockResolvedValue({ id: 99 }),
-    },
-  };
-}
-
-afterEach(() => {
-  vi.restoreAllMocks();
-  vi.unstubAllGlobals();
-});
-
-describe('PDF export handoff', () => {
-  const token = '00000000-0000-0000-0000-000000000000';
-
-  it('stores the result and opens the report page in a new tab', async () => {
-    const chromeMock = makeChromeMock();
-    stubChrome(chromeMock);
-    vi.spyOn(globalThis.crypto, 'randomUUID').mockReturnValue(token);
-
-    const result = makeResult();
-    await exportPdf(result);
-
-    expect(chromeMock.storage.session.set).toHaveBeenCalledWith({
-      [getPdfReportStorageKey(token)]: result,
-    });
-    expect(chromeMock.tabs.create).toHaveBeenCalledWith({
-      url: `chrome-extension://test-id/report/report.html?${PDF_REPORT_TOKEN_PARAM}=${token}`,
-    });
-  });
-
-  it('cleans up stored state when the report tab cannot be opened', async () => {
-    const chromeMock = makeChromeMock();
-    chromeMock.tabs.create.mockRejectedValue(new Error('tab creation failed'));
-    stubChrome(chromeMock);
-    vi.spyOn(globalThis.crypto, 'randomUUID').mockReturnValue(token);
-
-    await expect(exportPdf(makeResult())).rejects.toThrow('tab creation failed');
-    expect(chromeMock.storage.session.remove).toHaveBeenCalledWith(getPdfReportStorageKey(token));
-  });
-});
-
 describe('buildPrintableHtml', () => {
   const metadata: PrintableReportMetadata = {
     extensionVersion: '1.2.3',
@@ -118,8 +38,7 @@ describe('buildPrintableHtml', () => {
   };
 
   it('renders issues and successful checks in separate sections', () => {
-    const result: ScanResult = {
-      ...makeResult(),
+    const result = makeResult({
       pageUrl: 'https://example.com/checkout?cart=123',
       checks: [
         makeCheck({
@@ -155,7 +74,7 @@ describe('buildPrintableHtml', () => {
           detail: 'No third-party scripts detected.',
         }),
       ],
-    };
+    });
 
     const html = buildPrintableHtml(result, metadata);
     const doc = new DOMParser().parseFromString(html, 'text/html');
@@ -180,8 +99,7 @@ describe('buildPrintableHtml', () => {
   });
 
   it('renders unmet criteria, captured traffic, extracted config and empty sections', () => {
-    const result: ScanResult = {
-      ...makeResult(),
+    const result = makeResult({
       health: { score: 0, passing: 0, failing: 1, warnings: 0, total: 1, tier: 'critical' },
       standardCompliance: { compliant: false, reasons: ['Not using Drop-in.'] },
       checks: [
@@ -202,12 +120,12 @@ describe('buildPrintableHtml', () => {
             statusCode: 0,
           },
         ],
-        page: makePageExtract({
+        page: makeCheckoutPage({
           checkoutConfig: { clientKey: 'live_CLIENTKEY', environment: 'live' },
           componentConfig: { countryCode: 'NL' },
         }),
       }),
-    };
+    });
 
     const doc = new DOMParser().parseFromString(buildPrintableHtml(result, metadata), 'text/html');
     const text = doc.body.textContent;

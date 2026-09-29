@@ -9,6 +9,7 @@ import {
   MSG_CHECKOUT_ACTIVITY_DETECTED,
   type ContentToBswMessage,
 } from '../shared/messages.js';
+import { findSdkVersionInUrls } from '../shared/sdk-version.js';
 
 interface CheckoutActivity {
   found: boolean;
@@ -19,27 +20,10 @@ const DETECTION_DEBOUNCE_MS = 200;
 let pendingTimer: ReturnType<typeof globalThis.setTimeout> | undefined;
 let lastSentState: string | null = null;
 
-/** Try to extract the SDK version from a CDN <script> tag (supplementary data). */
+/** Reads the SDK version from Adyen checkoutshopper script tags (supplementary data). */
 function extractVersionFromScripts(): string | undefined {
-  // Modern CDN pattern: checkoutshopper-sdk/X.Y.Z
-  const cdnScript = document.querySelector<HTMLScriptElement>('script[src*="checkoutshopper-sdk"]');
-  if (cdnScript) {
-    const match = /checkoutshopper-sdk[./](\d+\.\d+\.\d+)/.exec(cdnScript.src);
-    const version = match?.[1];
-    if (version !== undefined && version !== '') return version;
-  }
-
-  // Legacy CDN pattern (v5 and earlier): /checkoutshopper/sdk/X.Y.Z/
-  const legacyScript = document.querySelector<HTMLScriptElement>(
-    'script[src*="/checkoutshopper/sdk/"]'
-  );
-  if (legacyScript) {
-    const match = /\/sdk\/(\d+\.\d+\.\d+)\//.exec(legacyScript.src);
-    const version = match?.[1];
-    if (version !== undefined && version !== '') return version;
-  }
-
-  return undefined;
+  const scripts = document.querySelectorAll<HTMLScriptElement>('script[src*="checkoutshopper"]');
+  return findSdkVersionInUrls([...scripts].map((script) => script.src)) ?? undefined;
 }
 
 function detectCheckoutActivity(): CheckoutActivity {

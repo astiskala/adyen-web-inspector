@@ -3,15 +3,14 @@ import {
   checkoutConfigSources,
   hasCapturedCheckoutConfig,
   listCheckoutFieldObservations,
-  mergeFrameCheckoutConfig,
   readCheckoutField,
   withRequestDerivedLocale,
 } from '../../../src/shared/scan-evidence';
-import type { PageExtractResult } from '../../../src/shared/types';
-import { makePageExtract, makeRequest, makeScanPayload } from '../../fixtures/makeScanPayload';
+import type { CheckoutPage } from '../../../src/shared/types';
+import { makeCheckoutPage, makeRequest, makeScanPayload } from '../../fixtures/makeScanPayload';
 
-function payloadWith(page: Partial<PageExtractResult>): ReturnType<typeof makeScanPayload> {
-  return makeScanPayload({ page: makePageExtract(page) });
+function payloadWith(page: Partial<CheckoutPage>): ReturnType<typeof makeScanPayload> {
+  return makeScanPayload({ page: makeCheckoutPage(page) });
 }
 
 describe('readCheckoutField', () => {
@@ -94,9 +93,9 @@ describe('checkout config sources', () => {
     const inferredOnly = payloadWith({ inferredConfig: { countryCode: 'NL' } });
     const componentOnly = payloadWith({ componentConfig: {} });
 
-    expect([...checkoutConfigSources(inferredOnly)]).toEqual(['inferred']);
-    expect(hasCapturedCheckoutConfig(inferredOnly)).toBe(false);
-    expect(hasCapturedCheckoutConfig(componentOnly)).toBe(true);
+    expect([...checkoutConfigSources(inferredOnly.page)]).toEqual(['inferred']);
+    expect(hasCapturedCheckoutConfig(inferredOnly.page)).toBe(false);
+    expect(hasCapturedCheckoutConfig(componentOnly.page)).toBe(true);
   });
 });
 
@@ -107,57 +106,17 @@ describe('withRequestDerivedLocale', () => {
 
   it('infers a locale from translation requests when no configuration shows one', () => {
     const page = withRequestDerivedLocale(
-      makePageExtract({ inferredConfig: { countryCode: 'FR' } }),
+      makeCheckoutPage({ inferredConfig: { countryCode: 'FR' } }),
       [makeRequest('https://example.com/app.js'), translation]
     );
     expect(page.inferredConfig).toEqual({ countryCode: 'FR', locale: 'fr-FR' });
   });
 
   it('keeps observed locales and pages without translation requests unchanged', () => {
-    const configured = makePageExtract({ componentConfig: { locale: 'nl-NL' } });
-    const untranslated = makePageExtract();
+    const configured = makeCheckoutPage({ componentConfig: { locale: 'nl-NL' } });
+    const untranslated = makeCheckoutPage();
 
     expect(withRequestDerivedLocale(configured, [translation])).toBe(configured);
     expect(withRequestDerivedLocale(untranslated, [])).toBe(untranslated);
-  });
-});
-
-describe('mergeFrameCheckoutConfig', () => {
-  it('merges each slot across frames with earlier frames winning', () => {
-    const merged = mergeFrameCheckoutConfig([
-      makePageExtract({ checkoutConfig: { locale: 'nl-NL' }, inferredConfig: null }),
-      makePageExtract({
-        checkoutConfig: { locale: 'fr-FR', countryCode: 'FR' },
-        componentConfig: { onSubmit: 'checkout' },
-        inferredConfig: { environment: 'test' },
-      }),
-    ]);
-
-    expect(merged).toEqual({
-      checkoutConfig: { locale: 'nl-NL', countryCode: 'FR' },
-      componentConfig: { onSubmit: 'checkout' },
-      inferredConfig: { environment: 'test' },
-    });
-  });
-
-  it('proves absence when any frame captured AdyenCheckout options directly', () => {
-    const merged = mergeFrameCheckoutConfig([
-      makePageExtract({ componentConfig: { locale: 'nl-NL' } }),
-      makePageExtract({ checkoutConfig: { clientKey: 'test_K' }, checkoutConfigComplete: true }),
-    ]);
-
-    expect(merged.checkoutConfigComplete).toBe(true);
-    expect(
-      readCheckoutField(makeScanPayload({ page: makePageExtract(merged) }), 'countryCode')
-    ).toEqual({ state: 'absent' });
-  });
-
-  it('leaves absence unproven when no frame captured options directly', () => {
-    const merged = mergeFrameCheckoutConfig([
-      makePageExtract({ checkoutConfig: { clientKey: 'test_K' } }),
-      makePageExtract({ componentConfig: { locale: 'nl-NL' } }),
-    ]);
-
-    expect(merged).not.toHaveProperty('checkoutConfigComplete');
   });
 });

@@ -2,6 +2,8 @@
  * Shared constants used across all extension components.
  */
 
+import type { AdyenRegion, CheckoutConfig, IntegrationFlow } from './types.js';
+
 // ─── Adyen Host Suffixes ──────────────────────────────────────────────────────
 
 export const ADYEN_CDN_HOST_SUFFIX = '.cdn.adyen.com';
@@ -119,9 +121,6 @@ export const CLIENT_KEY_LIVE_PREFIX = 'live_';
 export const ORIGIN_KEY_PREFIX = 'pub.v2.';
 
 // ─── Environment URLs ─────────────────────────────────────────────────────────
-
-export type AdyenEnvironment = 'test' | 'live' | 'live-in';
-export type AdyenRegion = 'APSE' | 'AU' | 'IN' | 'EU' | 'NEA' | 'US' | 'unknown';
 
 export const ENVIRONMENT_REGION_MAP: Record<string, AdyenRegion> = {
   'checkout-live-apse.adyenpayments.com': 'APSE',
@@ -255,6 +254,26 @@ export const PAGE_GLOBALS = {
   pageExtractResultJson: '__adyenWebInspectorPageExtractResultJson',
 } as const;
 
+/**
+ * The page-global contract: what each page global holds. The config
+ * interceptor writes the captures, the page extractor reads them and writes
+ * its serialized result. Page scripts can overwrite any of them, so readers
+ * still check their shape.
+ */
+export interface PageGlobalValues {
+  /** AdyenCheckout and component options captured directly. */
+  [PAGE_GLOBALS.capturedConfig]?: CheckoutConfig;
+  /** Partial configuration inferred from Adyen request URLs and parsed JSON. */
+  [PAGE_GLOBALS.inferredConfig]?: CheckoutConfig;
+  /** True once AdyenCheckout options were captured directly, so missing options are absent. */
+  [PAGE_GLOBALS.directConfigCaptured]?: boolean;
+  /** Number of AdyenCheckout initialisations. */
+  [PAGE_GLOBALS.checkoutInitCount]?: number;
+  [PAGE_GLOBALS.interceptorInstalled]?: boolean;
+  /** The page extractor's serialized `PageExtractResult` for this frame. */
+  [PAGE_GLOBALS.pageExtractResultJson]?: string;
+}
+
 // ─── Version Gates ────────────────────────────────────────────────────────────
 
 /** Minimum major version required for full inspection. Versions below this are blocked. */
@@ -269,6 +288,13 @@ export const STATUS_COLORS = {
   fail: '#d93025',
   info: '#1a73e8',
 } as const;
+
+/** Display labels for integration flows, shared by every view. */
+export const INTEGRATION_FLOW_LABELS: Readonly<Record<IntegrationFlow, string>> = {
+  sessions: 'Sessions',
+  advanced: 'Advanced',
+  unknown: 'Unknown',
+};
 
 export const DEVTOOLS_PANEL_TITLE = 'Adyen Inspector';
 export const DEVTOOLS_PANEL_ICON_PATH = '';

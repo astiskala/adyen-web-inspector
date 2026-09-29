@@ -2,6 +2,7 @@ import { h, render, type JSX } from 'preact';
 import { act } from 'preact/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useScanLifecycle } from '../../../src/popup/components/useScanLifecycle';
+import type { TabSnapshot } from '../../../src/shared/messages';
 import type { ScanResult } from '../../../src/shared/types';
 import { makeScanResult } from '../../fixtures/makeScanPayload';
 
@@ -26,6 +27,10 @@ function TestView({ adapter }: { readonly adapter: Adapter }): JSX.Element | nul
 
 function makeResult(): ScanResult {
   return makeScanResult({ tabId: 3, pageUrl: 'https://merchant.example/checkout' });
+}
+
+function snapshotOf(result: ScanResult | null): TabSnapshot {
+  return { result, checkoutActivity: { detected: result !== null, version: '6.31.0' } };
 }
 
 async function mount(adapter: Adapter): Promise<void> {
@@ -74,10 +79,11 @@ afterEach(() => {
 describe('useScanLifecycle', () => {
   it('loads a result, starts a scan and reloads after completion', async () => {
     const result = makeResult();
-    sendMessage.mockResolvedValue(result);
+    sendMessage.mockResolvedValue(snapshotOf(result));
     await mount({ getTabId: async () => 3 });
 
     expect(session.result).toEqual(result);
+    expect(session.checkoutActivity).toEqual({ detected: true, version: '6.31.0' });
     expect(session.loading).toBe(false);
     await act(async () => {
       session.scan();
@@ -90,20 +96,21 @@ describe('useScanLifecycle', () => {
     await dispatch({ type: 'SCAN_STARTED', tabId: 12 });
     expect(session.scanning).toBe(true);
     await dispatch({ type: 'SCAN_COMPLETE', tabId: 3 });
-    expect(sendMessage).toHaveBeenLastCalledWith({ type: 'GET_RESULT', tabId: 3 });
+    expect(sendMessage).toHaveBeenLastCalledWith({ type: 'GET_TAB_STATE', tabId: 3 });
     expect(session.result).toEqual(result);
     expect(session.scanning).toBe(false);
     expect(session.error).toBeNull();
   });
 
   it('waits for the popup reset delay before reloading, but clears the prior result at once', async () => {
-    sendMessage.mockResolvedValue(makeResult());
+    sendMessage.mockResolvedValue(snapshotOf(makeResult()));
     await mount({ getTabId: async () => 3, resetDelayMs: 400 });
     vi.useFakeTimers();
     sendMessage.mockResolvedValue(null);
 
     await dispatch({ type: 'SCAN_RESET', tabId: 3 });
     expect(session.result).toBeNull();
+    expect(session.checkoutActivity).toEqual({ detected: false });
     expect(session.loading).toBe(true);
     expect(sendMessage).toHaveBeenCalledTimes(1);
     await act(async () => {
@@ -114,7 +121,7 @@ describe('useScanLifecycle', () => {
   });
 
   it('clears the inspected tab without a reset reload', async () => {
-    sendMessage.mockResolvedValue(makeResult());
+    sendMessage.mockResolvedValue(snapshotOf(makeResult()));
     await mount({ getTabId: () => 3 });
 
     await dispatch({ type: 'SCAN_RESET', tabId: 3 });
@@ -137,9 +144,9 @@ describe('useScanLifecycle', () => {
   });
 
   it('ignores a result loaded before a reset', async () => {
-    let resolveResult: ((result: ScanResult) => void) | undefined;
+    let resolveResult: ((snapshot: TabSnapshot) => void) | undefined;
     sendMessage.mockReturnValueOnce(
-      new Promise<ScanResult>((resolve) => {
+      new Promise<TabSnapshot>((resolve) => {
         resolveResult = resolve;
       })
     );
@@ -148,7 +155,7 @@ describe('useScanLifecycle', () => {
 
     expect(resolveResult).toBeDefined();
     await act(async () => {
-      resolveResult?.(makeResult());
+      resolveResult?.(snapshotOf(makeResult()));
       await Promise.resolve();
     });
     expect(session.result).toBeNull();

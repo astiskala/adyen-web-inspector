@@ -2,15 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { buildJsonExport } from '../../../src/shared/export-json';
 import type { PrintableReportMetadata } from '../../../src/shared/export-pdf';
 import type { CheckResult, ScanResult } from '../../../src/shared/types';
-import { makeScanPayload } from '../../fixtures/makeScanPayload';
+import { makeScanPayload, makeScanResult } from '../../fixtures/makeScanPayload';
 
-function makeResult(): ScanResult {
-  return {
-    tabId: 1,
-    pageUrl: 'https://example.com/checkout',
+function makeResult(overrides: Partial<ScanResult> = {}): ScanResult {
+  return makeScanResult({
     scannedAt: '2026-03-18T00:00:00.000Z',
-    sdkPresence: { detected: true, source: 'metadata' },
-    checks: [],
     health: {
       score: 92,
       passing: 11,
@@ -23,8 +19,8 @@ function makeResult(): ScanResult {
       compliant: false,
       reasons: ['Web Drop-in 6.30.0 or later is required.'],
     },
-    payload: makeScanPayload(),
-  };
+    ...overrides,
+  });
 }
 
 function makeCheck(overrides: Partial<CheckResult>): CheckResult {
@@ -65,8 +61,7 @@ describe('buildJsonExport', () => {
   });
 
   it('mirrors the PDF report sections and filtering', () => {
-    const result: ScanResult = {
-      ...makeResult(),
+    const result = makeResult({
       checks: [
         makeCheck({
           id: 'auth-country-code',
@@ -125,7 +120,7 @@ describe('buildJsonExport', () => {
           },
         ],
       },
-    };
+    });
 
     const exported = buildJsonExport(result, metadata);
 

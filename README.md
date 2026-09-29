@@ -75,9 +75,11 @@ Contributor workflow and coding conventions: [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ### Main components
 
-- `src/background/worker.ts`: service worker message routing and badge state.
-- `src/background/scan-orchestrator.ts`: scan sequencing and frame selection, driven through the browser port in `scan-browser.ts`.
-- `src/background/chrome-scan-browser.ts`: Chrome adapter for the browser port (tabs, scripting, webRequest, storage).
+- `src/background/worker.ts`: service worker routing of messages and tab events to the tab state.
+- `src/background/tab-state.ts`: per-tab state (checkout activity, scan result, badge, Scan in flight) and its lifecycle rules, reached through a port with Chrome (`chrome-tab-state-browser.ts`) and in-memory adapters.
+- `src/background/scan-orchestrator.ts`: scan sequencing and retries, driven through the browser port in `scan-browser.ts`.
+- `src/background/frame-merge.ts`: turns every frame's page extraction into the Checkout page.
+- `src/background/chrome-scan-browser.ts`: Chrome adapter for the browser port (tabs, scripting, webRequest, fetch).
 - `src/background/scan-assessment.ts`: payload assembly and assessment.
 - `src/background/checks/*`: pure check modules.
 - `src/content/config-interceptor.ts`: MAIN-world config capture (CDN and NPM).
@@ -85,6 +87,9 @@ Contributor workflow and coding conventions: [CONTRIBUTING.md](CONTRIBUTING.md)
 - `src/content/page-extractor.ts`: on-demand page-world extraction.
 - `src/shared/checkout-config-schema.ts`: the single mapping from raw Adyen Web options to checkout configuration fields.
 - `src/shared/scan-evidence.ts`: checkout configuration evidence (present, absent, or unobserved per field).
+- `src/shared/sdk-version.ts`: SDK version signals, their precedence, and the release-date lookup.
+- `src/shared/implementation-attributes.ts`: integration flavor, flow, environment, region, and import method, derived once per scan.
+- `src/shared/export-report.ts`: the finding projection every view and report renders.
 - `src/popup/*`: compact summary UI.
 - `src/devtools/*`: full analysis panel UI.
 - `src/shared/*`: types, constants, shared helpers, export logic.
@@ -93,14 +98,14 @@ Contributor workflow and coding conventions: [CONTRIBUTING.md](CONTRIBUTING.md)
 
 1. Start per-tab network/header collection.
 2. Wait for the tab to be ready and allow SPA settle time.
-3. Extract page data in `world: "MAIN"` in every accessible frame, retrying briefly while the SDK is still loading, then select the checkout frame and merge configuration across frames.
+3. Extract page data in `world: "MAIN"` in every accessible frame, retrying briefly while the SDK is still loading, then merge the frames into the Checkout page.
 4. Merge collected requests with fallback request discovery.
-5. Resolve SDK version signals and latest npm version.
-6. Build `ScanPayload`.
+5. Resolve the SDK version from the strongest signal, fetching same-origin bundles only as a last resort, and attach the latest npm version.
+6. Build `ScanPayload` and derive its implementation attributes.
 7. Run all checks.
-8. Persist and broadcast `ScanResult`, including its SDK presence verdict.
+8. Return `ScanResult`, including its SDK presence verdict and implementation attributes. The tab state stores and broadcasts it unless the tab navigated during the Scan.
 
-The scan runs every browser operation through the `ScanBrowser` port, so steps 1–8 are unit-tested with an in-memory adapter; E2E tests cover the Chrome adapter.
+The scan runs every browser operation through the `ScanBrowser` port, so steps 1–8 are unit-tested with an in-memory adapter; the tab state is tested the same way through its own port. E2E tests cover the Chrome adapters in a real browser.
 
 ## Additional Docs
 

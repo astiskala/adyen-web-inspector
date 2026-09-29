@@ -12,7 +12,7 @@ test.describe('Extension loading', () => {
   test('scan detects checkout embedded in a merchant iframe', async ({ context, extensionId }) => {
     const result = await scanFixture(context, extensionId, 'adyen-iframe-merchant.html');
 
-    expect(result.payload.page.isInsideIframe).toBe(true);
+    expect(result.payload.page.checkoutInIframe).toBe(true);
     expect(result.checks.find((check) => check.id === 'env-not-iframe')?.severity).toBe('warn');
   });
 });

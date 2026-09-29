@@ -4,6 +4,7 @@ import {
   buildReportExportData,
   groupIssuesByImpact,
 } from '../../../src/shared/export-report';
+import { buildPrintableHtml } from '../../../src/shared/export-pdf';
 import type { CheckResult, ScanResult } from '../../../src/shared/types';
 import { makeScanPayload, makeScanResult } from '../../fixtures/makeScanPayload';
 
@@ -86,7 +87,7 @@ describe('buildFindingProjection', () => {
     expect(
       projection.bestPractices.issueGroups.map((group) => [
         group.impact,
-        group.checks.map((check) => check.title),
+        group.issues.map((issue) => issue.title),
       ])
     ).toEqual([
       ['high', ['Country failure']],
@@ -96,7 +97,7 @@ describe('buildFindingProjection', () => {
     expect(
       projection.security.issueGroups.map((group) => [
         group.impact,
-        group.checks.map((check) => check.title),
+        group.issues.map((issue) => issue.title),
       ])
     ).toEqual([['high', ['SRI warning']]]);
     expect(projection.security.successfulChecks.map((check) => check.title)).toEqual([
@@ -109,6 +110,75 @@ describe('buildFindingProjection', () => {
     ]);
   });
 
+  it('keeps one issue order across the projection, JSON rows, and the printed report', () => {
+    const result = makeResult([
+      makeCheck({ id: 'auth-locale', severity: 'warn', title: 'Locale warning' }),
+      makeCheck({
+        id: 'risk-df-iframe',
+        category: 'risk',
+        severity: 'warn',
+        impact: 'high',
+        title: 'Alpha high warning',
+      }),
+      makeCheck({ id: 'auth-country-code', severity: 'fail', title: 'Zulu failure' }),
+      makeCheck({
+        id: 'callback-on-error',
+        category: 'callbacks',
+        severity: 'notice',
+        title: 'Manual review',
+      }),
+      makeCheck({
+        id: 'sdk-bundle-type',
+        category: 'sdk-identity',
+        severity: 'notice',
+        impact: 'low',
+        title: 'Low notice',
+      }),
+    ]);
+
+    const grouped = buildFindingProjection(result).bestPractices.issueGroups;
+    const projected = grouped.flatMap((group) => group.issues.map((issue) => issue.title));
+    const exported = buildReportExportData(result).bestPractices.issues.map((issue) => issue.title);
+    const html = buildPrintableHtml(result, { extensionVersion: '1', browser: 'Test' });
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const heading = [...doc.querySelectorAll('h2')].find(
+      (element) => element.textContent === 'Best Practices'
+    );
+    const rows = heading?.nextElementSibling?.querySelectorAll('tbody tr:not(.impact-row)') ?? [];
+    const printed = [...rows].map((row) => row.querySelector('td + td')?.textContent.trim());
+
+    expect(grouped.map((group) => group.label)).toEqual([
+      'High impact',
+      'Medium impact',
+      'Low impact',
+      'Manual verification',
+    ]);
+    expect(projected).toEqual([
+      'Zulu failure',
+      'Alpha high warning',
+      'Locale warning',
+      'Low notice',
+      'Manual review',
+    ]);
+    expect(exported).toEqual(projected);
+    expect(printed).toEqual(projected);
+  });
+
+  it('resolves remediation and documentation once for every view', () => {
+    const [group] = groupIssuesByImpact([
+      makeCheck({ id: 'auth-country-code', severity: 'fail', title: 'Missing country' }),
+    ]);
+
+    expect(group?.issues[0]).toMatchObject({
+      impact: 'High impact',
+      impactLevel: 'high',
+      detail: null,
+      remediation:
+        'Follow the linked Adyen guidance, apply the configuration change, then rerun the scan.',
+      docsUrl: 'https://docs.adyen.com/online-payments/web-best-practices/',
+    });
+  });
+
   it('groups any set of issues by impact and ignores non-issues', () => {
     const groups = groupIssuesByImpact([
       makeCheck({ id: 'auth-locale', severity: 'warn', title: 'Zulu warning' }),
@@ -118,7 +188,7 @@ describe('buildFindingProjection', () => {
       makeCheck({ id: 'sdk-flavor', severity: 'info', title: 'Flavor' }),
     ]);
 
-    expect(groups.map((group) => [group.impact, group.checks.map((c) => c.title)])).toEqual([
+    expect(groups.map((group) => [group.impact, group.issues.map((c) => c.title)])).toEqual([
       ['high', ['Alpha']],
       ['medium', ['Zulu warning']],
       ['low', ['Header']],

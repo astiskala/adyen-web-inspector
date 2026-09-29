@@ -9,7 +9,6 @@ import {
   ADYEN_WEB_TRANSLATION_LOCALES,
   ORIGIN_KEY_PREFIX,
 } from '../../shared/constants.js';
-import { detectIntegrationFlow } from '../../shared/implementation-attributes.js';
 import { readCheckoutField } from '../../shared/scan-evidence.js';
 import { extractHostname } from '../../shared/utils.js';
 import { SKIP_REASONS } from './constants.js';
@@ -129,7 +128,7 @@ export const AUTH_CHECKS = createRegistry(CATEGORY)
       STRINGS.KEY_REJECTED_FAIL_URL
     );
   })
-  .add('auth-country-code', (payload, { pass, fail, skip, warn, notice }) => {
+  .add('auth-country-code', (payload, { attributes, pass, fail, skip, warn, notice }) => {
     const countryCode = readCheckoutField(payload, 'countryCode');
     if (countryCode.state === 'present') {
       if (countryCode.source === 'inferred') {
@@ -151,8 +150,7 @@ export const AUTH_CHECKS = createRegistry(CATEGORY)
       );
     }
 
-    const flow = detectIntegrationFlow(payload);
-    if (flow === 'sessions') {
+    if (attributes.flow.value === 'sessions') {
       return warn(
         STRINGS.COUNTRY_CODE_FAIL_TITLE,
         STRINGS.COUNTRY_CODE_SESSIONS_WARN_DETAIL,

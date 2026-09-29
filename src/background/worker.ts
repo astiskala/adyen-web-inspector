@@ -1,130 +1,24 @@
 /**
  * Background Service Worker — extension entry point.
- * Handles badge management, scan request dispatch, and message routing.
+ * Routes runtime messages and tab events to the tab state, which owns the
+ * badge, stored state, and Scan lifecycle for each tab.
  */
 
 import {
   MSG_CHECKOUT_ACTIVITY_CLEARED,
   MSG_CHECKOUT_ACTIVITY_DETECTED,
-  MSG_GET_RESULT,
-  MSG_SCAN_RESET,
-  MSG_SCAN_COMPLETE,
-  MSG_SCAN_ERROR,
-  MSG_SCAN_STARTED,
+  MSG_GET_TAB_STATE,
   MSG_SCAN_REQUEST,
-  type CheckoutActivityDetectedMessage,
-  type BswToUiMessage,
   type ExtensionMessage,
 } from '../shared/messages.js';
-import { chromeScanBrowser, getStoredResult } from './chrome-scan-browser.js';
+import { chromeScanBrowser } from './chrome-scan-browser.js';
+import { chromeTabStateBrowser } from './chrome-tab-state-browser.js';
 import { runScan } from './scan-orchestrator.js';
-import {
-  STATUS_COLORS,
-  STORAGE_CHECKOUT_ACTIVITY_PREFIX,
-  STORAGE_SCAN_RESULT_PREFIX,
-  STORAGE_VERSION_PREFIX,
-} from '../shared/constants.js';
-import type { HealthScore } from '../shared/types.js';
-import { describeError } from '../shared/utils.js';
+import { createTabState } from './tab-state.js';
 
-// ─── Badge Helpers ─────────────────────────────────────────────────────────────
-
-function setBadgeDetected(tabId: number): void {
-  chrome.action.setBadgeText({ tabId, text: '✓' }).catch(() => {});
-  chrome.action.setBadgeBackgroundColor({ tabId, color: STATUS_COLORS.pass }).catch(() => {});
-}
-
-function healthBadgeColor(tier: HealthScore['tier']): string {
-  if (tier === 'excellent') return STATUS_COLORS.pass;
-  if (tier === 'issues') return STATUS_COLORS.warn;
-  return STATUS_COLORS.fail;
-}
-
-function setBadgeHealth(tabId: number, health: HealthScore): void {
-  chrome.action.setBadgeText({ tabId, text: `${health.score}` }).catch(() => {});
-  chrome.action
-    .setBadgeBackgroundColor({ tabId, color: healthBadgeColor(health.tier) })
-    .catch(() => {});
-}
-
-function clearBadge(tabId: number): void {
-  chrome.action.setBadgeText({ tabId, text: '' }).catch(() => {});
-}
-
-function setBadgeScanning(tabId: number): void {
-  chrome.action.setBadgeText({ tabId, text: '…' }).catch(() => {});
-  chrome.action.setBadgeBackgroundColor({ tabId, color: STATUS_COLORS.warn }).catch(() => {});
-}
-
-function sendUiMessage(message: BswToUiMessage): void {
-  chrome.runtime.sendMessage(message).catch(() => {});
-}
-
-function clearTabSessionState(tabId: number): Promise<void> {
-  return chrome.storage.session
-    .remove([
-      `${STORAGE_SCAN_RESULT_PREFIX}${tabId}`,
-      `${STORAGE_CHECKOUT_ACTIVITY_PREFIX}${tabId}`,
-      `${STORAGE_VERSION_PREFIX}${tabId}`,
-    ])
-    .catch(() => {});
-}
-
-// ─── Scan Guard ───────────────────────────────────────────────────────────────
-
-const scanInFlight = new Set<number>();
-
-// ─── Message Handlers ─────────────────────────────────────────────────────────
-
-function handleCheckoutActivityDetected(
-  msg: CheckoutActivityDetectedMessage,
-  senderTabId: number
-): void {
-  setBadgeDetected(senderTabId);
-  chrome.storage.session
-    .set({
-      [`${STORAGE_CHECKOUT_ACTIVITY_PREFIX}${senderTabId}`]: true,
-      ...(msg.version === undefined
-        ? {}
-        : { [`${STORAGE_VERSION_PREFIX}${senderTabId}`]: msg.version }),
-    })
-    .catch(() => {});
-}
-
-function handleCheckoutActivityCleared(senderTabId: number): void {
-  clearBadge(senderTabId);
-  chrome.storage.session
-    .remove([
-      `${STORAGE_CHECKOUT_ACTIVITY_PREFIX}${senderTabId}`,
-      `${STORAGE_VERSION_PREFIX}${senderTabId}`,
-    ])
-    .catch(() => {});
-}
-
-async function handleScanRequest(senderTabId: number): Promise<void> {
-  if (scanInFlight.has(senderTabId)) return;
-  scanInFlight.add(senderTabId);
-
-  setBadgeScanning(senderTabId);
-  sendUiMessage({ type: MSG_SCAN_STARTED, tabId: senderTabId });
-
-  try {
-    const result = await runScan(senderTabId, chromeScanBrowser);
-    sendUiMessage({ type: MSG_SCAN_COMPLETE, tabId: senderTabId, result });
-    if (result.sdkPresence.detected) {
-      setBadgeHealth(senderTabId, result.health);
-    } else {
-      clearBadge(senderTabId);
-    }
-  } catch (error: unknown) {
-    sendUiMessage({ type: MSG_SCAN_ERROR, tabId: senderTabId, error: describeError(error) });
-    clearBadge(senderTabId);
-  } finally {
-    scanInFlight.delete(senderTabId);
-  }
-}
-
-// ─── Message Listener ─────────────────────────────────────────────────────────
+const tabState = createTabState(chromeTabStateBrowser, (tabId) =>
+  runScan(tabId, chromeScanBrowser)
+);
 
 chrome.runtime.onMessage.addListener(
   (
@@ -135,30 +29,24 @@ chrome.runtime.onMessage.addListener(
     const senderTabId = sender.tab?.id;
 
     if (message.type === MSG_CHECKOUT_ACTIVITY_DETECTED && senderTabId !== undefined) {
-      handleCheckoutActivityDetected(message, senderTabId);
+      tabState.checkoutActivityDetected(senderTabId, message.version).catch(() => {});
       return false;
     }
 
     if (message.type === MSG_CHECKOUT_ACTIVITY_CLEARED && senderTabId !== undefined) {
-      handleCheckoutActivityCleared(senderTabId);
+      tabState.checkoutActivityCleared(senderTabId).catch(() => {});
       return false;
     }
 
     if (message.type === MSG_SCAN_REQUEST) {
-      const tabId = message.tabId;
-      handleScanRequest(tabId).catch(() => {});
+      tabState.requestScan(message.tabId).catch(() => {});
       return false;
     }
 
-    if (message.type === MSG_GET_RESULT) {
-      const tabId = message.tabId;
-      getStoredResult(tabId)
-        .then((result) => {
-          sendResponse(result);
-        })
-        .catch(() => {
-          sendResponse(null);
-        });
+    if (message.type === MSG_GET_TAB_STATE) {
+      tabState.read(message.tabId).then(sendResponse, () => {
+        sendResponse(null);
+      });
       return true; // Keep message channel open for async response
     }
 
@@ -166,21 +54,12 @@ chrome.runtime.onMessage.addListener(
   }
 );
 
-// ─── Tab Cleanup ──────────────────────────────────────────────────────────────
-
 chrome.tabs.onRemoved.addListener((tabId) => {
-  clearTabSessionState(tabId).catch(() => {});
+  tabState.removed(tabId).catch(() => {});
 });
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
-  if (changeInfo.status !== 'loading') {
-    return;
+  if (changeInfo.status === 'loading') {
+    tabState.navigated(tabId).catch(() => {});
   }
-
-  clearBadge(tabId);
-  clearTabSessionState(tabId)
-    .then(() => {
-      sendUiMessage({ type: MSG_SCAN_RESET, tabId });
-    })
-    .catch(() => {});
 });

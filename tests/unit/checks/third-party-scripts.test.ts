@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { THIRD_PARTY_CHECKS } from '../../../src/background/checks/third-party-scripts';
-import { makeScanPayload, makePageExtract } from '../../fixtures/makeScanPayload';
+import { makeScanPayload, makeCheckoutPage } from '../../fixtures/makeScanPayload';
 import { requireCheck } from './requireCheck';
 
 const tagManager = requireCheck(THIRD_PARTY_CHECKS, '3p-tag-manager');
@@ -9,8 +9,8 @@ const adPixels = requireCheck(THIRD_PARTY_CHECKS, '3p-ad-pixels');
 const noSri = requireCheck(THIRD_PARTY_CHECKS, '3p-no-sri');
 const cookiebotAutoBlocking = requireCheck(THIRD_PARTY_CHECKS, '3p-cookiebot-auto-blocking');
 
-function makeScriptPage(srcs: string[]): ReturnType<typeof makePageExtract> {
-  return makePageExtract({
+function makeScriptPage(srcs: string[]): ReturnType<typeof makeCheckoutPage> {
+  return makeCheckoutPage({
     scripts: srcs.map((src) => ({ src })),
   });
 }
@@ -87,7 +87,7 @@ describe('3p-ad-pixels', () => {
 describe('3p-no-sri', () => {
   it('passes when detected third-party scripts have SRI', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
+      page: makeCheckoutPage({
         scripts: [
           {
             src: 'https://www.googletagmanager.com/gtm.js?id=GTM-XXXX',
@@ -102,7 +102,7 @@ describe('3p-no-sri', () => {
 
   it('returns notice when detected third-party scripts lack SRI', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
+      page: makeCheckoutPage({
         scripts: [
           { src: 'https://www.googletagmanager.com/gtm.js?id=GTM-XXXX' },
           { src: 'https://connect.facebook.net/en_US/fbevents.js' },
@@ -116,7 +116,7 @@ describe('3p-no-sri', () => {
 
   it('passes when scripts do not match known third-party patterns', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
+      page: makeCheckoutPage({
         scripts: [{ src: 'https://cdn.example.com/lib.js' }],
       }),
     });
@@ -125,7 +125,7 @@ describe('3p-no-sri', () => {
 
   it('passes when no external scripts are present', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
+      page: makeCheckoutPage({
         scripts: [{ src: '/local/script.js' }],
       }),
     });
@@ -138,7 +138,7 @@ describe('3p-cookiebot-auto-blocking', () => {
 
   it('warns when Cookiebot automatic blocking could affect Card fields', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({ hasCardDOM: true, scripts: [autoScript] }),
+      page: makeCheckoutPage({ hasCardDOM: true, scripts: [autoScript] }),
     });
     const result = cookiebotAutoBlocking.run(payload);
     expect(result.severity).toBe('warn');
@@ -151,21 +151,21 @@ describe('3p-cookiebot-auto-blocking', () => {
 
   it('warns when Drop-in is present before a card is selected', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({ hasDropinDOM: true, scripts: [autoScript] }),
+      page: makeCheckoutPage({ hasDropinDOM: true, scripts: [autoScript] }),
     });
     expect(cookiebotAutoBlocking.run(payload).severity).toBe('warn');
   });
 
   it('skips when neither Card nor Drop-in is mounted', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({ adyenMetadata: { version: '6.31.0' }, scripts: [autoScript] }),
+      page: makeCheckoutPage({ adyenMetadata: { version: '6.31.0' }, scripts: [autoScript] }),
     });
     expect(cookiebotAutoBlocking.run(payload).severity).toBe('skip');
   });
 
   it('passes for Cookiebot without automatic blocking', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
+      page: makeCheckoutPage({
         hasCardDOM: true,
         scripts: [{ src: autoScript.src }],
       }),
@@ -175,7 +175,7 @@ describe('3p-cookiebot-auto-blocking', () => {
 
   it('passes for a script on an unrelated host even when configured to block automatically', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
+      page: makeCheckoutPage({
         hasCardDOM: true,
         scripts: [
           { src: 'https://consent.cookiebot.com.evil.example/uc.js', blockingMode: 'auto' },
@@ -186,7 +186,7 @@ describe('3p-cookiebot-auto-blocking', () => {
   });
 
   it('passes when no scripts are present', () => {
-    const payload = makeScanPayload({ page: makePageExtract({ hasDropinDOM: true }) });
+    const payload = makeScanPayload({ page: makeCheckoutPage({ hasDropinDOM: true }) });
     expect(cookiebotAutoBlocking.run(payload).severity).toBe('pass');
   });
 });

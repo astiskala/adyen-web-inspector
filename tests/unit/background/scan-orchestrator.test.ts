@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { runScan } from '../../../src/background/scan-orchestrator';
-import type { PageExtractResult } from '../../../src/shared/types';
 import {
   makeAdyenMetadata,
   makeCheckoutConfig,
@@ -27,8 +26,6 @@ describe('runScan sequencing', () => {
       'extractFrames',
     ]);
     expect(browser.sleeps[0]).toBe(2000);
-    expect(browser.calls.at(-1)).toBe('storeResult');
-    expect(browser.stored).toEqual([result]);
     expect(result.payload.versionInfo.latest).toBe('6.40.0');
     expect(result.scannedAt).toBe('2026-09-28T00:00:02.000Z');
     expect(browser.networkStops).toBeGreaterThan(0);
@@ -73,24 +70,28 @@ describe('runScan sequencing', () => {
     expect(browser.sleeps).toEqual([2000]);
   });
 
-  it('stops network capture and stores nothing when the tab never loads', async () => {
+  it('stops network capture when the tab never loads', async () => {
     const browser = createFakeScanBrowser({ tabLoadError: new Error('Tab 1 did not load') });
 
     await expect(runScan(TAB_ID, browser)).rejects.toThrow('Tab 1 did not load');
     expect(browser.networkStops).toBe(1);
-    expect(browser.stored).toEqual([]);
   });
 
-  it('probes bundles for a version only when no stronger signal exists', async () => {
+  it('reads the version from same-origin bundle text through the port', async () => {
+    const bundle = 'https://example.com/main.js';
     const browser = createFakeScanBrowser({
-      extractions: [framesOf(makePageExtract({ checkoutConfig: makeCheckoutConfig() }))],
-      bundleVersion: '6.20.0',
+      extractions: [
+        framesOf(
+          makePageExtract({ checkoutConfig: makeCheckoutConfig(), scripts: [{ src: bundle }] })
+        ),
+      ],
+      scriptTexts: { [bundle]: '/* @adyen/adyen-web 6.20.0 */' },
     });
 
     const result = await runScan(TAB_ID, browser);
 
-    expect(browser.calls).toContain('probeBundleVersion');
-    expect(result.payload.versionInfo.detected).toBe('6.20.0');
+    expect(browser.calls).toContain(`fetchScriptText:${bundle}`);
+    expect(result.payload.versionInfo).toMatchObject({ detected: '6.20.0', source: 'bundle' });
   });
 });
 
@@ -144,147 +145,29 @@ describe('runScan document headers', () => {
   });
 });
 
-async function scanFrames(...frames: (PageExtractResult | null)[]): Promise<PageExtractResult> {
-  const browser = createFakeScanBrowser({ extractions: [framesOf(...frames)] });
-  const result = await runScan(TAB_ID, browser);
-  return result.payload.page;
-}
-
-describe('runScan frame selection', () => {
-  it('selects a child frame containing checkout configuration', async () => {
-    const page = await scanFrames(
-      makePageExtract({
-        adyenMetadata: makeAdyenMetadata({ version: '6.30.0' }),
-        pageUrl: 'https://merchant.example/',
-      }),
-      makePageExtract({
-        checkoutConfig: makeCheckoutConfig(),
-        pageUrl: 'https://merchant.example/embedded-checkout',
-      })
-    );
-
-    expect(page.pageUrl).toBe('https://merchant.example/embedded-checkout');
-    expect(page.isInsideIframe).toBe(true);
-    expect(page.adyenMetadata?.version).toBe('6.30.0');
-  });
-
-  it('prefers top-frame checkout configuration over weaker child-frame signals', async () => {
+describe('runScan frames', () => {
+  it('scans the Checkout page merged from every frame', async () => {
     const browser = createFakeScanBrowser({
       extractions: [
-        [
-          {
-            frameId: 4,
-            result: makePageExtract({
-              adyenMetadata: makeAdyenMetadata(),
-              pageUrl: 'https://checkoutshopper-test.adyen.com/internal',
-            }),
-          },
-          {
-            frameId: 0,
-            result: makePageExtract({
-              checkoutConfig: makeCheckoutConfig(),
-              pageUrl: 'https://merchant.example/checkout',
-            }),
-          },
-        ],
+        framesOf(
+          makePageExtract({
+            adyenMetadata: makeAdyenMetadata({ version: '6.30.0' }),
+            pageUrl: 'https://merchant.example/',
+          }),
+          makePageExtract({
+            checkoutConfig: makeCheckoutConfig(),
+            pageUrl: 'https://merchant.example/embedded-checkout',
+            isInsideIframe: true,
+          })
+        ),
       ],
     });
 
-    const {
-      payload: { page },
-    } = await runScan(TAB_ID, browser);
+    const { payload } = await runScan(TAB_ID, browser);
 
-    expect(page.pageUrl).toBe('https://merchant.example/checkout');
-    expect(page.isInsideIframe).toBe(false);
-  });
-
-  it('ranks frames with Adyen script hints and Adyen iframes above plain frames', async () => {
-    const page = await scanFrames(
-      makePageExtract({ pageUrl: 'https://merchant.example/' }),
-      makePageExtract({
-        scripts: [{ src: 'https://merchant.example/adyen-bundle.js' }],
-        iframes: [{ name: 'adyen-card' }],
-        pageUrl: 'https://merchant.example/pay',
-      })
-    );
-
-    expect(page.pageUrl).toBe('https://merchant.example/pay');
-  });
-
-  it('uses the top frame when frames have equal signal strength', async () => {
-    const browser = createFakeScanBrowser({
-      extractions: [
-        [
-          { frameId: 2, result: makePageExtract({ pageUrl: 'https://child.example/' }) },
-          { frameId: 0, result: makePageExtract({ pageUrl: 'https://merchant.example/' }) },
-        ],
-      ],
-    });
-
-    const {
-      payload: { page },
-    } = await runScan(TAB_ID, browser);
-
-    expect(page.pageUrl).toBe('https://merchant.example/');
-    expect(page.isInsideIframe).toBe(false);
-  });
-
-  it('reports an embedded checkout even when the top frame scores higher', async () => {
-    const page = await scanFrames(
-      makePageExtract({ checkoutConfig: makeCheckoutConfig() }),
-      makePageExtract({ hasDropinDOM: true, pageUrl: 'https://merchant.example/embedded' })
-    );
-
-    expect(page.pageUrl).toBe('https://example.com/checkout');
-    expect(page.isInsideIframe).toBe(true);
-  });
-
-  it('does not confuse hosted card fields with a merchant checkout iframe', async () => {
-    const page = await scanFrames(
-      makePageExtract({ checkoutConfig: makeCheckoutConfig() }),
-      makePageExtract({
-        hasCardDOM: true,
-        pageUrl: 'https://checkoutshopper-test.adyenpayments.com/card.html',
-      })
-    );
-
-    expect(page.isInsideIframe).toBe(false);
-    expect(page.hasCardDOM).toBeUndefined();
-    expect(page.hasNewCardFormDOM).toBeUndefined();
-  });
-
-  it('merges card form DOM flags from merchant frames', async () => {
-    const page = await scanFrames(
-      makePageExtract({ checkoutConfig: makeCheckoutConfig() }),
-      makePageExtract({
-        hasCardDOM: true,
-        hasNewCardFormDOM: true,
-        hasCardHolderNameDOM: true,
-        apiKeyDetected: true,
-        pageUrl: 'https://merchant.example/embedded-card',
-      })
-    );
-
-    expect(page).toMatchObject({
-      hasCardDOM: true,
-      hasNewCardFormDOM: true,
-      hasCardHolderNameDOM: true,
-      apiKeyDetected: true,
-    });
-  });
-
-  it('keeps absence provable when a child frame captured AdyenCheckout options directly', async () => {
-    const page = await scanFrames(
-      makePageExtract({ componentConfig: { locale: 'nl-NL' } }),
-      makePageExtract({
-        checkoutConfig: { clientKey: 'test_K' },
-        checkoutConfigComplete: true,
-        pageUrl: 'https://merchant.example/embedded',
-      })
-    );
-
-    expect(page.checkoutConfigComplete).toBe(true);
-    expect(page.checkoutConfig).toEqual({ clientKey: 'test_K' });
+    expect(payload.page.pageUrl).toBe('https://merchant.example/embedded-checkout');
+    expect(payload.page.checkoutInIframe).toBe(true);
+    expect(payload.versionInfo.detected).toBe('6.30.0');
   });
 
   it('fails when no frame returned an extraction result', async () => {
@@ -294,11 +177,5 @@ describe('runScan frame selection', () => {
       'Page extraction returned no frame results for tab 9'
     );
     expect(browser.networkStops).toBeGreaterThan(0);
-  });
-
-  it('ignores frames that return null', async () => {
-    const page = await scanFrames(null, makePageExtract({ checkoutConfig: makeCheckoutConfig() }));
-
-    expect(page.isInsideIframe).toBe(true);
   });
 });

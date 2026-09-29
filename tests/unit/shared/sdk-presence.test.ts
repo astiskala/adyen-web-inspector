@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { detectSdkPresence, hasAdyenScriptHint } from '../../../src/shared/sdk-presence';
-import { makeAdyenMetadata, makePageExtract } from '../../fixtures/makeScanPayload';
+import { makeAdyenMetadata, makeCheckoutPage } from '../../fixtures/makeScanPayload';
 
 const CDN_SCRIPT = 'https://checkoutshopper-live.cdn.adyen.com/checkoutshopper/sdk/6.31.0/adyen.js';
 
@@ -8,17 +8,17 @@ describe('detectSdkPresence', () => {
   it('prefers Adyen Web metadata, then an Adyen-hosted checkout script', () => {
     expect(
       detectSdkPresence(
-        makePageExtract({ adyenMetadata: makeAdyenMetadata(), scripts: [{ src: CDN_SCRIPT }] })
+        makeCheckoutPage({ adyenMetadata: makeAdyenMetadata(), scripts: [{ src: CDN_SCRIPT }] })
       )
     ).toEqual({ detected: true, source: 'metadata' });
-    expect(detectSdkPresence(makePageExtract({ scripts: [{ src: CDN_SCRIPT }] }))).toEqual({
+    expect(detectSdkPresence(makeCheckoutPage({ scripts: [{ src: CDN_SCRIPT }] }))).toEqual({
       detected: true,
       source: 'adyen-script',
     });
   });
 
   it('does not treat merchant-hosted bundles as presence', () => {
-    const page = makePageExtract({
+    const page = makeCheckoutPage({
       scripts: [{ src: 'https://merchant.example/adyen-checkout.js' }],
     });
 
@@ -28,7 +28,7 @@ describe('detectSdkPresence', () => {
 
   it('reports no hint when no script mentions Adyen', () => {
     expect(
-      hasAdyenScriptHint(makePageExtract({ scripts: [{ src: 'https://cdn.example/app.js' }] }))
+      hasAdyenScriptHint(makeCheckoutPage({ scripts: [{ src: 'https://cdn.example/app.js' }] }))
     ).toBe(false);
   });
 });

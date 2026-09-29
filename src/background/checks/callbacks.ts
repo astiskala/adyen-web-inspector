@@ -3,26 +3,17 @@
  * handling, duplicate submissions, and custom pay buttons.
  */
 
-import type { CheckoutConfig, ScanPayload } from '../../shared/types.js';
-import { CALLBACK_SOURCE_LIMIT, type CALLBACK_KEYS } from '../../shared/checkout-config-schema.js';
-import {
-  collectIntegrationFlowSignals,
-  detectIntegrationFlow,
-  INTEGRATION_FLOW_LABELS,
-  resolveIntegrationFlavor,
-  type IntegrationFlow,
-} from '../../shared/implementation-attributes.js';
-import {
-  hasCapturedCheckoutConfig,
-  readCheckoutField,
-  type CheckoutFieldEvidence,
-} from '../../shared/scan-evidence.js';
-import {
-  detectStateDataForwarding,
-  detectUnhandledOnSubmitFilters,
-  detectsMultipleSubmissions,
-} from './callback-source.js';
-import { SKIP_REASONS } from './constants.js';
+import type {
+  CheckoutConfig,
+  ImplementationAttributes,
+  IntegrationFlow,
+  ScanPayload,
+} from '../../shared/types.js';
+import type { CALLBACK_KEYS } from '../../shared/checkout-config-schema.js';
+import { INTEGRATION_FLOW_LABELS } from '../../shared/constants.js';
+import { readCheckoutField, type CheckoutFieldEvidence } from '../../shared/scan-evidence.js';
+import { readOnSubmitSource, readSubmissionGuard, type OnSubmitSource } from './callback-source.js';
+import { docsIntegration, SKIP_REASONS } from './constants.js';
 import { createRegistry, type CheckContext, type CheckOutcome } from './registry.js';
 
 const CATEGORY = 'callbacks' as const;
@@ -46,7 +37,6 @@ const FLOW_DOCS = {
 } as const;
 
 type CallbackKey = (typeof CALLBACK_KEYS)[number];
-type CallbackSourceKey = 'onSubmitSource' | 'beforeSubmitSource';
 
 const UNSUPPORTED_CUSTOM_BUTTON_METHODS = ['paypal', 'klarna', 'clicktopay'];
 
@@ -61,9 +51,13 @@ function readCallback(payload: ScanPayload, key: CallbackKey): CheckoutFieldEvid
   return readCheckoutField(payload, key, CAPTURED_ONLY);
 }
 
-function readCallbackSource(payload: ScanPayload, key: CallbackSourceKey): string {
-  const evidence = readCheckoutField(payload, key, CAPTURED_ONLY);
-  return evidence.state === 'present' ? evidence.value : '';
+/** Skip reason for onSubmit source that could not be read. */
+function unavailableSourceReason(
+  source: Extract<OnSubmitSource, { status: 'unavailable' }>
+): string {
+  if (source.reason === 'no-config') return SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED;
+  if (source.reason === 'sessions-flow') return STRINGS.SESSIONS_FLOW_SKIP_REASON;
+  return STRINGS.NO_SOURCE_SKIP_REASON;
 }
 
 function isConfigMissing<K extends keyof CheckoutConfig>(
@@ -95,9 +89,7 @@ function joinSignals(signals: readonly string[]): string {
   return `${head} and ${tail}`;
 }
 
-function describeFlow(payload: ScanPayload, flow: IntegrationFlow): string {
-  const signals = collectIntegrationFlowSignals(payload);
-
+function describeFlow({ value: flow, signals }: ImplementationAttributes['flow']): string {
   if (flow === 'sessions') {
     const sources: string[] = [];
     if (signals.hasSessionsRequest) sources.push('a Sessions API request');
@@ -116,20 +108,16 @@ function describeFlow(payload: ScanPayload, flow: IntegrationFlow): string {
   return STRINGS.FLOW_UNKNOWN_DETAIL;
 }
 
-function getDocsIntegration(payload: ScanPayload): 'Drop-in' | 'Components' {
-  return resolveIntegrationFlavor(payload).flavor === 'Drop-in' ? 'Drop-in' : 'Components';
+function getMakePaymentDocsUrl(attributes: ImplementationAttributes): string {
+  return `https://docs.adyen.com/online-payments/build-your-integration/advanced-flow/?platform=Web&integration=${docsIntegration(attributes)}#make-a-payment`;
 }
 
-function getMakePaymentDocsUrl(payload: ScanPayload): string {
-  return `https://docs.adyen.com/online-payments/build-your-integration/advanced-flow/?platform=Web&integration=${getDocsIntegration(payload)}#make-a-payment`;
-}
-
-function getFlowSensitiveCallbackDocsUrl(payload: ScanPayload, flow: IntegrationFlow): string {
-  const callbackDocFlavor = getDocsIntegration(payload);
-  if (flow === 'sessions') {
-    return FLOW_DOCS.sessions.callbacks[callbackDocFlavor];
-  }
-  return FLOW_DOCS.advanced.callbacks[callbackDocFlavor];
+function getFlowSensitiveCallbackDocsUrl(
+  attributes: ImplementationAttributes,
+  flow: IntegrationFlow
+): string {
+  const docsFlow = flow === 'sessions' ? 'sessions' : 'advanced';
+  return FLOW_DOCS[docsFlow].callbacks[docsIntegration(attributes)];
 }
 
 const STRINGS = {
@@ -258,18 +246,18 @@ function runAdvancedRequiredCallbackCheck(
   options: AdvancedRequiredCallbackOptions,
   context: CheckContext
 ): CheckOutcome {
-  const { pass, fail, skip } = context;
+  const { attributes, pass, fail, skip } = context;
   const label = options.key;
   const evidence = readCallback(payload, label);
 
   if (isConfigMissing(evidence)) {
     return skip(`${label} check skipped.`, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
   }
-  if (detectIntegrationFlow(payload) === 'sessions') {
+  if (attributes.flow.value === 'sessions') {
     return skip(`${label} check skipped.`, STRINGS.SESSIONS_FLOW_SKIP_REASON);
   }
 
-  const docsUrl = getFlowSensitiveCallbackDocsUrl(payload, 'advanced');
+  const docsUrl = getFlowSensitiveCallbackDocsUrl(attributes, 'advanced');
   if (evidence.state === 'present') {
     return evidence.value === 'component'
       ? componentLevelWarning(label, docsUrl, context)
@@ -296,7 +284,7 @@ function runFlowSensitiveOutcomeCallbackCheck(
   options: FlowSensitiveOutcomeCallbackOptions,
   context: CheckContext
 ): CheckOutcome {
-  const { pass, fail, skip, warn } = context;
+  const { attributes, pass, fail, skip, warn } = context;
   const label = options.key;
   const evidence = readCallback(payload, label);
 
@@ -304,8 +292,8 @@ function runFlowSensitiveOutcomeCallbackCheck(
     return skip(`${label} check skipped.`, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
   }
 
-  const flow = detectIntegrationFlow(payload);
-  const docsUrl = getFlowSensitiveCallbackDocsUrl(payload, flow);
+  const flow = attributes.flow.value;
+  const docsUrl = getFlowSensitiveCallbackDocsUrl(attributes, flow);
   if (evidence.state === 'present') {
     return evidence.value === 'component'
       ? componentLevelWarning(label, docsUrl, context)
@@ -332,9 +320,9 @@ function runFlowSensitiveOutcomeCallbackCheck(
 }
 
 export const CALLBACK_CHECKS = createRegistry(CATEGORY)
-  .add('flow-type', (payload, { info }) => {
-    const flow = detectIntegrationFlow(payload);
-    return info(`Integration flow type: ${flowLabel(flow)}.`, describeFlow(payload, flow));
+  .add('flow-type', (_payload, { attributes, info }) => {
+    const { flow } = attributes;
+    return info(`Integration flow type: ${flowLabel(flow.value)}.`, describeFlow(flow));
   })
   .add('callback-on-submit', (payload, context) => {
     return runAdvancedRequiredCallbackCheck(
@@ -349,25 +337,16 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
       context
     );
   })
-  .add('callback-on-submit-filtering', (payload, { skip, warn, notice, info }) => {
-    if (!hasCapturedCheckoutConfig(payload)) {
-      return skip(STRINGS.SUBMIT_FILTER_SKIP_TITLE, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
+  .add('callback-on-submit-filtering', (payload, { attributes, skip, warn, notice, info }) => {
+    const onSubmit = readOnSubmitSource(payload, attributes.flow.value);
+    if (onSubmit.status === 'unavailable') {
+      return skip(STRINGS.SUBMIT_FILTER_SKIP_TITLE, unavailableSourceReason(onSubmit));
     }
-
-    const flow = detectIntegrationFlow(payload);
-    if (flow === 'sessions') {
-      return skip(STRINGS.SUBMIT_FILTER_SKIP_TITLE, STRINGS.SESSIONS_FLOW_SKIP_REASON);
-    }
-
-    const onSubmitSource = readCallbackSource(payload, 'onSubmitSource');
-    if (onSubmitSource === '') {
-      return skip(STRINGS.SUBMIT_FILTER_SKIP_TITLE, STRINGS.NO_SOURCE_SKIP_REASON);
-    }
-    if (onSubmitSource.length >= CALLBACK_SOURCE_LIMIT) {
+    if (onSubmit.truncated) {
       return notice(STRINGS.SUBMIT_FILTER_NOTICE_TITLE, STRINGS.SUBMIT_FILTER_TRUNCATED_DETAIL);
     }
 
-    const filters = detectUnhandledOnSubmitFilters(onSubmitSource);
+    const filters = onSubmit.unhandledFilters;
     if (filters.paymentMethod || filters.actionCode) {
       const filteredTargets: string[] = [];
       if (filters.paymentMethod) {
@@ -381,11 +360,11 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
         STRINGS.SUBMIT_FILTER_WARN_TITLE,
         `Static analysis detected selective filtering on ${joinSignals(filteredTargets)} without a clear catch-all branch (else/default).`,
         STRINGS.SUBMIT_FILTER_WARN_REMEDIATION,
-        getFlowSensitiveCallbackDocsUrl(payload, 'advanced')
+        getFlowSensitiveCallbackDocsUrl(attributes, 'advanced')
       );
     }
 
-    if (!/actions\.(?:resolve|reject)\(/.test(onSubmitSource)) {
+    if (!onSubmit.resolvesActions) {
       return info(STRINGS.SUBMIT_FILTER_INFO_TITLE);
     }
 
@@ -393,42 +372,39 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
       STRINGS.SUBMIT_FILTER_NOTICE_TITLE,
       STRINGS.SUBMIT_FILTER_NOTICE_DETAIL,
       STRINGS.SUBMIT_FILTER_WARN_REMEDIATION,
-      getFlowSensitiveCallbackDocsUrl(payload, 'advanced')
+      getFlowSensitiveCallbackDocsUrl(attributes, 'advanced')
     );
   })
-  .add('callback-on-submit-state-data', (payload, { skip, pass, warn, notice, info }) => {
-    if (!hasCapturedCheckoutConfig(payload)) {
-      return skip(STRINGS.STATE_DATA_SKIP_TITLE, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
-    }
-    if (detectIntegrationFlow(payload) === 'sessions') {
-      return skip(STRINGS.STATE_DATA_SKIP_TITLE, STRINGS.SESSIONS_FLOW_SKIP_REASON);
-    }
-    const onSubmitSource = readCallbackSource(payload, 'onSubmitSource');
-    if (onSubmitSource === '') {
-      return skip(STRINGS.STATE_DATA_SKIP_TITLE, STRINGS.NO_SOURCE_SKIP_REASON);
-    }
+  .add(
+    'callback-on-submit-state-data',
+    (payload, { attributes, skip, pass, warn, notice, info }) => {
+      const onSubmit = readOnSubmitSource(payload, attributes.flow.value);
+      if (onSubmit.status === 'unavailable') {
+        return skip(STRINGS.STATE_DATA_SKIP_TITLE, unavailableSourceReason(onSubmit));
+      }
 
-    const forwarding = detectStateDataForwarding(onSubmitSource);
-    if (forwarding.kind === 'complete') return pass(STRINGS.STATE_DATA_PASS_TITLE);
-    if (forwarding.kind === 'unknown') return info(STRINGS.STATE_DATA_INFO_TITLE);
+      const forwarding = onSubmit.stateData;
+      if (forwarding.kind === 'complete') return pass(STRINGS.STATE_DATA_PASS_TITLE);
+      if (forwarding.kind === 'unknown') return info(STRINGS.STATE_DATA_INFO_TITLE);
 
-    const fields = forwarding.fields.map((field) => `state.data.${field}`).join(', ');
-    const detail = `onSubmit reads ${fields} without passing state.data as a whole. Adyen Web adds fields such as browserInfo, origin, riskData, and billing or shopper details to state.data depending on the payment method; dropping them can break native 3DS2 and weaken risk checks.`;
-    if (onSubmitSource.length >= CALLBACK_SOURCE_LIMIT) {
-      return notice(
-        STRINGS.STATE_DATA_NOTICE_TITLE,
-        `${detail} The captured callback source may be truncated, so later code could still forward the complete object.`,
+      const fields = forwarding.fields.map((field) => `state.data.${field}`).join(', ');
+      const detail = `onSubmit reads ${fields} without passing state.data as a whole. Adyen Web adds fields such as browserInfo, origin, riskData, and billing or shopper details to state.data depending on the payment method; dropping them can break native 3DS2 and weaken risk checks.`;
+      if (onSubmit.truncated) {
+        return notice(
+          STRINGS.STATE_DATA_NOTICE_TITLE,
+          `${detail} The captured callback source may be truncated, so later code could still forward the complete object.`,
+          STRINGS.STATE_DATA_REMEDIATION,
+          getMakePaymentDocsUrl(attributes)
+        );
+      }
+      return warn(
+        STRINGS.STATE_DATA_WARN_TITLE,
+        detail,
         STRINGS.STATE_DATA_REMEDIATION,
-        getMakePaymentDocsUrl(payload)
+        getMakePaymentDocsUrl(attributes)
       );
     }
-    return warn(
-      STRINGS.STATE_DATA_WARN_TITLE,
-      detail,
-      STRINGS.STATE_DATA_REMEDIATION,
-      getMakePaymentDocsUrl(payload)
-    );
-  })
+  )
   .add('callback-on-additional-details', (payload, context) => {
     return runAdvancedRequiredCallbackCheck(
       payload,
@@ -473,9 +449,9 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
     );
   })
   .add('callback-on-error', (payload, context) => {
-    const { pass, fail, skip } = context;
+    const { attributes, pass, fail, skip } = context;
     const evidence = readCallback(payload, 'onError');
-    const docsUrl = getFlowSensitiveCallbackDocsUrl(payload, 'advanced');
+    const docsUrl = getFlowSensitiveCallbackDocsUrl(attributes, 'advanced');
 
     if (isConfigMissing(evidence)) {
       return skip(STRINGS.ON_ERROR_SKIP_TITLE, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
@@ -497,7 +473,7 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
     );
   })
   .add('callback-before-submit', (payload, context) => {
-    const { pass, info, skip } = context;
+    const { attributes, pass, info, skip } = context;
     const evidence = readCallback(payload, 'beforeSubmit');
 
     if (isConfigMissing(evidence)) {
@@ -507,7 +483,7 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
       return evidence.value === 'component'
         ? componentLevelWarning(
             'beforeSubmit',
-            getFlowSensitiveCallbackDocsUrl(payload, 'advanced'),
+            getFlowSensitiveCallbackDocsUrl(attributes, 'advanced'),
             context
           )
         : pass(STRINGS.BEFORE_SUBMIT_PASS_TITLE);
@@ -517,56 +493,39 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
     }
     return info(STRINGS.BEFORE_SUBMIT_INFO_TITLE);
   })
-  .add('callback-actions-pattern', (payload, { skip, pass, warn, info }) => {
-    if (!hasCapturedCheckoutConfig(payload)) {
-      return skip(STRINGS.ACTIONS_PATTERN_SKIP_TITLE, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
+  .add('callback-actions-pattern', (payload, { attributes, skip, pass, warn, info }) => {
+    const onSubmit = readOnSubmitSource(payload, attributes.flow.value);
+    if (onSubmit.status === 'unavailable') {
+      return skip(STRINGS.ACTIONS_PATTERN_SKIP_TITLE, unavailableSourceReason(onSubmit));
     }
 
-    const flow = detectIntegrationFlow(payload);
-    if (flow === 'sessions') {
-      return skip(STRINGS.ACTIONS_PATTERN_SKIP_TITLE, STRINGS.SESSIONS_FLOW_SKIP_REASON);
-    }
-
-    const onSubmitSource = readCallbackSource(payload, 'onSubmitSource');
-    if (onSubmitSource === '') {
-      return skip(STRINGS.ACTIONS_PATTERN_SKIP_TITLE, STRINGS.NO_SOURCE_SKIP_REASON);
-    }
-
-    if (/actions\.(?:resolve|reject)\(/.test(onSubmitSource)) {
+    if (onSubmit.resolvesActions) {
       return pass(STRINGS.ACTIONS_PATTERN_PASS_TITLE);
     }
 
-    if (/component\.(?:setStatus|handleAction)\(/.test(onSubmitSource)) {
+    if (onSubmit.usesComponentCallbacks) {
       return warn(
         STRINGS.ACTIONS_PATTERN_WARN_TITLE,
         STRINGS.ACTIONS_PATTERN_WARN_DETAIL,
         STRINGS.ACTIONS_PATTERN_WARN_REMEDIATION,
-        getFlowSensitiveCallbackDocsUrl(payload, 'advanced')
+        getFlowSensitiveCallbackDocsUrl(attributes, 'advanced')
       );
     }
 
     return info(STRINGS.ACTIONS_PATTERN_INFO_TITLE);
   })
   .add('callback-multiple-submissions', (payload, { skip, info, notice }) => {
-    if (!hasCapturedCheckoutConfig(payload)) {
+    const guard = readSubmissionGuard(payload);
+    if (guard.status === 'unavailable') {
       return skip(
         STRINGS.MULTIPLE_SUBMISSIONS_SKIP_TITLE,
-        SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED
+        guard.reason === 'no-config'
+          ? SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED
+          : STRINGS.MULTIPLE_SUBMISSIONS_NO_SOURCE_SKIP_REASON
       );
     }
 
-    const onSubmitSource = readCallbackSource(payload, 'onSubmitSource');
-    const beforeSubmitSource = readCallbackSource(payload, 'beforeSubmitSource');
-    const combinedSource = `${onSubmitSource}\n${beforeSubmitSource}`;
-
-    if (combinedSource.trim() === '') {
-      return skip(
-        STRINGS.MULTIPLE_SUBMISSIONS_SKIP_TITLE,
-        STRINGS.MULTIPLE_SUBMISSIONS_NO_SOURCE_SKIP_REASON
-      );
-    }
-
-    if (detectsMultipleSubmissions(combinedSource)) {
+    if (guard.guarded) {
       return info(
         STRINGS.MULTIPLE_SUBMISSIONS_INFO_TITLE,
         STRINGS.MULTIPLE_SUBMISSIONS_INFO_DETAIL
@@ -580,19 +539,18 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
       STRINGS.MULTIPLE_SUBMISSIONS_URL
     );
   })
-  .add('callback-custom-pay-button-compatibility', (payload, { skip, pass, warn }) => {
-    if (!hasCapturedCheckoutConfig(payload)) {
+  .add('callback-custom-pay-button-compatibility', (payload, { attributes, skip, pass, warn }) => {
+    const onSubmit = readOnSubmitSource(payload, attributes.flow.value);
+    if (onSubmit.status === 'unavailable' && onSubmit.reason === 'no-config') {
       return skip(
         STRINGS.CUSTOM_PAY_BUTTON_COMPAT_SKIP_TITLE,
         SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED
       );
     }
 
-    const flow = detectIntegrationFlow(payload);
     const hasBeforeSubmit = readCallback(payload, 'beforeSubmit').state === 'present';
-    const onSubmitSource = readCallbackSource(payload, 'onSubmitSource');
     const hasSelectiveOnSubmit =
-      flow === 'advanced' && detectUnhandledOnSubmitFilters(onSubmitSource).paymentMethod;
+      onSubmit.status === 'read' && onSubmit.unhandledFilters.paymentMethod;
 
     if (!hasBeforeSubmit && !hasSelectiveOnSubmit) {
       return skip(

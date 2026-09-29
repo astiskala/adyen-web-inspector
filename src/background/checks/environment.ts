@@ -3,14 +3,6 @@
  * iframe embedding.
  */
 
-import {
-  detectEnvironmentFromCdnRequests,
-  detectEnvironmentFromClientKey,
-  detectEnvironmentFromRequests,
-  detectRegionFromCdnRequests,
-  resolveEnvironment,
-  resolveRegion,
-} from '../../shared/implementation-attributes.js';
 import { readCheckoutField } from '../../shared/scan-evidence.js';
 import { createRegistry } from './registry.js';
 
@@ -64,13 +56,13 @@ const STRINGS = {
 const CATEGORY = 'environment' as const;
 
 export const ENVIRONMENT_CHECKS = createRegistry(CATEGORY)
-  .add('env-cdn-mismatch', (payload, { skip, pass, fail }) => {
-    const cdnEnv = detectEnvironmentFromCdnRequests(payload);
+  .add('env-cdn-mismatch', (_payload, { attributes, skip, pass, fail }) => {
+    const cdnEnv = attributes.environment.cdn;
     if (cdnEnv === null) {
       return skip(STRINGS.CDN_SKIP_TITLE, STRINGS.CDN_NO_REQUESTS_SKIP_REASON);
     }
 
-    const configuredEnv = resolveEnvironment(payload).env;
+    const configuredEnv = attributes.environment.value;
     if (configuredEnv === null) {
       return skip(STRINGS.CDN_SKIP_TITLE, STRINGS.CDN_ENV_UNKNOWN_SKIP_REASON);
     }
@@ -86,13 +78,13 @@ export const ENVIRONMENT_CHECKS = createRegistry(CATEGORY)
 
     return pass(`CDN environment matches configured environment (${configuredEnv}).`);
   })
-  .add('env-region-mismatch', (payload, { skip, pass, warn }) => {
-    const cdnRegion = detectRegionFromCdnRequests(payload);
+  .add('env-region-mismatch', (_payload, { attributes, skip, pass, warn }) => {
+    const cdnRegion = attributes.region.cdn;
     if (cdnRegion === 'unknown') {
       return skip(STRINGS.REGION_MISMATCH_SKIP_TITLE, STRINGS.REGION_MISMATCH_NO_CDN_SKIP_REASON);
     }
 
-    const configuredRegion = resolveRegion(payload).region;
+    const configuredRegion = attributes.region.value;
     if (configuredRegion === 'unknown') {
       return skip(
         STRINGS.REGION_MISMATCH_SKIP_TITLE,
@@ -111,31 +103,27 @@ export const ENVIRONMENT_CHECKS = createRegistry(CATEGORY)
 
     return pass(`CDN region matches configured region (${configuredRegion}).`);
   })
-  .add('env-region', (payload, { skip, info }) => {
-    const env = resolveEnvironment(payload).env;
-    if (env === 'test') {
+  .add('env-region', (_payload, { attributes, skip, info }) => {
+    if (attributes.environment.value === 'test') {
       return skip(STRINGS.REGION_SKIP_TITLE, STRINGS.REGION_SKIP_REASON);
     }
 
-    const regionResolution = resolveRegion(payload);
-    const region = regionResolution.region;
+    const { value: region, source } = attributes.region;
     let detail: string = STRINGS.REGION_SOURCE_NETWORK_DETAIL;
-    if (regionResolution.source === 'config') {
+    if (source === 'config') {
       detail = STRINGS.REGION_SOURCE_CONFIG_DETAIL;
-    } else if (regionResolution.source === 'unknown') {
+    } else if (source === 'unknown') {
       detail = STRINGS.REGION_SOURCE_UNKNOWN_DETAIL;
     }
 
     return info(`Region: ${region}.`, detail);
   })
-  .add('env-key-mismatch', (payload, { skip, fail, pass }) => {
-    const clientKey = readCheckoutField(payload, 'clientKey');
-    if (clientKey.state !== 'present') {
+  .add('env-key-mismatch', (payload, { attributes, skip, fail, pass }) => {
+    if (readCheckoutField(payload, 'clientKey').state !== 'present') {
       return skip(STRINGS.KEY_SKIP_TITLE, STRINGS.KEY_NO_KEY_SKIP_REASON);
     }
 
-    const envFromKey = detectEnvironmentFromClientKey(clientKey.value);
-    const envFromRequests = detectEnvironmentFromRequests(payload);
+    const { clientKey: envFromKey, network: envFromRequests } = attributes.environment;
 
     if (envFromKey === null || envFromRequests === null) {
       return skip(STRINGS.KEY_SKIP_TITLE, STRINGS.KEY_NO_ENV_SKIP_REASON);
@@ -153,7 +141,7 @@ export const ENVIRONMENT_CHECKS = createRegistry(CATEGORY)
     return pass(STRINGS.KEY_PASS_TITLE);
   })
   .add('env-not-iframe', (payload, { pass, warn, notice }) => {
-    if (payload.page.isInsideIframe) {
+    if (payload.page.checkoutInIframe) {
       const topRedirect = readCheckoutField(payload, 'redirectFromTopWhenInIframe');
       if (topRedirect.state === 'present' && topRedirect.value) {
         return notice(

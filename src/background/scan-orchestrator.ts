@@ -2,12 +2,12 @@
  * Scan orchestrator — drives the full scan pipeline through a browser port.
  */
 
-import type { PageExtractResult, ScanResult } from '../shared/types.js';
-import { mergeFrameCheckoutConfig } from '../shared/scan-evidence.js';
+import type { CheckoutPage, ScanResult } from '../shared/types.js';
+import { hasCapturedCheckoutConfig } from '../shared/scan-evidence.js';
 import { detectSdkPresence, hasAdyenScriptHint } from '../shared/sdk-presence.js';
-import { extractHostname, isAdyenHost } from '../shared/utils.js';
+import { mergeFrames } from './frame-merge.js';
 import { assessScan } from './scan-assessment.js';
-import type { FrameExtraction, ScanBrowser } from './scan-browser.js';
+import type { ScanBrowser } from './scan-browser.js';
 
 const TAB_READY_TIMEOUT_MS = 15_000;
 const SPA_SETTLE_MS = 2000;
@@ -15,8 +15,8 @@ const PAGE_EXTRACT_RETRY_INTERVAL_MS = 500;
 const PAGE_EXTRACT_RETRY_TIMEOUT_MS = 4000;
 
 /**
- * Runs the full scan pipeline for a tab and persists the computed result
- * for popup/devtools retrieval.
+ * Runs the full scan pipeline for a tab. Whether the result is kept is the
+ * tab state's decision, because the page may have navigated meanwhile.
  */
 export async function runScan(tabId: number, browser: ScanBrowser): Promise<ScanResult> {
   const capture = browser.captureNetwork(tabId);
@@ -32,11 +32,11 @@ export async function runScan(tabId: number, browser: ScanBrowser): Promise<Scan
     const collected = capture.stop();
 
     const mainDocumentHeaders =
-      !pageData.isInsideIframe && collected.mainDocumentHeaders.length > 0
+      !pageData.checkoutInIframe && collected.mainDocumentHeaders.length > 0
         ? collected.mainDocumentHeaders
         : await browser.fetchDocumentHeaders(pageData.pageUrl);
 
-    const result = await assessScan(
+    return await assessScan(
       {
         tabId,
         page: pageData,
@@ -46,23 +46,17 @@ export async function runScan(tabId: number, browser: ScanBrowser): Promise<Scan
         ...(release === null ? {} : { releaseDates: release.releaseDates }),
         scannedAt: new Date(browser.now()).toISOString(),
       },
-      (pageUrl, scriptUrls) => browser.probeBundleVersion(pageUrl, scriptUrls)
+      (url) => browser.fetchScriptText(url)
     );
-
-    await browser.storeResult(result);
-    return result;
   } finally {
     capture.stop();
   }
 }
 
-function hasCapturedConfig(page: PageExtractResult): boolean {
-  return page.checkoutConfig !== null || page.componentConfig !== null;
-}
-
-async function extractPageData(browser: ScanBrowser, tabId: number): Promise<PageExtractResult> {
+/** Extracts the Checkout page, retrying while the SDK loads until configuration is captured. */
+async function extractPageData(browser: ScanBrowser, tabId: number): Promise<CheckoutPage> {
   const first = await extractTab(browser, tabId);
-  if (hasCapturedConfig(first)) return first;
+  if (hasCapturedCheckoutConfig(first)) return first;
   if (!detectSdkPresence(first).detected && !hasAdyenScriptHint(first)) return first;
 
   const deadline = browser.now() + PAGE_EXTRACT_RETRY_TIMEOUT_MS;
@@ -71,95 +65,19 @@ async function extractPageData(browser: ScanBrowser, tabId: number): Promise<Pag
   while (browser.now() < deadline) {
     await browser.sleep(PAGE_EXTRACT_RETRY_INTERVAL_MS);
     latest = await extractTab(browser, tabId);
-    if (hasCapturedConfig(latest)) return latest;
+    if (hasCapturedCheckoutConfig(latest)) return latest;
   }
 
   return latest;
 }
 
-async function extractTab(browser: ScanBrowser, tabId: number): Promise<PageExtractResult> {
-  return selectPageExtractResult(await browser.extractFrames(tabId), tabId);
-}
-
-function pageExtractScore(result: PageExtractResult): number {
-  let score = 0;
-  if (result.checkoutConfig !== null) score += 100;
-  if (result.componentConfig !== null) score += 90;
-  if (result.hasDropinDOM === true) score += 60;
-  if (result.adyenMetadata !== null) score += 40;
-  if (hasAdyenScriptHint(result)) score += 20;
-  if (result.iframes.some((frame) => frame.name?.startsWith('adyen-') === true)) {
-    score += 10;
-  }
-  return score;
-}
-
-type ExtractedFrame = FrameExtraction & { readonly result: PageExtractResult };
-
-/** Selects the strongest frame and merges observed configs/metadata across accessible frames. */
-function selectPageExtractResult(
-  results: readonly FrameExtraction[],
-  tabId: number
-): PageExtractResult {
-  const framesWithResults = results.filter(
-    (frame): frame is ExtractedFrame => frame.result !== null
-  );
-
-  const [firstFrame, ...remainingFrames] = framesWithResults;
-  if (firstFrame === undefined) {
+async function extractTab(browser: ScanBrowser, tabId: number): Promise<CheckoutPage> {
+  const frames = await browser.extractFrames(tabId);
+  const page = mergeFrames(frames);
+  if (page === null) {
     throw new Error(
-      `Page extraction returned no frame results for tab ${tabId}. ` +
-        `Results length: ${results.length}`
+      `Page extraction returned no frame results for tab ${tabId}. Results length: ${frames.length}`
     );
   }
-
-  let selected = firstFrame;
-  for (const frame of remainingFrames) {
-    const selectedScore = pageExtractScore(selected.result);
-    const frameScore = pageExtractScore(frame.result);
-    if (frameScore > selectedScore || (frameScore === selectedScore && frame.frameId === 0)) {
-      selected = frame;
-    }
-  }
-
-  const frameResults = framesWithResults.map((frame) => frame.result);
-  const adyenMetadata =
-    selected.result.adyenMetadata ??
-    frameResults.find((result) => result.adyenMetadata !== null)?.adyenMetadata ??
-    null;
-  const merchantFrames = framesWithResults.filter((frame) => {
-    const host = extractHostname(frame.result.pageUrl);
-    return host === null || !isAdyenHost(host);
-  });
-  const checkoutInChildFrame = merchantFrames.some(
-    (frame) =>
-      frame.frameId !== 0 &&
-      (frame.result.checkoutConfigComplete === true ||
-        frame.result.hasDropinDOM === true ||
-        frame.result.hasCardDOM === true ||
-        (frame.result.componentMountCount ?? 0) > 0)
-  );
-
-  return {
-    ...selected.result,
-    adyenMetadata,
-    ...mergeFrameCheckoutConfig(frameResults),
-    ...(merchantFrames.some((frame) => frame.result.hasDropinDOM === true)
-      ? { hasDropinDOM: true }
-      : {}),
-    ...(merchantFrames.some((frame) => frame.result.hasCardDOM === true)
-      ? { hasCardDOM: true }
-      : {}),
-    ...(merchantFrames.some((frame) => frame.result.hasNewCardFormDOM === true)
-      ? { hasNewCardFormDOM: true }
-      : {}),
-    ...(merchantFrames.some((frame) => frame.result.hasCardHolderNameDOM === true)
-      ? { hasCardHolderNameDOM: true }
-      : {}),
-    ...(frameResults.some((result) => result.apiKeyDetected === true)
-      ? { apiKeyDetected: true }
-      : {}),
-    isInsideIframe:
-      (selected.frameId !== 0 && merchantFrames.includes(selected)) || checkoutInChildFrame,
-  };
+  return page;
 }

@@ -10,7 +10,6 @@ export * from './results.js';
 export * from './health.js';
 export * from './version-utils.js';
 export * from './csp-utils.js';
-export * from './export-utils.js';
 
 /** Describes a thrown value: an Error's message, a string as-is, otherwise its type tag. */
 export function describeError(error: unknown): string {
@@ -31,6 +30,7 @@ export function isScanResult(value: unknown): value is ScanResult {
     typeof value['pageUrl'] === 'string' &&
     typeof value['scannedAt'] === 'string' &&
     isRecord(value['sdkPresence']) &&
+    isRecord(value['attributes']) &&
     Array.isArray(value['checks']) &&
     isRecord(value['health']) &&
     isRecord(value['payload'])
