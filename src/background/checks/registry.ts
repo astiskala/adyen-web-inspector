@@ -2,12 +2,22 @@
  * Check registry helper — provides a concise way to define groups of checks.
  */
 
-import type { Check, CheckCategory, CheckId, ScanPayload, Severity } from '../../shared/types.js';
+import type {
+  Check,
+  CheckCategory,
+  CheckId,
+  CheckImpact,
+  ImplementationAttributes,
+  ScanPayload,
+  Severity,
+} from '../../shared/types.js';
+import { readImplementationAttributes } from '../../shared/implementation-attributes.js';
+import { getDefaultImpact } from '../../shared/results.js';
 
 /**
  * Result of a check runner before ID and Category are injected.
  */
-interface CheckOutcome {
+export interface CheckOutcome {
   readonly severity: Severity;
   readonly title: string;
   readonly detail?: string;
@@ -15,19 +25,39 @@ interface CheckOutcome {
   readonly docsUrl?: string;
 }
 
+type IssueOutcome = (
+  title: string,
+  detail?: string,
+  remediation?: string,
+  docsUrl?: string
+) => CheckOutcome;
+
 /**
  * Context provided to check runners.
  */
 export interface CheckContext {
-  pass(title: string, detail?: string): CheckOutcome;
-  fail(title: string, detail?: string, remediation?: string, docsUrl?: string): CheckOutcome;
-  warn(title: string, detail?: string, remediation?: string, docsUrl?: string): CheckOutcome;
-  notice(title: string, detail?: string, remediation?: string, docsUrl?: string): CheckOutcome;
-  info(title: string, detail?: string): CheckOutcome;
-  skip(title: string, detail: string): CheckOutcome;
+  /** Implementation attributes of the scan, derived once and shared by every check. */
+  readonly attributes: ImplementationAttributes;
+  readonly pass: (title: string, detail?: string) => CheckOutcome;
+  readonly fail: IssueOutcome;
+  readonly warn: IssueOutcome;
+  readonly notice: IssueOutcome;
+  readonly info: (title: string, detail?: string) => CheckOutcome;
+  readonly skip: (title: string, detail: string) => CheckOutcome;
 }
 
 type CheckRunner = (payload: ScanPayload, context: CheckContext) => CheckOutcome;
+
+interface CheckImpactPolicy {
+  readonly warnImpact?: 'high' | 'low';
+  readonly noticeImpact?: 'low';
+}
+
+function outcomeImpact(severity: Severity, policy: CheckImpactPolicy): CheckImpact | undefined {
+  if (severity === 'warn' && policy.warnImpact !== undefined) return policy.warnImpact;
+  if (severity === 'notice' && policy.noticeImpact !== undefined) return policy.noticeImpact;
+  return getDefaultImpact(severity);
+}
 
 function buildOutcome(
   severity: Severity,
@@ -53,10 +83,10 @@ class CheckRegistry {
     this.category = category;
   }
 
-  add(id: CheckId, run: CheckRunner): this {
+  add(id: CheckId, run: CheckRunner, policy: CheckImpactPolicy = {}): this {
     const category = this.category;
 
-    const context: CheckContext = {
+    const helpers: Omit<CheckContext, 'attributes'> = {
       pass: (title, detail) => buildOutcome('pass', title, detail),
       fail: (title, detail, remediation, docsUrl) =>
         buildOutcome('fail', title, detail, remediation, docsUrl),
@@ -72,11 +102,16 @@ class CheckRegistry {
       id,
       category,
       run: (payload) => {
-        const outcome = run(payload, context);
+        const outcome = run(payload, {
+          ...helpers,
+          attributes: readImplementationAttributes(payload),
+        });
+        const impact = outcomeImpact(outcome.severity, policy);
         return {
           ...outcome,
           id,
           category,
+          ...(impact === undefined ? {} : { impact }),
         };
       },
     });

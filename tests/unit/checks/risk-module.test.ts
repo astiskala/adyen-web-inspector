@@ -3,8 +3,9 @@ import { RISK_CHECKS } from '../../../src/background/checks/risk-module';
 import {
   makeAdyenPayload,
   makeScanPayload,
-  makePageExtract,
+  makeCheckoutPage,
   makeCheckoutConfig,
+  makeCapturedConfig,
 } from '../../fixtures/makeScanPayload';
 import { DF_IFRAME_NAME } from '../../../src/shared/constants';
 import { requireCheck } from './requireCheck';
@@ -15,7 +16,7 @@ const riskNotDisabled = requireCheck(RISK_CHECKS, 'risk-module-not-disabled');
 describe('risk-df-iframe', () => {
   it('passes when dfIframe is present', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
+      page: makeCheckoutPage({
         iframes: [{ name: DF_IFRAME_NAME, src: 'https://live.adyen.com/dfIframe' }],
       }),
     });
@@ -29,7 +30,7 @@ describe('risk-df-iframe', () => {
 
   it('skips when no active Adyen checkout is detected', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({ iframes: [] }),
+      page: makeCheckoutPage({ iframes: [] }),
     });
     expect(riskIframe.run(payload).severity).toBe('skip');
   });
@@ -38,31 +39,46 @@ describe('risk-df-iframe', () => {
 describe('risk-module-not-disabled', () => {
   it('skips when checkout config is not detected', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({ checkoutConfig: null }),
+      page: makeCheckoutPage({ capturedConfig: null }),
     });
     expect(riskNotDisabled.run(payload).severity).toBe('skip');
   });
 
-  it('passes when riskEnabled is not explicitly false', () => {
+  it('passes when riskEnabled is not explicitly false in verified checkout config', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
-        checkoutConfig: {
-          clientKey: 'test_X',
-          environment: 'test',
-        },
+      page: makeCheckoutPage({
+        capturedConfig: makeCapturedConfig({ clientKey: 'test_X', environment: 'test' }, true),
       }),
     });
     expect(riskNotDisabled.run(payload).severity).toBe('pass');
+    expect(riskNotDisabled.run(payload).title).toContain('not explicitly disabled');
   });
 
   it('warns when riskEnabled is false', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
-        checkoutConfig: {
+      page: makeCheckoutPage({
+        capturedConfig: makeCapturedConfig({
           clientKey: 'test_X',
           environment: 'test',
           riskEnabled: false,
-        },
+        }),
+      }),
+    });
+    expect(riskNotDisabled.run(payload).severity).toBe('warn');
+  });
+
+  it('skips when the risk setting is absent from partial config', () => {
+    const payload = makeScanPayload({
+      page: makeCheckoutPage({ capturedConfig: makeCapturedConfig({ clientKey: 'test_X' }) }),
+    });
+    expect(riskNotDisabled.run(payload).severity).toBe('skip');
+  });
+
+  it('detects a disabled setting in a component when captured config is partial', () => {
+    const payload = makeScanPayload({
+      page: makeCheckoutPage({
+        capturedConfig: makeCapturedConfig({ clientKey: 'test_X' }),
+        componentConfig: { riskEnabled: false },
       }),
     });
     expect(riskNotDisabled.run(payload).severity).toBe('warn');
@@ -70,8 +86,8 @@ describe('risk-module-not-disabled', () => {
 
   it('skips when riskEnabled is undefined and no full config', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
-        checkoutConfig: null,
+      page: makeCheckoutPage({
+        capturedConfig: null,
         inferredConfig: {
           clientKey: 'test_X',
           environment: 'test',
@@ -85,7 +101,7 @@ describe('risk-module-not-disabled', () => {
 describe('componentConfig fallback', () => {
   it('risk-module-not-disabled uses componentConfig when checkoutConfig is null', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
+      page: makeCheckoutPage({
         componentConfig: makeCheckoutConfig({ riskEnabled: false }),
       }),
     });
@@ -94,10 +110,39 @@ describe('componentConfig fallback', () => {
 
   it('risk-module-not-disabled passes when riskEnabled is true via componentConfig', () => {
     const payload = makeScanPayload({
-      page: makePageExtract({
+      page: makeCheckoutPage({
         componentConfig: makeCheckoutConfig({ riskEnabled: true }),
       }),
     });
     expect(riskNotDisabled.run(payload).severity).toBe('pass');
+  });
+});
+
+describe('risk-card-holder-name', () => {
+  const riskHolderName = requireCheck(RISK_CHECKS, 'risk-card-holder-name');
+
+  it('skips when no new-card form is rendered', () => {
+    expect(riskHolderName.run(makeScanPayload()).severity).toBe('skip');
+    const storedCardOnly = makeScanPayload({
+      page: makeCheckoutPage({ hasCardDOM: true, hasNewCardFormDOM: false }),
+    });
+    expect(riskHolderName.run(storedCardOnly).severity).toBe('skip');
+  });
+
+  it('passes when the card form shows a holder name field', () => {
+    const payload = makeScanPayload({
+      page: makeCheckoutPage({ hasNewCardFormDOM: true, hasCardHolderNameDOM: true }),
+    });
+    expect(riskHolderName.run(payload).severity).toBe('pass');
+  });
+
+  it('requests manual review when the card form has no holder name field', () => {
+    const payload = makeScanPayload({
+      page: makeCheckoutPage({ hasNewCardFormDOM: true, hasCardHolderNameDOM: false }),
+    });
+    const result = riskHolderName.run(payload);
+    expect(result).toMatchObject({ severity: 'notice', impact: 'manual' });
+    expect(result.detail).toContain('Visa and JCB');
+    expect(result.remediation).toContain('hasHolderName: true');
   });
 });

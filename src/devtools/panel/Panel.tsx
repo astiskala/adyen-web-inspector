@@ -1,17 +1,12 @@
 import type { JSX } from 'preact';
-import { useState, useEffect } from 'preact/hooks';
-import type { ScanResult } from '~shared/types';
-import {
-  MSG_GET_RESULT,
-  MSG_SCAN_COMPLETE,
-  MSG_SCAN_ERROR,
-  MSG_SCAN_REQUEST,
-  MSG_SCAN_RESET,
-  MSG_SCAN_STARTED,
-} from '~shared/messages';
-import { buildJsonExport } from '~shared/export-json';
-import { buildPrintableReportMetadata } from '~shared/export-metadata';
-import { exportPdf } from '~shared/export-pdf';
+import { useState } from 'preact/hooks';
+import { chromeTabStateClient } from '../../popup/components/chrome-tab-state-client.js';
+import { scanButtonLabel, useScanLifecycle } from '../../popup/components/useScanLifecycle.js';
+import { buildJsonExport } from '../../shared/export-json.js';
+import { buildPrintableReportMetadata } from '../../shared/export-metadata.js';
+import { exportPdf } from '../../popup/components/pdf-export.js';
+import type { ScanResult } from '../../shared/types.js';
+import { describeError } from '../../shared/utils.js';
 import {
   OverviewTab,
   BestPracticesTab,
@@ -19,10 +14,11 @@ import {
   NetworkTab,
   RawConfigTab,
   SkippedChecksTab,
-} from './tabs';
+} from './tabs.js';
 import styles from './panel.module.css';
+import { cssModule } from '../../popup/components/css-module.js';
 
-const s = (key: string): string => styles[key] ?? '';
+const s = cssModule(styles);
 
 const TABS = [
   'Overview',
@@ -30,55 +26,61 @@ const TABS = [
   'Security',
   'Skipped Checks',
   'Network',
-  'Raw Config',
+  'Extracted Config',
 ] as const;
 type TabName = (typeof TABS)[number];
 const CONTEXT_INVALIDATED_ERROR_TEXT = 'Extension context invalidated';
 const CONTEXT_INVALIDATED_UI_MESSAGE =
   'Extension context is invalidated. Reload the extension and reopen the Adyen Inspector panel.';
 const RUNTIME_ERROR_UI_MESSAGE = 'Unable to communicate with the extension runtime.';
+const SDK_NOT_DETECTED_MESSAGE = 'Adyen Web SDK was not detected on this page.';
 
-interface RuntimeMessage {
-  readonly type: string;
-  readonly tabId?: number;
-  readonly error?: string;
+function getInspectedTabId(): number {
+  // chrome.devtools.inspectedWindow.tabId is synchronous and throws only if context is invalidated
+  // Synchronous context invalidation is handled by the scan lifecycle module.
+  return chrome.devtools.inspectedWindow.tabId;
 }
 
-function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-  if (typeof error === 'string') {
-    return error;
-  }
-  if (typeof error === 'object' && error !== null) {
-    try {
-      const serialized = JSON.stringify(error);
-      if (typeof serialized === 'string') {
-        return serialized;
-      }
-    } catch {
-      // Ignore serialization issues and fall back to object tag.
-    }
-    return Object.prototype.toString.call(error);
-  }
-  if (error === undefined) {
-    return 'undefined';
-  }
-  if (typeof error === 'number' || typeof error === 'boolean' || typeof error === 'bigint') {
-    return `${error}`;
-  }
-  if (typeof error === 'symbol') {
-    return error.description ?? 'Symbol';
-  }
-  if (typeof error === 'function') {
-    return error.name === '' ? '[function]' : `[function ${error.name}]`;
-  }
-  return 'Unknown runtime error';
-}
+const inspectedTab = { getTabId: getInspectedTabId } as const;
 
 function isContextInvalidated(error: unknown): boolean {
-  return getErrorMessage(error).includes(CONTEXT_INVALIDATED_ERROR_TEXT);
+  return describeError(error).includes(CONTEXT_INVALIDATED_ERROR_TEXT);
+}
+
+function getPanelErrorMessage(error: ReturnType<typeof useScanLifecycle>['error']): string {
+  if (error === null) return '';
+  if (error.kind === 'scan') {
+    return error.message === '' ? 'Scan failed. Try reloading the page.' : error.message;
+  }
+  if (error.kind === 'tab') return RUNTIME_ERROR_UI_MESSAGE;
+  if (isContextInvalidated(error.cause)) return CONTEXT_INVALIDATED_UI_MESSAGE;
+  return error.kind === 'request'
+    ? 'Unable to start scan. Try reloading the page.'
+    : RUNTIME_ERROR_UI_MESSAGE;
+}
+
+function exportJson(result: ScanResult): void {
+  const exportData = buildJsonExport(result, buildPrintableReportMetadata());
+  const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+    type: 'application/json',
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `adyen-inspector-${Date.now()}.json`;
+  a.click();
+  globalThis.setTimeout(() => {
+    URL.revokeObjectURL(url);
+  }, 10_000);
+}
+
+function renderTab(activeTab: TabName, result: ScanResult): JSX.Element {
+  if (activeTab === 'Overview') return <OverviewTab result={result} />;
+  if (activeTab === 'Best Practices') return <BestPracticesTab result={result} />;
+  if (activeTab === 'Security') return <SecurityTab result={result} />;
+  if (activeTab === 'Network') return <NetworkTab result={result} />;
+  if (activeTab === 'Extracted Config') return <RawConfigTab result={result} />;
+  return <SkippedChecksTab result={result} />;
 }
 
 /**
@@ -86,169 +88,13 @@ function isContextInvalidated(error: unknown): boolean {
  */
 export function Panel(): JSX.Element {
   const [activeTab, setActiveTab] = useState<TabName>('Overview');
-  const [result, setResult] = useState<ScanResult | null>(null);
-  const [scanning, setScanning] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
+  const { result, scanning, error, scan } = useScanLifecycle(inspectedTab, chromeTabStateClient);
+  const errorMsg = getPanelErrorMessage(error);
 
-  function handleRuntimeError(error: unknown, fallbackMessage: string): void {
-    setScanning(false);
-    if (isContextInvalidated(error)) {
-      setErrorMsg(CONTEXT_INVALIDATED_UI_MESSAGE);
-      return;
-    }
-    setErrorMsg(fallbackMessage);
-  }
-
-  function getInspectedTabIdSafe(): number | null {
-    // chrome.devtools.inspectedWindow.tabId is synchronous and throws only if context is invalidated
-    // Use a simple try/catch, but not for promises
-    try {
-      return chrome.devtools.inspectedWindow.tabId;
-    } catch (error) {
-      handleRuntimeError(error, RUNTIME_ERROR_UI_MESSAGE);
-      return null;
-    }
-  }
-
-  function sendRuntimeMessageSafe(message: object): Promise<unknown> | null {
-    // chrome.runtime.sendMessage returns a promise; errors should be handled via .catch()
-    // Only catch synchronous errors (e.g. context invalidated)
-    let sendMessageFn: typeof chrome.runtime.sendMessage | undefined;
-    try {
-      sendMessageFn = chrome.runtime.sendMessage;
-    } catch (error) {
-      handleRuntimeError(error, RUNTIME_ERROR_UI_MESSAGE);
-      return null;
-    }
-    return sendMessageFn(message);
-  }
-
-  function loadResult(): void {
-    const tabId = getInspectedTabIdSafe();
-    if (tabId === null) {
-      return;
-    }
-
-    const request = sendRuntimeMessageSafe({ type: MSG_GET_RESULT, tabId });
-    if (request === null) {
-      return;
-    }
-
-    request
-      .then((res: unknown) => {
-        if (typeof res === 'object' && res !== null && 'checks' in res) {
-          setResult(res as ScanResult);
-          setErrorMsg('');
-          return;
-        }
-        setResult(null);
-      })
-      .catch((error: unknown) => {
-        handleRuntimeError(error, RUNTIME_ERROR_UI_MESSAGE);
-      });
-  }
-
-  useEffect(() => {
-    loadResult();
-
-    const listener = (message: RuntimeMessage): void => {
-      const tabId = getInspectedTabIdSafe();
-      if (tabId === null || message.tabId !== tabId) {
-        return;
-      }
-
-      if (message.type === MSG_SCAN_STARTED) {
-        setErrorMsg('');
-        setScanning(true);
-        return;
-      }
-
-      if (message.type === MSG_SCAN_RESET) {
-        setScanning(false);
-        setErrorMsg('');
-        setResult(null);
-        return;
-      }
-
-      if (message.type === MSG_SCAN_COMPLETE) {
-        setScanning(false);
-        loadResult();
-        return;
-      }
-
-      if (message.type === MSG_SCAN_ERROR) {
-        setScanning(false);
-        setErrorMsg(message.error ?? 'Scan failed. Try reloading the page.');
-      }
-    };
-
-    chrome.runtime.onMessage.addListener(listener);
-
-    return (): void => {
-      chrome.runtime.onMessage.removeListener(listener);
-    };
-  }, []);
-
-  function handleScan(): void {
-    setErrorMsg('');
-    setScanning(true);
-    const tabId = getInspectedTabIdSafe();
-    if (tabId === null) {
-      return;
-    }
-
-    const request = sendRuntimeMessageSafe({ type: MSG_SCAN_REQUEST, tabId, source: 'devtools' });
-    if (request === null) {
-      return;
-    }
-
-    request.catch((error: unknown) => {
-      handleRuntimeError(error, 'Unable to start scan. Try reloading the page.');
-    });
-  }
-
-  function handleExportJson(): void {
-    if (!result) return;
-    const exportData = buildJsonExport(result, buildPrintableReportMetadata());
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], {
-      type: 'application/json',
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `adyen-inspector-${Date.now()}.json`;
-    a.click();
-    globalThis.setTimeout(() => URL.revokeObjectURL(url), 10_000);
-  }
-
-  function handleExportPdf(): void {
-    if (!result) return;
-    exportPdf(result).catch(() => {});
-  }
-
-  function renderTab(): JSX.Element | null {
-    if (!result) return null;
-    if (activeTab === 'Overview') return <OverviewTab result={result} />;
-    if (activeTab === 'Best Practices') return <BestPracticesTab result={result} />;
-    if (activeTab === 'Security') return <SecurityTab result={result} />;
-    if (activeTab === 'Network') return <NetworkTab result={result} />;
-    if (activeTab === 'Raw Config') return <RawConfigTab result={result} />;
-    return <SkippedChecksTab result={result} />;
-  }
-
-  const sdkDetectedCheck =
-    result === null ? undefined : result.checks.find((check) => check.id === 'sdk-detected');
-  const sdkNotDetected = result !== null && sdkDetectedCheck?.severity === 'fail';
-  const sdkNotDetectedMessage =
-    sdkDetectedCheck?.title ?? 'Adyen Web SDK was not detected on this page.';
+  const sdkNotDetected = result !== null && !result.sdkPresence.detected;
   const showScanButton = !sdkNotDetected;
 
-  let scanButtonText = 'Run Scan';
-  if (scanning) {
-    scanButtonText = 'Scanning…';
-  } else if (result) {
-    scanButtonText = 'Re-run Scan';
-  }
+  const scanButtonText = scanButtonLabel({ scanning, result });
 
   let bodyContent: JSX.Element;
   if (result === null) {
@@ -260,38 +106,44 @@ export function Panel(): JSX.Element {
   } else if (sdkNotDetected) {
     bodyContent = (
       <div class={s('tabContent')}>
-        <div class={s('emptyState')}>{sdkNotDetectedMessage}</div>
+        <div class={s('emptyState')}>{SDK_NOT_DETECTED_MESSAGE}</div>
       </div>
     );
   } else {
-    bodyContent = renderTab() ?? <div class={s('tabContent')} />;
+    bodyContent = renderTab(activeTab, result);
   }
 
   return (
     <div class={s('panelRoot')}>
       <div class={s('toolbar')}>
         {showScanButton && (
-          <button
-            class={`btn ${scanning ? '' : 'btnPrimary'}`}
-            onClick={handleScan}
-            disabled={scanning}
-          >
+          <button class={`btn ${scanning ? '' : 'btnPrimary'}`} onClick={scan} disabled={scanning}>
             {scanButtonText}
           </button>
         )}
         {result && !sdkNotDetected && (
           <>
-            <button class="btn" onClick={handleExportJson}>
+            <button
+              class="btn"
+              onClick={() => {
+                exportJson(result);
+              }}
+            >
               Export JSON
             </button>
-            <button class="btn" onClick={handleExportPdf}>
+            <button
+              class="btn"
+              onClick={() => {
+                exportPdf(result).catch(() => {});
+              }}
+            >
               Export PDF
             </button>
           </>
         )}
         <span class={s('toolbarSpacer')} />
         {result && !sdkNotDetected && (
-          <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
+          <span class={s('toolbarScore')}>
             Score: {result.health.score} · {result.health.passing}/{result.health.total} passing
           </span>
         )}
@@ -300,7 +152,7 @@ export function Panel(): JSX.Element {
       {!sdkNotDetected && (
         <div class={s('tabBar')}>
           {TABS.map((tab) => {
-            const cls = tab === activeTab ? s('tab') + ' ' + s('tabActive') : s('tab');
+            const cls = tab === activeTab ? `${s('tab')} ${s('tabActive')}` : s('tab');
             return (
               <button
                 key={tab}

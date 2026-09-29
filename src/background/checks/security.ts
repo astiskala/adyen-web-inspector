@@ -1,10 +1,12 @@
 /**
- * Security: SRI and HTTP response header checks.
+ * Security checks (`security`) — HTTPS, Subresource Integrity, response headers, Adyen iframe
+ * referrer policy, and API key exposure.
  */
 
-import type { ScriptTag, LinkTag, IframeInfo } from '../../shared/types.js';
-import { resolveEnvironment } from '../../shared/implementation-attributes.js';
-import { getHeader, isAdyenCheckoutResource } from '../../shared/utils.js';
+import type { ImplementationAttributes } from '../../shared/types.js';
+import { isAdyenCheckoutResource, readAdyenEndpoint } from '../../shared/adyen-endpoint.js';
+import { SKIP_REASONS } from './constants.js';
+import { readDocumentHeader, type DocumentHeaderEvidence } from './page-policy.js';
 import { createRegistry } from './registry.js';
 
 const PCI_GUIDE_URL = 'https://docs.adyen.com/development-resources/pci-dss-compliance-guide/';
@@ -42,6 +44,7 @@ const STRINGS = {
   SRI_CSS_WARN_URL: SRI_URL,
   SRI_CSS_PASS_TITLE: 'Adyen stylesheet links have SRI attributes.',
 
+  REFERRER_POLICY_SKIP_TITLE: 'Referrer-Policy check skipped.',
   REFERRER_POLICY_NOT_SET_NOTICE_TITLE: 'Referrer-Policy header is not set.',
   REFERRER_POLICY_NOTICE_DETAIL:
     'A missing or overly permissive referrer policy can leak checkout URL data to third-party origins.',
@@ -49,6 +52,7 @@ const STRINGS = {
     'Add a Referrer-Policy header set to strict-origin-when-cross-origin.',
   REFERRER_POLICY_NOTICE_URL: 'https://owasp.org/www-project-secure-headers/#referrer-policy',
 
+  XCTO_SKIP_TITLE: 'X-Content-Type-Options check skipped.',
   XCTO_PASS_TITLE: 'X-Content-Type-Options: nosniff is set.',
   XCTO_NOTICE_TITLE: 'X-Content-Type-Options: nosniff is not set.',
   XCTO_NOTICE_DETAIL:
@@ -56,6 +60,7 @@ const STRINGS = {
   XCTO_NOTICE_REMEDIATION: 'Add an X-Content-Type-Options: nosniff header.',
   XCTO_NOTICE_URL: 'https://owasp.org/www-project-secure-headers/#x-content-type-options',
 
+  XSS_SKIP_TITLE: 'X-XSS-Protection check skipped.',
   XSS_PASS_TITLE: 'X-XSS-Protection is absent or disabled (correct).',
   XSS_NOTICE_TITLE: 'X-XSS-Protection is set. This is not recommended for modern browsers.',
   XSS_NOTICE_DETAIL:
@@ -89,6 +94,13 @@ const STRINGS = {
 
 const CATEGORY = 'security' as const;
 
+const ACCEPTED_REFERRER_POLICIES: ReadonlySet<string> = new Set([
+  'strict-origin-when-cross-origin',
+  'no-referrer',
+  'same-origin',
+]);
+const DISABLED_XSS_PROTECTION_VALUES: ReadonlySet<string | null> = new Set([null, '', '0']);
+
 interface SriAttributableResource {
   readonly integrity?: string;
   readonly crossorigin?: string;
@@ -103,10 +115,19 @@ function hasMissingSriAttributes(resource: SriAttributableResource): boolean {
   );
 }
 
+/** An observed header's value, or null when the document did not send it. */
+function valueOf(header: Exclude<DocumentHeaderEvidence, { state: 'unavailable' }>): string | null {
+  return header.state === 'present' ? header.value : null;
+}
+
+function isLiveEnvironment(attributes: ImplementationAttributes): boolean {
+  const environment = attributes.environment.value;
+  return environment === 'live' || environment === 'live-in';
+}
+
 export const SECURITY_CHECKS = createRegistry(CATEGORY)
-  .add('security-https', (payload, { pass, fail, skip }) => {
-    const isLive = resolveEnvironment(payload).env === 'live';
-    if (!isLive) {
+  .add('security-https', (payload, { attributes, pass, fail, skip }) => {
+    if (!isLiveEnvironment(attributes)) {
       return skip(STRINGS.HTTPS_SKIP_TITLE, STRINGS.HTTPS_SKIP_REASON);
     }
 
@@ -125,7 +146,7 @@ export const SECURITY_CHECKS = createRegistry(CATEGORY)
   // SRI Checks
   .add('security-sri-script', (payload, { pass, fail, skip }) => {
     const { scripts } = payload.page;
-    const adyenScripts = scripts.filter((s: ScriptTag) => isAdyenCheckoutResource(s.src));
+    const adyenScripts = scripts.filter((s) => isAdyenCheckoutResource(s.src));
 
     if (adyenScripts.length === 0) {
       return skip(STRINGS.SRI_SCRIPT_SKIP_TITLE, STRINGS.SRI_SCRIPT_SKIP_REASON);
@@ -143,92 +164,120 @@ export const SECURITY_CHECKS = createRegistry(CATEGORY)
 
     return pass(STRINGS.SRI_SCRIPT_PASS_TITLE);
   })
-  .add('security-sri-css', (payload, { pass, warn, skip }) => {
-    const { links } = payload.page;
-    const adyenLinks = links.filter((l: LinkTag) => isAdyenCheckoutResource(l.href));
+  .add(
+    'security-sri-css',
+    (payload, { pass, warn, skip }) => {
+      const { links } = payload.page;
+      const adyenLinks = links.filter((l) => isAdyenCheckoutResource(l.href));
 
-    if (adyenLinks.length === 0) {
-      return skip(STRINGS.SRI_CSS_SKIP_TITLE, STRINGS.SRI_CSS_SKIP_REASON);
-    }
+      if (adyenLinks.length === 0) {
+        return skip(STRINGS.SRI_CSS_SKIP_TITLE, STRINGS.SRI_CSS_SKIP_REASON);
+      }
 
-    const missing = adyenLinks.filter(hasMissingSriAttributes);
-    if (missing.length > 0) {
-      return warn(
-        `${missing.length} Adyen stylesheet link(s) missing SRI attributes.`,
-        STRINGS.SRI_CSS_WARN_DETAIL,
-        STRINGS.SRI_CSS_WARN_REMEDIATION,
-        STRINGS.SRI_CSS_WARN_URL
-      );
-    }
-    return pass(STRINGS.SRI_CSS_PASS_TITLE);
-  })
+      const missing = adyenLinks.filter(hasMissingSriAttributes);
+      if (missing.length > 0) {
+        return warn(
+          `${missing.length} Adyen stylesheet link(s) missing SRI attributes.`,
+          STRINGS.SRI_CSS_WARN_DETAIL,
+          STRINGS.SRI_CSS_WARN_REMEDIATION,
+          STRINGS.SRI_CSS_WARN_URL
+        );
+      }
+      return pass(STRINGS.SRI_CSS_PASS_TITLE);
+    },
+    { warnImpact: 'high' }
+  )
   // Header Checks
-  .add('security-referrer-policy', (payload, { pass, notice }) => {
-    const value = getHeader(payload, 'Referrer-Policy');
-    const recommended = 'strict-origin-when-cross-origin';
-    if (
-      value !== null &&
-      value !== '' &&
-      (value === recommended || value === 'no-referrer' || value === 'same-origin')
-    ) {
-      return pass(`Referrer-Policy is set to "${value}".`);
-    }
-    return notice(
-      value !== null && value !== ''
-        ? `Referrer-Policy is "${value}". Consider using the recommended value.`
-        : STRINGS.REFERRER_POLICY_NOT_SET_NOTICE_TITLE,
-      STRINGS.REFERRER_POLICY_NOTICE_DETAIL,
-      STRINGS.REFERRER_POLICY_NOTICE_REMEDIATION,
-      STRINGS.REFERRER_POLICY_NOTICE_URL
-    );
-  })
-  .add('security-x-content-type', (payload, { pass, notice }) => {
-    const value = getHeader(payload, 'X-Content-Type-Options');
-    if (value?.toLowerCase() === 'nosniff') {
-      return pass(STRINGS.XCTO_PASS_TITLE);
-    }
-    return notice(
-      STRINGS.XCTO_NOTICE_TITLE,
-      STRINGS.XCTO_NOTICE_DETAIL,
-      STRINGS.XCTO_NOTICE_REMEDIATION,
-      STRINGS.XCTO_NOTICE_URL
-    );
-  })
-  .add('security-xss-protection', (payload, { pass, notice }) => {
-    const value = getHeader(payload, 'X-XSS-Protection');
-    if (value === null || value === '' || value === '0') {
-      return pass(STRINGS.XSS_PASS_TITLE);
-    }
-    return notice(
-      STRINGS.XSS_NOTICE_TITLE,
-      STRINGS.XSS_NOTICE_DETAIL,
-      STRINGS.XSS_NOTICE_REMEDIATION,
-      STRINGS.XSS_NOTICE_URL
-    );
-  })
-  .add('security-hsts', (payload, { pass, notice, skip }) => {
-    if (resolveEnvironment(payload).env !== 'live') {
-      return skip(STRINGS.HSTS_SKIP_TITLE, STRINGS.HSTS_SKIP_REASON);
-    }
-    const value = getHeader(payload, 'Strict-Transport-Security');
-    if (value !== null && value !== '') return pass(STRINGS.HSTS_PASS_TITLE);
-    return notice(
-      STRINGS.HSTS_NOTICE_TITLE,
-      STRINGS.HSTS_NOTICE_DETAIL,
-      STRINGS.HSTS_NOTICE_REMEDIATION,
-      STRINGS.HSTS_NOTICE_URL
-    );
-  })
+  .add(
+    'security-referrer-policy',
+    (payload, { pass, notice, skip }) => {
+      const header = readDocumentHeader(payload, 'Referrer-Policy');
+      if (header.state === 'unavailable') {
+        return skip(STRINGS.REFERRER_POLICY_SKIP_TITLE, SKIP_REASONS.HEADERS_UNAVAILABLE);
+      }
+      const value = valueOf(header);
+      if (value !== null && ACCEPTED_REFERRER_POLICIES.has(value)) {
+        return pass(`Referrer-Policy is set to "${value}".`);
+      }
+      return notice(
+        value !== null && value !== ''
+          ? `Referrer-Policy is "${value}". Consider using the recommended value.`
+          : STRINGS.REFERRER_POLICY_NOT_SET_NOTICE_TITLE,
+        STRINGS.REFERRER_POLICY_NOTICE_DETAIL,
+        STRINGS.REFERRER_POLICY_NOTICE_REMEDIATION,
+        STRINGS.REFERRER_POLICY_NOTICE_URL
+      );
+    },
+    { noticeImpact: 'low' }
+  )
+  .add(
+    'security-x-content-type',
+    (payload, { pass, notice, skip }) => {
+      const header = readDocumentHeader(payload, 'X-Content-Type-Options');
+      if (header.state === 'unavailable') {
+        return skip(STRINGS.XCTO_SKIP_TITLE, SKIP_REASONS.HEADERS_UNAVAILABLE);
+      }
+      if (valueOf(header)?.toLowerCase() === 'nosniff') {
+        return pass(STRINGS.XCTO_PASS_TITLE);
+      }
+      return notice(
+        STRINGS.XCTO_NOTICE_TITLE,
+        STRINGS.XCTO_NOTICE_DETAIL,
+        STRINGS.XCTO_NOTICE_REMEDIATION,
+        STRINGS.XCTO_NOTICE_URL
+      );
+    },
+    { noticeImpact: 'low' }
+  )
+  .add(
+    'security-xss-protection',
+    (payload, { pass, notice, skip }) => {
+      const header = readDocumentHeader(payload, 'X-XSS-Protection');
+      if (header.state === 'unavailable') {
+        return skip(STRINGS.XSS_SKIP_TITLE, SKIP_REASONS.HEADERS_UNAVAILABLE);
+      }
+      if (DISABLED_XSS_PROTECTION_VALUES.has(valueOf(header))) {
+        return pass(STRINGS.XSS_PASS_TITLE);
+      }
+      return notice(
+        STRINGS.XSS_NOTICE_TITLE,
+        STRINGS.XSS_NOTICE_DETAIL,
+        STRINGS.XSS_NOTICE_REMEDIATION,
+        STRINGS.XSS_NOTICE_URL
+      );
+    },
+    { noticeImpact: 'low' }
+  )
+  .add(
+    'security-hsts',
+    (payload, { attributes, pass, notice, skip }) => {
+      if (!isLiveEnvironment(attributes)) {
+        return skip(STRINGS.HSTS_SKIP_TITLE, STRINGS.HSTS_SKIP_REASON);
+      }
+      const header = readDocumentHeader(payload, 'Strict-Transport-Security');
+      if (header.state === 'unavailable') {
+        return skip(STRINGS.HSTS_SKIP_TITLE, SKIP_REASONS.HEADERS_UNAVAILABLE);
+      }
+      const value = valueOf(header);
+      if (value !== null && value !== '') return pass(STRINGS.HSTS_PASS_TITLE);
+      return notice(
+        STRINGS.HSTS_NOTICE_TITLE,
+        STRINGS.HSTS_NOTICE_DETAIL,
+        STRINGS.HSTS_NOTICE_REMEDIATION,
+        STRINGS.HSTS_NOTICE_URL
+      );
+    },
+    { noticeImpact: 'low' }
+  )
   .add('security-iframe-referrerpolicy', (payload, { pass, info }) => {
     const { iframes } = payload.page;
     const adyenIframes = iframes.filter(
-      (f: IframeInfo) =>
-        f.src !== undefined && f.src !== '' && /\.(adyen\.com|adyenpayments\.com)/.test(f.src)
+      (f) => f.src !== undefined && readAdyenEndpoint(f.src) !== null
     );
     if (adyenIframes.length === 0) return info(STRINGS.IFRAME_RP_NO_ADYEN_INFO_TITLE);
 
     const missing = adyenIframes.filter(
-      (f: IframeInfo) => f.referrerpolicy === undefined || f.referrerpolicy === ''
+      (f) => f.referrerpolicy === undefined || f.referrerpolicy === ''
     );
     if (missing.length === 0) return pass(STRINGS.IFRAME_RP_PASS_TITLE);
 

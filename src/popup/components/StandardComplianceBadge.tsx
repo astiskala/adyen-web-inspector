@@ -1,10 +1,10 @@
 import type { JSX } from 'preact';
-import type { StandardCompliance } from '~shared/types';
+import { STANDARD_COMPLIANCE_COPY } from '../../shared/standard-compliance.js';
+import type { StandardCompliance } from '../../shared/types.js';
 import styles from './StandardComplianceBadge.module.css';
+import { cssModule } from './css-module.js';
 
-const s = (key: string): string => styles[key] ?? '';
-
-const STANDARD_PAYMENTS_INTEGRATION_DOCS_URL = 'https://docs.adyen.com/standard';
+const s = cssModule(styles);
 
 interface Props {
   readonly compliance: StandardCompliance;
@@ -21,9 +21,7 @@ export function StandardComplianceBadge({ compliance }: Props): JSX.Element {
           {compliant ? '\u2713' : '\u2717'}
         </span>
         <span class={s('title')}>
-          {compliant
-            ? 'Standard Drop-in frontend criteria met'
-            : 'Standard Drop-in criteria not met'}
+          {compliant ? STANDARD_COMPLIANCE_COPY.metLabel : STANDARD_COMPLIANCE_COPY.unmetLabel}
         </span>
       </div>
       {!compliant && reasons.length > 0 && (
@@ -36,10 +34,9 @@ export function StandardComplianceBadge({ compliance }: Props): JSX.Element {
         </ul>
       )}
       <div class={s('caveat')}>
-        This is not a compliance determination. Server-side API version, webhooks, account setup,
-        security, testing, and go-live requirements require manual review. See the{' '}
-        <a href={STANDARD_PAYMENTS_INTEGRATION_DOCS_URL} target="_blank" rel="noopener noreferrer">
-          Standard integration checklist
+        {STANDARD_COMPLIANCE_COPY.caveat} See the{' '}
+        <a href={STANDARD_COMPLIANCE_COPY.checklistUrl} target="_blank" rel="noopener noreferrer">
+          {STANDARD_COMPLIANCE_COPY.checklistLabel}
         </a>
         {'.'}
       </div>

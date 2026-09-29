@@ -66,3 +66,15 @@ describe('calculateHealthScore', () => {
     expect(health.tier).toBe('critical');
   });
 });
+
+describe('calculateHealthScore without scoreable checks', () => {
+  it('scores 100 when every check is informational, a notice, or skipped', () => {
+    const health = calculateHealthScore([
+      makeCheck('sdk-import-method', 'info'),
+      makeCheck('security-referrer-policy', 'notice'),
+      makeCheck('sdk-bundle-type', 'skip'),
+    ]);
+
+    expect(health).toMatchObject({ score: 100, total: 0, tier: 'excellent' });
+  });
+});

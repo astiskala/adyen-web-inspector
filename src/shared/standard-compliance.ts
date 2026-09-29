@@ -5,17 +5,29 @@
  * not claim compliance with the complete Standard integration checklist.
  */
 
-import type { ScanPayload, StandardCompliance } from './types.js';
-import { detectIntegrationFlow, resolveIntegrationFlavor } from './implementation-attributes.js';
+import type { ImplementationAttributes, StandardCompliance } from './types.js';
 import { compareVersions, parseVersion } from './utils.js';
 
 const MINIMUM_STANDARD_DROPIN_VERSION = '6.30.0';
 
+/** Copy shared by every view of the Standard Drop-in assessment. */
+export const STANDARD_COMPLIANCE_COPY = {
+  metLabel: 'Standard Drop-in frontend criteria met',
+  unmetLabel: 'Standard Drop-in criteria not met',
+  caveat:
+    'This is not a compliance determination. Server-side API version, webhooks, account setup, security, testing, and go-live requirements require manual review.',
+  checklistLabel: 'Standard integration checklist',
+  checklistUrl: 'https://docs.adyen.com/standard',
+} as const;
+
 /** Evaluates the browser-visible requirements for Adyen Standard Drop-in. */
-export function computeStandardCompliance(payload: ScanPayload): StandardCompliance {
+export function computeStandardCompliance(
+  sdkVersion: string | null,
+  attributes: ImplementationAttributes
+): StandardCompliance {
   const reasons: string[] = [];
 
-  const detectedVersion = parseVersion(payload.versionInfo.detected ?? '');
+  const detectedVersion = parseVersion(sdkVersion ?? '');
   const minimumVersion = parseVersion(MINIMUM_STANDARD_DROPIN_VERSION);
   if (detectedVersion === null || minimumVersion === null) {
     reasons.push(`Web Drop-in ${MINIMUM_STANDARD_DROPIN_VERSION} or later could not be verified.`);
@@ -23,13 +35,11 @@ export function computeStandardCompliance(payload: ScanPayload): StandardComplia
     reasons.push(`Web Drop-in ${MINIMUM_STANDARD_DROPIN_VERSION} or later is required.`);
   }
 
-  const flow = detectIntegrationFlow(payload);
-  if (flow !== 'sessions') {
+  if (attributes.flow.value !== 'sessions') {
     reasons.push('Not using Sessions flow.');
   }
 
-  const { flavor } = resolveIntegrationFlavor(payload);
-  if (flavor !== 'Drop-in') {
+  if (attributes.flavor.value !== 'Drop-in') {
     reasons.push('Not using Drop-in.');
   }
 

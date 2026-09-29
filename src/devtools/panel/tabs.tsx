@@ -1,191 +1,75 @@
 import type { JSX } from 'preact';
-import type { ScanResult, CapturedRequest, CheckResult } from '~shared/types';
-import { extractHostname, getImpactLevel, isAdyenHost } from '~shared/utils';
-import { IdentityCard } from '../../popup/components/IdentityCard';
-import { HealthScore } from '../../popup/components/HealthScore';
-import { IssueList } from '../../popup/components/IssueList';
-import { StandardComplianceBadge } from '../../popup/components/StandardComplianceBadge';
+import type { ScanResult, CheckResult, Severity } from '../../shared/types.js';
+import {
+  buildFindingProjection,
+  buildRawConfigSections,
+  type IssueGroup,
+  type IssueRow,
+} from '../../shared/export-report.js';
+import { IdentityCard } from '../../popup/components/IdentityCard.js';
+import { HealthScore } from '../../popup/components/HealthScore.js';
+import { IssueList } from '../../popup/components/IssueList.js';
+import { StandardComplianceBadge } from '../../popup/components/StandardComplianceBadge.js';
 import styles from './panel.module.css';
+import { cssModule } from '../../popup/components/css-module.js';
 
-const s = (key: string): string => styles[key] ?? '';
-const BEST_PRACTICE_CATEGORY_SET = new Set([
-  'sdk-identity',
-  'version-lifecycle',
-  'environment',
-  'auth',
-  'callbacks',
-  'risk',
-]);
-const SECURITY_CATEGORY_SET = new Set(['security', 'third-party']);
-
-type ImpactGroup = 'high' | 'medium' | 'low' | 'manual';
-const IMPACT_GROUP_ORDER: readonly ImpactGroup[] = ['high', 'medium', 'low', 'manual'];
-const IMPACT_GROUP_LABEL: Record<ImpactGroup, string> = {
-  high: 'High impact',
-  medium: 'Medium impact',
-  low: 'Low impact',
-  manual: 'Manual verification',
-};
+const s = cssModule(styles);
 
 interface Props {
   readonly result: ScanResult;
 }
 
+const SEVERITY_CLASSES: Readonly<Record<Severity, string>> = {
+  pass: 'severityPass',
+  fail: 'severityFail',
+  warn: 'severityWarn',
+  notice: 'severityNotice',
+  info: 'severityInfo',
+  skip: 'severitySkip',
+};
+
 interface SeverityBadgeProps {
-  readonly severity: string;
+  readonly severity: Severity;
 }
 
 function SeverityBadge({ severity }: SeverityBadgeProps): JSX.Element {
-  const colorMap: Record<string, string> = {
-    pass: 'var(--color-green)',
-    fail: 'var(--color-red)',
-    warn: 'var(--color-amber)',
-    notice: 'var(--color-blue)',
-    skip: 'var(--color-text-secondary)',
-    info: 'var(--color-blue)',
-  };
-  const color = colorMap[severity] ?? 'var(--color-text-secondary)';
-  return (
-    <span
-      style={{
-        color,
-        fontWeight: 600,
-        fontSize: '11px',
-        textTransform: 'uppercase',
-      }}
-    >
-      {severity}
-    </span>
-  );
+  return <span class={`${s('severity')} ${s(SEVERITY_CLASSES[severity])}`}>{severity}</span>;
 }
 
-function isIssue(check: CheckResult): boolean {
-  return check.severity === 'fail' || check.severity === 'warn' || check.severity === 'notice';
-}
-
-function isPass(check: CheckResult): boolean {
-  return check.severity === 'pass';
-}
-
-function isSecurityCheck(check: CheckResult): boolean {
-  return SECURITY_CATEGORY_SET.has(check.category);
-}
-
-function isSecurityIssue(check: CheckResult): boolean {
-  return isSecurityCheck(check) && isIssue(check);
-}
-
-function isSecurityPass(check: CheckResult): boolean {
-  return isSecurityCheck(check) && isPass(check);
-}
-
-function isBestPracticeCheck(check: CheckResult): boolean {
-  return BEST_PRACTICE_CATEGORY_SET.has(check.category);
-}
-
-function isBestPracticeIssue(check: CheckResult): boolean {
-  return isBestPracticeCheck(check) && isIssue(check);
-}
-
-function isBestPracticePass(check: CheckResult): boolean {
-  return isBestPracticeCheck(check) && isPass(check);
-}
-
-function getImpactGroup(check: CheckResult): ImpactGroup {
-  const impact = getImpactLevel(check);
-  if (impact === 'high' || impact === 'medium' || impact === 'low' || impact === 'manual') {
-    return impact;
-  }
-  return 'manual';
-}
-
-function severityRank(check: CheckResult): number {
-  if (check.severity === 'fail') return 0;
-  if (check.severity === 'warn') return 1;
-  if (check.severity === 'notice') return 2;
-  if (check.severity === 'pass') return 3;
-  if (check.severity === 'skip') return 4;
-  return 5;
-}
-
-function sortChecksBySeverityThenTitle(a: CheckResult, b: CheckResult): number {
-  const rankDiff = severityRank(a) - severityRank(b);
-  if (rankDiff !== 0) {
-    return rankDiff;
-  }
-  return a.title.localeCompare(b.title);
-}
-
-function sortChecksByTitle(a: CheckResult, b: CheckResult): number {
-  return a.title.localeCompare(b.title);
-}
-
-interface ImpactGroupChecks {
-  readonly impact: ImpactGroup;
-  readonly checks: readonly CheckResult[];
-}
-
-function buildImpactGroups(checks: readonly CheckResult[]): ImpactGroupChecks[] {
-  return IMPACT_GROUP_ORDER.map((impact) => ({
-    impact,
-    checks: checks
-      .filter((check) => getImpactGroup(check) === impact)
-      .sort(sortChecksBySeverityThenTitle),
-  })).filter((group) => group.checks.length > 0);
-}
-
-interface BestPracticeImpactSectionProps {
-  readonly impact: ImpactGroup;
-  readonly checks: readonly CheckResult[];
-}
-
-function BestPracticeItem({ check }: { readonly check: CheckResult }): JSX.Element {
-  const hasExpandedBody = Boolean(check.detail ?? check.remediation ?? check.docsUrl);
-
+function IssueItem({ issue }: { readonly issue: IssueRow }): JSX.Element {
   return (
     <div class={s('checkCard')}>
       <div class={s('checkSummaryStatic')}>
-        <span class={s('checkSummaryTitle')}>{check.title}</span>
-        <SeverityBadge severity={check.severity} />
+        <span class={s('checkSummaryTitle')}>{issue.title}</span>
+        <SeverityBadge severity={issue.severity} />
       </div>
-      {hasExpandedBody && (
-        <div class={s('checkBody')}>
-          {check.detail !== undefined && (
-            <div>
-              <strong>Detail:</strong> {check.detail}
-            </div>
-          )}
-          {check.remediation !== undefined && (
-            <div>
-              <strong>Remediation:</strong> {check.remediation}
-            </div>
-          )}
-          {check.docsUrl !== undefined && (
-            <a href={check.docsUrl} target="_blank" rel="noopener noreferrer">
-              Documentation →
-            </a>
-          )}
+      <div class={s('checkBody')}>
+        {issue.detail !== null && (
+          <div>
+            <strong>Detail:</strong> {issue.detail}
+          </div>
+        )}
+        <div>
+          <strong>Remediation:</strong> {issue.remediation}
         </div>
-      )}
+        <a href={issue.docsUrl} target="_blank" rel="noopener noreferrer">
+          Documentation →
+        </a>
+      </div>
     </div>
   );
 }
 
-function BestPracticeImpactSection({
-  impact,
-  checks,
-}: BestPracticeImpactSectionProps): JSX.Element | null {
-  if (checks.length === 0) return null;
-
+function ImpactGroupSection({ group }: { readonly group: IssueGroup }): JSX.Element {
   return (
     <div class={s('impactGroupSection')}>
       <h3 class={s('impactGroupTitle')}>
-        {IMPACT_GROUP_LABEL[impact]}
-        <span class={s('impactGroupCount')}>{checks.length}</span>
+        {group.label}
+        <span class={s('impactGroupCount')}>{group.issues.length}</span>
       </h3>
       <div class={s('checkList')}>
-        {checks.map((check) => (
-          <BestPracticeItem key={check.id} check={check} />
+        {group.issues.map((issue) => (
+          <IssueItem key={issue.id} issue={issue} />
         ))}
       </div>
     </div>
@@ -197,14 +81,14 @@ function SuccessfulCheckItem({ check }: { readonly check: CheckResult }): JSX.El
     <div class={s('checkCard')}>
       <div class={s('checkSummaryStatic')}>
         <span class={s('checkSummaryTitle')}>{check.title}</span>
-        <span class={s('passBadge')}>PASS</span>
+        <SeverityBadge severity="pass" />
       </div>
     </div>
   );
 }
 
 interface CategorizedCheckTabProps {
-  readonly issueGroups: readonly ImpactGroupChecks[];
+  readonly issueGroups: readonly IssueGroup[];
   readonly successfulChecks: readonly CheckResult[];
   readonly issueEmptyState: string;
   readonly successEmptyState: string;
@@ -223,13 +107,7 @@ function CategorizedCheckTab({
         {issueGroups.length === 0 ? (
           <div class={s('emptyStateSubsection')}>{issueEmptyState}</div>
         ) : (
-          issueGroups.map((group) => (
-            <BestPracticeImpactSection
-              key={group.impact}
-              impact={group.impact}
-              checks={group.checks}
-            />
-          ))
+          issueGroups.map((group) => <ImpactGroupSection key={group.impact} group={group} />)
         )}
       </div>
 
@@ -273,8 +151,7 @@ export function OverviewTab({ result }: Props): JSX.Element {
  * Best-practice findings grouped by impact plus successful best-practice checks.
  */
 export function BestPracticesTab({ result }: Props): JSX.Element {
-  const issueGroups = buildImpactGroups(result.checks.filter(isBestPracticeIssue));
-  const successfulChecks = result.checks.filter(isBestPracticePass).sort(sortChecksByTitle);
+  const { issueGroups, successfulChecks } = buildFindingProjection(result).bestPractices;
 
   return (
     <CategorizedCheckTab
@@ -290,8 +167,7 @@ export function BestPracticesTab({ result }: Props): JSX.Element {
  * Security and third-party findings grouped by impact plus successful checks.
  */
 export function SecurityTab({ result }: Props): JSX.Element {
-  const issueGroups = buildImpactGroups(result.checks.filter(isSecurityIssue));
-  const successfulChecks = result.checks.filter(isSecurityPass).sort(sortChecksByTitle);
+  const { issueGroups, successfulChecks } = buildFindingProjection(result).security;
 
   return (
     <CategorizedCheckTab
@@ -307,14 +183,7 @@ export function SecurityTab({ result }: Props): JSX.Element {
  * Network capture table for requests recorded during the scan.
  */
 export function NetworkTab({ result }: Props): JSX.Element {
-  const reqs: readonly CapturedRequest[] = result.payload.capturedRequests.filter((req) => {
-    if (req.type !== 'other') {
-      return true;
-    }
-
-    const host = extractHostname(req.url);
-    return host !== null && isAdyenHost(host);
-  });
+  const reqs = buildFindingProjection(result).network.capturedRequests;
 
   return (
     <div class={s('tabContent')}>
@@ -348,41 +217,19 @@ export function NetworkTab({ result }: Props): JSX.Element {
 }
 
 /**
- * Raw JSON view of extracted checkout configuration and SDK metadata.
+ * JSON view of selected captured/inferred checkout fields and SDK metadata.
  */
 export function RawConfigTab({ result }: Props): JSX.Element {
-  const config = result.payload.page.checkoutConfig;
-  const component = result.payload.page.componentConfig;
-  const inferred = result.payload.page.inferredConfig;
-  const metadata = result.payload.page.adyenMetadata;
-
-  const configText = config ? JSON.stringify(config, null, 2) : 'No config captured.';
-  const componentText = component
-    ? JSON.stringify(component, null, 2)
-    : 'No component config captured.';
-  const inferredText = inferred
-    ? JSON.stringify(inferred, null, 2)
-    : 'No inferred config captured.';
-  const metaText = JSON.stringify(metadata ?? null, null, 2);
+  const sections = buildRawConfigSections(buildFindingProjection(result).rawConfig);
 
   return (
     <div class={s('tabContent')}>
-      <div class={s('section')}>
-        <h3 class={s('sectionTitle')}>Raw Checkout Config</h3>
-        <pre class={s('codeBlock')}>{configText}</pre>
-      </div>
-      <div class={s('section')}>
-        <h3 class={s('sectionTitle')}>Component Config (NPM)</h3>
-        <pre class={s('codeBlock')}>{componentText}</pre>
-      </div>
-      <div class={s('section')}>
-        <h3 class={s('sectionTitle')}>Inferred Checkout Config (Network)</h3>
-        <pre class={s('codeBlock')}>{inferredText}</pre>
-      </div>
-      <div class={s('section')}>
-        <h3 class={s('sectionTitle')}>SDK Metadata</h3>
-        <pre class={s('codeBlock')}>{metaText}</pre>
-      </div>
+      {sections.map(({ title, text }) => (
+        <div key={title} class={s('section')}>
+          <h3 class={s('sectionTitle')}>{title}</h3>
+          <pre class={s('codeBlock')}>{text}</pre>
+        </div>
+      ))}
     </div>
   );
 }
@@ -391,7 +238,7 @@ export function RawConfigTab({ result }: Props): JSX.Element {
  * Lists skipped checks and the extracted skip reason for each entry.
  */
 export function SkippedChecksTab({ result }: Props): JSX.Element {
-  const skipped = result.checks.filter((c) => c.severity === 'skip');
+  const skipped = buildFindingProjection(result).skippedChecks;
 
   return (
     <div class={s('tabContent')}>
@@ -403,17 +250,7 @@ export function SkippedChecksTab({ result }: Props): JSX.Element {
             <div key={check.id} class={s('checkCard')}>
               <div class={s('checkSummaryStatic')}>
                 <span class={s('checkSummaryTitle')}>{check.title}</span>
-                {check.detail !== undefined && check.detail !== '' && (
-                  <span
-                    style={{
-                      color: 'var(--color-text-secondary)',
-                      fontSize: '11px',
-                      flexShrink: 0,
-                    }}
-                  >
-                    {check.detail}
-                  </span>
-                )}
+                {check.reason !== '—' && <span class={s('skipReason')}>{check.reason}</span>}
               </div>
             </div>
           ))}

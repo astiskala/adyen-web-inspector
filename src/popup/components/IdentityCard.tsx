@@ -1,34 +1,28 @@
 import type { JSX } from 'preact';
-import type { ScanResult } from '../../shared/types.js';
-import {
-  buildImplementationAttributes,
-  type IntegrationFlow,
-} from '../../shared/implementation-attributes.js';
+import type { AdyenEnvironment, ScanResult } from '../../shared/types.js';
+import { summarizeImplementation } from '../../shared/export-report.js';
+import { INTEGRATION_FLOW_LABELS } from '../../shared/constants.js';
 import styles from './IdentityCard.module.css';
+import { cssModule } from './css-module.js';
 
 interface Props {
   readonly result: ScanResult;
 }
 
-const s = (key: string): string => styles[key] ?? '';
+const s = cssModule(styles);
 
-function envBadgeClass(env: string): string {
-  if (env === 'test') return s('badgeTest');
-  if (env === 'live') return s('badgeLive');
-  return s('badgeUnknown');
-}
-
-function normalizeFlow(flow: IntegrationFlow): string {
-  if (flow === 'sessions') return 'Sessions';
-  if (flow === 'advanced') return 'Advanced';
-  return 'Unknown';
-}
+const ENVIRONMENT_BADGES: Readonly<Record<AdyenEnvironment | 'unknown', string>> = {
+  test: 'badgeTest',
+  live: 'badgeLive',
+  'live-in': 'badgeLive',
+  unknown: 'badgeUnknown',
+};
 
 /**
  * Shows derived implementation attributes for the current checkout page.
  */
 export function IdentityCard({ result }: Props): JSX.Element {
-  const attrs = buildImplementationAttributes(result.payload);
+  const attrs = summarizeImplementation(result);
   const env = attrs.environment;
   const showRegion = attrs.region !== null;
 
@@ -41,7 +35,7 @@ export function IdentityCard({ result }: Props): JSX.Element {
       </div>
       <div class={s('row')}>
         <span class={s('label')}>Environment</span>
-        <span class={`${s('badge')} ${envBadgeClass(env)}`}>{env}</span>
+        <span class={`${s('badge')} ${s(ENVIRONMENT_BADGES[env])}`}>{env}</span>
       </div>
       {showRegion && (
         <div class={s('row')}>
@@ -51,7 +45,7 @@ export function IdentityCard({ result }: Props): JSX.Element {
       )}
       <div class={s('row')}>
         <span class={s('label')}>Flow</span>
-        <span class={s('value')}>{normalizeFlow(attrs.flow)}</span>
+        <span class={s('value')}>{INTEGRATION_FLOW_LABELS[attrs.flow]}</span>
       </div>
       <div class={s('row')}>
         <span class={s('label')}>Flavor</span>

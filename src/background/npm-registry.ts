@@ -1,54 +1,98 @@
 /**
- * NPM registry client — fetches the latest adyen-web version.
+ * NPM registry client — fetches the latest adyen-web version and v6+ release dates.
  * Results are cached in chrome.storage.local for 24 hours.
  */
 
-import { NPM_CACHE_TTL_MS, NPM_REGISTRY_URL, STORAGE_NPM_CACHE_KEY } from '../shared/constants.js';
+import {
+  MIN_SUPPORTED_MAJOR_VERSION,
+  NPM_CACHE_TTL_MS,
+  NPM_REGISTRY_URL,
+  STORAGE_NPM_CACHE_KEY,
+} from '../shared/constants.js';
+import { isRecord } from '../shared/utils.js';
+import type { AdyenWebReleaseInfo } from './scan-browser.js';
 
 interface NpmCacheEntry {
-  version: string;
-  fetchedAt: number; // Unix ms
+  readonly version: string;
+  readonly releaseDates: Readonly<Record<string, string>>;
+  readonly fetchedAt: number; // Unix ms
 }
 
-interface NpmLatestResponse {
-  version: string;
+const STABLE_VERSION_PATTERN = /^(\d+)\.\d+\.\d+$/;
+
+function isStringRecord(value: unknown): value is Record<string, string> {
+  return (
+    isRecord(value) &&
+    !Array.isArray(value) &&
+    Object.values(value).every((item) => typeof item === 'string')
+  );
 }
 
 function isNpmCacheEntry(value: unknown): value is NpmCacheEntry {
-  if (typeof value !== 'object' || value === null) {
+  if (!isRecord(value)) {
     return false;
   }
 
-  const { version, fetchedAt } = value as Record<string, unknown>;
+  const { version, releaseDates, fetchedAt } = value;
   return (
     typeof version === 'string' &&
     version.length > 0 &&
+    isStringRecord(releaseDates) &&
     typeof fetchedAt === 'number' &&
     Number.isFinite(fetchedAt)
   );
 }
 
+function isSupportedStableVersion(version: string): boolean {
+  const major = STABLE_VERSION_PATTERN.exec(version)?.[1];
+  return major !== undefined && Number(major) >= MIN_SUPPORTED_MAJOR_VERSION;
+}
+
 /**
- * Returns the latest published `@adyen/adyen-web` version.
- * Uses a 24-hour `chrome.storage.local` cache and returns `null` on failure.
+ * Reads `dist-tags.latest` and the publish times of supported stable versions
+ * from a full npm packument. Returns null when the latest tag is missing.
  */
-export async function getLatestAdyenWebVersion(): Promise<string | null> {
-  // Check cache first
+function parsePackument(data: unknown): AdyenWebReleaseInfo | null {
+  if (!isRecord(data)) return null;
+  const { 'dist-tags': distTags, time } = data;
+  const latest = isRecord(distTags) ? distTags['latest'] : undefined;
+  if (typeof latest !== 'string' || latest === '') return null;
+
+  const releaseDates: Record<string, string> = {};
+  if (isRecord(time)) {
+    for (const [version, publishedAt] of Object.entries(time)) {
+      if (typeof publishedAt === 'string' && isSupportedStableVersion(version)) {
+        releaseDates[version] = publishedAt;
+      }
+    }
+  }
+  return { latest, releaseDates };
+}
+
+/**
+ * Returns the latest published `@adyen/adyen-web` version with supported
+ * release dates. Uses a 24-hour `chrome.storage.local` cache and returns
+ * `null` on failure.
+ */
+export async function getAdyenWebReleaseInfo(): Promise<AdyenWebReleaseInfo | null> {
   const cached = await readCache();
   if (cached) {
-    return cached.version;
+    return { latest: cached.version, releaseDates: cached.releaseDates };
   }
 
   try {
     const response = await fetch(NPM_REGISTRY_URL);
     if (!response.ok) return null;
 
-    const data = (await response.json()) as NpmLatestResponse;
-    const version = data.version;
-    if (!version || typeof version !== 'string') return null;
+    const info = parsePackument(await response.json());
+    if (info === null) return null;
 
-    await writeCache({ version, fetchedAt: Date.now() });
-    return version;
+    await writeCache({
+      version: info.latest,
+      releaseDates: info.releaseDates,
+      fetchedAt: Date.now(),
+    });
+    return info;
   } catch {
     return null;
   }

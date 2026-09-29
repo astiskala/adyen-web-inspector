@@ -1,18 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { parseCsp, cspIncludesDomain } from '../../../src/shared/csp-utils';
+import { parseCsp, cspAllowsUrl, getEffectiveCspSources } from '../../../src/shared/csp-utils';
 
 interface ParseDirectivesCase {
   readonly name: string;
   readonly header: string;
   readonly expectedDirectives: Record<string, string[]>;
-}
-
-interface DomainMatchCase {
-  readonly name: string;
-  readonly header: string;
-  readonly directive: string;
-  readonly domain: string;
-  readonly expected: boolean;
 }
 
 const PARSE_DIRECTIVES_CASES: readonly ParseDirectivesCase[] = [
@@ -59,7 +51,7 @@ const PARSE_DIRECTIVES_CASES: readonly ParseDirectivesCase[] = [
   },
   {
     name: 'returns empty directives for whitespace-only input',
-    header: '   ',
+    header: ' '.repeat(3),
     expectedDirectives: {},
   },
   {
@@ -86,156 +78,6 @@ const PARSE_DIRECTIVES_CASES: readonly ParseDirectivesCase[] = [
   },
 ];
 
-const DOMAIN_MATCH_CASES: readonly DomainMatchCase[] = [
-  {
-    name: 'matches an exact domain in the directive',
-    header: 'script-src checkoutshopper-live.adyen.com',
-    directive: 'script-src',
-    domain: 'checkoutshopper-live.adyen.com',
-    expected: true,
-  },
-  {
-    name: 'matches a subdomain against a parent domain',
-    header: 'script-src foo.checkoutshopper-live.adyen.com',
-    directive: 'script-src',
-    domain: 'adyen.com',
-    expected: true,
-  },
-  {
-    name: 'matches a wildcard subdomain entry',
-    header: 'script-src *.adyen.com',
-    directive: 'script-src',
-    domain: 'adyen.com',
-    expected: true,
-  },
-  {
-    name: 'matches a domain specified with a scheme',
-    header: 'script-src https://checkoutshopper-live.adyen.com',
-    directive: 'script-src',
-    domain: 'checkoutshopper-live.adyen.com',
-    expected: true,
-  },
-  {
-    name: 'matches a domain specified with a port',
-    header: 'script-src example.com:443',
-    directive: 'script-src',
-    domain: 'example.com',
-    expected: true,
-  },
-  {
-    name: 'matches a domain specified with a path',
-    header: 'script-src example.com/path/to/resource',
-    directive: 'script-src',
-    domain: 'example.com',
-    expected: true,
-  },
-  {
-    name: 'matches a domain with scheme, port, and path combined',
-    header: 'script-src https://example.com:8443/scripts',
-    directive: 'script-src',
-    domain: 'example.com',
-    expected: true,
-  },
-  {
-    name: 'ignores CSP keyword self',
-    header: "script-src 'self' 'unsafe-inline'",
-    directive: 'script-src',
-    domain: 'self',
-    expected: false,
-  },
-  {
-    name: 'ignores CSP keyword unsafe-inline',
-    header: "script-src 'self' 'unsafe-inline'",
-    directive: 'script-src',
-    domain: 'unsafe-inline',
-    expected: false,
-  },
-  {
-    name: 'ignores scheme-only value https:',
-    header: 'script-src https: data:',
-    directive: 'script-src',
-    domain: 'https',
-    expected: false,
-  },
-  {
-    name: 'ignores scheme-only value data:',
-    header: 'script-src https: data:',
-    directive: 'script-src',
-    domain: 'data',
-    expected: false,
-  },
-  {
-    name: 'ignores wildcard star value',
-    header: 'script-src *',
-    directive: 'script-src',
-    domain: '*',
-    expected: false,
-  },
-  {
-    name: 'returns false when the directive is not present',
-    header: "default-src 'self'",
-    directive: 'script-src',
-    domain: 'example.com',
-    expected: false,
-  },
-  {
-    name: 'returns false when directive has no values',
-    header: 'upgrade-insecure-requests',
-    directive: 'upgrade-insecure-requests',
-    domain: 'example.com',
-    expected: false,
-  },
-  {
-    name: 'normalizes domains with wildcard prefix',
-    header: 'script-src adyen.com',
-    directive: 'script-src',
-    domain: '*.adyen.com',
-    expected: true,
-  },
-  {
-    name: 'normalizes domains with leading dot',
-    header: 'script-src adyen.com',
-    directive: 'script-src',
-    domain: '.adyen.com',
-    expected: true,
-  },
-  {
-    name: 'performs case-insensitive matching',
-    header: 'script-src ADYEN.COM',
-    directive: 'script-src',
-    domain: 'Adyen.Com',
-    expected: true,
-  },
-  {
-    name: 'does not match partial domain names',
-    header: 'script-src notadyen.com',
-    directive: 'script-src',
-    domain: 'adyen.com',
-    expected: false,
-  },
-  {
-    name: 'returns false when no values match',
-    header: "script-src 'self' https://other.com",
-    directive: 'script-src',
-    domain: 'adyen.com',
-    expected: false,
-  },
-  {
-    name: 'matches among multiple values in a directive',
-    header: "script-src 'self' https://cdn.example.com https://adyen.com",
-    directive: 'script-src',
-    domain: 'adyen.com',
-    expected: true,
-  },
-  {
-    name: 'handles an empty CSP',
-    header: '',
-    directive: 'script-src',
-    domain: 'example.com',
-    expected: false,
-  },
-];
-
 describe('parseCsp', () => {
   for (const testCase of PARSE_DIRECTIVES_CASES) {
     it(testCase.name, () => {
@@ -244,23 +86,128 @@ describe('parseCsp', () => {
     });
   }
 
-  it('preserves the raw header string', () => {
-    const header = "default-src 'none'; script-src https://example.com";
-    const result = parseCsp(header);
-    expect(result.raw).toBe(header);
-  });
-
-  it('preserves raw string for empty input', () => {
-    const result = parseCsp('');
-    expect(result.raw).toBe('');
+  it('uses the first instance of a repeated directive', () => {
+    const result = parseCsp("script-src 'self'; script-src https:");
+    expect(result.directives['script-src']).toEqual(["'self'"]);
   });
 });
 
-describe('cspIncludesDomain', () => {
-  for (const testCase of DOMAIN_MATCH_CASES) {
-    it(testCase.name, () => {
-      const csp = parseCsp(testCase.header);
-      expect(cspIncludesDomain(csp, testCase.directive, testCase.domain)).toBe(testCase.expected);
+describe('effective CSP sources', () => {
+  const pageUrl = 'https://merchant.example/checkout';
+  const scriptUrl = 'https://checkoutshopper-test.adyen.com/checkoutshopper/sdk.js';
+
+  it('uses script-src-elem before script-src, then default-src', () => {
+    expect(
+      cspAllowsUrl(
+        parseCsp("default-src https:; script-src 'self'"),
+        'script-src',
+        scriptUrl,
+        pageUrl
+      )
+    ).toBe(false);
+    expect(
+      cspAllowsUrl(
+        parseCsp("script-src https:; script-src-elem 'self'"),
+        'script-src',
+        scriptUrl,
+        pageUrl
+      )
+    ).toBe(false);
+    expect(cspAllowsUrl(parseCsp('default-src https:'), 'script-src', scriptUrl, pageUrl)).toBe(
+      true
+    );
+  });
+
+  it('matches exact hosts and wildcard subdomains without matching lookalikes', () => {
+    expect(
+      cspAllowsUrl(parseCsp('script-src https://*.adyen.com'), 'script-src', scriptUrl, pageUrl)
+    ).toBe(true);
+    expect(
+      cspAllowsUrl(parseCsp('script-src https://adyen.com'), 'script-src', scriptUrl, pageUrl)
+    ).toBe(false);
+    expect(
+      cspAllowsUrl(parseCsp('script-src https://notadyen.com'), 'script-src', scriptUrl, pageUrl)
+    ).toBe(false);
+  });
+
+  it('honors self, scheme sources and none', () => {
+    expect(
+      cspAllowsUrl(
+        parseCsp("script-src 'self'"),
+        'script-src',
+        'https://merchant.example/app.js',
+        pageUrl
+      )
+    ).toBe(true);
+    expect(cspAllowsUrl(parseCsp('script-src https:'), 'script-src', scriptUrl, pageUrl)).toBe(
+      true
+    );
+    expect(cspAllowsUrl(parseCsp("script-src 'none'"), 'script-src', scriptUrl, pageUrl)).toBe(
+      false
+    );
+  });
+
+  it.each([
+    ['frame-src', "default-src 'self'; child-src https:", 'child-src'],
+    ['frame-src', "default-src 'self'; frame-src *; child-src 'self'", 'frame-src'],
+    ['connect-src', "default-src 'self'", 'default-src'],
+    ['connect-src', "default-src 'self'; connect-src *", 'connect-src'],
+    ['img-src', "default-src 'self'; img-src data:", 'img-src'],
+  ] as const)('resolves %s in "%s" to %s', (directive, header, expected) => {
+    expect(getEffectiveCspSources(parseCsp(header), directive)?.directive).toBe(expected);
+  });
+
+  it.each([
+    ['https://checkoutshopper-test.adyen.com:443', true],
+    ['https://checkoutshopper-test.adyen.com:8443', false],
+    ['http://checkoutshopper-test.adyen.com', false],
+    ['checkoutshopper-test.adyen.com/checkoutshopper/', true],
+    ['checkoutshopper-test.adyen.com/other/', false],
+    ['*', true],
+    ['data:', false],
+  ])('matches the source %s against an HTTPS script: %s', (source, allowed) => {
+    expect(cspAllowsUrl(parseCsp(`script-src ${source}`), 'script-src', scriptUrl, pageUrl)).toBe(
+      allowed
+    );
+  });
+
+  it('matches explicit ports on plain HTTP resources', () => {
+    expect(
+      cspAllowsUrl(
+        parseCsp('img-src http://assets.example:80'),
+        'img-src',
+        'http://assets.example/logo.svg',
+        'http://merchant.example/'
+      )
+    ).toBe(true);
+  });
+
+  it('rejects resources when the page URL cannot be parsed', () => {
+    expect(cspAllowsUrl(parseCsp("script-src 'self'"), 'script-src', scriptUrl, 'not a url')).toBe(
+      false
+    );
+  });
+
+  it('returns null when a directive is unrestricted', () => {
+    expect(getEffectiveCspSources(parseCsp("script-src 'self'"), 'connect-src')).toBeNull();
+    expect(cspAllowsUrl(parseCsp("script-src 'self'"), 'img-src', scriptUrl, pageUrl)).toBe(true);
+  });
+
+  it('does not apply default-src to form-action', () => {
+    expect(getEffectiveCspSources(parseCsp("default-src 'none'"), 'form-action')).toBeNull();
+    expect(getEffectiveCspSources(parseCsp("form-action 'self'"), 'form-action')).toEqual({
+      directive: 'form-action',
+      sources: ["'self'"],
     });
-  }
+  });
+});
+
+describe('cspAllowsUrl wildcard sources', () => {
+  it('lets a bare * source allow http and https resources only', () => {
+    const policy = parseCsp('img-src *');
+    const page = 'https://merchant.example/checkout';
+
+    expect(cspAllowsUrl(policy, 'img-src', 'http://cdn.example/a.png', page)).toBe(true);
+    expect(cspAllowsUrl(policy, 'img-src', 'data:image/png;base64,AAAA', page)).toBe(false);
+  });
 });

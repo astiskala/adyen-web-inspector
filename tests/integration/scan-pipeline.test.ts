@@ -1,8 +1,8 @@
 /**
  * Integration tests for the scan pipeline.
  *
- * These tests exercise the full cross-module flow:
- *   ScanPayload → ALL_CHECKS → health score → standard compliance
+ * These tests exercise the full cross-module flow.
+ * ScanPayload → ALL_CHECKS → health score → standard compliance.
  *
  * Unlike unit tests (which test individual checks in isolation), these verify
  * that modules compose correctly and produce coherent end-to-end results.
@@ -10,37 +10,49 @@
 
 import { describe, it, expect } from 'vitest';
 import { ALL_CHECKS } from '../../src/background/checks/index';
-import { calculateHealthScore } from '../../src/shared/health';
-import { computeStandardCompliance } from '../../src/shared/standard-compliance';
-import type { CheckResult, ScanPayload } from '../../src/shared/types';
+import { assessScan } from '../../src/background/scan-assessment';
+import type { ScanPayload, ScanResult } from '../../src/shared/types';
 import {
   makeAdyenPayload,
   makeHeader,
   makeRequest,
   makeScanPayload,
-  makePageExtract,
+  makeCheckoutPage,
   makeAdyenMetadata,
   makeCheckoutConfig,
   makeVersionInfo,
+  makeCapturedConfig,
+  makeDocumentHeaders,
 } from '../fixtures/makeScanPayload';
 
-function runPipeline(payload: ScanPayload): {
-  checks: CheckResult[];
-  health: ReturnType<typeof calculateHealthScore>;
-  compliance: ReturnType<typeof computeStandardCompliance>;
-} {
-  const checks = ALL_CHECKS.map((check) => check.run(payload));
-  const health = calculateHealthScore(checks);
-  const compliance = computeStandardCompliance(payload);
-  return { checks, health, compliance };
+async function runPipeline(payload: ScanPayload): Promise<{
+  checks: ScanResult['checks'];
+  health: ScanResult['health'];
+  compliance: ScanResult['standardCompliance'];
+}> {
+  const result = await assessScan(
+    {
+      tabId: payload.tabId,
+      page: payload.page,
+      traffic: {
+        documentHeaders: payload.documentHeaders,
+        capturedRequests: payload.capturedRequests,
+        analyticsData: payload.analyticsData,
+      },
+      latestVersion: payload.versionInfo.latest,
+      scannedAt: payload.scannedAt,
+    },
+    async () => null
+  );
+  return { checks: result.checks, health: result.health, compliance: result.standardCompliance };
 }
 
 describe('Scan pipeline integration', () => {
-  it('runs all registered checks against a payload', () => {
+  it('runs all registered checks against a payload', async () => {
     const payload = makeAdyenPayload();
-    const { checks } = runPipeline(payload);
+    const { checks } = await runPipeline(payload);
 
-    expect(checks.length).toBe(ALL_CHECKS.length);
+    expect(checks).toHaveLength(ALL_CHECKS.length);
     for (const result of checks) {
       expect(result).toHaveProperty('id');
       expect(result).toHaveProperty('severity');
@@ -49,9 +61,9 @@ describe('Scan pipeline integration', () => {
     }
   });
 
-  it('produces valid health score structure', () => {
+  it('produces valid health score structure', async () => {
     const payload = makeAdyenPayload();
-    const { health } = runPipeline(payload);
+    const { health } = await runPipeline(payload);
 
     expect(health.score).toBeGreaterThanOrEqual(0);
     expect(health.score).toBeLessThanOrEqual(100);
@@ -59,24 +71,24 @@ describe('Scan pipeline integration', () => {
     expect(['excellent', 'issues', 'critical']).toContain(health.tier);
   });
 
-  it('produces valid standard compliance structure', () => {
+  it('produces valid standard compliance structure', async () => {
     const payload = makeAdyenPayload();
-    const { compliance } = runPipeline(payload);
+    const { compliance } = await runPipeline(payload);
 
     expect(typeof compliance.compliant).toBe('boolean');
     expect(Array.isArray(compliance.reasons)).toBe(true);
   });
 
-  it('every check ID is unique', () => {
+  it('every check ID is unique', async () => {
     const payload = makeAdyenPayload();
-    const { checks } = runPipeline(payload);
+    const { checks } = await runPipeline(payload);
     const ids = checks.map((c) => c.id);
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it('every check severity is a known value', () => {
+  it('every check severity is a known value', async () => {
     const payload = makeAdyenPayload();
-    const { checks } = runPipeline(payload);
+    const { checks } = await runPipeline(payload);
     const validSeverities = new Set(['pass', 'warn', 'fail', 'notice', 'info', 'skip']);
     for (const result of checks) {
       expect(validSeverities.has(result.severity)).toBe(true);
@@ -94,24 +106,26 @@ function makeGoodPayload(): ScanPayload {
 
   return makeScanPayload({
     pageUrl: 'https://merchant.com/checkout',
-    page: makePageExtract({
+    page: makeCheckoutPage({
       adyenMetadata: makeAdyenMetadata({
         version: '6.30.0',
         bundleType: 'esm',
         variants: ['dropin'],
       }),
-      checkoutConfig: makeCheckoutConfig({
-        clientKey: 'live_ABCDEFGHIJK',
-        environment: 'live',
-        locale: 'en-US',
-        countryCode: 'US',
-        onSubmit: 'checkout',
-        onAdditionalDetails: 'checkout',
-        onPaymentCompleted: 'checkout',
-        onPaymentFailed: 'checkout',
-        onError: 'checkout',
-        hasSession: true,
-      }),
+      capturedConfig: makeCapturedConfig(
+        makeCheckoutConfig({
+          clientKey: 'live_ABCDEFGHIJK',
+          environment: 'live',
+          locale: 'en-US',
+          countryCode: 'US',
+          onSubmit: 'checkout',
+          onAdditionalDetails: 'checkout',
+          onPaymentCompleted: 'checkout',
+          onPaymentFailed: 'checkout',
+          onError: 'checkout',
+          hasSession: true,
+        })
+      ),
       hasDropinDOM: true,
       pageUrl: 'https://merchant.com/checkout',
       pageProtocol: 'https:',
@@ -132,12 +146,12 @@ function makeGoodPayload(): ScanPayload {
       ],
       iframes: [{ name: 'dfIframe' }],
     }),
-    mainDocumentHeaders: [
+    documentHeaders: makeDocumentHeaders([
       makeHeader('content-security-policy', cspValue),
       makeHeader('strict-transport-security', 'max-age=31536000; includeSubDomains'),
       makeHeader('x-content-type-options', 'nosniff'),
       makeHeader('referrer-policy', 'strict-origin-when-cross-origin'),
-    ],
+    ]),
     capturedRequests: [
       makeRequest('https://checkoutshopper-live.adyen.com/checkoutshopper/sdk/6.30.0/adyen.js', {
         type: 'script',
@@ -154,15 +168,15 @@ function makeGoodPayload(): ScanPayload {
 }
 
 describe('Well-configured integration', () => {
-  it('achieves high health score with well-configured setup', () => {
-    const { health } = runPipeline(makeGoodPayload());
+  it('achieves high health score with well-configured setup', async () => {
+    const { health } = await runPipeline(makeGoodPayload());
 
     expect(health.score).toBeGreaterThanOrEqual(70);
     expect(health.failing).toBe(0);
   });
 
-  it('meets Standard Drop-in frontend criteria', () => {
-    const { compliance } = runPipeline(makeGoodPayload());
+  it('meets Standard Drop-in frontend criteria', async () => {
+    const { compliance } = await runPipeline(makeGoodPayload());
 
     expect(compliance.compliant).toBe(true);
     expect(compliance.reasons).toHaveLength(0);
@@ -170,20 +184,22 @@ describe('Well-configured integration', () => {
 });
 
 describe('Misconfigured integration', () => {
-  it('produces failures for HTTP page on live environment', () => {
+  it('produces failures for HTTP page on live environment', async () => {
     const payload = makeAdyenPayload(
       {},
       { environment: 'live', clientKey: 'live_ABCDEFGHIJK' },
       {
         pageUrl: 'http://insecure.example.com',
-        page: makePageExtract({
+        page: makeCheckoutPage({
           pageUrl: 'http://insecure.example.com',
           pageProtocol: 'http:',
           adyenMetadata: makeAdyenMetadata(),
-          checkoutConfig: makeCheckoutConfig({
-            environment: 'live',
-            clientKey: 'live_ABCDEFGHIJK',
-          }),
+          capturedConfig: makeCapturedConfig(
+            makeCheckoutConfig({
+              environment: 'live',
+              clientKey: 'live_ABCDEFGHIJK',
+            })
+          ),
         }),
         capturedRequests: [
           makeRequest(
@@ -197,13 +213,13 @@ describe('Misconfigured integration', () => {
       }
     );
 
-    const { checks, health } = runPipeline(payload);
+    const { checks, health } = await runPipeline(payload);
     const httpsCheck = checks.find((c) => c.id === 'security-https');
     expect(httpsCheck?.severity).toBe('fail');
     expect(health.tier).toBe('critical');
   });
 
-  it('does not meet Standard Drop-in criteria for advanced Components', () => {
+  it('does not meet Standard Drop-in criteria for advanced Components', async () => {
     const payload = makeAdyenPayload(
       { variants: ['card'] },
       { onSubmit: 'checkout', hasSession: false },
@@ -213,21 +229,21 @@ describe('Misconfigured integration', () => {
       }
     );
 
-    const { compliance } = runPipeline(payload);
+    const { compliance } = await runPipeline(payload);
     expect(compliance.compliant).toBe(false);
     expect(compliance.reasons.length).toBeGreaterThan(0);
   });
 
-  it('flags missing client key', () => {
+  it('flags missing client key', async () => {
     const payload = makeAdyenPayload({}, { clientKey: undefined });
 
-    const { checks } = runPipeline(payload);
+    const { checks } = await runPipeline(payload);
     const authCheck = checks.find((c) => c.id === 'auth-client-key');
     expect(authCheck).toBeDefined();
     expect(authCheck?.severity).not.toBe('pass');
   });
 
-  it('flags environment/key mismatch (test key with live API requests)', () => {
+  it('flags environment/key mismatch (test key with live API requests)', async () => {
     const payload = makeAdyenPayload(
       {},
       { clientKey: 'test_ABCDEFGHIJK', environment: 'live' },
@@ -241,7 +257,7 @@ describe('Misconfigured integration', () => {
       }
     );
 
-    const { checks } = runPipeline(payload);
+    const { checks } = await runPipeline(payload);
     const mismatch = checks.find((c) => c.id === 'env-key-mismatch');
     expect(mismatch).toBeDefined();
     expect(mismatch?.severity).toBe('fail');
@@ -249,24 +265,24 @@ describe('Misconfigured integration', () => {
 });
 
 describe('Health score tiers from check results', () => {
-  it('returns critical tier when any check fails', () => {
+  it('returns critical tier when any check fails', async () => {
     const payload = makeScanPayload({
       pageUrl: 'http://insecure.test',
-      page: makePageExtract({
+      page: makeCheckoutPage({
         pageUrl: 'http://insecure.test',
         pageProtocol: 'http:',
         adyenMetadata: makeAdyenMetadata(),
-        checkoutConfig: makeCheckoutConfig(),
+        capturedConfig: makeCapturedConfig(makeCheckoutConfig()),
       }),
     });
 
-    const { health } = runPipeline(payload);
+    const { health } = await runPipeline(payload);
     expect(health.tier).toBe('critical');
   });
 
-  it('tier is consistent with failing/warning counts', () => {
+  it('tier is consistent with failing/warning counts', async () => {
     const payload = makeAdyenPayload();
-    const { health } = runPipeline(payload);
+    const { health } = await runPipeline(payload);
 
     if (health.failing > 0) {
       expect(health.tier).toBe('critical');
@@ -279,26 +295,26 @@ describe('Health score tiers from check results', () => {
 });
 
 describe('Version detection cascade', () => {
-  it('reports detected version as info when available', () => {
+  it('reports detected version as info when available', async () => {
     const payload = makeAdyenPayload(
       { version: '5.50.0' },
       {},
       { versionInfo: makeVersionInfo({ detected: '5.50.0', latest: '6.5.0' }) }
     );
 
-    const { checks } = runPipeline(payload);
+    const { checks } = await runPipeline(payload);
     const versionDetected = checks.find((c) => c.id === 'version-detected');
     expect(versionDetected?.severity).toBe('info');
     expect(versionDetected?.title).toContain('5.50.0');
   });
 
-  it('reports missing version when none detected', () => {
+  it('reports missing version when none detected', async () => {
     const payload = makeScanPayload({
-      page: makePageExtract({ adyenMetadata: { bundleType: 'esm', variants: ['dropin'] } }),
+      page: makeCheckoutPage({ adyenMetadata: { bundleType: 'esm', variants: ['dropin'] } }),
       versionInfo: makeVersionInfo({ detected: null }),
     });
 
-    const { checks } = runPipeline(payload);
+    const { checks } = await runPipeline(payload);
     const versionDetected = checks.find((c) => c.id === 'version-detected');
     expect(versionDetected?.severity).not.toBe('pass');
   });

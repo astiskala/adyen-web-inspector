@@ -1,20 +1,19 @@
 /**
- * Passive content script — runs on every page navigation at document_idle.
- * Performs lightweight detection only. No DOM traversal, no network calls.
- * Sends ADYEN_DETECTED or ADYEN_NOT_DETECTED to the background service worker.
+ * Passive content script — runs on matching pages at document_idle.
+ * Uses lightweight DOM queries and mutation/route listeners; no network calls.
+ * Reports checkout activity (a mounted Drop-in, Component, or Adyen iframe) to
+ * the background service worker. SDK presence is established by a scan.
  */
-import type {
-  AdyenDetectedMessage,
-  AdyenNotDetectedMessage,
-  ContentToBswMessage,
+import { readAdyenEndpoint } from '../shared/adyen-endpoint.js';
+import { readCheckoutDom, showsMountedCheckout } from '../shared/checkout-signals.js';
+import {
+  MSG_CHECKOUT_ACTIVITY_CLEARED,
+  MSG_CHECKOUT_ACTIVITY_DETECTED,
+  type ContentToBswMessage,
 } from '../shared/messages.js';
+import { findSdkVersionInUrls } from '../shared/sdk-version.js';
 
-// Content scripts are executed as classic scripts in Chrome, so this file must
-// stay self-contained and avoid runtime imports that would emit ESM syntax.
-const MSG_ADYEN_DETECTED: AdyenDetectedMessage['type'] = 'ADYEN_DETECTED';
-const MSG_ADYEN_NOT_DETECTED: AdyenNotDetectedMessage['type'] = 'ADYEN_NOT_DETECTED';
-
-interface DetectionResult {
+interface CheckoutActivity {
   found: boolean;
   version?: string;
 }
@@ -23,60 +22,27 @@ const DETECTION_DEBOUNCE_MS = 200;
 let pendingTimer: ReturnType<typeof globalThis.setTimeout> | undefined;
 let lastSentState: string | null = null;
 
-/** Try to extract the SDK version from a CDN <script> tag (supplementary data). */
+/** Reads the SDK version from Adyen-hosted script URLs (supplementary data). */
 function extractVersionFromScripts(): string | undefined {
-  // Modern CDN pattern: checkoutshopper-sdk/X.Y.Z
-  const cdnScript = document.querySelector<HTMLScriptElement>('script[src*="checkoutshopper-sdk"]');
-  if (cdnScript) {
-    const match = /checkoutshopper-sdk[./](\d+\.\d+\.\d+)/.exec(cdnScript.src);
-    const version = match?.[1];
-    if (version !== undefined && version !== '') return version;
-  }
-
-  // Legacy CDN pattern (v5 and earlier): /checkoutshopper/sdk/X.Y.Z/
-  const legacyScript = document.querySelector<HTMLScriptElement>(
-    'script[src*="/checkoutshopper/sdk/"]'
-  );
-  if (legacyScript) {
-    const match = /\/sdk\/(\d+\.\d+\.\d+)\//.exec(legacyScript.src);
-    const version = match?.[1];
-    if (version !== undefined && version !== '') return version;
-  }
-
-  return undefined;
+  const urls = [...document.scripts]
+    .map((script) => script.src)
+    .filter((src) => readAdyenEndpoint(src) !== null);
+  return findSdkVersionInUrls(urls) ?? undefined;
 }
 
-function detectAdyen(): DetectionResult {
-  // Only report "found" when a Drop-in or Component is actually mounted on the page.
-  // SDK script tags alone (including datacollection.js / risk module) do NOT count.
-
-  // Check for Adyen Drop-in / Component DOM mount points
-  const dropinContainer = document.querySelector(
-    '.adyen-checkout__dropin, .adyen-checkout, [class*="adyen-checkout"]'
-  );
-  if (dropinContainer) {
-    const version = extractVersionFromScripts();
-    return { found: true, ...(version === undefined ? {} : { version }) };
-  }
-
-  // Check for Adyen checkout iframe (card component, 3DS)
-  const adyenIframe = document.querySelector<HTMLIFrameElement>(
-    'iframe[name^="adyen-"], iframe[title*="Adyen"], iframe[src*="adyenpayments.com"]'
-  );
-  if (adyenIframe) {
-    const version = extractVersionFromScripts();
-    return { found: true, ...(version === undefined ? {} : { version }) };
-  }
-
-  return { found: false };
+/** Reports mounted checkout as the checkout signals define it; SDK script tags alone do not count. */
+function detectCheckoutActivity(): CheckoutActivity {
+  if (!showsMountedCheckout(readCheckoutDom(document))) return { found: false };
+  const version = extractVersionFromScripts();
+  return { found: true, ...(version === undefined ? {} : { version }) };
 }
 
-function buildStateKey(result: DetectionResult): string {
+function buildStateKey(result: CheckoutActivity): string {
   return `${result.found ? '1' : '0'}:${result.version ?? ''}`;
 }
 
 function sendDetectionResult(force = false): void {
-  const result = detectAdyen();
+  const result = detectCheckoutActivity();
   const stateKey = buildStateKey(result);
   if (!force && stateKey === lastSentState) {
     return;
@@ -86,13 +52,11 @@ function sendDetectionResult(force = false): void {
 
   const message: ContentToBswMessage = result.found
     ? {
-        type: MSG_ADYEN_DETECTED,
+        type: MSG_CHECKOUT_ACTIVITY_DETECTED,
         tabId: 0,
-        ...(result.version === undefined || result.version === ''
-          ? {}
-          : { version: result.version }),
+        ...(result.version === undefined ? {} : { version: result.version }),
       }
-    : { type: MSG_ADYEN_NOT_DETECTED, tabId: 0 };
+    : { type: MSG_CHECKOUT_ACTIVITY_CLEARED, tabId: 0 };
 
   chrome.runtime.sendMessage(message).catch(() => {
     // Background service worker may not be ready yet — safe to ignore
@@ -109,14 +73,15 @@ function scheduleDetection(delay = DETECTION_DEBOUNCE_MS): void {
   }, delay);
 }
 
+const INTERESTING_TAG_NAMES: ReadonlySet<string> = new Set(['script', 'iframe', 'link']);
+
 function isInterestingNode(node: Node): boolean {
   if (node.nodeType !== Node.ELEMENT_NODE) {
     return false;
   }
 
   const element = node as Element;
-  const tagName = element.tagName.toLowerCase();
-  if (tagName === 'script' || tagName === 'iframe' || tagName === 'link') {
+  if (INTERESTING_TAG_NAMES.has(element.tagName.toLowerCase())) {
     return true;
   }
 
@@ -130,12 +95,9 @@ function isInterestingNode(node: Node): boolean {
   return src.includes('adyen') || href.includes('adyen');
 }
 
+/** The observer watches child lists only, so every record lists added and removed nodes. */
 function handleMutations(records: MutationRecord[]): void {
   for (const record of records) {
-    if (record.type !== 'childList') {
-      continue;
-    }
-
     for (const added of record.addedNodes) {
       if (isInterestingNode(added)) {
         scheduleDetection();

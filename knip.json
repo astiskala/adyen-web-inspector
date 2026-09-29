@@ -1,16 +1,16 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "entry": [
-    "src/background/worker.ts",
-    "src/content/config-interceptor.ts",
-    "src/content/detector.ts",
-    "src/content/page-extractor.ts",
-    "src/popup/Popup.tsx",
-    "src/devtools/devtools.ts",
-    "src/devtools/panel/panelEntry.tsx",
-    "src/report/reportEntry.ts"
+    "src/background/worker.ts!",
+    "src/content/config-interceptor.ts!",
+    "src/content/detector.ts!",
+    "src/content/page-extractor.ts!",
+    "src/popup/Popup.tsx!",
+    "src/devtools/devtools.ts!",
+    "src/devtools/panel/panelEntry.tsx!",
+    "src/report/reportEntry.ts!"
   ],
-  "project": ["src/**/*.{ts,tsx}", "tests/**/*.{ts,tsx}"],
+  "project": ["src/**/*.{ts,tsx}!", "tests/**/*.{ts,tsx}"],
   "include": [
     "files",
     "dependencies",

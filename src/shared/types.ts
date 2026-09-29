@@ -6,6 +6,7 @@
 // ─── Severity ────────────────────────────────────────────────────────────────
 
 export type Severity = 'pass' | 'warn' | 'fail' | 'notice' | 'info' | 'skip';
+export type CheckImpact = 'high' | 'medium' | 'low' | 'manual';
 
 // ─── Check Categories ─────────────────────────────────────────────────────────
 
@@ -41,12 +42,14 @@ export type CheckId =
   | 'env-not-iframe'
   // Auth
   | 'auth-client-key'
+  | 'auth-client-key-rejected'
   | 'auth-country-code'
   | 'auth-locale'
   // Callbacks
   | 'flow-type'
   | 'callback-on-submit'
   | 'callback-on-submit-filtering'
+  | 'callback-on-submit-state-data'
   | 'callback-on-additional-details'
   | 'callback-on-payment-completed'
   | 'callback-on-payment-failed'
@@ -58,6 +61,7 @@ export type CheckId =
   // Risk
   | 'risk-df-iframe'
   | 'risk-module-not-disabled'
+  | 'risk-card-holder-name'
   // Security
   | 'security-https'
   | 'security-sri-script'
@@ -65,6 +69,9 @@ export type CheckId =
   | 'security-csp-present'
   | 'security-csp-script-src'
   | 'security-csp-frame-src'
+  | 'security-csp-connect-src'
+  | 'security-csp-img-src'
+  | 'security-csp-form-action'
   | 'security-csp-frame-ancestors'
   | 'security-csp-reporting'
   | 'security-referrer-policy'
@@ -77,6 +84,7 @@ export type CheckId =
   | '3p-session-replay'
   | '3p-ad-pixels'
   | '3p-no-sri'
+  | '3p-cookiebot-auto-blocking'
   // API Key Exposure
   | 'security-api-key-exposed'
   // Styling
@@ -91,13 +99,14 @@ export interface CheckResult {
   readonly id: CheckId;
   readonly category: CheckCategory;
   readonly severity: Severity;
+  readonly impact?: CheckImpact;
   /** One-sentence plain-language finding visible to all users. */
   readonly title: string;
   /** Optional technical detail, shown on expansion. */
   readonly detail?: string;
-  /** Optional remediation guidance with code snippet. */
+  /** Optional remediation guidance, sometimes with an example. */
   readonly remediation?: string;
-  /** Link to official Adyen docs. */
+  /** Optional reference link (Adyen or other relevant documentation). */
   readonly docsUrl?: string;
 }
 
@@ -106,14 +115,14 @@ export interface CheckResult {
 export interface Check {
   readonly id: CheckId;
   readonly category: CheckCategory;
-  run(payload: ScanPayload): CheckResult;
+  run: (payload: ScanPayload) => CheckResult;
 }
 
 // ─── SDK Metadata (from window.AdyenWebMetadata) ─────────────────────────────
 
 export interface AdyenWebMetadata {
   readonly version?: string;
-  /** e.g. 'auto', 'umd', 'esm' */
+  /** For example, 'auto', 'umd', or 'esm'. */
   readonly bundleType?: string;
   readonly variants?: string[];
 }
@@ -146,6 +155,7 @@ export interface ScriptTag {
   readonly src: string;
   readonly integrity?: string;
   readonly crossorigin?: string;
+  readonly blockingMode?: string;
 }
 
 export interface LinkTag {
@@ -164,6 +174,8 @@ export interface IframeInfo {
 export interface ObservedRequest {
   readonly url: string;
   readonly initiatorType?: string;
+  /** HTTP status from Resource Timing; absent when the browser does not expose it. */
+  readonly responseStatus?: number;
 }
 
 /** CSS styling information detected on the page for Adyen components. */
@@ -176,18 +188,49 @@ export interface AdyenStyleInfo {
   readonly customPropertyCount: number;
 }
 
+/** Options captured directly from AdyenCheckout or component calls. */
+export interface CapturedCheckoutOptions {
+  readonly options: CheckoutConfig;
+  /** True when AdyenCheckout's options were captured whole, so options missing from them are absent. */
+  readonly complete: boolean;
+}
+
+/** The partial signal an inferred configuration value was read from. */
+export type InferenceSignal = 'adyen-request' | 'page-json';
+
+/**
+ * The capture record: everything the config interceptor observed in one
+ * frame, published on a page global for the page extractor.
+ */
+export interface CheckoutCapture {
+  readonly captured: CapturedCheckoutOptions | null;
+  /** Values inferred from partial signals, per signal; newer values win within a signal. */
+  readonly inferred: Readonly<Partial<Record<InferenceSignal, CheckoutConfig>>>;
+  /** Number of AdyenCheckout initialisations. */
+  readonly initCount: number;
+}
+
+/** One frame's page extraction, produced by the page extractor in each accessible frame. */
 export interface PageExtractResult {
   readonly adyenMetadata: AdyenWebMetadata | null;
-  /** Serialised checkout config object (best-effort, may be null) */
-  readonly checkoutConfig: CheckoutConfig | null;
-  /** Configuration inferred from partial sources like network signals. */
+  /** Options captured from AdyenCheckout and component calls; null when none were. */
+  readonly capturedConfig: CapturedCheckoutOptions | null;
+  /** Values inferred from Adyen request URLs, such as environment, clientKey, and locale. */
   readonly inferredConfig: CheckoutConfig | null;
-  /** Config extracted from mounted Adyen component Preact trees (works for NPM bundles). */
+  /** Option-shaped values found in JSON the page parsed; any page data can carry them. */
+  readonly pageJsonConfig: CheckoutConfig | null;
+  /** Config found in mounted Adyen Preact trees (including bundled integrations). */
   readonly componentConfig: CheckoutConfig | null;
-  /** Count of distinct mounted Adyen component trees found in the DOM. */
+  /** Number of vnode mount points whose trees exposed Adyen core options. */
   readonly componentMountCount?: number;
   /** True when a `.adyen-checkout__dropin` element is present in the DOM. */
   readonly hasDropinDOM?: boolean;
+  /** True when a `.adyen-checkout__card-input` Card component element is present. */
+  readonly hasCardDOM?: boolean;
+  /** True when a new-card (not stored-card) Card form is rendered. */
+  readonly hasNewCardFormDOM?: boolean;
+  /** True when the Card component renders its cardholder name field. */
+  readonly hasCardHolderNameDOM?: boolean;
   readonly scripts: ScriptTag[];
   readonly links: LinkTag[];
   readonly iframes: IframeInfo[];
@@ -199,9 +242,54 @@ export interface PageExtractResult {
   readonly apiKeyDetected?: boolean;
   /** CSS styling info for Adyen components (class overrides vs custom properties). */
   readonly adyenStyles: AdyenStyleInfo;
+  /** True when this frame is not the top-level document. */
   readonly isInsideIframe: boolean;
   readonly pageUrl: string;
   readonly pageProtocol: string;
+}
+
+/** Fields of the Checkout page that the frame merge reads from more than the selected frame. */
+type MergedFrameField =
+  | 'adyenMetadata'
+  | 'capturedConfig'
+  | 'inferredConfig'
+  | 'pageJsonConfig'
+  | 'componentConfig'
+  | 'hasDropinDOM'
+  | 'hasCardDOM'
+  | 'hasNewCardFormDOM'
+  | 'hasCardHolderNameDOM'
+  | 'apiKeyDetected'
+  | 'isInsideIframe';
+
+/**
+ * The Checkout page: every accessible frame's page extraction merged into one
+ * view. Fields come from the selected frame, the frame with the strongest
+ * checkout signals, unless their comment names a wider scope.
+ */
+export interface CheckoutPage extends Omit<PageExtractResult, MergedFrameField> {
+  /** Selected frame, else the first frame that exposed SDK metadata. */
+  readonly adyenMetadata: AdyenWebMetadata | null;
+  /** All frames; earlier frames win per option, and the capture is complete when any frame's is. */
+  readonly capturedConfig: CapturedCheckoutOptions | null;
+  /** All frames; earlier frames win per field. */
+  readonly inferredConfig: CheckoutConfig | null;
+  /** All frames; earlier frames win per field. */
+  readonly pageJsonConfig: CheckoutConfig | null;
+  /** All frames; earlier frames win per field. */
+  readonly componentConfig: CheckoutConfig | null;
+  /** Selected frame or any merchant frame: a `.adyen-checkout__dropin` element is present. */
+  readonly hasDropinDOM?: boolean;
+  /** Selected frame or any merchant frame: a `.adyen-checkout__card-input` Card element is present. */
+  readonly hasCardDOM?: boolean;
+  /** Selected frame or any merchant frame: a new-card (not stored-card) Card form is rendered. */
+  readonly hasNewCardFormDOM?: boolean;
+  /** Selected frame or any merchant frame: the Card component renders its cardholder name field. */
+  readonly hasCardHolderNameDOM?: boolean;
+  /** All frames: an Adyen API key pattern was found in inline scripts or config. */
+  readonly apiKeyDetected?: boolean;
+  /** Merchant frames: checkout runs inside a merchant iframe rather than the top-level document. */
+  readonly checkoutInIframe: boolean;
 }
 
 // ─── Checkout Config (detected from page) ────────────────────────────────────
@@ -227,12 +315,14 @@ export interface CheckoutConfig {
   readonly onPaymentFailed?: CallbackSource;
   readonly onError?: CallbackSource;
   readonly beforeSubmit?: CallbackSource;
-  /** Captured source of onSubmit as string for static analysis */
+  /** First 1,200 characters of captured onSubmit function source, if available. */
   readonly onSubmitSource?: string;
-  /** Captured source of beforeSubmit as string for static analysis */
+  /** First 1,200 characters of captured beforeSubmit function source, if available. */
   readonly beforeSubmitSource?: string;
   /** True when a session object was detected in the checkout configuration (Sessions flow indicator). */
   readonly hasSession?: boolean;
+  /** When true, Adyen Web performs redirects in the top-level window when checkout runs in an iframe. */
+  readonly redirectFromTopWhenInIframe?: boolean;
   // ─── v6 Deprecated Properties ───────────────────────────────────────────────
   /** Deprecated in v6: use disableFinalAnimation instead. */
   readonly setStatusAutomatically?: boolean;
@@ -268,16 +358,39 @@ export interface CapturedRequest {
 
 // ─── Scan Payload ─────────────────────────────────────────────────────────────
 
+/** The browser signal that established the running SDK version, strongest first. */
+export type SdkVersionSource = 'metadata' | 'analytics' | 'script-url' | 'request-url' | 'bundle';
+
 export interface VersionInfo {
   readonly detected: string | null;
+  /** Signal that produced the detected version; absent when no version was detected. */
+  readonly source?: SdkVersionSource;
   readonly latest: string | null;
+  /** ISO timestamp when the detected version was published to npm, when known. */
+  readonly detectedReleasedAt?: string;
 }
+
+/**
+ * The checkout document's response headers. Unavailable means neither the
+ * tab's response nor a separate request exposed them, so header checks cannot
+ * tell a missing header from an unseen one.
+ */
+export type DocumentHeaders =
+  | { readonly status: 'unavailable' }
+  | {
+      readonly status: 'observed';
+      /** URL of the document the headers belong to. */
+      readonly url: string;
+      /** `captured`: the tab's own response during the scan; `fetched`: a separate request for the URL. */
+      readonly source: 'captured' | 'fetched';
+      readonly headers: readonly CapturedHeader[];
+    };
 
 export interface ScanPayload {
   readonly tabId: number;
   readonly pageUrl: string;
-  readonly page: PageExtractResult;
-  readonly mainDocumentHeaders: CapturedHeader[];
+  readonly page: CheckoutPage;
+  readonly documentHeaders: DocumentHeaders;
   readonly capturedRequests: CapturedRequest[];
   readonly versionInfo: VersionInfo;
   /** Data extracted from Adyen checkout analytics POST requests (merged from multiple calls). */
@@ -301,10 +414,76 @@ export interface StandardCompliance {
   readonly reasons: readonly string[];
 }
 
+/** Whether Adyen Web is loaded on the page; distinct from checkout activity. */
+export interface SdkPresence {
+  readonly detected: boolean;
+  readonly source: 'metadata' | 'adyen-script' | 'none';
+}
+
+// ─── Implementation Attributes ───────────────────────────────────────────────
+
+export type AdyenEnvironment = 'test' | 'live' | 'live-in';
+export type AdyenRegion = 'APSE' | 'AU' | 'IN' | 'EU' | 'NEA' | 'US' | 'unknown';
+export type IntegrationFlavor = 'Drop-in' | 'Components' | 'Custom' | 'Unknown';
+export type IntegrationFlow = 'sessions' | 'advanced' | 'unknown';
+type ImportMethod = 'CDN' | 'Adyen' | 'Unknown';
+
+/** Signals that establish the integration flow. */
+interface IntegrationFlowSignals {
+  readonly hasSessionsRequest: boolean;
+  readonly hasSessionConfig: boolean;
+  readonly hasAnalyticsSessionId: boolean;
+  readonly hasCheckoutConfig: boolean;
+  readonly hasAnalyticsData: boolean;
+}
+
+/**
+ * What the Scan concluded about how the integration is built, each with the
+ * signal it came from. Derived once per scan payload; checks, the Standard
+ * Drop-in frontend assessment, views, and reports all read the same record.
+ */
+export interface ImplementationAttributes {
+  readonly flavor: {
+    readonly value: IntegrationFlavor;
+    readonly source:
+      | 'analytics'
+      | 'dropin-pattern'
+      | 'dropin-dom'
+      | 'checkout-config'
+      | 'sdk-loaded-no-checkout'
+      | 'unknown';
+  };
+  readonly flow: { readonly value: IntegrationFlow; readonly signals: IntegrationFlowSignals };
+  readonly environment: {
+    /** Strongest environment: checkout configuration, then client key prefix, then API and analytics traffic. */
+    readonly value: AdyenEnvironment | null;
+    readonly source: 'config' | 'client-key' | 'network' | 'unknown';
+    /** Environment of Adyen CDN asset hosts, independent of configuration. */
+    readonly cdn: AdyenEnvironment | null;
+    /** Environment of the strongest observed client key's prefix. */
+    readonly clientKey: AdyenEnvironment | null;
+    /** Environment of Adyen API and analytics hosts. */
+    readonly network: AdyenEnvironment | null;
+  };
+  readonly region: {
+    /** Configured region, else the region of Adyen API and analytics hosts. */
+    readonly value: AdyenRegion;
+    readonly source: 'config' | 'network' | 'unknown';
+    /** Region of regional Adyen CDN asset hosts. */
+    readonly cdn: AdyenRegion;
+  };
+  /** Visible Adyen-hosted script origin; other import methods stay unknown. */
+  readonly importMethod: ImportMethod;
+  /** Observable signs of an active checkout, distinct from SDK presence. */
+  readonly checkoutActivity: boolean;
+}
+
 export interface ScanResult {
   readonly tabId: number;
   readonly pageUrl: string;
   readonly scannedAt: string;
+  readonly sdkPresence: SdkPresence;
+  readonly attributes: ImplementationAttributes;
   readonly checks: CheckResult[];
   readonly health: HealthScore;
   readonly standardCompliance: StandardCompliance;
