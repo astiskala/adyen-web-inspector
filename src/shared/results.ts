@@ -5,10 +5,14 @@
 
 import type { CheckImpact, CheckResult, Severity } from './types.js';
 
-/** Impact buckets in priority order, used to group and sort issues. */
+/**
+Impact buckets in priority order, used to group and sort issues.
+ */
 export const ISSUE_IMPACT_ORDER: readonly CheckImpact[] = ['high', 'medium', 'low', 'manual'];
 
-/** Display labels for impact groups, shared by the popup, DevTools panel, and reports. */
+/**
+Display labels for impact groups, shared by the popup, DevTools panel, and reports.
+ */
 export const IMPACT_LABELS: Readonly<Record<CheckImpact, string>> = {
   high: 'High impact',
   medium: 'Medium impact',
@@ -18,7 +22,9 @@ export const IMPACT_LABELS: Readonly<Record<CheckImpact, string>> = {
 
 const ISSUE_SEVERITIES: ReadonlySet<Severity> = new Set(['fail', 'warn', 'notice']);
 
-/** Returns true when a check result is an issue (fail, warn, or notice). */
+/**
+Returns true when a check result is an issue (fail, warn, or notice).
+ */
 export function isIssue(check: CheckResult): boolean {
   return ISSUE_SEVERITIES.has(check.severity);
 }
@@ -30,8 +36,7 @@ export function isIssue(check: CheckResult): boolean {
 export function getDefaultImpact(severity: Severity): CheckImpact | undefined {
   if (severity === 'fail') return 'high';
   if (severity === 'warn') return 'medium';
-  if (severity === 'notice') return 'manual';
-  return undefined;
+  return severity === 'notice' ? 'manual' : undefined;
 }
 
 /**
@@ -39,6 +44,5 @@ export function getDefaultImpact(severity: Severity): CheckImpact | undefined {
  */
 export function getImpactLevel(check: CheckResult): CheckImpact | 'none' {
   const defaultImpact = getDefaultImpact(check.severity);
-  if (defaultImpact === undefined) return 'none';
-  return check.impact ?? defaultImpact;
+  return defaultImpact === undefined ? 'none' : (check.impact ?? defaultImpact);
 }

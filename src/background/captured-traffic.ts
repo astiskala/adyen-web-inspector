@@ -17,7 +17,9 @@ import type {
 } from '../shared/types.js';
 import type { ObservedNetwork, ObservedPost, ObservedResponse } from './scan-browser.js';
 
-/** Analytics fields the Scan keeps; the rest of each body is discarded. */
+/**
+Analytics fields the Scan keeps; the rest of each body is discarded.
+ */
 const ANALYTICS_KEYS = [
   'flavor',
   'version',
@@ -28,7 +30,9 @@ const ANALYTICS_KEYS = [
   'sessionId',
 ] as const;
 
-/** The network evidence of one Scan. */
+/**
+The network evidence of one Scan.
+ */
 export interface CapturedTraffic {
   readonly documentHeaders: DocumentHeaders;
   readonly capturedRequests: CapturedRequest[];
@@ -52,7 +56,9 @@ function toCapturedRequest(response: ObservedResponse): CapturedRequest {
   };
 }
 
-/** Main-document and Adyen responses are the ones checks read. */
+/**
+Main-document and Adyen responses are the ones checks read.
+ */
 function isCheckedResponse(response: ObservedResponse): boolean {
   return response.type === 'main_frame' || readAdyenEndpoint(response.url) !== null;
 }
@@ -61,7 +67,9 @@ function reported(url: string, type: CapturedRequest['type'], statusCode = 0): C
   return { url, type, responseHeaders: [], statusCode };
 }
 
-/** Requests the page itself reports, for traffic the capture did not observe. */
+/**
+Requests the page itself reports, for traffic the capture did not observe.
+ */
 function pageRequests(page: CheckoutPage): CapturedRequest[] {
   return [
     reported(page.pageUrl, 'main_frame'),
@@ -75,7 +83,9 @@ function pageRequests(page: CheckoutPage): CapturedRequest[] {
   ];
 }
 
-/** Keeps the first request per type and URL, so observed responses win over page reports. */
+/**
+Keeps the first request per type and URL, so observed responses win over page reports.
+ */
 function dedupe(requests: readonly CapturedRequest[]): CapturedRequest[] {
   const seen = new Set<string>();
   return requests.filter((request) => {
@@ -95,7 +105,9 @@ function parseBody(post: ObservedPost): Record<string, unknown> | null {
   }
 }
 
-/** Merges the SDK fields of analytics bodies; later calls win per field. */
+/**
+Merges the SDK fields of analytics bodies; later calls win per field.
+ */
 function readAnalytics(posts: readonly ObservedPost[]): AnalyticsData | null {
   const merged: { -readonly [K in keyof AnalyticsData]: AnalyticsData[K] } = {};
   for (const post of posts) {
@@ -121,7 +133,7 @@ async function readDocumentHeaders(
   fetchDocumentHeaders: FetchDocumentHeaders
 ): Promise<DocumentHeaders> {
   const topDocument = responses.findLast((response) => response.type === 'main_frame');
-  if (!page.checkoutInIframe && topDocument !== undefined && topDocument.headers.length > 0) {
+  if (topDocument !== undefined && !page.checkoutInIframe && topDocument.headers.length > 0) {
     return {
       status: 'observed',
       url: topDocument.url,
@@ -135,7 +147,9 @@ async function readDocumentHeaders(
     : { status: 'unavailable' };
 }
 
-/** Reads the Scan's network observations for the Checkout page. */
+/**
+Reads the Scan's network observations for the Checkout page.
+ */
 export async function readCapturedTraffic(
   observed: ObservedNetwork,
   page: CheckoutPage,

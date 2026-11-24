@@ -11,7 +11,7 @@ const cookiebotAutoBlocking = requireCheck(THIRD_PARTY_CHECKS, '3p-cookiebot-aut
 
 function makeScriptPage(srcs: string[]): ReturnType<typeof makeCheckoutPage> {
   return makeCheckoutPage({
-    scripts: srcs.map((src) => ({ src })),
+    scripts: srcs.map((source) => ({ src: source })),
   });
 }
 

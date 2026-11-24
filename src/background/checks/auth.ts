@@ -71,13 +71,17 @@ const SUPPORTED_LOCALES = new Set<string>(
 );
 const REJECTED_STATUS_CODES = new Set([401, 403]);
 
-/** Checkoutshopper and analytics endpoints authenticate the browser with the client key. */
+/**
+Checkoutshopper and analytics endpoints authenticate the browser with the client key.
+ */
 function isClientKeyAuthenticated(url: string): boolean {
   const role = readAdyenEndpoint(url)?.role;
   return role === 'checkoutshopper' || role === 'analytics';
 }
 
-/** Where an inferred value was observed, for notice wording. */
+/**
+Where an inferred value was observed, for notice wording.
+ */
 function inferredFrom(signal: InferenceSignal | undefined): string {
   return signal === 'page-json' ? 'in JSON the page parsed' : 'in an Adyen request';
 }
@@ -101,16 +105,14 @@ export const AUTH_CHECKS = createRegistry(CATEGORY)
     }
     const clientKey = evidence.value;
 
-    if (clientKey.startsWith(ORIGIN_KEY_PREFIX)) {
-      return warn(
-        STRINGS.CLIENT_KEY_WARN_TITLE,
-        `The value "${clientKey.slice(0, 12)}…" starts with "pub.v2." indicating an origin key. Origin keys are deprecated and will be deactivated; checkout will stop working without migrating to client keys.`,
-        STRINGS.CLIENT_KEY_WARN_REMEDIATION,
-        STRINGS.CLIENT_KEY_WARN_URL
-      );
-    }
-
-    return pass(STRINGS.CLIENT_KEY_PASS_TITLE);
+    return clientKey.startsWith(ORIGIN_KEY_PREFIX)
+      ? warn(
+          STRINGS.CLIENT_KEY_WARN_TITLE,
+          `The value "${clientKey.slice(0, 12)}…" starts with "pub.v2." indicating an origin key. Origin keys are deprecated and will be deactivated; checkout will stop working without migrating to client keys.`,
+          STRINGS.CLIENT_KEY_WARN_REMEDIATION,
+          STRINGS.CLIENT_KEY_WARN_URL
+        )
+      : pass(STRINGS.CLIENT_KEY_PASS_TITLE);
   })
   .add('auth-client-key-rejected', (payload, { pass, fail, skip }) => {
     const responses = payload.capturedRequests.filter(
@@ -121,25 +123,24 @@ export const AUTH_CHECKS = createRegistry(CATEGORY)
     }
 
     const rejected = responses.filter((request) => REJECTED_STATUS_CODES.has(request.statusCode));
-    if (rejected.length === 0) return pass(STRINGS.KEY_REJECTED_PASS_TITLE);
-
-    return fail(
-      STRINGS.KEY_REJECTED_FAIL_TITLE,
-      `Observed ${describeRejectedRequests(rejected)}. A 401 or 403 from these endpoints usually means the client key is not valid for this environment or this page origin is not an allowed origin for the key. Adyen Web then cannot load card fields or complete Sessions requests.`,
-      STRINGS.KEY_REJECTED_FAIL_REMEDIATION,
-      STRINGS.KEY_REJECTED_FAIL_URL
-    );
+    return rejected.length === 0
+      ? pass(STRINGS.KEY_REJECTED_PASS_TITLE)
+      : fail(
+          STRINGS.KEY_REJECTED_FAIL_TITLE,
+          `Observed ${describeRejectedRequests(rejected)}. A 401 or 403 from these endpoints usually means the client key is not valid for this environment or this page origin is not an allowed origin for the key. Adyen Web then cannot load card fields or complete Sessions requests.`,
+          STRINGS.KEY_REJECTED_FAIL_REMEDIATION,
+          STRINGS.KEY_REJECTED_FAIL_URL
+        );
   })
   .add('auth-country-code', (payload, { attributes, pass, fail, skip, warn, notice }) => {
     const countryCode = readCheckoutField(payload, 'countryCode');
     if (countryCode.state === 'present') {
-      if (countryCode.source === 'inferred') {
-        return notice(
-          STRINGS.COUNTRY_CODE_PARTIAL_NOTICE_TITLE,
-          `countryCode "${countryCode.value}" was observed ${inferredFrom(countryCode.signal)}, but its presence in checkout configuration could not be verified.`
-        );
-      }
-      return pass(STRINGS.COUNTRY_CODE_PASS_TITLE);
+      return countryCode.source === 'inferred'
+        ? notice(
+            STRINGS.COUNTRY_CODE_PARTIAL_NOTICE_TITLE,
+            `countryCode "${countryCode.value}" was observed ${inferredFrom(countryCode.signal)}, but its presence in checkout configuration could not be verified.`
+          )
+        : pass(STRINGS.COUNTRY_CODE_PASS_TITLE);
     }
 
     if (countryCode.state === 'unobserved' && countryCode.reason === 'no-config') {
@@ -152,21 +153,19 @@ export const AUTH_CHECKS = createRegistry(CATEGORY)
       );
     }
 
-    if (attributes.flow.value === 'sessions') {
-      return warn(
-        STRINGS.COUNTRY_CODE_FAIL_TITLE,
-        STRINGS.COUNTRY_CODE_SESSIONS_WARN_DETAIL,
-        STRINGS.COUNTRY_CODE_FAIL_REMEDIATION,
-        STRINGS.COUNTRY_CODE_FAIL_URL
-      );
-    }
-
-    return fail(
-      STRINGS.COUNTRY_CODE_FAIL_TITLE,
-      STRINGS.COUNTRY_CODE_FAIL_DETAIL,
-      STRINGS.COUNTRY_CODE_FAIL_REMEDIATION,
-      STRINGS.COUNTRY_CODE_FAIL_URL
-    );
+    return attributes.flow.value === 'sessions'
+      ? warn(
+          STRINGS.COUNTRY_CODE_FAIL_TITLE,
+          STRINGS.COUNTRY_CODE_SESSIONS_WARN_DETAIL,
+          STRINGS.COUNTRY_CODE_FAIL_REMEDIATION,
+          STRINGS.COUNTRY_CODE_FAIL_URL
+        )
+      : fail(
+          STRINGS.COUNTRY_CODE_FAIL_TITLE,
+          STRINGS.COUNTRY_CODE_FAIL_DETAIL,
+          STRINGS.COUNTRY_CODE_FAIL_REMEDIATION,
+          STRINGS.COUNTRY_CODE_FAIL_URL
+        );
   })
   .add('auth-locale', (payload, { pass, skip, warn, notice }) => {
     const evidence = readCheckoutField(payload, 'locale');
@@ -178,29 +177,26 @@ export const AUTH_CHECKS = createRegistry(CATEGORY)
           `locale "${locale}" was observed ${inferredFrom(evidence.signal)}, but its presence in checkout configuration could not be verified.`
         );
       }
-      if (!SUPPORTED_LOCALES.has(locale.toLowerCase())) {
-        return warn(
-          `locale "${locale}" is not in the supported Adyen Web translations list.`,
-          STRINGS.LOCALE_UNSUPPORTED_WARN_DETAIL,
-          STRINGS.LOCALE_UNSUPPORTED_WARN_REMEDIATION,
-          STRINGS.LOCALE_UNSUPPORTED_WARN_URL
-        );
-      }
-      return pass(STRINGS.LOCALE_PASS_TITLE);
+      return SUPPORTED_LOCALES.has(locale.toLowerCase())
+        ? pass(STRINGS.LOCALE_PASS_TITLE)
+        : warn(
+            `locale "${locale}" is not in the supported Adyen Web translations list.`,
+            STRINGS.LOCALE_UNSUPPORTED_WARN_DETAIL,
+            STRINGS.LOCALE_UNSUPPORTED_WARN_REMEDIATION,
+            STRINGS.LOCALE_UNSUPPORTED_WARN_URL
+          );
     }
 
     if (evidence.state === 'unobserved' && evidence.reason === 'no-config') {
       return skip(STRINGS.LOCALE_SKIP_TITLE, SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED);
     }
-    if (evidence.state === 'unobserved') {
-      return notice(STRINGS.LOCALE_PARTIAL_NOTICE_TITLE, STRINGS.LOCALE_PARTIAL_NOTICE_DETAIL);
-    }
-
-    return warn(
-      STRINGS.LOCALE_MISSING_WARN_TITLE,
-      STRINGS.LOCALE_MISSING_WARN_DETAIL,
-      STRINGS.LOCALE_MISSING_WARN_REMEDIATION,
-      STRINGS.LOCALE_MISSING_WARN_URL
-    );
+    return evidence.state === 'unobserved'
+      ? notice(STRINGS.LOCALE_PARTIAL_NOTICE_TITLE, STRINGS.LOCALE_PARTIAL_NOTICE_DETAIL)
+      : warn(
+          STRINGS.LOCALE_MISSING_WARN_TITLE,
+          STRINGS.LOCALE_MISSING_WARN_DETAIL,
+          STRINGS.LOCALE_MISSING_WARN_REMEDIATION,
+          STRINGS.LOCALE_MISSING_WARN_URL
+        );
   })
   .getChecks();

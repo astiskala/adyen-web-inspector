@@ -20,6 +20,14 @@ const tabState = createTabState(chromeTabStateBrowser, (tabId) =>
   runScan(tabId, chromeScanBrowser)
 );
 
+async function respondWithTabState(
+  tabId: number,
+  sendResponse: (response?: unknown) => void
+): Promise<void> {
+  const [read] = await Promise.allSettled([tabState.read(tabId)]);
+  sendResponse(read.status === 'fulfilled' ? read.value : null);
+}
+
 chrome.runtime.onMessage.addListener(
   (
     message: ExtensionMessage,
@@ -28,25 +36,23 @@ chrome.runtime.onMessage.addListener(
   ) => {
     const senderTabId = sender.tab?.id;
 
-    if (message.type === MSG_CHECKOUT_ACTIVITY_DETECTED && senderTabId !== undefined) {
-      tabState.checkoutActivityDetected(senderTabId, message.version).catch(() => {});
+    if (senderTabId !== undefined && message.type === MSG_CHECKOUT_ACTIVITY_DETECTED) {
+      void tabState.checkoutActivityDetected(senderTabId, message.version).catch(() => {});
       return false;
     }
 
-    if (message.type === MSG_CHECKOUT_ACTIVITY_CLEARED && senderTabId !== undefined) {
-      tabState.checkoutActivityCleared(senderTabId).catch(() => {});
+    if (senderTabId !== undefined && message.type === MSG_CHECKOUT_ACTIVITY_CLEARED) {
+      void tabState.checkoutActivityCleared(senderTabId).catch(() => {});
       return false;
     }
 
     if (message.type === MSG_SCAN_REQUEST) {
-      tabState.requestScan(message.tabId).catch(() => {});
+      void tabState.requestScan(message.tabId).catch(() => {});
       return false;
     }
 
     if (message.type === MSG_GET_TAB_STATE) {
-      tabState.read(message.tabId).then(sendResponse, () => {
-        sendResponse(null);
-      });
+      void respondWithTabState(message.tabId, sendResponse);
       return true; // Keep message channel open for async response
     }
 
@@ -55,11 +61,11 @@ chrome.runtime.onMessage.addListener(
 );
 
 chrome.tabs.onRemoved.addListener((tabId) => {
-  tabState.removed(tabId).catch(() => {});
+  void tabState.removed(tabId).catch(() => {});
 });
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
   if (changeInfo.status === 'loading') {
-    tabState.navigated(tabId).catch(() => {});
+    void tabState.navigated(tabId).catch(() => {});
   }
 });

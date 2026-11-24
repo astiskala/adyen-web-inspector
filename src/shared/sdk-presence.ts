@@ -11,13 +11,14 @@ type PresenceEvidence = Pick<PageExtractResult, 'adyenMetadata' | 'scripts'>;
 
 const ADYEN_SCRIPT_HINT_PATTERN = /checkoutshopper-|@adyen|adyen/i;
 
-/** Detects SDK presence from Adyen Web metadata or an Adyen-hosted checkout script. */
+/**
+Detects SDK presence from Adyen Web metadata or an Adyen-hosted checkout script.
+ */
 export function detectSdkPresence(page: PresenceEvidence): SdkPresence {
   if (page.adyenMetadata !== null) return { detected: true, source: 'metadata' };
-  if (page.scripts.some((script) => isAdyenCheckoutResource(script.src))) {
-    return { detected: true, source: 'adyen-script' };
-  }
-  return { detected: false, source: 'none' };
+  return page.scripts.some((script) => isAdyenCheckoutResource(script.src))
+    ? { detected: true, source: 'adyen-script' }
+    : { detected: false, source: 'none' };
 }
 
 /**

@@ -4,8 +4,8 @@ import {
   hasCheckoutActivity,
   isMerchantDocument,
   readCheckoutDom,
-  rendersCheckout,
-  showsMountedCheckout,
+  isRenderingCheckout,
+  hasMountedCheckout,
 } from '../../../src/shared/checkout-signals';
 import {
   makeAdyenMetadata,
@@ -55,13 +55,13 @@ describe('readCheckoutDom', () => {
   it('shows mounted checkout for adyen-checkout elements or Adyen iframes only', () => {
     document.body.innerHTML =
       '<script src="https://checkoutshopper-test.adyen.com/sdk.js"></script>';
-    expect(showsMountedCheckout(readCheckoutDom(document))).toBe(false);
+    expect(hasMountedCheckout(readCheckoutDom(document))).toBe(false);
 
     document.body.innerHTML = '<div class="adyen-checkout__button"></div>';
-    expect(showsMountedCheckout(readCheckoutDom(document))).toBe(true);
+    expect(hasMountedCheckout(readCheckoutDom(document))).toBe(true);
 
     document.body.innerHTML = '<iframe name="adyen-card"></iframe>';
-    expect(showsMountedCheckout(readCheckoutDom(document))).toBe(true);
+    expect(hasMountedCheckout(readCheckoutDom(document))).toBe(true);
   });
 });
 
@@ -81,33 +81,31 @@ describe('frame signals', () => {
 
   it('weighs checkout signals, strongest first', () => {
     expect(checkoutStrength(makePageExtract())).toBe(0);
-    expect(
-      checkoutStrength(
-        makePageExtract({
-          capturedConfig: makeCapturedConfig({}),
-          componentConfig: {},
-          hasDropinDOM: true,
-          adyenMetadata: makeAdyenMetadata(),
-          scripts: [{ src: 'https://merchant.example/adyen.js' }],
-          iframes: [{ name: 'adyen-card' }],
-        })
-      )
-    ).toBe(320);
-    expect(checkoutStrength(makePageExtract({ capturedConfig: makeCapturedConfig({}) }))).toBe(
+    const capturedConfig = makeCapturedConfig({});
+    const adyenMetadata = makeAdyenMetadata();
+    const everySignal = makePageExtract({
+      capturedConfig,
+      componentConfig: {},
+      hasDropinDOM: true,
+      adyenMetadata,
+      scripts: [{ src: 'https://merchant.example/adyen.js' }],
+      iframes: [{ name: 'adyen-card' }],
+    });
+    expect(checkoutStrength(everySignal)).toBe(320);
+    expect(checkoutStrength(makePageExtract({ capturedConfig }))).toBe(
       checkoutStrength(makePageExtract({ componentConfig: {}, iframes: [{ name: 'adyen-x' }] }))
     );
   });
 
   it('decides whether a frame renders checkout itself', () => {
-    expect(rendersCheckout(makePageExtract({ capturedConfig: makeCapturedConfig({}, true) }))).toBe(
-      true
-    );
-    expect(rendersCheckout(makePageExtract({ capturedConfig: makeCapturedConfig({}) }))).toBe(
-      false
-    );
-    expect(rendersCheckout(makePageExtract({ hasCardDOM: true }))).toBe(true);
-    expect(rendersCheckout(makePageExtract({ componentMountCount: 1 }))).toBe(true);
-    expect(rendersCheckout(makePageExtract({ adyenMetadata: makeAdyenMetadata() }))).toBe(false);
+    const wholeConfig = makeCapturedConfig({}, true);
+    const partialConfig = makeCapturedConfig({});
+    const adyenMetadata = makeAdyenMetadata();
+    expect(isRenderingCheckout(makePageExtract({ capturedConfig: wholeConfig }))).toBe(true);
+    expect(isRenderingCheckout(makePageExtract({ capturedConfig: partialConfig }))).toBe(false);
+    expect(isRenderingCheckout(makePageExtract({ hasCardDOM: true }))).toBe(true);
+    expect(isRenderingCheckout(makePageExtract({ componentMountCount: 1 }))).toBe(true);
+    expect(isRenderingCheckout(makePageExtract({ adyenMetadata }))).toBe(false);
   });
 });
 

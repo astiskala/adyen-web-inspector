@@ -29,14 +29,16 @@ type IssueOutcome = (
   title: string,
   detail?: string,
   remediation?: string,
-  docsUrl?: string
+  documentationUrl?: string
 ) => CheckOutcome;
 
 /**
  * Context provided to check runners.
  */
 export interface CheckContext {
-  /** Implementation attributes of the scan, derived once and shared by every check. */
+  /**
+  Implementation attributes of the scan, derived once and shared by every check.
+   */
   readonly attributes: ImplementationAttributes;
   readonly pass: (title: string, detail?: string) => CheckOutcome;
   readonly fail: IssueOutcome;
@@ -55,8 +57,9 @@ interface CheckImpactPolicy {
 
 function outcomeImpact(severity: Severity, policy: CheckImpactPolicy): CheckImpact | undefined {
   if (severity === 'warn' && policy.warnImpact !== undefined) return policy.warnImpact;
-  if (severity === 'notice' && policy.noticeImpact !== undefined) return policy.noticeImpact;
-  return getDefaultImpact(severity);
+  return severity === 'notice' && policy.noticeImpact !== undefined
+    ? policy.noticeImpact
+    : getDefaultImpact(severity);
 }
 
 function buildOutcome(
@@ -64,14 +67,14 @@ function buildOutcome(
   title: string,
   detail?: string,
   remediation?: string,
-  docsUrl?: string
+  documentationUrl?: string
 ): CheckOutcome {
   return {
     severity,
     title,
-    ...(detail === undefined ? {} : { detail }),
-    ...(remediation === undefined ? {} : { remediation }),
-    ...(docsUrl === undefined ? {} : { docsUrl }),
+    ...(detail !== undefined && { detail }),
+    ...(remediation !== undefined && { remediation }),
+    ...(documentationUrl !== undefined && { docsUrl: documentationUrl }),
   };
 }
 
@@ -88,12 +91,12 @@ class CheckRegistry {
 
     const helpers: Omit<CheckContext, 'attributes'> = {
       pass: (title, detail) => buildOutcome('pass', title, detail),
-      fail: (title, detail, remediation, docsUrl) =>
-        buildOutcome('fail', title, detail, remediation, docsUrl),
-      warn: (title, detail, remediation, docsUrl) =>
-        buildOutcome('warn', title, detail, remediation, docsUrl),
-      notice: (title, detail, remediation, docsUrl) =>
-        buildOutcome('notice', title, detail, remediation, docsUrl),
+      fail: (title, detail, remediation, documentationUrl) =>
+        buildOutcome('fail', title, detail, remediation, documentationUrl),
+      warn: (title, detail, remediation, documentationUrl) =>
+        buildOutcome('warn', title, detail, remediation, documentationUrl),
+      notice: (title, detail, remediation, documentationUrl) =>
+        buildOutcome('notice', title, detail, remediation, documentationUrl),
       info: (title, detail) => buildOutcome('info', title, detail),
       skip: (title, detail) => buildOutcome('skip', title, detail),
     };
@@ -111,7 +114,7 @@ class CheckRegistry {
           ...outcome,
           id,
           category,
-          ...(impact === undefined ? {} : { impact }),
+          ...(impact !== undefined && { impact }),
         };
       },
     });
@@ -123,7 +126,9 @@ class CheckRegistry {
   }
 }
 
-/** Utility to create a category-scoped registry. */
+/**
+Utility to create a category-scoped registry.
+ */
 export function createRegistry(category: CheckCategory): CheckRegistry {
   return new CheckRegistry(category);
 }

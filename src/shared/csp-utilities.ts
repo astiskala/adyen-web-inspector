@@ -26,24 +26,27 @@ export function parseCsp(headerValue: string): ParsedCsp {
   return { directives };
 }
 
-function sourceMatchesUrl(source: string, resource: URL, page: URL): boolean {
+function isSourceMatchingUrl(source: string, resource: URL, page: URL): boolean {
   if (source === "'self'") return resource.origin === page.origin;
   if (source === '*') return resource.protocol === 'https:' || resource.protocol === 'http:';
-  if (source === 'https:' || source === 'http:') return resource.protocol === source;
-  return hostSourceMatchesUrl(source, resource);
+  return source === 'https:' || source === 'http:'
+    ? resource.protocol === source
+    : isHostSourceMatchingUrl(source, resource);
 }
 
-/** Matches a host source such as `https://*.adyen.com:443/path` against a resource URL. */
-function hostSourceMatchesUrl(source: string, resource: URL): boolean {
+/**
+Matches a host source such as `https://*.adyen.com:443/path` against a resource URL.
+ */
+function isHostSourceMatchingUrl(source: string, resource: URL): boolean {
   const match = /^(?:(https?):\/\/)?(\*\.)?([^/:]+)(?::(\d+))?(\/.*)?$/.exec(source.toLowerCase());
   const host = match?.[3];
   if (match === null || host === undefined) return false;
 
   const [, scheme, wildcard, , port, path] = match;
   if (scheme !== undefined && resource.protocol !== `${scheme}:`) return false;
-  const hostMatches =
+  const isHostMatches =
     wildcard === '*.' ? resource.hostname.endsWith(`.${host}`) : resource.hostname === host;
-  if (!hostMatches) return false;
+  if (!isHostMatches) return false;
   if (
     port !== undefined &&
     (resource.port || (resource.protocol === 'https:' ? '443' : '80')) !== port
@@ -77,15 +80,18 @@ export function getEffectiveCspSources(
   csp: ParsedCsp,
   directive: CspFetchDirective
 ): EffectiveCspSources | null {
-  for (const candidate of CSP_DIRECTIVE_FALLBACKS[directive]) {
+  const candidates = CSP_DIRECTIVE_FALLBACKS[directive];
+  for (const candidate of candidates) {
     const sources = csp.directives[candidate];
     if (sources !== undefined) return { directive: candidate, sources };
   }
   return null;
 }
 
-/** Returns true when the policy allows loading the URL for the resource type. */
-export function cspAllowsUrl(
+/**
+Returns true when the policy allows loading the URL for the resource type.
+ */
+export function isUrlAllowedByCsp(
   csp: ParsedCsp,
   directive: CspFetchDirective,
   url: string,
@@ -97,7 +103,7 @@ export function cspAllowsUrl(
   try {
     const resource = new URL(url, pageUrl);
     const page = new URL(pageUrl);
-    return effective.sources.some((source) => sourceMatchesUrl(source, resource, page));
+    return effective.sources.some((source) => isSourceMatchingUrl(source, resource, page));
   } catch {
     return false;
   }

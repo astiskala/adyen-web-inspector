@@ -5,7 +5,7 @@ import {
 } from '../shared/export-pdf.js';
 import { buildPrintableReportMetadata } from '../shared/export-metadata.js';
 import type { ScanResult } from '../shared/types.js';
-import { isScanResult } from '../shared/utils.js';
+import { isScanResult } from '../shared/utilities.js';
 
 function showError(message: string): void {
   document.title = 'Adyen Web Inspector - PDF Export Failed';
@@ -33,7 +33,7 @@ async function loadStoredResult(token: string): Promise<ScanResult | null> {
   try {
     const stored = await chrome.storage.session.get(storageKey);
     const value = stored[storageKey];
-    await chrome.storage.session.remove(storageKey).catch(() => {});
+    await Promise.allSettled([chrome.storage.session.remove(storageKey)]);
     return isScanResult(value) ? value : null;
   } catch {
     return null;

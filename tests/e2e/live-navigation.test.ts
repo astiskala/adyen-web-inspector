@@ -1,4 +1,6 @@
-/** Reproduces MyStore's hash-route navigation without depending on its live backend. */
+/**
+Reproduces MyStore's hash-route navigation without depending on its live backend.
+ */
 import { test, expect, getBadgeText, openFixture, openPopupFor } from './fixtures';
 
 test('keeps detecting mounted checkout after same-document navigation', async ({
