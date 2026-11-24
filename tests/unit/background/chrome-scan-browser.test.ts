@@ -106,6 +106,26 @@ describe('chromeScanBrowser.extractFrames', () => {
     expect(Reflect.has(globalThis, PAGE_GLOBALS.pageExtractResultJson)).toBe(false);
   });
 
+  it('falls back to the top frame when one frame cannot be injected', async () => {
+    const page = makePageExtract({ pageUrl: 'https://merchant.example/' });
+    const executeScript = vi.fn(
+      async ({ target }: { target: { allFrames?: boolean } }): Promise<unknown[]> => {
+        if (target.allFrames === true) {
+          throw new Error('Cannot access chrome-error://chromewebdata/');
+        }
+        return [{ frameId: 0, result: JSON.stringify(page) }];
+      }
+    );
+    vi.stubGlobal('chrome', { scripting: { executeScript } });
+
+    await expect(chromeScanBrowser.extractFrames(5)).resolves.toEqual([
+      { frameId: 0, result: page },
+    ]);
+    expect(executeScript).toHaveBeenLastCalledWith(
+      expect.objectContaining({ target: { tabId: 5, frameIds: [0] } })
+    );
+  });
+
   it('reports injection failures with the tab ID', async () => {
     vi.stubGlobal('chrome', {
       scripting: { executeScript: vi.fn().mockRejectedValue(new Error('Cannot access page')) },

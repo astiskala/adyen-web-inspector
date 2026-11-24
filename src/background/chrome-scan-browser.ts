@@ -129,28 +129,36 @@ function parseFrameResult(serialized: string | null | undefined): PageExtractRes
   }
 }
 
+async function extractIn(
+  target: chrome.scripting.InjectionTarget
+): Promise<chrome.scripting.InjectionResult<string | null>[]> {
+  await chrome.scripting.executeScript({ target, files: ['page-extractor.js'], world: 'MAIN' });
+  return chrome.scripting.executeScript<[string], string | null>({
+    target,
+    func: takePageGlobalString,
+    args: [PAGE_GLOBALS.pageExtractResultJson],
+    world: 'MAIN',
+  });
+}
+
 /**
 Runs the page extractor in every frame of the tab and parses each result.
 */
 async function extractFrames(tabId: number): Promise<FrameExtraction[]> {
   let serializedResults: chrome.scripting.InjectionResult<string | null>[];
   try {
-    await chrome.scripting.executeScript({
-      target: { tabId, allFrames: true },
-      files: ['page-extractor.js'],
-      world: 'MAIN',
-    });
-    serializedResults = await chrome.scripting.executeScript<[string], string | null>({
-      target: { tabId, allFrames: true },
-      func: takePageGlobalString,
-      args: [PAGE_GLOBALS.pageExtractResultJson],
-      world: 'MAIN',
-    });
+    serializedResults = await extractIn({ tabId, allFrames: true });
   } catch (error: unknown) {
-    throw new Error(
-      `Page extraction script injection failed for tab ${tabId}: ${describeError(error)}`,
-      { cause: error }
-    );
+    // One frame Chrome cannot inject, such as an error page or a frame that is
+    // navigating, rejects the whole call; the top frame alone still gives a result.
+    const [topFrame] = await Promise.allSettled([extractIn({ tabId, frameIds: [0] })]);
+    if (topFrame.status === 'rejected') {
+      throw new Error(
+        `Page extraction script injection failed for tab ${tabId}: ${describeError(error)}`,
+        { cause: error }
+      );
+    }
+    serializedResults = topFrame.value;
   }
 
   return serializedResults.map((frame) => ({
