@@ -15,7 +15,22 @@ Applies the saved theme; open extension views follow changes from the popup.
 export function useTheme(): { readonly theme: Theme; readonly setTheme: (value: Theme) => void } {
   const [theme, update] = useState(readTheme);
   useLayoutEffect(() => {
-    document.documentElement.dataset['theme'] = theme;
+    const root = document.documentElement;
+    root.dataset['theme'] = theme;
+    const system = globalThis.matchMedia('(prefers-color-scheme: dark)');
+
+    function applyBentoTheme(): void {
+      root.classList.toggle(
+        'b-dark-theme',
+        theme === 'dark' || (theme === 'system' && system.matches)
+      );
+    }
+
+    applyBentoTheme();
+    system.addEventListener('change', applyBentoTheme);
+    return (): void => {
+      system.removeEventListener('change', applyBentoTheme);
+    };
   }, [theme]);
 
   useLayoutEffect(() => {

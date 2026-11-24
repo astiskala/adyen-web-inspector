@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Adyen Web Inspector",
-  "version": "1.5.0",
+  "version": "2.0.0",
   "description": "Inspect Adyen Web integrations for configuration issues, risky patterns, and clear remediation steps.",
   "minimum_chrome_version": "128",
   "icons": {

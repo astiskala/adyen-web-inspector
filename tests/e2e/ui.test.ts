@@ -169,6 +169,7 @@ test.describe('DevTools panel', () => {
     const panel = await openDevtoolsPanelFor(context, extensionId, page);
 
     await expect(panel.getByRole('heading', { name: 'Adyen Web SDK detected' })).toBeVisible();
+    await expect(panel.getByRole('button', { name: 'Open full report' })).toBeDisabled();
     await expect(panel.getByRole('button', { name: 'Export JSON' })).toBeDisabled();
     await panel.getByRole('button', { name: 'Run scan', exact: true }).first().click();
     await expect(panel.getByRole('button', { name: 'Re-run scan', exact: true })).toBeEnabled({
@@ -182,7 +183,15 @@ test.describe('DevTools panel', () => {
 
     await panel.getByRole('tab', { name: 'Overview', exact: true }).press('ArrowRight');
     await expect(panel.getByRole('tab', { name: 'Best practices' })).toBeFocused();
+    await panel.setViewportSize({ width: 480, height: 340 });
+    const tabPanel = panel.getByRole('tabpanel');
+    const previousScroll = await tabPanel.evaluate((element) => {
+      element.scrollTop = element.scrollHeight;
+      return element.scrollTop;
+    });
+    expect(previousScroll).toBeGreaterThan(0);
     await panel.getByRole('tab', { name: 'Best practices' }).press('ArrowRight');
+    expect(await tabPanel.evaluate((element) => element.scrollTop)).toBe(0);
     const cspFinding = requireCheck(result, 'security-csp-present');
     await expect(panel.getByText(cspFinding.title, { exact: true })).toBeVisible();
 
@@ -235,6 +244,12 @@ test('opens the full report, filters findings and exports at narrow widths', asy
   await expect(report.getByRole('heading', { name: 'Integration health report' })).toBeVisible();
   await expect(report.locator('html')).toHaveAttribute('data-theme', 'dark');
   await expect(report.locator('html')).not.toHaveAttribute('data-print-requested');
+  const surfaceColor = (): Promise<string> =>
+    report
+      .locator('body')
+      .evaluate((body) => getComputedStyle(body).getPropertyValue('--color-surface'));
+  const darkSurface = await surfaceColor();
+  expect(darkSurface).not.toBe('');
 
   await report.setViewportSize({ width: 375, height: 720 });
   await expect.poll(() => report.evaluate(() => document.documentElement.scrollWidth)).toBe(375);
@@ -258,6 +273,7 @@ test('opens the full report, filters findings and exports at narrow widths', asy
   await expect(report.locator('html')).toHaveAttribute('data-print-requested', 'true');
 
   await report.emulateMedia({ media: 'print' });
+  expect(await surfaceColor()).not.toBe(darkSurface);
   await expect(report.getByRole('button', { name: 'Export PDF' })).toBeHidden();
   await expect(warningRows.first()).toBeVisible();
   await expect(failRows.first()).toBeVisible();
@@ -268,4 +284,12 @@ test('opens the full report, filters findings and exports at narrow widths', asy
     printBackground: true,
   });
   expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
+
+  const panelReportOpened = context.waitForEvent('page');
+  await panel.getByRole('button', { name: 'Open full report' }).click();
+  const panelReport = await panelReportOpened;
+  await expect(
+    panelReport.getByRole('heading', { name: 'Integration health report' })
+  ).toBeVisible();
+  await expect(panelReport.locator('html')).not.toHaveAttribute('data-print-requested');
 });

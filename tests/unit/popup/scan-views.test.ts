@@ -99,6 +99,8 @@ afterEach(async () => {
 
 describe('scan views', () => {
   it('stores detail and theme changes and restores focus after settings', async () => {
+    const system = Object.assign(new EventTarget(), { matches: false });
+    vi.stubGlobal('matchMedia', () => system);
     await mount(Popup);
     const select = async (input: HTMLInputElement | null): Promise<void> => {
       await act(() => {
@@ -120,10 +122,16 @@ describe('scan views', () => {
         (input) => input.value === name
       ) ?? null;
     expect(theme('system')?.checked).toBe(true);
+    expect(document.documentElement.classList.contains('b-dark-theme')).toBe(false);
+    system.matches = true;
+    system.dispatchEvent(new Event('change'));
+    expect(document.documentElement.classList.contains('b-dark-theme')).toBe(true);
     await select(theme('light'));
     expect(document.documentElement.dataset['theme']).toBe('light');
+    expect(document.documentElement.classList.contains('b-dark-theme')).toBe(false);
     await select(theme('dark'));
     expect(document.documentElement.dataset['theme']).toBe('dark');
+    expect(document.documentElement.classList.contains('b-dark-theme')).toBe(true);
 
     const details = harness.host.querySelectorAll<HTMLInputElement>('input[name="detail"]');
     expect(details[0]?.checked).toBe(true);
@@ -511,7 +519,7 @@ describe('DevTools panel states', () => {
     expect(harness.host.textContent).toContain(message);
   });
 
-  it('exports the result as JSON and as a PDF report', async () => {
+  it('opens the report and exports the result as JSON and PDF', async () => {
     const report = stubReportTab();
     const createObjectURL = vi.fn(() => 'blob:report');
     const revokeObjectURL = vi.fn();
@@ -529,6 +537,13 @@ describe('DevTools panel states', () => {
       expect(harness.host.textContent).toContain('Export JSON');
     });
 
+    await clickButton('Open full report');
+    await settle();
+    expect(report.create.mock.lastCall?.[0]).toHaveProperty(
+      'url',
+      expect.stringMatching(/report\.html\?token=[^&]+$/)
+    );
+
     vi.useFakeTimers({ toFake: ['setTimeout'] });
     await clickButton('Export JSON');
     vi.runAllTimers();
@@ -541,7 +556,7 @@ describe('DevTools panel states', () => {
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:report');
     expect(report.create.mock.lastCall?.[0]).toHaveProperty(
       'url',
-      expect.stringContaining('report')
+      expect.stringContaining('&print=1')
     );
     click.mockRestore();
   });

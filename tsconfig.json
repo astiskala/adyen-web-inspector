@@ -29,6 +29,7 @@
   "include": [
     "src/**/*",
     "tests/**/*",
+    "knip.ts",
     "vite.config.ts",
     "vitest.config.ts",
     "vitest.integration.config.ts",

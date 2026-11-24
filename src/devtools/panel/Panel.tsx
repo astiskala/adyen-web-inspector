@@ -169,11 +169,14 @@ export function Panel(): JSX.Element {
     event.currentTarget.querySelector<HTMLElement>(`#${tabId(next)}`)?.focus();
   }
 
-  function printReport(scanResult: ScanResult): void {
-    setReportFailed(false);
-    void openReport(scanResult, chromeReportBrowser, 'print').catch(() => {
-      setReportFailed(true);
-    });
+  function reportAction(mode: 'view' | 'print'): (() => void) | undefined {
+    if (!isAvailable) return undefined;
+    return () => {
+      setReportFailed(false);
+      void openReport(result, chromeReportBrowser, mode).catch(() => {
+        setReportFailed(true);
+      });
+    };
   }
 
   return (
@@ -182,6 +185,9 @@ export function Panel(): JSX.Element {
         <button class="btn btnPrimary" onClick={scan} disabled={scanning}>
           <InspectorIcon name={scanning ? 'spinner' : scanIcon} />
           {scanButtonLabel({ scanning, result: isAvailable ? result : null })}
+        </button>
+        <button class="btn" onClick={reportAction('view')} disabled={!isAvailable}>
+          Open full report <InspectorIcon name="external" />
         </button>
         <button
           class="btn"
@@ -196,17 +202,7 @@ export function Panel(): JSX.Element {
         >
           <InspectorIcon name="download" /> Export JSON
         </button>
-        <button
-          class="btn"
-          onClick={
-            isAvailable
-              ? (): void => {
-                  printReport(result);
-                }
-              : undefined
-          }
-          disabled={!isAvailable}
-        >
+        <button class="btn" onClick={reportAction('print')} disabled={!isAvailable}>
           <InspectorIcon name="download" /> Export PDF
         </button>
         {isAvailable && (
@@ -250,6 +246,7 @@ export function Panel(): JSX.Element {
         })}
       </div>
       <div
+        key={activeTab}
         class={s('tabPanel')}
         role="tabpanel"
         id="tab-panel"

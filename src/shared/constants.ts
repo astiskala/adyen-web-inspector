@@ -194,5 +194,5 @@ export const INTEGRATION_FLOW_LABELS: Readonly<Record<IntegrationFlow, string>> 
 };
 
 export const DEVTOOLS_PANEL_TITLE = 'Adyen Inspector';
-export const DEVTOOLS_PANEL_ICON_PATH = '';
+export const DEVTOOLS_PANEL_ICON_PATH = 'assets/icon-16.png';
 export const DEVTOOLS_PANEL_PAGE = 'devtools/panel/panel.html';

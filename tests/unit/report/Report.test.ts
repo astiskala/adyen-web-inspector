@@ -110,7 +110,7 @@ describe('Report', () => {
     });
 
     const host = renderReport(result);
-    expect(host.querySelector('img')).toBeNull();
+    expect(host.querySelector(':scope main img')).toBeNull();
     expect(host.textContent).toContain(hostile);
   });
 

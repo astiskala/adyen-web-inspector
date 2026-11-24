@@ -3,6 +3,7 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     environment: 'jsdom',
+    setupFiles: ['./tests/fixtures/matchMedia.ts'],
     globals: true,
     allowOnly: false,
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'tests/unit/**/*.test.ts'],

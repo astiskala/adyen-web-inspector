@@ -1,29 +1,32 @@
-/* Local equivalents of the Bento v2 surface, label, and status tokens. */
+@import '@adyen/bento-design-tokens/dist/css/bento/variables.css';
+@import '@adyen/bento-design-tokens/dist/css/bento/variables-dark.css' screen;
+
+/* Map Bento tokens to the roles shared by the extension views. */
 :root {
   color-scheme: light dark;
-  --color-page: light-dark(#fafafa, #111110);
-  --color-surface: light-dark(#ffffff, #191918);
-  --color-surface-alt: light-dark(#f4f4f4, #242423);
-  --color-border: light-dark(#e5e5e5, #373736);
-  --color-control: light-dark(#767676, #949494);
-  --color-text: light-dark(#111110, #f5f5f5);
-  --color-text-secondary: light-dark(#595959, #b7b7b7);
-  --color-primary: light-dark(#111110, #ededed);
-  --color-on-primary: light-dark(#ffffff, #111110);
-  --color-blue: light-dark(#005ebd, #91c7ff);
-  --color-focus: light-dark(#006bd7, #83bfff);
-  --color-green: light-dark(#006f38, #3ae88e);
-  --color-green-bg: light-dark(#cef6e2, #003a22);
-  --color-red: light-dark(#b42e01, #ffb196);
-  --color-red-bg: light-dark(#ffeae3, #5c1800);
-  --color-amber: light-dark(#8b5300, #ffba56);
-  --color-amber-bg: light-dark(#ffecd0, #412700);
-  --color-blue-bg: light-dark(#e3effb, #00305f);
-  --color-track: light-dark(#e5e5e5, #30302f);
-  --color-meter-green: light-dark(#008845, #00d16a);
-  --color-meter-red: light-dark(#dc3801, #ff9a78);
-  --color-meter-amber: light-dark(#ab6500, #ffad32);
-  --radius: 6px;
+  --color-page: var(--b-color-support-page-background);
+  --color-surface: var(--b-color-background-primary);
+  --color-surface-alt: var(--b-color-background-primary-hover);
+  --color-border: var(--b-color-separator-primary);
+  --color-control: var(--b-color-outline-tertiary);
+  --color-text: var(--b-color-label-primary);
+  --color-text-secondary: var(--b-color-label-secondary);
+  --color-primary: var(--b-color-label-primary);
+  --color-on-primary: var(--b-color-label-on-color);
+  --color-blue: var(--b-color-link-primary);
+  --color-focus: light-dark(var(--b-color-link-primary-hover), var(--b-color-link-primary));
+  --color-green: var(--b-color-label-on-background-success-weak);
+  --color-green-bg: var(--b-color-background-success-weak);
+  --color-red: var(--b-color-label-on-background-critical-weak);
+  --color-red-bg: var(--b-color-background-critical-weak);
+  --color-amber: var(--b-color-label-on-background-warning-weak);
+  --color-amber-bg: var(--b-color-background-warning-weak);
+  --color-blue-bg: var(--b-color-background-highlight-weak);
+  --color-track: var(--b-color-separator-primary);
+  --color-meter-green: var(--b-color-background-success-strong);
+  --color-meter-red: var(--b-color-background-critical-strong);
+  --color-meter-amber: var(--b-color-background-warning-strong);
+  --radius: var(--b-border-radius-m);
 }
 
 :root[data-theme='light'] {
@@ -48,11 +51,7 @@
 }
 
 body {
-  font:
-    14px/1.45 Roboto,
-    'Helvetica Neue',
-    Arial,
-    sans-serif;
+  font: var(--b-text-body-font-size) / var(--b-text-body-line-height) var(--b-font-family-primary);
   color: var(--color-text);
   background: var(--color-surface);
 }
@@ -160,7 +159,7 @@ pre,
 }
 
 [data-tone='notice'] {
-  --tone-text: var(--color-blue);
+  --tone-text: var(--b-color-label-on-background-highlight-weak);
   --tone-bg: var(--color-blue-bg);
 }
 
