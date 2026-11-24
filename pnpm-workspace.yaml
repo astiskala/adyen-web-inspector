@@ -7,5 +7,8 @@ allowBuilds:
 overrides:
   tmp@<=0.2.3: '>=0.2.4'
   minimatch@>=10.0.0 <10.2.3: '^10.2.3'
+  eslint>minimatch: '^11.0.1'
+  '@eslint/config-array>minimatch': '^11.0.1'
   re2js@>=2.2.0 <2.8.7: '^2.8.7'
+  micromark-extension-math>katex: '^0.18.2'
   typescript: ^6.0.3
