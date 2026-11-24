@@ -7,9 +7,9 @@ interface NotDetectedProperties {
 }
 
 /**
- * Empty-state view shown when no Adyen checkout is detected on the page.
- * Offers an "Attempt Scan" escape hatch for cases where detection fails.
- */
+Empty-state view shown when no Adyen checkout is detected on the page.
+Offers an "Attempt Scan" escape hatch for cases where detection fails.
+*/
 export function NotDetected({ onAttemptScan, scanning }: NotDetectedProperties): JSX.Element {
   return (
     <EmptyState

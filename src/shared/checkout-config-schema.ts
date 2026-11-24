@@ -1,16 +1,16 @@
 /**
- * Config field schema — the single mapping from raw Adyen Web options to
- * Checkout configuration fields, shared by every capture path.
- *
- * Content scripts bundle this module inline, so it must not depend on
- * anything but types.
- */
+Config field schema — the single mapping from raw Adyen Web options to
+Checkout configuration fields, shared by every capture path.
+
+Content scripts bundle this module inline, so it must not depend on
+anything but types.
+*/
 
 import type { CallbackSource, CheckoutConfig } from './types.js';
 
 /**
 Callback registrations evaluated by the callback checks.
- */
+*/
 export const CALLBACK_KEYS = [
   'onSubmit',
   'onAdditionalDetails',
@@ -22,7 +22,7 @@ export const CALLBACK_KEYS = [
 
 /**
 Callbacks removed or renamed in Adyen Web v6.
- */
+*/
 export const DEPRECATED_CALLBACK_KEYS = [
   'onValid',
   'onOrderCreated',
@@ -35,7 +35,7 @@ type CallbackKey = (typeof ALL_CALLBACK_KEYS)[number];
 
 /**
 String options copied verbatim from checkout options.
- */
+*/
 export const STRING_OPTION_KEYS = [
   'clientKey',
   'environment',
@@ -57,7 +57,7 @@ const SOURCE_CALLBACK_KEYS = {
 
 /**
 Maximum captured callback source length; a source this long may be truncated.
- */
+*/
 export const CALLBACK_SOURCE_LIMIT = 1200;
 
 type PlainRecord = Record<string, unknown>;
@@ -72,9 +72,9 @@ function isCallbackRegistered(value: unknown): boolean {
 }
 
 /**
- * Reads an explicit `enabled` flag. SDK defaults are not assumed, because
- * parsed page JSON also passes through this schema as inferred evidence.
- */
+Reads an explicit `enabled` flag. SDK defaults are not assumed, because
+parsed page JSON also passes through this schema as inferred evidence.
+*/
 function readModuleToggle(value: unknown): boolean | undefined {
   if (!isPlainRecord(value)) return undefined;
   const enabled = value['enabled'];
@@ -90,7 +90,7 @@ function readRiskEnabled(options: PlainRecord): boolean | undefined {
 
 /**
 Payment method types whose per-method configuration hides the pay button.
- */
+*/
 function readHiddenPayButtonMethods(value: unknown): string[] {
   return isPlainRecord(value)
     ? Object.entries(value)
@@ -123,10 +123,10 @@ function copyCallbacks(
 }
 
 /**
- * Maps raw checkout or component options to Checkout configuration fields.
- * Returns null when the value is not an options object; otherwise returns the
- * observed fields, which may be empty.
- */
+Maps raw checkout or component options to Checkout configuration fields.
+Returns null when the value is not an options object; otherwise returns the
+observed fields, which may be empty.
+*/
 export function readCheckoutOptions(
   raw: unknown,
   placement: CallbackSource
@@ -161,7 +161,7 @@ export function readCheckoutOptions(
 
 /**
 Merges configurations where earlier values win and later ones only fill gaps.
- */
+*/
 export function mergeCheckoutConfigs(configs: readonly CheckoutConfig[]): CheckoutConfig | null {
   let merged: CheckoutConfig | null = null;
   for (const config of configs) {
@@ -179,9 +179,9 @@ export function mergeCheckoutConfigs(configs: readonly CheckoutConfig[]): Checko
 }
 
 /**
- * Applies a newer capture over an existing one. Newer values win, except that
- * a callback already registered on AdyenCheckout keeps its checkout placement.
- */
+Applies a newer capture over an existing one. Newer values win, except that
+a callback already registered on AdyenCheckout keeps its checkout placement.
+*/
 export function applyCapturedOptions(
   current: CheckoutConfig | null,
   incoming: CheckoutConfig

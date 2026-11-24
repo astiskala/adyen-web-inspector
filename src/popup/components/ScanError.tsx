@@ -7,8 +7,8 @@ interface ScanErrorProperties {
 }
 
 /**
- * Friendly error state shown when a scan fails, such as after a timeout.
- */
+Friendly error state shown when a scan fails, such as after a timeout.
+*/
 export function ScanError({ onRetry, scanning }: ScanErrorProperties): JSX.Element {
   return (
     <EmptyState

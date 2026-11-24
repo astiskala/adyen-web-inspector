@@ -69,9 +69,9 @@ function countIssues(groups: readonly IssueGroup[]): number {
 }
 
 /**
- * Renders issue rows from the finding projection by severity, then impact,
- * with expandable detail, remediation, and documentation.
- */
+Renders issue rows from the finding projection by severity, then impact,
+with expandable detail, remediation, and documentation.
+*/
 export function IssueList({ checks }: Properties): JSX.Element {
   const failures = issueGroupsWithSeverity(checks, 'fail');
   const warnings = issueGroupsWithSeverity(checks, 'warn');

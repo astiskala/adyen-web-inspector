@@ -18,8 +18,8 @@ const TIER_CLASSES: Readonly<
 };
 
 /**
- * Displays the scan health score, pass ratio, and progress bar indicator.
- */
+Displays the scan health score, pass ratio, and progress bar indicator.
+*/
 export function HealthScore({ result }: Properties): JSX.Element {
   const { score, passing, total, tier } = result.health;
   const scoreClass = s(TIER_CLASSES[tier].score);

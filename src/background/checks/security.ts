@@ -1,7 +1,7 @@
 /**
- * Security checks (`security`) — HTTPS, Subresource Integrity, response headers, Adyen iframe
- * referrer policy, and API key exposure.
- */
+Security checks (`security`) — HTTPS, Subresource Integrity, response headers, Adyen iframe
+referrer policy, and API key exposure.
+*/
 
 import type { ImplementationAttributes } from '../../shared/types.js';
 import { isAdyenCheckoutResource, readAdyenEndpoint } from '../../shared/adyen-endpoint.js';
@@ -117,7 +117,7 @@ function hasMissingSriAttributes(resource: SriAttributableResource): boolean {
 
 /**
 An observed header's value, or null when the document did not send it.
- */
+*/
 function valueOf(header: Exclude<DocumentHeaderEvidence, { state: 'unavailable' }>): string | null {
   return header.state === 'present' ? header.value : null;
 }
@@ -197,9 +197,9 @@ export const SECURITY_CHECKS = createRegistry(CATEGORY)
         return pass(`Referrer-Policy is set to "${value}".`);
       }
       return notice(
-        value !== null && value !== ''
-          ? `Referrer-Policy is "${value}". Consider using the recommended value.`
-          : STRINGS.REFERRER_POLICY_NOT_SET_NOTICE_TITLE,
+        value === null || value === ''
+          ? STRINGS.REFERRER_POLICY_NOT_SET_NOTICE_TITLE
+          : `Referrer-Policy is "${value}". Consider using the recommended value.`,
         STRINGS.REFERRER_POLICY_NOTICE_DETAIL,
         STRINGS.REFERRER_POLICY_NOTICE_REMEDIATION,
         STRINGS.REFERRER_POLICY_NOTICE_URL
@@ -254,14 +254,14 @@ export const SECURITY_CHECKS = createRegistry(CATEGORY)
         return skip(STRINGS.HSTS_SKIP_TITLE, SKIP_REASONS.HEADERS_UNAVAILABLE);
       }
       const value = valueOf(header);
-      return value !== null && value !== ''
-        ? pass(STRINGS.HSTS_PASS_TITLE)
-        : notice(
+      return value === null || value === ''
+        ? notice(
             STRINGS.HSTS_NOTICE_TITLE,
             STRINGS.HSTS_NOTICE_DETAIL,
             STRINGS.HSTS_NOTICE_REMEDIATION,
             STRINGS.HSTS_NOTICE_URL
-          );
+          )
+        : pass(STRINGS.HSTS_PASS_TITLE);
     },
     { noticeImpact: 'low' }
   )

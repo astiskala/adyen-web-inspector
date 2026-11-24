@@ -1,6 +1,6 @@
 /**
- * Styling checks (`sdk-identity`) — CSS custom properties vs class overrides.
- */
+Styling checks (`sdk-identity`) — CSS custom properties vs class overrides.
+*/
 
 import type { AdyenStyleInfo } from '../../shared/types.js';
 import { createRegistry } from './registry.js';
@@ -30,7 +30,7 @@ function pluralRules(count: number): string {
 
 /**
 The selector from its first Adyen class on; empty for selectors in the group that do not target Adyen.
- */
+*/
 function focusAdyenSelector(selector: string): string {
   const normalized = selector.replaceAll(/\s+/g, ' ').trim();
   const firstAdyenClass = ADYEN_SELECTOR_START_PATTERN.exec(normalized);

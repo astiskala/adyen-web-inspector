@@ -247,7 +247,6 @@ export default defineConfig([
       'unicorn/template-indent': 'off',
 
       // JSDoc
-      'jsdoc/check-alignment': 'error',
       'jsdoc/check-param-names': 'error',
       'jsdoc/check-tag-names': 'error',
       'jsdoc/check-values': 'error',

@@ -87,8 +87,8 @@ function renderTab(activeTab: TabName, result: ScanResult): JSX.Element {
 }
 
 /**
- * DevTools panel root that coordinates scan lifecycle, exports, and tab views.
- */
+DevTools panel root that coordinates scan lifecycle, exports, and tab views.
+*/
 export function Panel(): JSX.Element {
   const [activeTab, setActiveTab] = useState<TabName>('Overview');
   const { result, scanning, error, scan } = useScanLifecycle(inspectedTab, chromeTabStateClient);

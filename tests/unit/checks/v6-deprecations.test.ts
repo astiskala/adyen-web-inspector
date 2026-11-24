@@ -17,12 +17,10 @@ const UPGRADE_DOCS_URL =
 
 function makeV6AdyenPayload(
   metaOverrides: Parameters<typeof makeAdyenPayload>[0] = {},
-  configOverrides: Parameters<typeof makeAdyenPayload>[1] = {},
-  payloadOverrides: Parameters<typeof makeAdyenPayload>[2] = {}
+  configOverrides: Parameters<typeof makeAdyenPayload>[1] = {}
 ): ScanPayload {
   return makeAdyenPayload({ version: '6.31.0', ...metaOverrides }, configOverrides, {
     versionInfo: makeVersionInfo({ detected: '6.31.0' }),
-    ...payloadOverrides,
   });
 }
 

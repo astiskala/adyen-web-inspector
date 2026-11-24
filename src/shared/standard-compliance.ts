@@ -1,9 +1,9 @@
 /**
- * Standard Drop-in frontend assessment.
- *
- * This only evaluates the criteria visible to a browser extension. It does
- * not claim compliance with the complete Standard integration checklist.
- */
+Standard Drop-in frontend assessment.
+
+This only evaluates the criteria visible to a browser extension. It does
+not claim compliance with the complete Standard integration checklist.
+*/
 
 import type { ImplementationAttributes, StandardCompliance } from './types.js';
 import { compareVersions, parseVersion } from './utilities.js';
@@ -12,7 +12,7 @@ const MINIMUM_STANDARD_DROPIN_VERSION = '6.30.0';
 
 /**
 Copy shared by every view of the Standard Drop-in assessment.
- */
+*/
 export const STANDARD_COMPLIANCE_COPY = {
   metLabel: 'Standard Drop-in frontend criteria met',
   unmetLabel: 'Standard Drop-in criteria not met',
@@ -24,7 +24,7 @@ export const STANDARD_COMPLIANCE_COPY = {
 
 /**
 Evaluates the browser-visible requirements for Adyen Standard Drop-in.
- */
+*/
 export function computeStandardCompliance(
   sdkVersion: string | null,
   attributes: ImplementationAttributes

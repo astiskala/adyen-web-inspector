@@ -130,8 +130,8 @@ function CategorizedCheckTab({
 // ─── Tab Components ───────────────────────────────────────────────────────────
 
 /**
- * Combined overview of implementation identity, health score, and issues.
- */
+Combined overview of implementation identity, health score, and issues.
+*/
 export function OverviewTab({ result }: Properties): JSX.Element {
   return (
     <div class={s('tabContent')}>
@@ -148,8 +148,8 @@ export function OverviewTab({ result }: Properties): JSX.Element {
 }
 
 /**
- * Best-practice findings grouped by impact plus successful best-practice checks.
- */
+Best-practice findings grouped by impact plus successful best-practice checks.
+*/
 export function BestPracticesTab({ result }: Properties): JSX.Element {
   const { issueGroups, successfulChecks } = buildFindingProjection(result).bestPractices;
 
@@ -164,8 +164,8 @@ export function BestPracticesTab({ result }: Properties): JSX.Element {
 }
 
 /**
- * Security and third-party findings grouped by impact plus successful checks.
- */
+Security and third-party findings grouped by impact plus successful checks.
+*/
 export function SecurityTab({ result }: Properties): JSX.Element {
   const { issueGroups, successfulChecks } = buildFindingProjection(result).security;
 
@@ -180,8 +180,8 @@ export function SecurityTab({ result }: Properties): JSX.Element {
 }
 
 /**
- * Network capture table for requests recorded during the scan.
- */
+Network capture table for requests recorded during the scan.
+*/
 export function NetworkTab({ result }: Properties): JSX.Element {
   const reqs = buildFindingProjection(result).network.capturedRequests;
 
@@ -217,8 +217,8 @@ export function NetworkTab({ result }: Properties): JSX.Element {
 }
 
 /**
- * JSON view of selected captured/inferred checkout fields and SDK metadata.
- */
+JSON view of selected captured/inferred checkout fields and SDK metadata.
+*/
 export function RawConfigTab({ result }: Properties): JSX.Element {
   const sections = buildRawConfigSections(buildFindingProjection(result).rawConfig);
 
@@ -235,8 +235,8 @@ export function RawConfigTab({ result }: Properties): JSX.Element {
 }
 
 /**
- * Lists skipped checks and the extracted skip reason for each entry.
- */
+Lists skipped checks and the extracted skip reason for each entry.
+*/
 export function SkippedChecksTab({ result }: Properties): JSX.Element {
   const skipped = buildFindingProjection(result).skippedChecks;
 

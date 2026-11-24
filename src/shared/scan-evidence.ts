@@ -1,10 +1,10 @@
 /**
- * Checkout configuration evidence — answers what the scan observed about each
- * checkout option and about checkout configuration as a whole. Owns source
- * precedence, the rule that only directly captured AdyenCheckout options prove
- * a field was not set, and the rule that option-shaped page JSON alone does
- * not show checkout is configured.
- */
+Checkout configuration evidence — answers what the scan observed about each
+checkout option and about checkout configuration as a whole. Owns source
+precedence, the rule that only directly captured AdyenCheckout options prove
+a field was not set, and the rule that option-shaped page JSON alone does
+not show checkout is configured.
+*/
 
 import { readTranslationLocale } from './adyen-endpoint.js';
 import type {
@@ -17,7 +17,7 @@ import type {
 
 /**
 Where a Checkout configuration value was observed, in precedence order.
- */
+*/
 export type ConfigSource = 'captured' | 'component' | 'inferred';
 
 type ConfigKey = keyof CheckoutConfig;
@@ -27,15 +27,15 @@ interface ConfigObservation<K extends ConfigKey> {
   readonly source: ConfigSource;
   /**
   For inferred values: the partial signal the value was read from.
-   */
+  */
   readonly signal?: InferenceSignal;
 }
 
 /**
- * Evidence for one field. `absent` means directly captured AdyenCheckout
- * options prove the field was not set; `unobserved` means absence cannot be
- * verified, with `no-config` when no checkout or component config was captured.
- */
+Evidence for one field. `absent` means directly captured AdyenCheckout
+options prove the field was not set; `unobserved` means absence cannot be
+verified, with `no-config` when no checkout or component config was captured.
+*/
 export type CheckoutFieldEvidence<K extends ConfigKey> =
   | ({ readonly state: 'present' } & ConfigObservation<K>)
   | { readonly state: 'absent' }
@@ -44,13 +44,13 @@ export type CheckoutFieldEvidence<K extends ConfigKey> =
 interface ReadCheckoutFieldOptions {
   /**
   When false, values that were only inferred from requests or parsed JSON are ignored.
-   */
+  */
   readonly includeInferred?: boolean;
 }
 
 /**
 The configuration slots of a frame's page extraction or of the Checkout page.
- */
+*/
 type ConfigSlots = Pick<
   CheckoutPage,
   'capturedConfig' | 'componentConfig' | 'inferredConfig' | 'pageJsonConfig'
@@ -64,7 +64,7 @@ interface ConfigSlot {
 
 /**
 Slots in precedence order: captured, component, then inferred from Adyen requests, then page JSON.
- */
+*/
 const SLOTS: readonly ConfigSlot[] = [
   { source: 'captured', read: (page) => page.capturedConfig?.options ?? null },
   { source: 'component', read: (page) => page.componentConfig },
@@ -74,7 +74,7 @@ const SLOTS: readonly ConfigSlot[] = [
 
 /**
 Slots that show checkout is configured; page JSON alone does not.
- */
+*/
 const CONFIGURING_SLOTS = SLOTS.filter(({ signal }) => signal !== 'page-json');
 
 function isObserved<V>(value: V | '' | undefined): value is V {
@@ -83,26 +83,28 @@ function isObserved<V>(value: V | '' | undefined): value is V {
 
 /**
 Returns every observation of a field, strongest source first.
- */
+*/
 export function listCheckoutFieldObservations<K extends ConfigKey>(
   payload: ScanPayload,
   key: K
 ): ConfigObservation<K>[] {
-  return SLOTS.flatMap(({ source, signal, read }) => {
+  const observations: ConfigObservation<K>[] = [];
+  for (const { source, signal, read } of SLOTS) {
     const value = read(payload.page)?.[key];
-    if (!isObserved(value)) return [];
+    if (!isObserved(value)) continue;
     const observed = value as NonNullable<CheckoutConfig[K]>;
-    return [
-      signal === undefined ? { value: observed, source } : { value: observed, source, signal },
-    ];
-  });
+    observations.push(
+      signal === undefined ? { value: observed, source } : { value: observed, source, signal }
+    );
+  }
+  return observations;
 }
 
 /**
- * Returns the sources that show checkout is configured: captured options,
- * a mounted tree, or values inferred from Adyen requests. Option-shaped page
- * JSON alone does not count, because any page data can carry such fields.
- */
+Returns the sources that show checkout is configured: captured options,
+a mounted tree, or values inferred from Adyen requests. Option-shaped page
+JSON alone does not count, because any page data can carry such fields.
+*/
 export function checkoutConfigSources(page: ConfigSlots): ReadonlySet<ConfigSource> {
   return new Set(
     CONFIGURING_SLOTS.filter(({ read }) => read(page) !== null).map(({ source }) => source)
@@ -111,21 +113,21 @@ export function checkoutConfigSources(page: ConfigSlots): ReadonlySet<ConfigSour
 
 /**
 Returns true when checkout or component configuration was captured, not merely inferred.
- */
+*/
 export function hasCapturedCheckoutConfig(page: ConfigSlots): boolean {
   return page.capturedConfig !== null || page.componentConfig !== null;
 }
 
 /**
 Returns true when AdyenCheckout options were captured whole, so options missing from them are absent.
- */
+*/
 export function hasCompleteCheckoutConfig(page: ConfigSlots): boolean {
   return page.capturedConfig?.complete === true;
 }
 
 /**
 Reads the strongest observation of a field and whether its absence is proven.
- */
+*/
 export function readCheckoutField<K extends ConfigKey>(
   payload: ScanPayload,
   key: K,
@@ -145,7 +147,7 @@ export function readCheckoutField<K extends ConfigKey>(
 
 /**
 Infers a locale from Adyen translation requests when no stronger source shows one.
- */
+*/
 export function withRequestDerivedLocale(
   page: CheckoutPage,
   requests: readonly CapturedRequest[]

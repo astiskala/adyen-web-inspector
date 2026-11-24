@@ -26,9 +26,9 @@ interface EmptyStateProperties {
 }
 
 /**
- * Centered popup state with an icon, a title, explanatory text, and an
- * optional scan button or documentation link.
- */
+Centered popup state with an icon, a title, explanatory text, and an
+optional scan button or documentation link.
+*/
 export function EmptyState({
   icon,
   title,

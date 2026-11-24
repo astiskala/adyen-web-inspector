@@ -19,8 +19,8 @@ const ENVIRONMENT_BADGES: Readonly<Record<AdyenEnvironment | 'unknown', string>>
 };
 
 /**
- * Shows derived implementation attributes for the current checkout page.
- */
+Shows derived implementation attributes for the current checkout page.
+*/
 export function IdentityCard({ result }: Properties): JSX.Element {
   const attributes = summarizeImplementation(result);
   const environment = attributes.environment;

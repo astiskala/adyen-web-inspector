@@ -1,9 +1,9 @@
 /**
- * Passive content script — runs on matching pages at document_idle.
- * Uses lightweight DOM queries and mutation/route listeners; no network calls.
- * Reports checkout activity (a mounted Drop-in, Component, or Adyen iframe) to
- * the background service worker. SDK presence is established by a scan.
- */
+Passive content script — runs on matching pages at document_idle.
+Uses lightweight DOM queries and mutation/route listeners; no network calls.
+Reports checkout activity (a mounted Drop-in, Component, or Adyen iframe) to
+the background service worker. SDK presence is established by a scan.
+*/
 import { readAdyenEndpoint } from '../shared/adyen-endpoint.js';
 import { readCheckoutDom, hasMountedCheckout } from '../shared/checkout-signals.js';
 import {
@@ -26,7 +26,7 @@ const detection: {
 
 /**
 Reads the SDK version from Adyen-hosted script URLs (supplementary data).
- */
+*/
 function extractVersionFromScripts(): string | undefined {
   const urls = [...document.scripts]
     .map((script) => script.src)
@@ -36,7 +36,7 @@ function extractVersionFromScripts(): string | undefined {
 
 /**
 Reports mounted checkout as the checkout signals define it; SDK script tags alone do not count.
- */
+*/
 function detectCheckoutActivity(): CheckoutActivity {
   if (!hasMountedCheckout(readCheckoutDom(document))) return { found: false };
   const version = extractVersionFromScripts();
@@ -103,7 +103,7 @@ function isInterestingNode(node: Node): boolean {
 
 /**
 The observer watches child lists only, so every record lists added and removed nodes.
- */
+*/
 function handleMutations(records: MutationRecord[]): void {
   for (const record of records) {
     for (const added of record.addedNodes) {

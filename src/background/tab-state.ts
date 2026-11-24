@@ -1,16 +1,16 @@
 /**
- * Tab state — everything the extension remembers about one tab: the passive
- * detector's checkout activity, the stored scan result, and the Scan in
- * flight. It owns the storage key scheme, the badge, and the lifecycle rules:
- * one Scan per page at a time, and navigation discards the tab's state and any
- * pending Scan, whose result would describe a page that is gone.
- *
- * Every transition ends by publishing the tab's whole snapshot, so open views
- * render what the tab state holds instead of rebuilding it from events. Each
- * tab's transitions and reads run in order, so a navigation reset and a
- * finishing Scan cannot interleave. The module reaches Chrome only through its
- * port.
- */
+Tab state — everything the extension remembers about one tab: the passive
+detector's checkout activity, the stored scan result, and the Scan in
+flight. It owns the storage key scheme, the badge, and the lifecycle rules:
+one Scan per page at a time, and navigation discards the tab's state and any
+pending Scan, whose result would describe a page that is gone.
+
+Every transition ends by publishing the tab's whole snapshot, so open views
+render what the tab state holds instead of rebuilding it from events. Each
+tab's transitions and reads run in order, so a navigation reset and a
+finishing Scan cannot interleave. The module reaches Chrome only through its
+port.
+*/
 
 import {
   HEALTH_TIER_COLORS,
@@ -32,7 +32,7 @@ import { describeError, isScanResult } from '../shared/utilities.js';
 
 /**
 A badge on the extension's action icon for one tab.
- */
+*/
 interface TabBadge {
   readonly text: string;
   readonly color: string;
@@ -40,47 +40,47 @@ interface TabBadge {
 
 /**
 Everything the tab state needs from the browser.
- */
+*/
 export interface TabStateBrowser {
   /**
   Reads session-scoped values; missing keys are omitted.
-   */
+  */
   read: (keys: readonly string[]) => Promise<Readonly<Record<string, unknown>>>;
   write: (items: Readonly<Record<string, unknown>>) => Promise<void>;
   remove: (keys: readonly string[]) => Promise<void>;
   /**
   Shows a badge on the tab's action icon, or clears it when null.
-   */
+  */
   setBadge: (tabId: number, badge: TabBadge | null) => void;
   /**
   Notifies open popups and DevTools panels.
-   */
+  */
   notify: (message: BswToUiMessage) => void;
 }
 
 /**
 Runs a Scan of the tab's current page.
- */
+*/
 type RunScan = (tabId: number) => Promise<ScanResult>;
 
 interface TabState {
   /**
   The passive detector saw a mounted Drop-in, Component, or Adyen iframe.
-   */
+  */
   checkoutActivityDetected: (tabId: number, version?: string) => Promise<void>;
   checkoutActivityCleared: (tabId: number) => Promise<void>;
   /**
   Scans the tab unless a Scan of its current page is already running.
-   */
+  */
   requestScan: (tabId: number) => Promise<void>;
   /**
   The tab started loading a document: its state and any pending Scan are discarded.
-   */
+  */
   navigated: (tabId: number) => Promise<void>;
   removed: (tabId: number) => Promise<void>;
   /**
   Reads the tab's snapshot after its pending transitions.
-   */
+  */
   read: (tabId: number) => Promise<TabSnapshot>;
 }
 
@@ -88,7 +88,7 @@ interface TabRuntime {
   readonly tabId: number;
   /**
   Incremented when the tab's page goes away, so a pending Scan can tell it is stale.
-   */
+  */
   generation: number;
   scan: TabScanStatus;
   queue: Promise<unknown>;
@@ -119,7 +119,7 @@ function tabKeys(tabId: number): string[] {
 
 /**
 A running Scan decides the badge, then a stored result, then checkout activity.
- */
+*/
 function badgeFor({ result, checkoutActivity, scan }: TabSnapshot): TabBadge | null {
   if (scan.state === 'running') return SCANNING_BADGE;
   if (result !== null) {
@@ -138,7 +138,7 @@ function readActivity(stored: Readonly<Record<string, unknown>>, tabId: number):
 
 /**
 Runs a transition after the tab's earlier ones; a failed transition does not block later ones.
- */
+*/
 function enqueue<T>(tab: TabRuntime, transition: () => T | Promise<T>): Promise<T> {
   const next = runAfter(tab.queue, transition);
   tab.queue = Promise.allSettled([next]);
@@ -163,7 +163,7 @@ async function settleScan(running: Promise<ScanResult>): Promise<ScanOutcome> {
 
 /**
 Creates the tab state over a browser port; `scan` performs the Scan itself.
- */
+*/
 export function createTabState(browser: TabStateBrowser, scan: RunScan): TabState {
   const tabs = new Map<number, TabRuntime>();
 
@@ -197,7 +197,7 @@ export function createTabState(browser: TabStateBrowser, scan: RunScan): TabStat
 
   /**
   Forgets the tab's page: stored state goes, and any pending Scan becomes stale.
-   */
+  */
   async function discardPage(tab: TabRuntime): Promise<void> {
     tab.generation += 1;
     tab.scan = IDLE;

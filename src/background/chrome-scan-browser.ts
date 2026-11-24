@@ -1,6 +1,6 @@
 /**
- * Chrome adapter for the Scan browser port.
- */
+Chrome adapter for the Scan browser port.
+*/
 
 import { PAGE_GLOBALS } from '../shared/constants.js';
 import type { CapturedHeader, PageExtractResult } from '../shared/types.js';
@@ -19,7 +19,7 @@ const SCRIPT_FETCH_TIMEOUT_MS = 2500;
 
 /**
 Runs a fetch that is aborted after the timeout; resolves null on any failure.
- */
+*/
 async function fetchWithTimeout<T>(
   url: string,
   init: RequestInit,
@@ -55,18 +55,24 @@ async function fetchHeaders(url: string, method: 'HEAD' | 'GET'): Promise<Captur
 
 /**
 Tries `HEAD` first and falls back to `GET` when `HEAD` yields no headers.
- */
+*/
 async function fetchDocumentHeaders(pageUrl: string): Promise<CapturedHeader[]> {
   const headHeaders = await fetchHeaders(pageUrl, 'HEAD');
   return headHeaders.length > 0 ? headHeaders : fetchHeaders(pageUrl, 'GET');
 }
 
+/**
+Fetches a script without credentials; null when it fails or times out.
+*/
 function fetchScriptText(url: string): Promise<string | null> {
   return fetchWithTimeout(url, { credentials: 'omit' }, SCRIPT_FETCH_TIMEOUT_MS, (response) =>
     response.ok ? response.text() : null
   );
 }
 
+/**
+Waits until the tab finishes loading, or until the timeout passes.
+*/
 async function waitForTabComplete(tabId: number, timeoutMs: number): Promise<void> {
   const tab = await chrome.tabs.get(tabId);
   if (tab.status === 'complete') return;
@@ -96,12 +102,15 @@ async function waitForTabComplete(tabId: number, timeoutMs: number): Promise<voi
 
 /**
 Injected into each frame, so it must stay self-contained.
- */
+*/
 function readPageGlobalString(key: string): string | null {
   const value: unknown = Reflect.get(globalThis, key);
   return typeof value === 'string' ? value : null;
 }
 
+/**
+Runs the page extractor in every frame of the tab and parses each result.
+*/
 async function extractFrames(tabId: number): Promise<FrameExtraction[]> {
   let serializedResults: chrome.scripting.InjectionResult<string | null>[];
   try {
@@ -132,6 +141,9 @@ async function extractFrames(tabId: number): Promise<FrameExtraction[]> {
   }));
 }
 
+/**
+Starts recording the tab's network traffic for a Scan.
+*/
 function captureNetwork(tabId: number): NetworkCapture {
   const recorder = new NetworkRecorder(tabId);
   recorder.start();
@@ -145,7 +157,7 @@ function captureNetwork(tabId: number): NetworkCapture {
 
 /**
 Chrome adapter: drives a real tab through chrome.tabs, scripting, webRequest, and fetch.
- */
+*/
 export const chromeScanBrowser: ScanBrowser = {
   waitForTabComplete,
   extractFrames,

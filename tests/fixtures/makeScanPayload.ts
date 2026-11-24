@@ -31,21 +31,21 @@ const EMPTY_PAGE = {
 
 /**
 Default minimal Checkout page with all Adyen-related fields set as safe defaults.
- */
+*/
 export function makeCheckoutPage(overrides: Partial<CheckoutPage> = {}): CheckoutPage {
   return { ...EMPTY_PAGE, checkoutInIframe: false, ...overrides };
 }
 
 /**
 Default minimal single-frame page extraction, as the page extractor produces it.
- */
+*/
 export function makePageExtract(overrides: Partial<PageExtractResult> = {}): PageExtractResult {
   return { ...EMPTY_PAGE, isInsideIframe: false, ...overrides };
 }
 
 /**
- * Creates default Adyen metadata with optional field overrides.
- */
+Creates default Adyen metadata with optional field overrides.
+*/
 export function makeAdyenMetadata(overrides: Partial<AdyenWebMetadata> = {}): AdyenWebMetadata {
   return {
     version: '5.67.0',
@@ -60,8 +60,8 @@ type CheckoutConfigOverrides = {
 };
 
 /**
- * Creates a checkout config fixture and drops any override keys set to `undefined`.
- */
+Creates a checkout config fixture and drops any override keys set to `undefined`.
+*/
 export function makeCheckoutConfig(overrides: CheckoutConfigOverrides = {}): CheckoutConfig {
   const base: CheckoutConfig = {
     clientKey: 'test_ABCDEFGHIJK',
@@ -78,10 +78,10 @@ export function makeCheckoutConfig(overrides: CheckoutConfigOverrides = {}): Che
 }
 
 /**
- * Wraps options as captured from AdyenCheckout or component calls. Pass
- * `complete` when AdyenCheckout's options were captured whole, so options
- * missing from them count as absent.
- */
+Wraps options as captured from AdyenCheckout or component calls. Pass
+`complete` when AdyenCheckout's options were captured whole, so options
+missing from them count as absent.
+*/
 export function makeCapturedConfig(
   options: CheckoutConfig,
   isComplete = false
@@ -90,8 +90,8 @@ export function makeCapturedConfig(
 }
 
 /**
- * Creates captured AdyenCheckout options from checkout config overrides.
- */
+Creates captured AdyenCheckout options from checkout config overrides.
+*/
 export function makeCapturedCheckoutConfig(
   overrides: CheckoutConfigOverrides = {},
   isComplete = false
@@ -100,8 +100,8 @@ export function makeCapturedCheckoutConfig(
 }
 
 /**
- * Creates detected/latest version info for scan fixtures.
- */
+Creates detected/latest version info for scan fixtures.
+*/
 export function makeVersionInfo(overrides: Partial<VersionInfo> = {}): VersionInfo {
   return {
     detected: '5.67.0',
@@ -111,8 +111,8 @@ export function makeVersionInfo(overrides: Partial<VersionInfo> = {}): VersionIn
 }
 
 /**
- * Creates checkout analytics fixture data with sensible defaults.
- */
+Creates checkout analytics fixture data with sensible defaults.
+*/
 export function makeAnalyticsData(overrides: Partial<AnalyticsData> = {}): AnalyticsData {
   return {
     flavor: 'dropin',
@@ -125,12 +125,12 @@ export function makeAnalyticsData(overrides: Partial<AnalyticsData> = {}): Analy
 
 /**
 Checkout document headers the scan could not observe.
- */
+*/
 export const UNAVAILABLE_DOCUMENT_HEADERS: DocumentHeaders = { status: 'unavailable' };
 
 /**
 Checkout document headers captured from the tab's own response.
- */
+*/
 export function makeDocumentHeaders(
   headers: readonly CapturedHeader[] = [],
   url = 'https://example.com/checkout'
@@ -139,8 +139,8 @@ export function makeDocumentHeaders(
 }
 
 /**
- * Creates a complete scan payload fixture with optional overrides.
- */
+Creates a complete scan payload fixture with optional overrides.
+*/
 export function makeScanPayload(overrides: Partial<ScanPayload> = {}): ScanPayload {
   return {
     tabId: 1,
@@ -156,8 +156,8 @@ export function makeScanPayload(overrides: Partial<ScanPayload> = {}): ScanPaylo
 }
 
 /**
- * Creates a stored scan result fixture with no checks and optional overrides.
- */
+Creates a stored scan result fixture with no checks and optional overrides.
+*/
 export function makeScanResult(overrides: Partial<ScanResult> = {}): ScanResult {
   const payload = overrides.payload ?? makeScanPayload();
   return {
@@ -175,8 +175,8 @@ export function makeScanResult(overrides: Partial<ScanResult> = {}): ScanResult 
 }
 
 /**
- * Convenience factory for a payload with Adyen metadata and checkout config prefilled.
- */
+Convenience factory for a payload with Adyen metadata and checkout config prefilled.
+*/
 export function makeAdyenPayload(
   metaOverrides: Partial<AdyenWebMetadata> = {},
   configOverrides: CheckoutConfigOverrides = {},
@@ -192,15 +192,15 @@ export function makeAdyenPayload(
 }
 
 /**
- * Creates a captured response header fixture.
- */
+Creates a captured response header fixture.
+*/
 export function makeHeader(name: string, value: string): CapturedHeader {
   return { name, value };
 }
 
 /**
- * Creates a captured request fixture with overridable fields.
- */
+Creates a captured request fixture with overridable fields.
+*/
 export function makeRequest(
   url: string,
   overrides: Partial<CapturedRequest> = {}

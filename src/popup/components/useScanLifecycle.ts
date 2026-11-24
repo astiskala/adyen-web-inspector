@@ -7,27 +7,27 @@ import {
 import type { ScanResult } from '../../shared/types.js';
 
 /**
- * What the popup and DevTools panel need from the tab state. Chrome runtime
- * messaging is the production adapter; tests connect the real tab state.
- */
+What the popup and DevTools panel need from the tab state. Chrome runtime
+messaging is the production adapter; tests connect the real tab state.
+*/
 export interface TabStateClient {
   /**
   Reads the tab's snapshot; rejects when the extension runtime is unreachable.
-   */
+  */
   read: (tabId: number) => Promise<TabSnapshot>;
   /**
   Asks the tab state to scan the tab; rejects when the request cannot be sent.
-   */
+  */
   requestScan: (tabId: number) => Promise<void>;
   /**
   Delivers every snapshot the tab state publishes; returns an unsubscribe function.
-   */
+  */
   subscribe: (listener: (tabId: number, snapshot: TabSnapshot) => void) => () => void;
 }
 
 /**
 Which tab a view inspects.
- */
+*/
 interface TabTarget {
   getTabId: () => number | undefined | Promise<number | undefined>;
 }
@@ -68,9 +68,9 @@ function failed(error: ScanFailure): (previous: ScanState) => ScanState {
 }
 
 /**
- * Renders one tab's snapshot as the tab state publishes it, and exposes a
- * scan trigger shared by the popup and DevTools panel.
- */
+Renders one tab's snapshot as the tab state publishes it, and exposes a
+scan trigger shared by the popup and DevTools panel.
+*/
 export function useScanLifecycle(
   target: TabTarget,
   client: TabStateClient
@@ -85,7 +85,7 @@ export function useScanLifecycle(
 
   /**
   Resolves the inspected tab once per target; the resolution never throws synchronously.
-   */
+  */
   function resolveTabId(): Promise<number | undefined> {
     tabId.current ??= Promise.try(() => target.getTabId());
     return tabId.current;
@@ -121,7 +121,7 @@ export function useScanLifecycle(
 
   /**
   Asks for a scan; rejects only when the request itself fails.
-   */
+  */
   async function requestScan(): Promise<void> {
     let id: number | undefined;
     try {
@@ -149,7 +149,7 @@ export function useScanLifecycle(
 
 /**
 The scan button label for a view's scan state.
- */
+*/
 export function scanButtonLabel({
   scanning,
   result,

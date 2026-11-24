@@ -15,13 +15,17 @@ const IGNORED_DIRECTORIES = new Set([
 ]);
 
 function markdownFiles(directory: string): string[] {
-  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+  const files: string[] = [];
+  const entries = readdirSync(directory, { withFileTypes: true });
+  for (const entry of entries) {
     const path = resolve(directory, entry.name);
     if (entry.isDirectory() && !IGNORED_DIRECTORIES.has(entry.name)) {
-      return markdownFiles(path);
+      files.push(...markdownFiles(path));
+    } else if (entry.isFile() && entry.name.endsWith('.md')) {
+      files.push(path);
     }
-    return entry.isFile() && entry.name.endsWith('.md') ? [path] : [];
-  });
+  }
+  return files;
 }
 
 const documents = markdownFiles(ROOT);

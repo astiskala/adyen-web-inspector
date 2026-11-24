@@ -1,7 +1,7 @@
 /**
- * NPM registry client — fetches the latest adyen-web version and v6+ release dates.
- * Results are cached in chrome.storage.local for 24 hours.
- */
+NPM registry client — fetches the latest adyen-web version and v6+ release dates.
+Results are cached in chrome.storage.local for 24 hours.
+*/
 
 import {
   MIN_SUPPORTED_MAJOR_VERSION,
@@ -49,9 +49,9 @@ function isSupportedStableVersion(version: string): boolean {
 }
 
 /**
- * Reads `dist-tags.latest` and the publish times of supported stable versions
- * from a full npm packument. Returns null when the latest tag is missing.
- */
+Reads `dist-tags.latest` and the publish times of supported stable versions
+from a full npm packument. Returns null when the latest tag is missing.
+*/
 function parsePackument(data: unknown): AdyenWebReleaseInfo | null {
   if (!isRecord(data)) return null;
   const { 'dist-tags': distributionTags, time } = data;
@@ -70,10 +70,10 @@ function parsePackument(data: unknown): AdyenWebReleaseInfo | null {
 }
 
 /**
- * Returns the latest published `@adyen/adyen-web` version with supported
- * release dates. Uses a 24-hour `chrome.storage.local` cache and returns
- * `null` on failure.
- */
+Returns the latest published `@adyen/adyen-web` version with supported
+release dates. Uses a 24-hour `chrome.storage.local` cache and returns
+`null` on failure.
+*/
 export async function getAdyenWebReleaseInfo(): Promise<AdyenWebReleaseInfo | null> {
   const cached = await readCache();
   if (cached) {

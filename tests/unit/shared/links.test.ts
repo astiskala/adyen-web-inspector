@@ -3,11 +3,11 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 /**
- * Validate that all documentation links referenced in check source files are reachable.
- *
- * These tests make live HTTP requests and are skipped by default.
- * Run with `RUN_LINK_CHECKS=1 pnpm test` to check external links.
- */
+Validate that all documentation links referenced in check source files are reachable.
+
+These tests make live HTTP requests and are skipped by default.
+Run with `RUN_LINK_CHECKS=1 pnpm test` to check external links.
+*/
 
 function collectDocumentationUrls(): Set<string> {
   const checksDirectory = resolve(__dirname, '../../../src/background/checks');

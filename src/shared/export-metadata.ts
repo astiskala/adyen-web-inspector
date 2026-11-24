@@ -64,7 +64,7 @@ function detectBrowserFromUserAgent(userAgent: string): NavigatorBrand {
 
 /**
 User-agent tokens and their platforms, most specific first: iOS user agents also mention Mac OS, and Android ones Linux.
- */
+*/
 const USER_AGENT_PLATFORMS = [
   ['iphone', 'iOS'],
   ['ipad', 'iPadOS'],
@@ -108,7 +108,7 @@ function getExtensionVersion(): string {
 
 /**
 Collects extension and browser metadata for exported reports.
- */
+*/
 export function buildPrintableReportMetadata(): PrintableReportMetadata {
   return {
     extensionVersion: getExtensionVersion(),

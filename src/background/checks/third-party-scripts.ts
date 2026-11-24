@@ -1,7 +1,7 @@
 /**
- * Third-party script checks (`third-party`) — tag managers, session replay, ad pixels, script
- * integrity, and Cookiebot blocking.
- */
+Third-party script checks (`third-party`) — tag managers, session replay, ad pixels, script
+integrity, and Cookiebot blocking.
+*/
 
 import type { ScanPayload } from '../../shared/types.js';
 import {

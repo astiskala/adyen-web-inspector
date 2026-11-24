@@ -12,8 +12,8 @@ interface VersionOutdatedProperties {
 }
 
 /**
- * Warning state shown when the detected SDK major version is below support policy.
- */
+Warning state shown when the detected SDK major version is below support policy.
+*/
 export function VersionOutdated({ version }: VersionOutdatedProperties): JSX.Element {
   return (
     <EmptyState icon="⚠️" title="Adyen Web Version Outdated" tone="warning" link={UPGRADE_LINK}>

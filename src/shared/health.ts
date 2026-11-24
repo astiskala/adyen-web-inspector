@@ -1,17 +1,17 @@
 /**
- * Health score calculation logic.
- *
- * Uses traffic-light (RAG) tiering.
- *   Red (critical): any failing check.
- *   Amber (issues): any warning without failures.
- *   Green (excellent): no failures or warnings.
- */
+Health score calculation logic.
+
+Uses traffic-light (RAG) tiering.
+  Red (critical): any failing check.
+  Amber (issues): any warning without failures.
+  Green (excellent): no failures or warnings.
+*/
 
 import type { CheckResult, HealthScore } from './types.js';
 
 /**
- * Computes aggregate health metrics and RAG tier from check outcomes.
- */
+Computes aggregate health metrics and RAG tier from check outcomes.
+*/
 export function calculateHealthScore(checks: CheckResult[]): HealthScore {
   const scoreable = checks.filter(
     (c) => c.severity !== 'skip' && c.severity !== 'info' && c.severity !== 'notice'

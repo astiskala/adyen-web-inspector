@@ -1,7 +1,7 @@
 /**
- * SDK identity checks (`sdk-identity`) — SDK presence, integration flavor, import method, bundle
- * type, analytics, and initialisation count.
- */
+SDK identity checks (`sdk-identity`) — SDK presence, integration flavor, import method, bundle
+type, analytics, and initialisation count.
+*/
 
 import type { ImplementationAttributes } from '../../shared/types.js';
 import { isAdyenCheckoutResource } from '../../shared/adyen-endpoint.js';

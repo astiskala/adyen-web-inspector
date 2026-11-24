@@ -1,7 +1,7 @@
 /**
- * Callback checks (`callbacks`) — integration flow, required and outcome callbacks, onSubmit
- * handling, duplicate submissions, and custom pay buttons.
- */
+Callback checks (`callbacks`) — integration flow, required and outcome callbacks, onSubmit
+handling, duplicate submissions, and custom pay buttons.
+*/
 
 import type {
   CheckoutConfig,
@@ -56,7 +56,7 @@ function readCallback(payload: ScanPayload, key: CallbackKey): CheckoutFieldEvid
 
 /**
 Skip reason for onSubmit source that could not be read.
- */
+*/
 function unavailableSourceReason(
   source: Extract<OnSubmitSource, { status: 'unavailable' }>
 ): string {
@@ -89,7 +89,7 @@ const SIGNAL_LIST = new Intl.ListFormat('en', { type: 'conjunction' });
 
 /**
 A known flow always has at least one signal: Advanced flow requires checkout configuration.
- */
+*/
 function describeFlow({ value: flow, signals }: ImplementationAttributes['flow']): string {
   if (flow === 'sessions') {
     const sources: string[] = [];

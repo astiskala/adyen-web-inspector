@@ -83,8 +83,10 @@ beforeEach(() => {
   });
 });
 
-afterEach(() => {
-  render(null, harness.host);
+afterEach(async () => {
+  await act(() => {
+    render(null, harness.host);
+  });
   harness.host.remove();
   vi.unstubAllGlobals();
 });
@@ -292,7 +294,7 @@ interface ReportTabStubs {
 
 /**
 Adds what the PDF export needs to the stubbed chrome global.
- */
+*/
 function stubReportTab(): ReportTabStubs {
   const stubbed = globalThis.chrome as unknown as {
     runtime: Record<string, unknown>;

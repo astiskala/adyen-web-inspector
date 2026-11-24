@@ -1,6 +1,6 @@
 /**
- * Shared utility functions - Entry point for split utility modules.
- */
+Shared utility functions - Entry point for split utility modules.
+*/
 
 import type { ScanResult } from './types.js';
 
@@ -11,7 +11,7 @@ export * from './csp-utilities.js';
 
 /**
 Describes a thrown value: an Error's message, a string as-is, otherwise its type tag.
- */
+*/
 export function describeError(error: unknown): string {
   if (error instanceof Error) return error.message;
   return typeof error === 'string' ? error : Object.prototype.toString.call(error);
@@ -19,14 +19,14 @@ export function describeError(error: unknown): string {
 
 /**
 Returns true for any non-null object.
- */
+*/
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
 /**
 Checks the top-level shape of a scan result read from storage or a runtime message.
- */
+*/
 export function isScanResult(value: unknown): value is ScanResult {
   return (
     isRecord(value) &&
@@ -42,7 +42,7 @@ export function isScanResult(value: unknown): value is ScanResult {
 
 /**
 Extracts the hostname from a URL string.
- */
+*/
 export function extractHostname(url: string): string | null {
   try {
     return new URL(url).hostname;

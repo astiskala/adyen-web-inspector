@@ -1,7 +1,7 @@
 /**
- * Environment checks (`environment`) — CDN and API environment, region, client key prefix, and
- * iframe embedding.
- */
+Environment checks (`environment`) — CDN and API environment, region, client key prefix, and
+iframe embedding.
+*/
 
 import { readCheckoutField } from '../../shared/scan-evidence.js';
 import { createRegistry } from './registry.js';

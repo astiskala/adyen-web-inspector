@@ -33,7 +33,7 @@ type PopupView =
 
 /**
 Resolves the view for a tab without a scan result from the detector's checkout activity.
- */
+*/
 function getIdleView({ detected, version }: CheckoutActivity): PopupView {
   if (!detected) return { state: 'not-detected' };
   const major = parseVersion(version ?? '')?.major;
@@ -44,7 +44,7 @@ function getIdleView({ detected, version }: CheckoutActivity): PopupView {
 
 /**
 A scan that found no SDK offers another attempt, like a page where none was detected.
- */
+*/
 function getPopupView(session: ReturnType<typeof useScanLifecycle>): PopupView {
   const { loading, error, result, checkoutActivity } = session;
   if (loading && result === null) return { state: 'loading' };
@@ -54,8 +54,8 @@ function getPopupView(session: ReturnType<typeof useScanLifecycle>): PopupView {
 }
 
 /**
- * Popup root that loads scan state for the active tab and handles scan actions.
- */
+Popup root that loads scan state for the active tab and handles scan actions.
+*/
 export function Popup(): JSX.Element {
   const session = useScanLifecycle(activeTab, chromeTabStateClient);
   const { scanning, scan } = session;

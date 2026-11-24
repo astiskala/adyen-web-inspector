@@ -1,7 +1,7 @@
 /**
- * Authentication checks (`auth`) — client key, rejected client-side requests, country code,
- * and locale.
- */
+Authentication checks (`auth`) — client key, rejected client-side requests, country code,
+and locale.
+*/
 
 import { readAdyenEndpoint } from '../../shared/adyen-endpoint.js';
 import { ADYEN_WEB_TRANSLATION_LOCALES, ORIGIN_KEY_PREFIX } from '../../shared/constants.js';
@@ -73,7 +73,7 @@ const REJECTED_STATUS_CODES = new Set([401, 403]);
 
 /**
 Checkoutshopper and analytics endpoints authenticate the browser with the client key.
- */
+*/
 function isClientKeyAuthenticated(url: string): boolean {
   const role = readAdyenEndpoint(url)?.role;
   return role === 'checkoutshopper' || role === 'analytics';
@@ -81,7 +81,7 @@ function isClientKeyAuthenticated(url: string): boolean {
 
 /**
 Where an inferred value was observed, for notice wording.
- */
+*/
 function inferredFrom(signal: InferenceSignal | undefined): string {
   return signal === 'page-json' ? 'in JSON the page parsed' : 'in an Adyen request';
 }

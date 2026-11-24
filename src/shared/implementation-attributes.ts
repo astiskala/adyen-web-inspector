@@ -1,9 +1,9 @@
 /**
- * Implementation attributes — how the inspected integration is built: its
- * integration flavor and flow, environment and region, import method, and
- * checkout activity, each with the signal it came from. The rules live here
- * and run once per scan payload; everything else reads the resulting record.
- */
+Implementation attributes — how the inspected integration is built: its
+integration flavor and flow, environment and region, import method, and
+checkout activity, each with the signal it came from. The rules live here
+and run once per scan payload; everything else reads the resulting record.
+*/
 
 import {
   isCheckoutApiRequest,
@@ -54,7 +54,7 @@ function detectRegionFromConfig(environment: string): AdyenRegion | null {
 
 /**
 Resolves the first observation that yields a value, strongest source first.
- */
+*/
 function firstResolved<V, R>(
   observations: readonly { readonly value: V }[],
   resolve: (value: V) => R | null
@@ -68,15 +68,15 @@ function firstResolved<V, R>(
 
 /**
 Captured traffic read as Adyen endpoints, split by what it can tell about the integration.
- */
+*/
 interface EndpointTraffic {
   /**
   CDN and checkoutshopper hosts, which reflect asset delivery.
-   */
+  */
   readonly assets: readonly AdyenEndpoint[];
   /**
   Checkout API calls and analytics, which reflect the configured environment.
-   */
+  */
   readonly config: readonly AdyenEndpoint[];
 }
 
@@ -105,7 +105,7 @@ function firstOf<T>(
 
 /**
 Priority: checkout config, then client key, then network traffic.
- */
+*/
 function resolveEnvironment(
   payload: ScanPayload,
   traffic: EndpointTraffic
@@ -134,7 +134,7 @@ function resolveEnvironment(
 
 /**
 Checkout config first, then the region Checkout API and analytics hosts serve.
- */
+*/
 function resolveRegion(payload: ScanPayload, traffic: EndpointTraffic): Attribute<'region'> {
   const cdn = firstOf(traffic.assets, (endpoint) => endpoint.namedRegion) ?? 'unknown';
   const fromConfig = firstResolved(
@@ -151,7 +151,7 @@ function resolveRegion(payload: ScanPayload, traffic: EndpointTraffic): Attribut
 
 /**
 Classifies visible Adyen-hosted script origins; other import methods remain unknown.
- */
+*/
 function detectImportMethod(scripts: ScanPayload['page']['scripts']): Attribute<'importMethod'> {
   const endpoints = scripts.map((script) => readAdyenEndpoint(script.src));
   if (endpoints.some((endpoint) => endpoint?.role === 'cdn')) return 'CDN';
@@ -160,7 +160,7 @@ function detectImportMethod(scripts: ScanPayload['page']['scripts']): Attribute<
 
 /**
 A session object, analytics session ID, or Sessions request indicates Sessions; config alone indicates Advanced.
- */
+*/
 function resolveIntegrationFlow(payload: ScanPayload): Attribute<'flow'> {
   // A session object only counts in captured or mounted options: any page JSON can carry one.
   const session = readCheckoutField(payload, 'hasSession', { includeInferred: false });
@@ -179,7 +179,7 @@ function resolveIntegrationFlow(payload: ScanPayload): Attribute<'flow'> {
 
 /**
 Flavor from analytics, then Drop-in URL patterns and DOM, then captured or request-inferred config.
- */
+*/
 function resolveIntegrationFlavor(
   payload: ScanPayload,
   isCheckoutActive: boolean
@@ -232,10 +232,10 @@ function deriveImplementationAttributes(payload: ScanPayload): ImplementationAtt
 const derived = new WeakMap<ScanPayload, ImplementationAttributes>();
 
 /**
- * Returns the implementation attributes of a scan payload. They are derived
- * on first read and shared by every later reader of the same payload, so the
- * checks, the assessment, and the stored scan result see one record.
- */
+Returns the implementation attributes of a scan payload. They are derived
+on first read and shared by every later reader of the same payload, so the
+checks, the assessment, and the stored scan result see one record.
+*/
 export function readImplementationAttributes(payload: ScanPayload): ImplementationAttributes {
   let attributes = derived.get(payload);
   if (attributes === undefined) {

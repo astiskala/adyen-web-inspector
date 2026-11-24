@@ -1,7 +1,7 @@
 /**
- * Risk checks (`risk`) — device fingerprinting, risk data collection, and the cardholder name
- * field.
- */
+Risk checks (`risk`) — device fingerprinting, risk data collection, and the cardholder name
+field.
+*/
 
 import { DF_IFRAME_NAME, DF_IFRAME_URL_PATTERN } from '../../shared/constants.js';
 import { readCheckoutField } from '../../shared/scan-evidence.js';

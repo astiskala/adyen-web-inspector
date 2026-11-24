@@ -1,9 +1,9 @@
 /**
- * Network recorder — the Chrome adapter's network capture. It records every
- * response the tab receives and the bodies the tab posts to Adyen checkout
- * analytics hosts while a scan runs, as the browser reports them. What the
- * traffic means is the Scan's decision (captured-traffic.ts).
- */
+Network recorder — the Chrome adapter's network capture. It records every
+response the tab receives and the bodies the tab posts to Adyen checkout
+analytics hosts while a scan runs, as the browser reports them. What the
+traffic means is the Scan's decision (captured-traffic.ts).
+*/
 
 import { ANALYTICS_URL_PATTERNS } from '../shared/adyen-endpoint.js';
 import type { ObservedNetwork, ObservedPost, ObservedResponse } from './scan-browser.js';

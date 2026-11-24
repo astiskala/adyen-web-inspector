@@ -1,20 +1,20 @@
 /**
- * MAIN-world config interceptor — runs at document_start on matching pages,
- * before the on-demand scan. It captures selected browser-visible checkout
- * settings through complementary mechanisms:
- *
- * 1. Global AdyenCheckout/AdyenWeb property traps wrap exposed factories and
- *    component constructors; promise results can expose instance options.
- * 2. Wrapped page fetch and XMLHttpRequest.open calls inspect Adyen request
- *    URLs for environment, locale, countryCode, and clientKey signals. Fetch
- *    also reads string bodies sent to Adyen checkout analytics hosts, keeping
- *    only component events; no other request body is read, and no additional
- *    network requests are initiated.
- * 3. Wrapped JSON.parse inspects parsed objects for config-shaped fields.
- *
- * Everything observed goes into one capture record (shared/checkout-capture.ts),
- * published on a page global for the on-demand page extractor to read.
- */
+MAIN-world config interceptor — runs at document_start on matching pages,
+before the on-demand scan. It captures selected browser-visible checkout
+settings through complementary mechanisms:
+
+1. Global AdyenCheckout/AdyenWeb property traps wrap exposed factories and
+   component constructors; promise results can expose instance options.
+2. Wrapped page fetch and XMLHttpRequest.open calls inspect Adyen request
+   URLs for environment, locale, countryCode, and clientKey signals. Fetch
+   also reads string bodies sent to Adyen checkout analytics hosts, keeping
+   only component events; no other request body is read, and no additional
+   network requests are initiated.
+3. Wrapped JSON.parse inspects parsed objects for config-shaped fields.
+
+Everything observed goes into one capture record (shared/checkout-capture.ts),
+published on a page global for the on-demand page extractor to read.
+*/
 
 import { readAdyenEndpoint } from '../shared/adyen-endpoint.js';
 import {
@@ -51,7 +51,7 @@ import type { CallbackSource, CheckoutCapture } from '../shared/types.js';
 
   /**
   Keeps and publishes a changed record; recording functions return the same record when nothing changed.
-   */
+  */
   function commit(next: CheckoutCapture): void {
     if (next === capture) return;
     capture = next;
@@ -107,7 +107,7 @@ import type { CallbackSource, CheckoutCapture } from '../shared/types.js';
 
   /**
   Request bodies stream, so only string bodies passed in `init` are read.
-   */
+  */
   function tryCaptureAnalytics(url: string, body: unknown): void {
     if (typeof body !== 'string' || readAdyenEndpoint(url)?.role !== 'analytics') return;
     try {
@@ -145,7 +145,7 @@ import type { CallbackSource, CheckoutCapture } from '../shared/types.js';
     url: string | URL,
     ...arguments_: unknown[]
   ): void {
-    const u = typeof url === 'string' ? url : url.toString();
+    const u = typeof url === 'string' ? url : url.href;
     tryCaptureFromUrl(u);
 
     try {
@@ -203,7 +203,7 @@ import type { CallbackSource, CheckoutCapture } from '../shared/types.js';
 
   /**
   Wraps a checkout instance's create; the instance marker keeps it from being wrapped twice.
-   */
+  */
   function wrapInstanceCreate(index: PlainRecord, create: SdkCallable): void {
     const wrappedCreate = function (this: unknown, ...cArguments: unknown[]): unknown {
       if (cArguments.length > 1) {
@@ -256,7 +256,7 @@ import type { CallbackSource, CheckoutCapture } from '../shared/types.js';
 
   /**
   Wraps an AdyenCheckout factory; callers skip factories that are already wrapped.
-   */
+  */
   function wrapCheckoutFactory(original: SdkCallable): SdkCallable {
     const wrapped: SdkCallable = function (this: unknown, ...arguments_: unknown[]): unknown {
       incrementInitCount();
@@ -274,7 +274,7 @@ import type { CallbackSource, CheckoutCapture } from '../shared/types.js';
 
   /**
   Wraps a component constructor; callers skip constructors that are already wrapped.
-   */
+  */
   function wrapComponentConstructor(original: SdkCallable): SdkCallable {
     const wrapped: SdkCallable = function (this: unknown, ...arguments_: unknown[]): unknown {
       if (arguments_.length > 1) {

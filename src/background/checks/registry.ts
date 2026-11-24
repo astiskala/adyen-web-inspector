@@ -1,6 +1,6 @@
 /**
- * Check registry helper — provides a concise way to define groups of checks.
- */
+Check registry helper — provides a concise way to define groups of checks.
+*/
 
 import type {
   Check,
@@ -15,8 +15,8 @@ import { readImplementationAttributes } from '../../shared/implementation-attrib
 import { getDefaultImpact } from '../../shared/results.js';
 
 /**
- * Result of a check runner before ID and Category are injected.
- */
+Result of a check runner before ID and Category are injected.
+*/
 export interface CheckOutcome {
   readonly severity: Severity;
   readonly title: string;
@@ -33,12 +33,12 @@ type IssueOutcome = (
 ) => CheckOutcome;
 
 /**
- * Context provided to check runners.
- */
+Context provided to check runners.
+*/
 export interface CheckContext {
   /**
   Implementation attributes of the scan, derived once and shared by every check.
-   */
+  */
   readonly attributes: ImplementationAttributes;
   readonly pass: (title: string, detail?: string) => CheckOutcome;
   readonly fail: IssueOutcome;
@@ -128,7 +128,7 @@ class CheckRegistry {
 
 /**
 Utility to create a category-scoped registry.
- */
+*/
 export function createRegistry(category: CheckCategory): CheckRegistry {
   return new CheckRegistry(category);
 }

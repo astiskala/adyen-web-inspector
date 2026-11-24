@@ -1,6 +1,6 @@
 /**
- * Security checks (`security`) — Content-Security-Policy compatibility with Adyen Web.
- */
+Security checks (`security`) — Content-Security-Policy compatibility with Adyen Web.
+*/
 
 import type { ScanPayload } from '../../shared/types.js';
 import {
@@ -107,7 +107,7 @@ type EnforcedPolicy = Extract<PagePolicy, { status: 'enforced' }>;
 
 /**
 Skips a directive check when headers are unavailable or no policy is set.
- */
+*/
 function skipUnenforced(
   policy: Exclude<PagePolicy, EnforcedPolicy>,
   title: string,
@@ -121,7 +121,7 @@ function skipUnenforced(
 
 /**
 The origins Adyen Web uses for the configured environment, else for a test environment signal.
- */
+*/
 function resolveAdyenWebUrls(
   payload: ScanPayload,
   { attributes }: CheckContext
@@ -137,7 +137,7 @@ const CDN_TRANSLATION_LANGUAGES = new Set(
 
 /**
 Adyen Web bundles en-US and fetches other supported translations from the CDN.
- */
+*/
 function areCdnTranslationsFetched(payload: ScanPayload): boolean {
   const locale = readCheckoutField(payload, 'locale');
   if (locale.state !== 'present') return false;

@@ -151,7 +151,7 @@ describe('chromeScanBrowser clock', () => {
 
 /**
 A fetch that never settles until its abort signal fires.
- */
+*/
 function hangingFetch(): ReturnType<typeof vi.fn> {
   return vi.fn(
     (_url: RequestInfo | URL, options?: RequestInit): Promise<Response> =>

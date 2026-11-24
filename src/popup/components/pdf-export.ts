@@ -12,9 +12,9 @@ function buildPdfReportUrl(token: string): string {
 }
 
 /**
- * Stores the current scan result and opens a dedicated report page that can
- * render and print independently of the popup or DevTools lifecycle.
- */
+Stores the current scan result and opens a dedicated report page that can
+render and print independently of the popup or DevTools lifecycle.
+*/
 export async function exportPdf(result: ScanResult): Promise<void> {
   const token = globalThis.crypto.randomUUID();
   const storageKey = getPdfReportStorageKey(token);
