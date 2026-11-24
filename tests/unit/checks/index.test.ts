@@ -38,7 +38,7 @@ describe('ALL_CHECKS registry', () => {
         page: makeCheckoutPage({
           links: [
             {
-              href: 'https://checkoutshopper-test.adyen.com/checkoutshopper/sdk.css',
+              href: 'https://checkoutshopper-test.adyen.com/checkoutshopper/sdk/6.31.0/adyen.css',
               rel: 'stylesheet',
             },
           ],

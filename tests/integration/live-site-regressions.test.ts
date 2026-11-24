@@ -49,24 +49,22 @@ async function scanMyStore(): Promise<ScanResult> {
   );
 }
 
-// Known defects: expected failures execute the desired assertions and fail on an unexpected pass.
-// Remove .fails when the corresponding production fix lands.
 describe('MyStore live-site regressions', () => {
-  it.fails('does not require SDK SRI on a dynamically loaded risk-data script', async () => {
+  it('does not require SDK SRI on a dynamically loaded risk-data script', async () => {
     const result = await scanMyStore();
     expect(result.checks.find(({ id }) => id === 'security-sri-script')).toMatchObject({
       severity: 'skip',
     });
   });
 
-  it.fails('does not treat the risk host as the checkout SDK CDN environment', async () => {
+  it('does not treat the risk host as the checkout SDK CDN environment', async () => {
     const result = await scanMyStore();
     expect(result.checks.find(({ id }) => id === 'env-cdn-mismatch')).toMatchObject({
       severity: 'skip',
     });
   });
 
-  it.fails('does not infer an Adyen-hosted SDK import from the risk script', async () => {
+  it('does not infer an Adyen-hosted SDK import from the risk script', async () => {
     const result = await scanMyStore();
     expect(result.attributes.importMethod).toBe('Unknown');
   });

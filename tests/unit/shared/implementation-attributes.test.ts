@@ -53,7 +53,9 @@ describe('environment and region', () => {
     const { environment, region } = readImplementationAttributes(
       makeScanPayload({
         capturedRequests: [
-          makeRequest('https://checkoutshopper-live-us.cdn.adyen.com/checkoutshopper/sdk.js'),
+          makeRequest(
+            'https://checkoutshopper-live-us.cdn.adyen.com/checkoutshopper/sdk/6.31.0/adyen.js'
+          ),
         ],
       })
     );
@@ -66,6 +68,47 @@ describe('environment and region', () => {
       network: null,
     });
     expect(region).toEqual({ value: 'unknown', source: 'unknown', cdn: 'US' });
+  });
+
+  it('reads the CDN signal from SDK assets, not risk scripts or translations', () => {
+    const { environment, region } = readImplementationAttributes(
+      makeScanPayload({
+        capturedRequests: [
+          makeRequest(
+            'https://checkoutshopper-live.adyen.com/checkoutshopper/assets/js/datacollection/datacollection.js'
+          ),
+          makeRequest(
+            'https://checkoutshopper-live-us.cdn.adyen.com/checkoutshopper/sdk/6.31.0/translations/en-US.json',
+            { type: 'other' }
+          ),
+          makeRequest(
+            'https://checkoutshopper-test.cdn.adyen.com/checkoutshopper/sdk/6.31.0/adyen.css',
+            {
+              type: 'stylesheet',
+            }
+          ),
+        ],
+      })
+    );
+
+    expect(environment.cdn).toBe('test');
+    expect(region.cdn).toBe('unknown');
+  });
+
+  it('does not attribute an Adyen import to a risk-data script alone', () => {
+    const { importMethod } = readImplementationAttributes(
+      makeScanPayload({
+        page: makeCheckoutPage({
+          scripts: [
+            {
+              src: 'https://checkoutshopper-live.adyen.com/checkoutshopper/assets/js/datacollection/datacollection.js',
+            },
+          ],
+        }),
+      })
+    );
+
+    expect(importMethod).toBe('Unknown');
   });
 
   it.each([
@@ -222,6 +265,13 @@ describe('integration flavor, import method, and checkout activity', () => {
       { value: 'Components', source: 'checkout-config' },
     ],
     ['no signal', makeScanPayload(), { value: 'Unknown', source: 'unknown' }],
+    [
+      'a merchant script that only mentions dropin',
+      makeScanPayload({
+        page: makeCheckoutPage({ scripts: [{ src: 'https://shop.example/js/dropin-menu.js' }] }),
+      }),
+      { value: 'Unknown', source: 'unknown' },
+    ],
   ])('derives flavor from %s', (_label, payload, expected) => {
     expect(readImplementationAttributes(payload).flavor).toEqual(expected);
   });

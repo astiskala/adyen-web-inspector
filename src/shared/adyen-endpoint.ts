@@ -61,8 +61,15 @@ A test or live label, optionally with a region token, as in checkout-live-us.ady
 */
 const ENVIRONMENT_LABEL = /(?:^|[.-])(test|live)(?:-([a-z]+))?(?=[.-])/;
 const CHECKOUT_API_LABEL = /(?:^|-)checkout-(?:test|live)/;
-const CHECKOUT_RESOURCE_PATH =
-  /checkoutshopper-sdk|\/checkoutshopper\/|\/sdk\/\d+\.\d+\.\d+\/adyen\.js(?:[?#]|$)/i;
+/**
+SDK asset paths, such as /checkoutshopper/sdk/6.31.0/adyen.js. Other
+checkoutshopper paths (risk-data scripts, API calls, images) are not the SDK.
+*/
+const SDK_ASSET_PATHS = [
+  /checkoutshopper-sdk/i,
+  /\/checkoutshopper\/sdk\//i,
+  /\/sdk\/\d+\.\d+\.\d+\/adyen\.(?:js|css)$/i,
+] as const;
 const SESSIONS_PATH = /\/v\d+\/sessions/;
 const PAYMENT_API_PATH = /\/v\d+\/(?:payments\/details|paymentMethods)\b/;
 const TRANSLATION_PATH = /\/translations\/([^/]+)\.json$/;
@@ -123,9 +130,9 @@ export const ANALYTICS_URL_PATTERNS: readonly string[] = [
   'live-nea',
 ].map((environment) => `*://checkoutanalytics-${environment}.adyen.com/*`);
 
-function hostnameOf(url: string): string | null {
+function parseUrl(url: string): URL | null {
   try {
-    return new URL(url).hostname.toLowerCase();
+    return new URL(url);
   } catch {
     return null;
   }
@@ -164,7 +171,7 @@ function readEnvironment(host: string): Omit<AdyenEndpoint, 'role'> {
 Reads a URL as an Adyen Web endpoint, or returns null for non-Adyen and unparsable URLs.
 */
 export function readAdyenEndpoint(url: string): AdyenEndpoint | null {
-  const host = hostnameOf(url);
+  const host = parseUrl(url)?.hostname ?? null;
   return host === null || !isAdyenHost(host)
     ? null
     : { role: roleOf(host), ...readEnvironment(host) };
@@ -219,10 +226,17 @@ export function resolveAdyenWebOrigins(environment: string): AdyenWebOrigins {
 }
 
 /**
-Returns true when a URL refers to an Adyen-hosted Adyen Web resource (SDK script or CSS).
+Returns true when a URL refers to an Adyen-hosted Adyen Web SDK asset (script
+or CSS). Auxiliary Adyen resources, such as the risk-data collection script,
+are not SDK assets.
 */
 export function isAdyenCheckoutResource(url: string): boolean {
-  return readAdyenEndpoint(url) !== null && CHECKOUT_RESOURCE_PATH.test(url);
+  const parsed = parseUrl(url);
+  return (
+    parsed !== null &&
+    isAdyenHost(parsed.hostname) &&
+    SDK_ASSET_PATHS.some((pattern) => pattern.test(parsed.pathname))
+  );
 }
 
 /**

@@ -139,15 +139,29 @@ describe('Adyen Web environment options', () => {
 describe('Adyen Web paths', () => {
   it('recognises Adyen-hosted SDK resources only on Adyen hosts', () => {
     expect(
-      isAdyenCheckoutResource('https://checkoutshopper-live.cdn.adyen.com/checkoutshopper/sdk.js')
+      isAdyenCheckoutResource(
+        'https://checkoutshopper-live.cdn.adyen.com/checkoutshopper/sdk/6.31.0/adyen.js'
+      )
     ).toBe(true);
     expect(
       isAdyenCheckoutResource('https://checkoutshopper-live.adyen.com/sdk/6.1.0/adyen.js')
     ).toBe(true);
-    expect(isAdyenCheckoutResource('https://merchant.example/checkoutshopper/sdk.js')).toBe(false);
+    expect(
+      isAdyenCheckoutResource('https://merchant.example/checkoutshopper/sdk/6.31.0/adyen.js')
+    ).toBe(false);
     expect(isAdyenCheckoutResource('https://checkoutanalytics-live.adyen.com/v3/setup')).toBe(
       false
     );
+  });
+
+  it.each([
+    'https://checkoutshopper-live.adyen.com/checkoutshopper/assets/js/datacollection/datacollection.js',
+    'https://checkoutshopper-live.adyen.com/checkoutshopper/v1/sessions/CS1/setup',
+    'https://checkoutshopper-live.cdn.adyen.com/checkoutshopper/images/logos/visa.svg',
+    'https://checkoutshopper-live.adyen.com/checkoutshopper/assets/js/x.js?next=/checkoutshopper/sdk/',
+    'not a URL',
+  ])('does not treat the auxiliary Adyen resource %s as the SDK', (url) => {
+    expect(isAdyenCheckoutResource(url)).toBe(false);
   });
 
   it('recognises Sessions and Checkout API paths on any host', () => {

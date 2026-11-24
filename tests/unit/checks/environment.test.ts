@@ -55,7 +55,9 @@ describe('env-cdn-mismatch', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({ observedConfig: {} }),
       capturedRequests: [
-        makeRequest('https://checkoutshopper-live.cdn.adyen.com/checkoutshopper/sdk.js'),
+        makeRequest(
+          'https://checkoutshopper-live.cdn.adyen.com/checkoutshopper/sdk/6.31.0/adyen.js'
+        ),
       ],
     });
     expect(environmentCdnMismatch.run(payload).severity).toBe('skip');
@@ -67,7 +69,9 @@ describe('env-cdn-mismatch', () => {
       { environment: 'live' },
       {
         capturedRequests: [
-          makeRequest('https://checkoutshopper-live.cdn.adyen.com/checkoutshopper/sdk.js'),
+          makeRequest(
+            'https://checkoutshopper-live.cdn.adyen.com/checkoutshopper/sdk/6.31.0/adyen.js'
+          ),
         ],
       }
     );
@@ -80,7 +84,9 @@ describe('env-cdn-mismatch', () => {
       { environment: 'test' },
       {
         capturedRequests: [
-          makeRequest('https://checkoutshopper-test.cdn.adyen.com/checkoutshopper/sdk.js'),
+          makeRequest(
+            'https://checkoutshopper-test.cdn.adyen.com/checkoutshopper/sdk/6.31.0/adyen.js'
+          ),
         ],
       }
     );
@@ -93,7 +99,9 @@ describe('env-cdn-mismatch', () => {
       { environment: 'test' },
       {
         capturedRequests: [
-          makeRequest('https://checkoutshopper-live.cdn.adyen.com/checkoutshopper/sdk.js'),
+          makeRequest(
+            'https://checkoutshopper-live.cdn.adyen.com/checkoutshopper/sdk/6.31.0/adyen.js'
+          ),
         ],
       }
     );
@@ -106,7 +114,9 @@ describe('env-cdn-mismatch', () => {
       { environment: 'live' },
       {
         capturedRequests: [
-          makeRequest('https://checkoutshopper-test.cdn.adyen.com/checkoutshopper/sdk.js'),
+          makeRequest(
+            'https://checkoutshopper-test.cdn.adyen.com/checkoutshopper/sdk/6.31.0/adyen.js'
+          ),
         ],
       }
     );
@@ -119,7 +129,9 @@ describe('env-cdn-mismatch', () => {
       { environment: 'live-us' },
       {
         capturedRequests: [
-          makeRequest('https://checkoutshopper-live-us.cdn.adyen.com/checkoutshopper/sdk.js'),
+          makeRequest(
+            'https://checkoutshopper-live-us.cdn.adyen.com/checkoutshopper/sdk/6.31.0/adyen.js'
+          ),
         ],
       }
     );
@@ -229,7 +241,13 @@ describe('env-region-mismatch', () => {
     const payload = makeAdyenPayload(
       {},
       { environment: 'live-us' },
-      { capturedRequests: [makeRequest('https://checkoutshopper-live.cdn.adyen.com/sdk.js')] }
+      {
+        capturedRequests: [
+          makeRequest(
+            'https://checkoutshopper-live.cdn.adyen.com/checkoutshopper/sdk/6.31.0/adyen.js'
+          ),
+        ],
+      }
     );
     expect(environmentRegionMismatch.run(payload).severity).toBe('skip');
   });
@@ -238,7 +256,13 @@ describe('env-region-mismatch', () => {
     const payload = makeAdyenPayload(
       {},
       { environment: 'live-us' },
-      { capturedRequests: [makeRequest('https://checkoutshopper-live-us.cdn.adyen.com/sdk.js')] }
+      {
+        capturedRequests: [
+          makeRequest(
+            'https://checkoutshopper-live-us.cdn.adyen.com/checkoutshopper/sdk/6.31.0/adyen.js'
+          ),
+        ],
+      }
     );
     expect(environmentRegionMismatch.run(payload).severity).toBe('pass');
   });
@@ -247,7 +271,13 @@ describe('env-region-mismatch', () => {
     const payload = makeAdyenPayload(
       {},
       { environment: 'live-apse' },
-      { capturedRequests: [makeRequest('https://checkoutshopper-live-us.cdn.adyen.com/sdk.js')] }
+      {
+        capturedRequests: [
+          makeRequest(
+            'https://checkoutshopper-live-us.cdn.adyen.com/checkoutshopper/sdk/6.31.0/adyen.js'
+          ),
+        ],
+      }
     );
     const result = environmentRegionMismatch.run(payload);
     expect(result.severity).toBe('warn');
@@ -258,7 +288,13 @@ describe('env-region-mismatch', () => {
     const payload = makeAdyenPayload(
       {},
       { environment: 'live' },
-      { capturedRequests: [makeRequest('https://checkoutshopper-live-us.cdn.adyen.com/sdk.js')] }
+      {
+        capturedRequests: [
+          makeRequest(
+            'https://checkoutshopper-live-us.cdn.adyen.com/checkoutshopper/sdk/6.31.0/adyen.js'
+          ),
+        ],
+      }
     );
     const result = environmentRegionMismatch.run(payload);
     expect(result.severity).toBe('warn');
@@ -283,7 +319,11 @@ describe('component configuration fallback', () => {
 describe('region edge cases', () => {
   it('skips the region comparison when only the CDN shows a region', () => {
     const payload = makeScanPayload({
-      capturedRequests: [makeRequest('https://checkoutshopper-live-us.cdn.adyen.com/sdk.js')],
+      capturedRequests: [
+        makeRequest(
+          'https://checkoutshopper-live-us.cdn.adyen.com/checkoutshopper/sdk/6.31.0/adyen.js'
+        ),
+      ],
     });
 
     const result = environmentRegionMismatch.run(payload);

@@ -7,6 +7,7 @@ reads the resulting record.
 */
 
 import {
+  isAdyenCheckoutResource,
   isCheckoutApiRequest,
   isSessionsRequest,
   readAdyenEndpoint,
@@ -25,6 +26,7 @@ import { detectSdkPresence } from './sdk-presence.js';
 import type {
   AdyenEnvironment,
   AdyenRegion,
+  CapturedRequest,
   ImplementationAttributes,
   IntegrationFlavor,
   ScanPayload,
@@ -37,6 +39,11 @@ const ANALYTICS_FLAVOR_MAP: Record<string, IntegrationFlavor> = {
 };
 
 type Attribute<K extends keyof ImplementationAttributes> = ImplementationAttributes[K];
+
+/**
+Request types that load the SDK; translation and API requests follow the configured environment instead.
+*/
+const SDK_ASSET_TYPES: ReadonlySet<CapturedRequest['type']> = new Set(['script', 'stylesheet']);
 
 function detectEnvironmentFromClientKey(clientKey: string | undefined): AdyenEnvironment | null {
   if (clientKey === undefined || clientKey === '') return null;
@@ -71,7 +78,7 @@ Captured traffic read as Adyen endpoints, split by what it can tell about the in
 */
 interface EndpointTraffic {
   /**
-  CDN and checkoutshopper hosts, which reflect asset delivery.
+  SDK script and stylesheet requests, which reflect where the SDK is loaded from.
   */
   readonly assets: readonly AdyenEndpoint[];
   /**
@@ -83,10 +90,10 @@ interface EndpointTraffic {
 function readEndpointTraffic(payload: ScanPayload): EndpointTraffic {
   const assets: AdyenEndpoint[] = [];
   const config: AdyenEndpoint[] = [];
-  for (const { url } of payload.capturedRequests) {
+  for (const { url, type } of payload.capturedRequests) {
     const endpoint = readAdyenEndpoint(url);
     if (endpoint === null) continue;
-    if (endpoint.role === 'cdn' || endpoint.role === 'checkoutshopper') assets.push(endpoint);
+    if (SDK_ASSET_TYPES.has(type) && isAdyenCheckoutResource(url)) assets.push(endpoint);
     if (isCheckoutApiRequest(url) || endpoint.role === 'analytics') config.push(endpoint);
   }
   return { assets, config };
@@ -150,12 +157,14 @@ function resolveRegion(payload: ScanPayload, traffic: EndpointTraffic): Attribut
 }
 
 /**
-Classifies visible Adyen-hosted script origins; other import methods remain unknown.
+Classifies visible Adyen-hosted SDK script origins; other import methods remain unknown.
 */
 function detectImportMethod(scripts: ScanPayload['page']['scripts']): Attribute<'importMethod'> {
-  const endpoints = scripts.map((script) => readAdyenEndpoint(script.src));
+  const endpoints = scripts
+    .filter((script) => isAdyenCheckoutResource(script.src))
+    .map((script) => readAdyenEndpoint(script.src));
   if (endpoints.some((endpoint) => endpoint?.role === 'cdn')) return 'CDN';
-  return endpoints.some((endpoint) => endpoint !== null) ? 'Adyen' : 'Unknown';
+  return endpoints.length > 0 ? 'Adyen' : 'Unknown';
 }
 
 /**
@@ -178,6 +187,13 @@ function resolveIntegrationFlow(payload: ScanPayload): Attribute<'flow'> {
 }
 
 /**
+An Adyen URL naming Drop-in; merchant URLs such as dropin-menu.js do not count.
+*/
+function isAdyenDropinUrl(url: string): boolean {
+  return url.toLowerCase().includes('dropin') && readAdyenEndpoint(url) !== null;
+}
+
+/**
 Flavor from analytics, then Drop-in URL patterns and DOM, then captured or request-inferred config.
 */
 function resolveIntegrationFlavor(
@@ -191,10 +207,11 @@ function resolveIntegrationFlavor(
     return { value: mappedFlavor, source: 'analytics' };
   }
 
-  const hasDropin =
-    payload.page.scripts.some((s) => s.src.includes('dropin')) ||
-    payload.capturedRequests.some((r) => r.url.includes('dropin'));
-  if (hasDropin) {
+  const urls = [
+    ...payload.page.scripts.map((s) => s.src),
+    ...payload.capturedRequests.map((r) => r.url),
+  ];
+  if (urls.some(isAdyenDropinUrl)) {
     return { value: 'Drop-in', source: 'dropin-pattern' };
   }
 
