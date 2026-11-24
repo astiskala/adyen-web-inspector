@@ -60,8 +60,8 @@ describe.skipIf(process.env['RUN_LINK_CHECKS'] === undefined)('Link Validation',
           const response = await fetch(url, { method: 'HEAD' });
           // Some sites might return 405 for HEAD, so we retry with GET if needed
           if (response.status === 405) {
-            const getResponse = await fetch(url);
-            expect(getResponse.status).toBeLessThan(400);
+            const retryResponse = await fetch(url);
+            expect(retryResponse.status).toBeLessThan(400);
           } else {
             expect(response.status).toBeLessThan(400);
           }

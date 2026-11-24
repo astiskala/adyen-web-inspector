@@ -229,6 +229,8 @@ export default defineConfig([
       'sonarjs/slow-regex': 'error',
 
       // Unicorn
+      // Event listeners keep their on* names even when they return a boolean.
+      'unicorn/consistent-boolean-name': ['error', { ignore: ['^on[A-Z]'] }],
       'unicorn/consistent-function-scoping': 'error',
       'unicorn/no-object-as-default-parameter': 'error',
       'unicorn/prefer-top-level-await': 'error',
@@ -344,7 +346,7 @@ export default defineConfig([
           patterns: [
             {
               group: ['**/shared/utilities.js', '**/shared/csp-utilities.js'],
-              importNames: ['parseCsp', 'cspAllowsUrl', 'getEffectiveCspSources'],
+              importNames: ['parseCsp', 'isUrlAllowedByCsp', 'getEffectiveCspSources'],
               message:
                 'Read the Content-Security-Policy through readPagePolicy() in checks/page-policy.ts.',
             },

@@ -81,35 +81,31 @@ describe('frame signals', () => {
 
   it('weighs checkout signals, strongest first', () => {
     expect(checkoutStrength(makePageExtract())).toBe(0);
-    expect(
-      checkoutStrength(
-        makePageExtract({
-          capturedConfig: makeCapturedConfig({}),
-          componentConfig: {},
-          hasDropinDOM: true,
-          adyenMetadata: makeAdyenMetadata(),
-          scripts: [{ src: 'https://merchant.example/adyen.js' }],
-          iframes: [{ name: 'adyen-card' }],
-        })
-      )
-    ).toBe(320);
-    expect(checkoutStrength(makePageExtract({ capturedConfig: makeCapturedConfig({}) }))).toBe(
+    const capturedConfig = makeCapturedConfig({});
+    const adyenMetadata = makeAdyenMetadata();
+    const everySignal = makePageExtract({
+      capturedConfig,
+      componentConfig: {},
+      hasDropinDOM: true,
+      adyenMetadata,
+      scripts: [{ src: 'https://merchant.example/adyen.js' }],
+      iframes: [{ name: 'adyen-card' }],
+    });
+    expect(checkoutStrength(everySignal)).toBe(320);
+    expect(checkoutStrength(makePageExtract({ capturedConfig }))).toBe(
       checkoutStrength(makePageExtract({ componentConfig: {}, iframes: [{ name: 'adyen-x' }] }))
     );
   });
 
   it('decides whether a frame renders checkout itself', () => {
-    expect(
-      isRenderingCheckout(makePageExtract({ capturedConfig: makeCapturedConfig({}, true) }))
-    ).toBe(true);
-    expect(isRenderingCheckout(makePageExtract({ capturedConfig: makeCapturedConfig({}) }))).toBe(
-      false
-    );
+    const wholeConfig = makeCapturedConfig({}, true);
+    const partialConfig = makeCapturedConfig({});
+    const adyenMetadata = makeAdyenMetadata();
+    expect(isRenderingCheckout(makePageExtract({ capturedConfig: wholeConfig }))).toBe(true);
+    expect(isRenderingCheckout(makePageExtract({ capturedConfig: partialConfig }))).toBe(false);
     expect(isRenderingCheckout(makePageExtract({ hasCardDOM: true }))).toBe(true);
     expect(isRenderingCheckout(makePageExtract({ componentMountCount: 1 }))).toBe(true);
-    expect(isRenderingCheckout(makePageExtract({ adyenMetadata: makeAdyenMetadata() }))).toBe(
-      false
-    );
+    expect(isRenderingCheckout(makePageExtract({ adyenMetadata }))).toBe(false);
   });
 });
 

@@ -108,6 +108,7 @@ describe('buildPrintableHtml', () => {
   });
 
   it('renders unmet criteria, captured traffic, extracted config and empty sections', () => {
+    const capturedConfig = makeCapturedConfig({ clientKey: 'live_CLIENTKEY', environment: 'live' });
     const result = makeResult({
       health: { score: 0, passing: 0, failing: 1, warnings: 0, total: 1, tier: 'critical' },
       standardCompliance: { compliant: false, reasons: ['Not using Drop-in.'] },
@@ -130,7 +131,7 @@ describe('buildPrintableHtml', () => {
           },
         ],
         page: makeCheckoutPage({
-          capturedConfig: makeCapturedConfig({ clientKey: 'live_CLIENTKEY', environment: 'live' }),
+          capturedConfig,
           componentConfig: { countryCode: 'NL' },
         }),
       }),
@@ -183,14 +184,11 @@ describe('buildPrintableHtml attributes', () => {
   const metadata: PrintableReportMetadata = { extensionVersion: '1.2.3', browser: 'Test' };
 
   it('colours the score by tier and leaves out what a test integration does not have', () => {
+    const versionInfo = makeVersionInfo({ detected: null });
     const html = buildPrintableHtml(
       makeResult({
         health: { score: 50, passing: 1, failing: 0, warnings: 1, total: 2, tier: 'issues' },
-        payload: makeAdyenPayload(
-          {},
-          { environment: 'test' },
-          { versionInfo: makeVersionInfo({ detected: null }) }
-        ),
+        payload: makeAdyenPayload({}, { environment: 'test' }, { versionInfo }),
       }),
       metadata
     );

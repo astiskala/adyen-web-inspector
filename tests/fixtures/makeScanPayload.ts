@@ -90,6 +90,16 @@ export function makeCapturedConfig(
 }
 
 /**
+ * Creates captured AdyenCheckout options from checkout config overrides.
+ */
+export function makeCapturedCheckoutConfig(
+  overrides: CheckoutConfigOverrides = {},
+  isComplete = false
+): CapturedCheckoutOptions {
+  return makeCapturedConfig(makeCheckoutConfig(overrides), isComplete);
+}
+
+/**
  * Creates detected/latest version info for scan fixtures.
  */
 export function makeVersionInfo(overrides: Partial<VersionInfo> = {}): VersionInfo {
@@ -175,7 +185,7 @@ export function makeAdyenPayload(
   return makeScanPayload({
     page: makeCheckoutPage({
       adyenMetadata: makeAdyenMetadata(metaOverrides),
-      capturedConfig: makeCapturedConfig(makeCheckoutConfig(configOverrides), true),
+      capturedConfig: makeCapturedCheckoutConfig(configOverrides, true),
     }),
     ...payloadOverrides,
   });

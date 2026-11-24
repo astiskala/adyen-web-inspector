@@ -2,11 +2,10 @@ import { describe, it, expect } from 'vitest';
 import { CSP_CHECKS } from '../../../src/background/checks/security-csp';
 import type { CheckoutConfig, ScanPayload } from '../../../src/shared/types';
 import {
-  makeCheckoutConfig,
   makeScanPayload,
   makeHeader,
   makeCheckoutPage,
-  makeCapturedConfig,
+  makeCapturedCheckoutConfig,
   makeDocumentHeaders,
   UNAVAILABLE_DOCUMENT_HEADERS,
 } from '../../fixtures/makeScanPayload';
@@ -244,7 +243,7 @@ describe('csp-frame-src', () => {
 function withCsp(policy: string, config: Partial<CheckoutConfig> = {}): ScanPayload {
   return makeScanPayload({
     page: makeCheckoutPage({
-      capturedConfig: makeCapturedConfig(makeCheckoutConfig(config), true),
+      capturedConfig: makeCapturedCheckoutConfig(config, true),
     }),
     documentHeaders: makeDocumentHeaders([makeHeader('content-security-policy', policy)]),
   });

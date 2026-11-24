@@ -6,7 +6,7 @@ import {
   makeCheckoutPage,
   makeRequest,
   makeCheckoutConfig,
-  makeCapturedConfig,
+  makeCapturedCheckoutConfig,
 } from '../../fixtures/makeScanPayload';
 import { requireCheck } from './requireCheck';
 
@@ -201,9 +201,7 @@ describe('env-not-iframe', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
         checkoutInIframe: true,
-        capturedConfig: makeCapturedConfig(
-          makeCheckoutConfig({ redirectFromTopWhenInIframe: true })
-        ),
+        capturedConfig: makeCapturedCheckoutConfig({ redirectFromTopWhenInIframe: true }),
       }),
     });
     const result = environmentNotIframe.run(payload);
@@ -215,9 +213,7 @@ describe('env-not-iframe', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
         checkoutInIframe: true,
-        capturedConfig: makeCapturedConfig(
-          makeCheckoutConfig({ redirectFromTopWhenInIframe: false })
-        ),
+        capturedConfig: makeCapturedCheckoutConfig({ redirectFromTopWhenInIframe: false }),
       }),
     });
     expect(environmentNotIframe.run(payload).severity).toBe('warn');

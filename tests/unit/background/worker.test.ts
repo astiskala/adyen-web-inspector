@@ -17,15 +17,17 @@ type TabListener = (tabId: number, changeInfo: { status?: string }) => void;
 
 const TAB = 5;
 
-let onMessage: MessageListener;
-let onRemoved: (tabId: number) => void;
-let onUpdated: TabListener;
-let stored: Map<string, unknown>;
-let isStorageFails: boolean;
-let notify: ReturnType<typeof vi.fn>;
+const harness = {} as {
+  onMessage: MessageListener;
+  onRemoved: (tabId: number) => void;
+  onUpdated: TabListener;
+  stored: Map<string, unknown>;
+  isStorageFailing: boolean;
+  notify: ReturnType<typeof vi.fn>;
+};
 
 function failIfAsked(): void {
-  if (isStorageFails) throw new Error('storage unavailable');
+  if (harness.isStorageFailing) throw new Error('storage unavailable');
 }
 
 function stubChrome(): void {
@@ -33,29 +35,31 @@ function stubChrome(): void {
     get: vi.fn(async (keys: string[]) => {
       failIfAsked();
       return Object.fromEntries(
-        keys.filter((key) => stored.has(key)).map((key) => [key, stored.get(key)])
+        keys.filter((key) => harness.stored.has(key)).map((key) => [key, harness.stored.get(key)])
       );
     }),
     set: vi.fn(async (items: Record<string, unknown>) => {
       failIfAsked();
-      for (const [key, value] of Object.entries(items)) stored.set(key, value);
+      for (const [key, value] of Object.entries(items)) harness.stored.set(key, value);
     }),
     remove: vi.fn(async (keys: string[]) => {
       failIfAsked();
-      for (const key of keys) stored.delete(key);
+      for (const key of keys) harness.stored.delete(key);
     }),
   };
   const listenerSlot = { addListener: vi.fn(), removeListener: vi.fn() };
-  notify = vi.fn().mockResolvedValue(undefined);
+  harness.notify = vi.fn().mockResolvedValue(undefined);
   vi.stubGlobal('chrome', {
     runtime: {
-      onMessage: { addListener: (function_: MessageListener) => (onMessage = function_) },
-      sendMessage: notify,
+      onMessage: { addListener: (onEvent: MessageListener) => (harness.onMessage = onEvent) },
+      sendMessage: harness.notify,
     },
     tabs: {
       get: vi.fn().mockRejectedValue(new Error('No tab with id: 5')),
-      onRemoved: { addListener: (function_: (tabId: number) => void) => (onRemoved = function_) },
-      onUpdated: { addListener: (function_: TabListener) => (onUpdated = function_) },
+      onRemoved: {
+        addListener: (onEvent: (tabId: number) => void) => (harness.onRemoved = onEvent),
+      },
+      onUpdated: { addListener: (onEvent: TabListener) => (harness.onUpdated = onEvent) },
     },
     action: {
       setBadgeText: vi.fn().mockResolvedValue(undefined),
@@ -79,7 +83,7 @@ function send(
 ): { keptOpen: boolean; respond: ReturnType<typeof vi.fn> } {
   const respond = vi.fn();
   const sender = senderTabId === undefined ? {} : { tab: { id: senderTabId } };
-  return { keptOpen: onMessage(message, sender, respond), respond };
+  return { keptOpen: harness.onMessage(message, sender, respond), respond };
 }
 
 async function readTab(): Promise<unknown> {
@@ -92,15 +96,15 @@ async function readTab(): Promise<unknown> {
 }
 
 function lastSnapshot(): TabSnapshot | undefined {
-  const published = notify.mock.calls
+  const published = harness.notify.mock.calls
     .map(([message]) => message as { type: string; tabId: number; snapshot: TabSnapshot })
     .filter((message) => message.type === MSG_TAB_STATE_CHANGED && message.tabId === TAB);
   return published.at(-1)?.snapshot;
 }
 
 beforeEach(async () => {
-  stored = new Map();
-  isStorageFails = false;
+  harness.stored = new Map();
+  harness.isStorageFailing = false;
   stubChrome();
   vi.resetModules();
   await import('../../../src/background/worker');
@@ -129,7 +133,7 @@ describe('service worker routing', () => {
     expect(send({ type: 'SOMETHING_ELSE' }, TAB).keptOpen).toBe(false);
 
     await expect(readTab()).resolves.toMatchObject({ checkoutActivity: { detected: false } });
-    expect(stored.size).toBe(0);
+    expect(harness.stored.size).toBe(0);
   });
 
   it('runs a requested scan and publishes its failure', async () => {
@@ -144,33 +148,33 @@ describe('service worker routing', () => {
     send({ type: MSG_CHECKOUT_ACTIVITY_DETECTED }, TAB);
     await readTab();
 
-    onUpdated(TAB, { status: 'complete' });
+    harness.onUpdated(TAB, { status: 'complete' });
     await expect(readTab()).resolves.toMatchObject({ checkoutActivity: { detected: true } });
 
-    onUpdated(TAB, { status: 'loading' });
+    harness.onUpdated(TAB, { status: 'loading' });
     await expect(readTab()).resolves.toMatchObject({ checkoutActivity: { detected: false } });
 
     send({ type: MSG_CHECKOUT_ACTIVITY_DETECTED }, TAB);
     await readTab();
-    onRemoved(TAB);
+    harness.onRemoved(TAB);
     await vi.waitFor(() => {
-      expect(stored.size).toBe(0);
+      expect(harness.stored.size).toBe(0);
     });
   });
 
   it('answers null and swallows failures when the tab state cannot reach storage', async () => {
-    isStorageFails = true;
+    harness.isStorageFailing = true;
 
     send({ type: MSG_CHECKOUT_ACTIVITY_DETECTED }, TAB);
     send({ type: MSG_CHECKOUT_ACTIVITY_CLEARED }, TAB);
-    onUpdated(TAB, { status: 'loading' });
-    onRemoved(TAB);
+    harness.onUpdated(TAB, { status: 'loading' });
+    harness.onRemoved(TAB);
 
     await expect(readTab()).resolves.toBeNull();
   });
 
   it('swallows a scan whose outcome cannot be stored', async () => {
-    isStorageFails = true;
+    harness.isStorageFailing = true;
 
     send({ type: MSG_SCAN_REQUEST, tabId: TAB });
 

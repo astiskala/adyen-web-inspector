@@ -40,8 +40,8 @@ function buildContentScripts(): Plugin {
     async buildStart(): Promise<void> {
       for (const directory of ['src/content', 'src/shared']) {
         const entries = await readdir(resolve(root, directory));
-        for (const entry of entries.filter((name) => name.endsWith('.ts'))) {
-          this.addWatchFile(resolve(root, directory, entry));
+        for (const entry of entries) {
+          if (entry.endsWith('.ts')) this.addWatchFile(resolve(root, directory, entry));
         }
       }
     },

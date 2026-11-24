@@ -6,8 +6,7 @@ import { assessScan } from '../../src/background/scan-assessment';
 import type { ScanResult } from '../../src/shared/types';
 import {
   makeAdyenMetadata,
-  makeCapturedConfig,
-  makeCheckoutConfig,
+  makeCapturedCheckoutConfig,
   makeCheckoutPage,
   makeDocumentHeaders,
   makeRequest,
@@ -28,9 +27,7 @@ async function scanMyStore(): Promise<ScanResult> {
         pageUrl: 'https://www.mystoredemo.io/#/checkout',
         hasDropinDOM: true,
         adyenMetadata: makeAdyenMetadata({ version: '6.46.0-alpha.7c7199d' }),
-        capturedConfig: makeCapturedConfig(
-          makeCheckoutConfig({ environment: 'test', hasSession: true })
-        ),
+        capturedConfig: makeCapturedCheckoutConfig({ environment: 'test', hasSession: true }),
         scripts: [
           { src: RISK_SCRIPT },
           { src: 'https://www.mystoredemo.io/runtime.bundle.js' },
@@ -86,9 +83,7 @@ describe('Payment Checkout live-site controls', () => {
             bundleType: 'umd',
             variants: [],
           }),
-          capturedConfig: makeCapturedConfig(
-            makeCheckoutConfig({ environment: 'test', hasSession: true })
-          ),
+          capturedConfig: makeCapturedCheckoutConfig({ environment: 'test', hasSession: true }),
           scripts: [{ src: SDK_SCRIPT }],
         }),
         traffic: {

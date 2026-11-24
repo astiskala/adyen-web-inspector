@@ -45,10 +45,11 @@ describe('environment and region', () => {
   });
 
   it('reads the strongest client key prefix separately from the resolved environment', () => {
+    const capturedConfig = makeCapturedConfig({ clientKey: 'pub.v2.ORIGIN' });
     const { environment } = readImplementationAttributes(
       makeScanPayload({
         page: makeCheckoutPage({
-          capturedConfig: makeCapturedConfig({ clientKey: 'pub.v2.ORIGIN' }),
+          capturedConfig,
           inferredConfig: { clientKey: 'test_INFERRED' },
         }),
       })
@@ -163,10 +164,11 @@ describe('option-shaped page JSON', () => {
   });
 
   it('does not turn a session object in page JSON into Sessions flow', () => {
+    const capturedConfig = makeCapturedConfig({ clientKey: 'test_K' });
     const { flow } = readImplementationAttributes(
       makeScanPayload({
         page: makeCheckoutPage({
-          capturedConfig: makeCapturedConfig({ clientKey: 'test_K' }),
+          capturedConfig,
           pageJsonConfig: { hasSession: true },
         }),
       })
@@ -273,10 +275,11 @@ describe('integration flavor, import method, and checkout activity', () => {
 
 describe('region from an unrecognised live environment option', () => {
   it('leaves the region to other signals when the option names no known region', () => {
+    const capturedConfig = makeCapturedConfig({ environment: 'live-xx' });
     const { region } = readImplementationAttributes(
       makeScanPayload({
         page: makeCheckoutPage({
-          capturedConfig: makeCapturedConfig({ environment: 'live-xx' }),
+          capturedConfig,
         }),
       })
     );

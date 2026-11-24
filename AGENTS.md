@@ -39,6 +39,7 @@ Keep pnpm settings such as `overrides` and `allowBuilds` in `pnpm-workspace.yaml
 
 - **Strict mode** is fully enabled: `strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noImplicitOverride`, `noPropertyAccessFromIndexSignature`, `noUnusedLocals`, `noUnusedParameters`, `noFallthroughCasesInSwitch`, `allowUnreachableCode: false`, `allowUnusedLabels: false`, `verbatimModuleSyntax`, `isolatedModules`, `erasableSyntaxOnly`, `noUncheckedSideEffectImports`.
 - Use `globalThis` instead of `window`.
+- `lib` is ES2025 (iterator helpers, `Promise.try`), so the manifest requires Chrome 128 (`minimum_chrome_version`).
 - Use `node:` prefix for Node.js built-ins (e.g. `import {resolve} from 'node:path'`).
 - Relative imports in `src/` include the `.js` extension (`.css` for stylesheets), even for `.ts`/`.tsx` files; there is no path alias. ESLint enforces this. Tests import `src/` without extensions.
 - When a property is `string | undefined` via `exactOptionalPropertyTypes`, use spread to conditionally include it: `...(val === undefined ? {} : {key: val})`.
@@ -62,8 +63,8 @@ Keep pnpm settings such as `overrides` and `allowBuilds` in `pnpm-workspace.yaml
 - `String#replaceAll()` over regex-based `String#replace()`.
 - `element.remove()` over `parent.removeChild(element)`.
 - No `document.write()` — use `iframe.srcdoc` instead.
-- No `void` operator — use `.catch(() => {})` for fire-and-forget promises.
-- `Number.parseInt()` over global `parseInt()`.
+- Write promise chains with `await` (`unicorn/prefer-await`). Discard a fire-and-forget promise with `void`: `void promise.catch(() => {})`; to ignore a failure inside an async function, `await Promise.allSettled([promise])`.
+- `Number()` over `Number.parseInt()` and global `parseInt()` for integer text (`unicorn/prefer-number-coercion`).
 - No multiple `Array#push()` calls — use spread: `arr.push(...items)`.
 - `Array#toSorted()` over in-place `Array#sort()`.
 - Export functions as function declarations, not `export const fn = () => …`.
@@ -199,7 +200,7 @@ interface Check {
 
 Check-specific guidance:
 
-- Read implementation attributes (flavor, flow, environment, region, import method, checkout activity) from the runner context, `(payload, { attributes, pass }) => …`, not by re-deriving them from the payload. Use `docsIntegration(attributes)` from `checks/constants.ts` for Drop-in/Components docs links.
+- Read implementation attributes (flavor, flow, environment, region, import method, checkout activity) from the runner context, `(payload, { attributes, pass }) => …`, not by re-deriving them from the payload. Use `documentationIntegration(attributes)` from `checks/constants.ts` for Drop-in/Components docs links.
 - Export grouped arrays (for example `CSP_CHECKS`) from check files; do not export every individual check object.
 - Register all new checks in `src/background/checks/index.ts` and add the new ID to `CheckId` in `src/shared/types.ts`.
 - Prefer `createRegistry()` context helpers in check runners: `pass()`, `fail()`, `warn()`, `notice()`, `skip()`, `info()`. Destructure them in the runner signature (`(payload, { pass, skip }) => …`).

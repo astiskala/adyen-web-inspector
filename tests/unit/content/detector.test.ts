@@ -6,7 +6,9 @@ import {
 
 const SDK_URL = 'https://checkoutshopper-live.cdn.adyen.com/checkoutshopper/sdk/6.31.0/adyen.js';
 
-let sendMessage: ReturnType<typeof vi.fn>;
+const harness = {} as {
+  sendMessage: ReturnType<typeof vi.fn>;
+};
 
 /**
 Lets mutation callbacks run, then advances the virtual clock.
@@ -17,7 +19,7 @@ async function advance(ms: number): Promise<void> {
 }
 
 function sentTypes(): string[] {
-  return sendMessage.mock.calls.map(([message]) => (message as { type: string }).type);
+  return harness.sendMessage.mock.calls.map(([message]) => (message as { type: string }).type);
 }
 
 function append(markup: string): void {
@@ -42,8 +44,8 @@ async function detect(navigate: () => void): Promise<void> {
 
 beforeAll(async () => {
   vi.useFakeTimers();
-  sendMessage = vi.fn().mockResolvedValue(undefined);
-  vi.stubGlobal('chrome', { runtime: { sendMessage } });
+  harness.sendMessage = vi.fn().mockResolvedValue(undefined);
+  vi.stubGlobal('chrome', { runtime: { sendMessage: harness.sendMessage } });
   document.body.replaceChildren();
   await import('../../../src/content/detector');
 });
@@ -52,8 +54,8 @@ beforeEach(async () => {
   document.head.replaceChildren();
   document.body.replaceChildren();
   await advance(7000);
-  sendMessage.mockClear();
-  sendMessage.mockResolvedValue(undefined);
+  harness.sendMessage.mockClear();
+  harness.sendMessage.mockResolvedValue(undefined);
 });
 
 afterAll(async () => {
@@ -68,8 +70,8 @@ describe('passive detector', () => {
     append(`<script src="${SDK_URL}"></script><div class="adyen-checkout__dropin"></div>`);
     await advance(200);
 
-    expect(sendMessage).toHaveBeenCalledTimes(1);
-    expect(sendMessage).toHaveBeenCalledWith({
+    expect(harness.sendMessage).toHaveBeenCalledTimes(1);
+    expect(harness.sendMessage).toHaveBeenCalledWith({
       type: MSG_CHECKOUT_ACTIVITY_DETECTED,
       tabId: 0,
       version: '6.31.0',
@@ -82,7 +84,9 @@ describe('passive detector', () => {
     append('<link rel="preload" href="https://merchant.example/a.css">');
     await advance(200);
 
-    expect(sendMessage.mock.calls).toEqual([[{ type: MSG_CHECKOUT_ACTIVITY_DETECTED, tabId: 0 }]]);
+    expect(harness.sendMessage.mock.calls).toEqual([
+      [{ type: MSG_CHECKOUT_ACTIVITY_DETECTED, tabId: 0 }],
+    ]);
   });
 
   it('reports the checkout gone once its elements are removed', async () => {
@@ -100,7 +104,7 @@ describe('passive detector', () => {
     await advance(100);
     append('<img src="https://checkoutshopper-test.adyen.com/logo.svg">');
     await advance(100);
-    expect(sendMessage).not.toHaveBeenCalled();
+    expect(harness.sendMessage).not.toHaveBeenCalled();
 
     await advance(100);
     expect(sentTypes()).toEqual([MSG_CHECKOUT_ACTIVITY_DETECTED]);
@@ -112,7 +116,7 @@ describe('passive detector', () => {
     document.querySelector('.hero')?.remove();
     await advance(500);
 
-    expect(sendMessage).not.toHaveBeenCalled();
+    expect(harness.sendMessage).not.toHaveBeenCalled();
   });
 
   it('checks again right away after single-page navigation', async () => {
@@ -138,7 +142,7 @@ describe('passive detector', () => {
   });
 
   it('keeps detecting when the service worker is not listening', async () => {
-    sendMessage.mockRejectedValue(new Error('Receiving end does not exist.'));
+    harness.sendMessage.mockRejectedValue(new Error('Receiving end does not exist.'));
 
     append('<div class="adyen-checkout__dropin"></div>');
     await advance(200);

@@ -22,6 +22,10 @@ const EXTENSION_PATH = resolve(import.meta.dirname, '../../dist');
 const FIXTURE_ORIGIN = 'http://localhost:4321/';
 const STUBBED_EXTERNAL_URL =
   /^https:\/\/(?:checkout-live\.adyen\.com|checkout-test\.adyen\.com|checkoutanalytics-test\.adyen\.com|checkoutshopper-test\.adyen\.com|checkoutshopper-test\.cdn\.adyen\.com|checkoutshopper-live-eu\.cdn\.adyen\.com|www\.googletagmanager\.com|script\.hotjar\.com|connect\.facebook\.net)\//;
+const STUB_CONTENT_TYPES: ReadonlyMap<string, string> = new Map([
+  ['script', 'text/javascript'],
+  ['stylesheet', 'text/css'],
+]);
 
 interface ExtensionFixtures {
   context: BrowserContext;
@@ -40,14 +44,12 @@ async function routeFixtureNetwork(context: BrowserContext): Promise<void> {
   });
   await context.route(STUBBED_EXTERNAL_URL, async (route) => {
     const resourceType = route.request().resourceType();
-    let contentType = 'application/json';
-    if (resourceType === 'script') contentType = 'text/javascript';
-    if (resourceType === 'stylesheet') contentType = 'text/css';
+    const contentType = STUB_CONTENT_TYPES.get(resourceType) ?? 'application/json';
     // Client-side API calls are only made by the client-key-rejected scenario.
-    const isRejectsClientKey =
+    const isClientKeyRejected =
       new URL(route.request().url()).hostname === 'checkoutshopper-test.adyen.com';
     await route.fulfill({
-      status: isRejectsClientKey ? 401 : 200,
+      status: isClientKeyRejected ? 401 : 200,
       contentType,
       headers: { 'access-control-allow-origin': '*' },
       body: resourceType === 'fetch' ? '{}' : '',
@@ -262,7 +264,7 @@ export async function scanFixture(
             else rejectScan(new Error(scan.error ?? 'Scan finished without a result.'));
           };
           chrome.runtime.onMessage.addListener(listener);
-          chrome.runtime
+          void chrome.runtime
             .sendMessage({ type: 'SCAN_REQUEST', tabId: targetTabId })
             .catch((error: unknown) => {
               chrome.runtime.onMessage.removeListener(listener);

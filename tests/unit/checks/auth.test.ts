@@ -6,6 +6,7 @@ import {
   makeCheckoutPage,
   makeCheckoutConfig,
   makeRequest,
+  makeCapturedCheckoutConfig,
   makeCapturedConfig,
 } from '../../fixtures/makeScanPayload';
 import { requireCheck } from './requireCheck';
@@ -33,7 +34,7 @@ describe('auth-client-key', () => {
   it('skips (no client key) when no client key is configured', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
-        capturedConfig: makeCapturedConfig(makeCheckoutConfig({ clientKey: undefined })),
+        capturedConfig: makeCapturedCheckoutConfig({ clientKey: undefined }),
       }),
     });
     expect(authClientKey.run(payload).severity).toBe('skip');
@@ -256,8 +257,8 @@ describe('auth-country-code edge cases', () => {
   it('warns rather than fails when Sessions flow lacks countryCode', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
-        capturedConfig: makeCapturedConfig(
-          makeCheckoutConfig({ countryCode: undefined, hasSession: true }),
+        capturedConfig: makeCapturedCheckoutConfig(
+          { countryCode: undefined, hasSession: true },
           true
         ),
       }),
