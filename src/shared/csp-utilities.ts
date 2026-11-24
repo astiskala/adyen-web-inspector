@@ -26,34 +26,71 @@ export function parseCsp(headerValue: string): ParsedCsp {
   return { directives };
 }
 
+const NETWORK_SCHEMES: ReadonlySet<string> = new Set(['http:', 'https:', 'ws:', 'wss:']);
+const SCHEME_SOURCE = /^[a-z][\d+.a-z-]*:$/;
+const HOST_SOURCE = /^(?:([a-z][\d+.a-z-]*):\/\/)?(\*\.)?([^/:]+)(?::(\d+|\*))?(\/.*)?$/i;
+
+/**
+CSP scheme matching: a scheme matches itself, and http and ws also match their secure upgrades.
+*/
+function isSchemeMatching(sourceScheme: string, resourceScheme: string): boolean {
+  return (
+    sourceScheme === resourceScheme ||
+    (sourceScheme === 'http:' && resourceScheme === 'https:') ||
+    (sourceScheme === 'ws:' && resourceScheme === 'wss:')
+  );
+}
+
 function isSourceMatchingUrl(source: string, resource: URL, page: URL): boolean {
-  if (source === "'self'") return resource.origin === page.origin;
-  if (source === '*') return resource.protocol === 'https:' || resource.protocol === 'http:';
-  return source === 'https:' || source === 'http:'
-    ? resource.protocol === source
-    : isHostSourceMatchingUrl(source, resource);
+  const keyword = source.toLowerCase();
+  if (keyword === "'self'") return resource.origin === page.origin;
+  if (keyword === '*') {
+    return NETWORK_SCHEMES.has(resource.protocol) || resource.protocol === page.protocol;
+  }
+  return SCHEME_SOURCE.test(keyword)
+    ? isSchemeMatching(keyword, resource.protocol)
+    : isHostSourceMatchingUrl(source, resource, page);
+}
+
+function defaultPort(protocol: string): string {
+  return protocol === 'https:' || protocol === 'wss:' ? '443' : '80';
 }
 
 /**
-Matches a host source such as `https://*.adyen.com:443/path` against a resource URL.
+A source without a port allows only the scheme's default port; `*` allows any port.
 */
-function isHostSourceMatchingUrl(source: string, resource: URL): boolean {
-  const match = /^(?:(https?):\/\/)?(\*\.)?([^/:]+)(?::(\d+))?(\/.*)?$/.exec(source.toLowerCase());
-  const host = match?.[3];
-  if (match === null || host === undefined) return false;
+function isPortMatching(port: string | undefined, resource: URL): boolean {
+  return port === undefined
+    ? resource.port === ''
+    : port === '*' || (resource.port || defaultPort(resource.protocol)) === port;
+}
 
-  const [, scheme, wildcard, , port, path] = match;
-  if (scheme !== undefined && resource.protocol !== `${scheme}:`) return false;
+/**
+A path ending in `/` allows everything below it; any other path must match exactly.
+*/
+function isPathMatching(path: string | undefined, resource: URL): boolean {
+  if (path === undefined) return true;
+  return path.endsWith('/') ? resource.pathname.startsWith(path) : resource.pathname === path;
+}
+
+/**
+Matches a host source such as `https://*.adyen.com:443/path` against a
+resource URL, following CSP Level 3: a source without a scheme takes the
+page's, hosts and schemes are case-insensitive, and paths are not.
+*/
+function isHostSourceMatchingUrl(source: string, resource: URL, page: URL): boolean {
+  const [, scheme, wildcard, sourceHost, port, path] = HOST_SOURCE.exec(source) ?? [];
+  if (sourceHost === undefined) return false;
+  const host = sourceHost.toLowerCase();
+  const sourceScheme = scheme === undefined ? page.protocol : `${scheme.toLowerCase()}:`;
   const isHostMatches =
     wildcard === '*.' ? resource.hostname.endsWith(`.${host}`) : resource.hostname === host;
-  if (!isHostMatches) return false;
-  if (
-    port !== undefined &&
-    (resource.port || (resource.protocol === 'https:' ? '443' : '80')) !== port
-  ) {
-    return false;
-  }
-  return path === undefined || resource.pathname.startsWith(path);
+  return (
+    isSchemeMatching(sourceScheme, resource.protocol) &&
+    isHostMatches &&
+    isPortMatching(port, resource) &&
+    isPathMatching(path, resource)
+  );
 }
 
 type CspFetchDirective = 'script-src' | 'frame-src' | 'connect-src' | 'img-src' | 'form-action';

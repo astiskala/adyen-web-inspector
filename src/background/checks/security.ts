@@ -96,9 +96,29 @@ const CATEGORY = 'security' as const;
 
 const ACCEPTED_REFERRER_POLICIES: ReadonlySet<string> = new Set([
   'strict-origin-when-cross-origin',
+  'strict-origin',
   'no-referrer',
   'same-origin',
 ]);
+const REFERRER_POLICY_TOKENS: ReadonlySet<string> = new Set([
+  ...ACCEPTED_REFERRER_POLICIES,
+  'no-referrer-when-downgrade',
+  'origin',
+  'origin-when-cross-origin',
+  'unsafe-url',
+]);
+
+/**
+The policy a browser applies from a Referrer-Policy value: the last token it
+understands, so a list can name a newer policy with an older fallback first.
+*/
+function appliedReferrerPolicy(value: string): string | undefined {
+  return value
+    .split(',')
+    .map((token) => token.trim().toLowerCase())
+    .findLast((token) => REFERRER_POLICY_TOKENS.has(token));
+}
+
 const DISABLED_XSS_PROTECTION_VALUES: ReadonlySet<string | null> = new Set([null, '', '0']);
 
 interface SriAttributableResource {
@@ -193,7 +213,8 @@ export const SECURITY_CHECKS = createRegistry(CATEGORY)
         return skip(STRINGS.REFERRER_POLICY_SKIP_TITLE, SKIP_REASONS.HEADERS_UNAVAILABLE);
       }
       const value = valueOf(header);
-      if (value !== null && ACCEPTED_REFERRER_POLICIES.has(value)) {
+      const applied = value === null ? undefined : appliedReferrerPolicy(value);
+      if (applied !== undefined && ACCEPTED_REFERRER_POLICIES.has(applied)) {
         return pass(`Referrer-Policy is set to "${value}".`);
       }
       return notice(

@@ -98,7 +98,7 @@ describe('parseCsp', () => {
 
 describe('effective CSP sources', () => {
   const pageUrl = 'https://merchant.example/checkout';
-  const scriptUrl = 'https://checkoutshopper-test.adyen.com/checkoutshopper/sdk.js';
+  const scriptUrl = 'https://checkoutshopper-test.adyen.com/checkoutshopper/sdk/6.31.0/adyen.js';
 
   it('uses script-src-elem before script-src, then default-src', () => {
     expect(
@@ -144,6 +144,15 @@ describe('effective CSP sources', () => {
     ).toBe(false);
   });
 
+  it.each(['https://evil-adyen.com/adyen.js', 'https://adyen.com/adyen.js'])(
+    'does not let *.adyen.com allow %s, which is not a subdomain',
+    (url) => {
+      expect(
+        isUrlAllowedByCsp(parseCsp('script-src https://*.adyen.com'), 'script-src', url, pageUrl)
+      ).toBe(false);
+    }
+  );
+
   it('honors self, scheme sources and none', () => {
     expect(
       isUrlAllowedByCsp(
@@ -174,11 +183,22 @@ describe('effective CSP sources', () => {
   it.each([
     ['https://checkoutshopper-test.adyen.com:443', true],
     ['https://checkoutshopper-test.adyen.com:8443', false],
-    ['http://checkoutshopper-test.adyen.com', false],
+    // CSP Level 3 lets an http source match its https upgrade.
+    ['http://checkoutshopper-test.adyen.com', true],
     ['checkoutshopper-test.adyen.com/checkoutshopper/', true],
     ['checkoutshopper-test.adyen.com/other/', false],
     ['*', true],
     ['data:', false],
+    ['HTTPS://CHECKOUTSHOPPER-TEST.ADYEN.COM', true],
+    ["'SELF'", false],
+    ['https://checkoutshopper-test.adyen.com:*', true],
+    // A path without a trailing slash must match exactly, so a shared prefix is not enough.
+    ['https://checkoutshopper-test.adyen.com/checkoutshopper', false],
+    ['https://checkoutshopper-test.adyen.com/checkoutshopper/sdk/6.31.0/adyen.js', true],
+    ['https://checkoutshopper-test.adyen.com/checkoutshopper/SDK/', false],
+    // Malformed tokens allow nothing.
+    ['https://', false],
+    ['checkoutshopper-test.adyen.com:https', false],
   ])('matches the source %s against an HTTPS script: %s', (source, allowed) => {
     expect(
       isUrlAllowedByCsp(parseCsp(`script-src ${source}`), 'script-src', scriptUrl, pageUrl)
@@ -193,6 +213,38 @@ describe('effective CSP sources', () => {
         'http://assets.example/logo.svg',
         'http://merchant.example/'
       )
+    ).toBe(true);
+  });
+
+  it('allows only the default port when a source names none', () => {
+    const policy = parseCsp('connect-src https://api.example');
+
+    expect(isUrlAllowedByCsp(policy, 'connect-src', 'https://api.example/x', pageUrl)).toBe(true);
+    expect(isUrlAllowedByCsp(policy, 'connect-src', 'https://api.example:8443/x', pageUrl)).toBe(
+      false
+    );
+  });
+
+  it('gives a schemeless source the page scheme, upgrading http pages to https', () => {
+    const policy = parseCsp('img-src assets.example');
+
+    expect(isUrlAllowedByCsp(policy, 'img-src', 'http://assets.example/a.png', pageUrl)).toBe(
+      false
+    );
+    expect(
+      isUrlAllowedByCsp(policy, 'img-src', 'https://assets.example/a.png', 'http://shop.example/')
+    ).toBe(true);
+  });
+
+  it('matches scheme sources beyond http and https, with secure upgrades', () => {
+    expect(
+      isUrlAllowedByCsp(parseCsp('img-src data:'), 'img-src', 'data:image/png;base64,AA', pageUrl)
+    ).toBe(true);
+    expect(
+      isUrlAllowedByCsp(parseCsp('connect-src ws:'), 'connect-src', 'wss://live.example/', pageUrl)
+    ).toBe(true);
+    expect(
+      isUrlAllowedByCsp(parseCsp('connect-src *'), 'connect-src', 'wss://live.example/', pageUrl)
     ).toBe(true);
   });
 

@@ -73,7 +73,9 @@ describe('Security Checks', () => {
       const payload = makeScanPayload({
         page: makeCheckoutPage({ pageProtocol: 'http:', pageUrl: 'http://example.com' }),
         capturedRequests: [
-          makeRequest('https://checkoutshopper-live.cdn.adyen.com/checkoutshopper/sdk.js'),
+          makeRequest(
+            'https://checkoutshopper-live.cdn.adyen.com/checkoutshopper/sdk/6.31.0/adyen.js'
+          ),
         ],
       });
       expect(securityHttps.run(payload).severity).toBe('skip');
@@ -382,12 +384,30 @@ describe('response header edge cases', () => {
       'unsafe-url',
       'Referrer-Policy is "unsafe-url". Consider using the recommended value.',
     ],
+    [
+      'a fallback list whose last understood token is permissive',
+      'strict-origin-when-cross-origin, unsafe-url',
+      'Referrer-Policy is "strict-origin-when-cross-origin, unsafe-url". Consider using the recommended value.',
+    ],
   ])('reports %s', (_label, value, title) => {
     const payload = makeScanPayload({
       documentHeaders: makeDocumentHeaders([makeHeader('referrer-policy', value)]),
     });
 
     expect(referrerPolicy.run(payload)).toMatchObject({ severity: 'notice', title });
+  });
+
+  it.each([
+    'Strict-Origin-When-Cross-Origin',
+    'strict-origin',
+    'unsafe-url, no-referrer',
+    'no-referrer, future-policy',
+  ])('accepts the Referrer-Policy %j the browser applies as strict', (value) => {
+    const payload = makeScanPayload({
+      documentHeaders: makeDocumentHeaders([makeHeader('referrer-policy', value)]),
+    });
+
+    expect(referrerPolicy.run(payload).severity).toBe('pass');
   });
 
   it('skips HSTS on live when the document headers are unavailable', () => {

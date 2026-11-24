@@ -53,7 +53,9 @@ describe('csp-present', () => {
 
 describe('csp-script-src', () => {
   const page = makeCheckoutPage({
-    scripts: [{ src: 'https://checkoutshopper-test.adyen.com/checkoutshopper/sdk.js' }],
+    scripts: [
+      { src: 'https://checkoutshopper-test.adyen.com/checkoutshopper/sdk/6.31.0/adyen.js' },
+    ],
   });
 
   it('passes when Adyen CDN is in script-src', () => {
@@ -112,7 +114,9 @@ describe('csp-script-src', () => {
   it('honors explicit script-src over an allowing default-src', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
-        scripts: [{ src: 'https://checkoutshopper-test.adyen.com/checkoutshopper/sdk.js' }],
+        scripts: [
+          { src: 'https://checkoutshopper-test.adyen.com/checkoutshopper/sdk/6.31.0/adyen.js' },
+        ],
       }),
       documentHeaders: makeDocumentHeaders([
         makeHeader('content-security-policy', "default-src https:; script-src 'self'"),
@@ -124,7 +128,9 @@ describe('csp-script-src', () => {
   it('requires each enforced CSP header to allow the observed Adyen script', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
-        scripts: [{ src: 'https://checkoutshopper-test.adyen.com/checkoutshopper/sdk.js' }],
+        scripts: [
+          { src: 'https://checkoutshopper-test.adyen.com/checkoutshopper/sdk/6.31.0/adyen.js' },
+        ],
       }),
       documentHeaders: makeDocumentHeaders([
         makeHeader('content-security-policy', 'script-src https://*.adyen.com'),
@@ -141,7 +147,7 @@ describe('csp-script-src', () => {
         "script-src 'nonce-r4nd0m' 'strict-dynamic' https://checkoutshopper-test.adyen.com"
       ),
     ]);
-    const sdk = 'https://checkoutshopper-test.adyen.com/checkoutshopper/sdk.js';
+    const sdk = 'https://checkoutshopper-test.adyen.com/checkoutshopper/sdk/6.31.0/adyen.js';
     const nonced = makeScanPayload({
       page: makeCheckoutPage({ scripts: [{ src: sdk, nonce: 'r4nd0m' }] }),
       documentHeaders: strictPolicy,
@@ -449,6 +455,23 @@ describe('csp-frame-ancestors', () => {
     });
     expect(cspFrameAncestors.run(payload).severity).toBe('pass');
   });
+
+  it.each(['deny', ' SameOrigin '])('accepts the X-Frame-Options value %j', (value) => {
+    const payload = makeScanPayload({
+      documentHeaders: makeDocumentHeaders([makeHeader('x-frame-options', value)]),
+    });
+    expect(cspFrameAncestors.run(payload).severity).toBe('pass');
+  });
+
+  it.each(['ALLOW-FROM https://partner.example', 'allowall', ''])(
+    'warns when X-Frame-Options is %j, which browsers do not enforce',
+    (value) => {
+      const payload = makeScanPayload({
+        documentHeaders: makeDocumentHeaders([makeHeader('x-frame-options', value)]),
+      });
+      expect(cspFrameAncestors.run(payload).severity).toBe('warn');
+    }
+  );
 
   it('warns when neither frame-ancestors nor X-Frame-Options present', () => {
     const payload = makeScanPayload({

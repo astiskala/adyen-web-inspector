@@ -80,8 +80,9 @@ const STRINGS = {
 
   FRAME_ANCESTORS_SKIP_TITLE: 'CSP frame-ancestors check skipped.',
   FRAME_ANCESTORS_CSP_PASS_TITLE: 'CSP frame-ancestors directive is set.',
-  FRAME_ANCESTORS_XFO_PASS_TITLE: 'X-Frame-Options header is present.',
-  FRAME_ANCESTORS_WARN_TITLE: 'No frame-ancestors CSP directive or X-Frame-Options header found.',
+  FRAME_ANCESTORS_XFO_PASS_TITLE: 'X-Frame-Options header denies cross-origin framing.',
+  FRAME_ANCESTORS_WARN_TITLE:
+    'No frame-ancestors CSP directive or enforced X-Frame-Options header found.',
   FRAME_ANCESTORS_WARN_DETAIL: `Without anti-framing protection, checkout can be embedded and abused in clickjacking attacks. ${COMMON_DETAILS.PCI_COMPLIANCE_NOTICE}`,
   FRAME_ANCESTORS_WARN_REMEDIATION:
     'Add a frame-ancestors directive to your Content-Security-Policy or set an X-Frame-Options: SAMEORIGIN header.',
@@ -104,6 +105,11 @@ const STRINGS = {
 } as const;
 
 type EnforcedPolicy = Extract<PagePolicy, { status: 'enforced' }>;
+
+/**
+X-Frame-Options values browsers enforce; ALLOW-FROM and others are ignored.
+*/
+const ENFORCED_XFO_VALUES: ReadonlySet<string> = new Set(['deny', 'sameorigin']);
 
 /**
 Skips a directive check when headers are unavailable or no policy is set.
@@ -311,7 +317,9 @@ export const CSP_CHECKS = createRegistry(CATEGORY)
       return skip(STRINGS.FRAME_ANCESTORS_SKIP_TITLE, SKIP_REASONS.HEADERS_UNAVAILABLE);
     }
     const hasFrameAncestors = policy.status === 'enforced' && policy.declares('frame-ancestors');
-    const hasXfo = readDocumentHeader(payload, 'x-frame-options').state === 'present';
+    const xfo = readDocumentHeader(payload, 'x-frame-options');
+    const hasXfo =
+      xfo.state === 'present' && ENFORCED_XFO_VALUES.has(xfo.value.trim().toLowerCase());
 
     if (hasFrameAncestors || hasXfo) {
       return pass(
