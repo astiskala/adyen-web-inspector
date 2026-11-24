@@ -194,6 +194,20 @@ describe('effective CSP sources', () => {
     ).toBe(true);
   });
 
+  it.each([
+    ['https://shop.example/app.js', 'http://shop.example/', true],
+    ['wss://shop.example/socket', 'https://shop.example/', true],
+    ['ws://shop.example/socket', 'http://shop.example/', true],
+    ['ws://shop.example/socket', 'https://shop.example/', false],
+    ['http://shop.example/app.js', 'https://shop.example/', false],
+    ['https://shop.example:8443/app.js', 'http://shop.example/', false],
+    ['https://cdn.shop.example/app.js', 'http://shop.example/', false],
+  ])("lets 'self' match %s from %s as CSP Level 3 does: %s", (url, page, allowed) => {
+    expect(isUrlAllowedByCsp(parseCsp("connect-src 'self'"), 'connect-src', url, page)).toBe(
+      allowed
+    );
+  });
+
   it('allows only the default port when a source names none', () => {
     const policy = parseCsp('connect-src https://api.example');
 

@@ -41,9 +41,23 @@ function isSchemeMatching(sourceScheme: string, resourceScheme: string): boolean
   );
 }
 
+/**
+CSP Level 3 'self': the page's origin, or the page's host on the same or
+default ports reached over https or wss, or over ws from an http page.
+*/
+function isSelfMatching(resource: URL, page: URL): boolean {
+  if (resource.origin === page.origin) return true;
+  const isSamePort = resource.port === page.port;
+  const isSecureUpgrade =
+    resource.protocol === 'https:' ||
+    resource.protocol === 'wss:' ||
+    (page.protocol === 'http:' && resource.protocol === 'ws:');
+  return resource.hostname === page.hostname && isSamePort && isSecureUpgrade;
+}
+
 function isSourceMatchingUrl(source: string, resource: URL, page: URL): boolean {
   const keyword = source.toLowerCase();
-  if (keyword === "'self'") return resource.origin === page.origin;
+  if (keyword === "'self'") return isSelfMatching(resource, page);
   if (keyword === '*') {
     return NETWORK_SCHEMES.has(resource.protocol) || resource.protocol === page.protocol;
   }
