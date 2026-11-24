@@ -2,9 +2,8 @@ import type { JSX } from 'preact';
 import { useState } from 'preact/hooks';
 import { chromeTabStateClient } from '../../popup/components/chrome-tab-state-client.js';
 import { scanButtonLabel, useScanLifecycle } from '../../popup/components/useScanLifecycle.js';
-import { buildJsonExport } from '../../shared/export-json.js';
-import { buildPrintableReportMetadata } from '../../shared/export-metadata.js';
-import { exportPdf } from '../../popup/components/pdf-export.js';
+import { chromeReportBrowser } from '../../popup/components/chrome-report-browser.js';
+import { exportJson, exportPdf } from '../../shared/report-export.js';
 import type { ScanResult } from '../../shared/types.js';
 import { describeError } from '../../shared/utilities.js';
 import {
@@ -57,21 +56,6 @@ function getPanelErrorMessage(error: ReturnType<typeof useScanLifecycle>['error'
   return error.kind === 'request'
     ? 'Unable to start scan. Try reloading the page.'
     : RUNTIME_ERROR_UI_MESSAGE;
-}
-
-function exportJson(result: ScanResult): void {
-  const exportData = buildJsonExport(result, buildPrintableReportMetadata());
-  const blob = new Blob([JSON.stringify(exportData, null, 2)], {
-    type: 'application/json',
-  });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `adyen-inspector-${Date.now()}.json`;
-  a.click();
-  globalThis.setTimeout(() => {
-    URL.revokeObjectURL(url);
-  }, 10_000);
 }
 
 function renderTab(activeTab: TabName, result: ScanResult): JSX.Element {
@@ -129,7 +113,7 @@ export function Panel(): JSX.Element {
             <button
               class="btn"
               onClick={() => {
-                exportJson(result);
+                exportJson(result, chromeReportBrowser);
               }}
             >
               Export JSON
@@ -137,7 +121,7 @@ export function Panel(): JSX.Element {
             <button
               class="btn"
               onClick={() => {
-                void exportPdf(result).catch(() => {});
+                void exportPdf(result, chromeReportBrowser).catch(() => {});
               }}
             >
               Export PDF

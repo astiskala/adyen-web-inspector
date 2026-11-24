@@ -1,6 +1,5 @@
 /**
-Printable report — the self-contained HTML the report page prints, and the
-storage key and URL parameter of the scan result handed to that page.
+Printable report — the self-contained HTML the report page prints.
 */
 
 import {
@@ -21,23 +20,9 @@ import { STANDARD_COMPLIANCE_COPY } from './standard-compliance.js';
 type FindingProjection = ReturnType<typeof buildFindingProjection>;
 type FindingSection = FindingProjection['bestPractices'];
 
-const PDF_REPORT_STORAGE_PREFIX = 'pdf-report:' as const;
-/**
-Extension page that renders and prints the report.
-*/
-export const PDF_REPORT_PAGE_PATH = 'report/report.html' as const;
-export const PDF_REPORT_TOKEN_PARAM = 'token' as const;
-
 export interface PrintableReportMetadata {
   readonly extensionVersion: string;
   readonly browser: string;
-}
-
-/**
-Returns the session-storage key used for a pending PDF export handoff.
-*/
-export function getPdfReportStorageKey(token: string): string {
-  return `${PDF_REPORT_STORAGE_PREFIX}${token}`;
 }
 
 function escapeHtml(string_: string): string {

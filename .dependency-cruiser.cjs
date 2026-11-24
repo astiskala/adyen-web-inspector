@@ -104,6 +104,17 @@ const SEAM_RULES = [
     to: { path: '^src/popup/components/chrome-tab-state-client\\.ts$' },
   },
   {
+    name: 'report-browser-wired-by-views',
+    comment:
+      'The Chrome report export adapter is wired only by the view roots and the report page; report export logic lives behind its port',
+    severity: 'error',
+    from: {
+      path: '^src/',
+      pathNot: '^src/(popup/PopupApp\\.tsx|devtools/panel/Panel\\.tsx|report/reportEntry\\.ts)$',
+    },
+    to: { path: '^src/popup/components/chrome-report-browser\\.ts$' },
+  },
+  {
     name: 'config-schema-inline-safe',
     comment:
       'The config field schema is inlined into every content script, so it may depend on shared types only',

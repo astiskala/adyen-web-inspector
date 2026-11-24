@@ -3,7 +3,8 @@ import { MIN_SUPPORTED_MAJOR_VERSION } from '../shared/constants.js';
 import type { CheckoutActivity } from '../shared/messages.js';
 import type { ScanResult } from '../shared/types.js';
 import { parseVersion } from '../shared/utilities.js';
-import { exportPdf } from './components/pdf-export.js';
+import { exportPdf } from '../shared/report-export.js';
+import { chromeReportBrowser } from './components/chrome-report-browser.js';
 import { IdentityCard } from './components/IdentityCard.js';
 import { HealthScore } from './components/HealthScore.js';
 import { IssueList } from './components/IssueList.js';
@@ -89,7 +90,7 @@ export function Popup(): JSX.Element {
             <button
               class="btn"
               onClick={() => {
-                void exportPdf(view.result).catch(() => {});
+                void exportPdf(view.result, chromeReportBrowser).catch(() => {});
               }}
               title="Export PDF report"
             >

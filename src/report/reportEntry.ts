@@ -1,11 +1,5 @@
-import {
-  buildPrintableHtml,
-  getPdfReportStorageKey,
-  PDF_REPORT_TOKEN_PARAM,
-} from '../shared/export-pdf.js';
-import { buildPrintableReportMetadata } from '../shared/export-metadata.js';
-import type { ScanResult } from '../shared/types.js';
-import { isScanResult } from '../shared/utilities.js';
+import { chromeReportBrowser } from '../popup/components/chrome-report-browser.js';
+import { takePdfReport } from '../shared/report-export.js';
 
 function showError(message: string): void {
   document.title = 'Adyen Web Inspector - PDF Export Failed';
@@ -27,19 +21,6 @@ function showError(message: string): void {
   document.body.append(container);
 }
 
-async function loadStoredResult(token: string): Promise<ScanResult | null> {
-  const storageKey = getPdfReportStorageKey(token);
-
-  try {
-    const stored = await chrome.storage.session.get(storageKey);
-    const value = stored[storageKey];
-    await Promise.allSettled([chrome.storage.session.remove(storageKey)]);
-    return isScanResult(value) ? value : null;
-  } catch {
-    return null;
-  }
-}
-
 function renderReportHtml(html: string): void {
   const parsed = new DOMParser().parseFromString(html, 'text/html');
   document.title = parsed.title;
@@ -57,21 +38,14 @@ function triggerPrint(): void {
   });
 }
 
-const url = new URL(globalThis.location.href);
-const token = url.searchParams.get(PDF_REPORT_TOKEN_PARAM);
-
-if (token === null || token === '') {
-  showError('The PDF export request was missing its report token. Please try again.');
-} else {
-  try {
-    const result = await loadStoredResult(token);
-    if (result === null) {
-      showError('The export data was unavailable. Please rerun the scan and try again.');
-    } else {
-      renderReportHtml(buildPrintableHtml(result, buildPrintableReportMetadata()));
-      triggerPrint();
-    }
-  } catch {
-    showError('An unexpected error occurred while building the export report.');
+try {
+  const report = await takePdfReport(globalThis.location.href, chromeReportBrowser);
+  if ('error' in report) {
+    showError(report.error);
+  } else {
+    renderReportHtml(report.html);
+    triggerPrint();
   }
+} catch {
+  showError('An unexpected error occurred while building the export report.');
 }

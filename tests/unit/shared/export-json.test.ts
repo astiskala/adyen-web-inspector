@@ -122,7 +122,7 @@ describe('buildJsonExport', () => {
       },
     });
 
-    const exported = buildJsonExport(result, metadata);
+    const exported = buildJsonExport(result, metadata, '2026-03-18T01:23:45.000Z');
 
     expect(exported.issues.map((issue) => issue.title)).toEqual([
       'Country code missing.',

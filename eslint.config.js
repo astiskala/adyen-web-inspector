@@ -79,6 +79,8 @@ const SCAN_PORT_MESSAGE =
   'The Scan and tab state reach the browser, network, and clock only through their ports.';
 const SDK_PRESENCE_MESSAGE =
   'Read ScanResult.sdkPresence instead of inferring SDK presence from the sdk-detected check.';
+const SHARED_BROWSER_FREE_MESSAGE =
+  'shared/ runs in every context, so it reaches the extension APIs only through a port such as ReportBrowser.';
 const TAB_STATE_CLIENT_MESSAGE =
   'The scan lifecycle hook reaches the tab state only through its TabStateClient argument.';
 
@@ -333,6 +335,16 @@ export default defineConfig([
     files: ['src/background/checks/page-policy.ts'],
     rules: {
       'no-restricted-syntax': ['error', ...SEAM_SYNTAX],
+    },
+  },
+  {
+    files: ['src/shared/**/*.ts'],
+    rules: {
+      'no-restricted-globals': restrictGlobals(['chrome'], SHARED_BROWSER_FREE_MESSAGE),
+      'no-restricted-properties': [
+        'error',
+        { object: 'globalThis', property: 'chrome', message: SHARED_BROWSER_FREE_MESSAGE },
+      ],
     },
   },
   {

@@ -1,4 +1,6 @@
-import type { PrintableReportMetadata } from './export-pdf.js';
+/**
+Browser label for exported reports, read from the user agent client hints and string.
+*/
 
 interface NavigatorBrand {
   readonly brand: string;
@@ -80,7 +82,10 @@ function detectPlatformFromUserAgent(userAgent: string): string {
   return match?.[1] ?? 'Unknown platform';
 }
 
-function buildBrowserLabel(): string {
+/**
+Describes the browser and platform exporting a report, such as `Google Chrome 135 on macOS`.
+*/
+export function describeBrowser(): string {
   const userAgent = globalThis.navigator.userAgent;
   const userAgentData = getUserAgentData();
 
@@ -96,22 +101,4 @@ function buildBrowserLabel(): string {
 
   const versionSuffix = browserInfo.version === '' ? '' : ` ${browserInfo.version}`;
   return `${browserInfo.brand}${versionSuffix} on ${platform}`;
-}
-
-function getExtensionVersion(): string {
-  try {
-    return chrome.runtime.getManifest().version;
-  } catch {
-    return 'Unknown';
-  }
-}
-
-/**
-Collects extension and browser metadata for exported reports.
-*/
-export function buildPrintableReportMetadata(): PrintableReportMetadata {
-  return {
-    extensionVersion: getExtensionVersion(),
-    browser: buildBrowserLabel(),
-  };
 }

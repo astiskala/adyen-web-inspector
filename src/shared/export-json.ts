@@ -24,7 +24,7 @@ Builds the JSON export payload from the same report sections used by the PDF exp
 export function buildJsonExport(
   result: ScanResult,
   metadata: PrintableReportMetadata,
-  exportedAt: string = new Date().toISOString()
+  exportedAt: string
 ): JsonExportData {
   const reportData = buildReportExportData(result);
 
