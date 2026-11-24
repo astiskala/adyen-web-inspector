@@ -7,7 +7,11 @@ serialises a plain result onto a page global for the background scan to read.
 import { readAdyenEndpoint } from '../shared/adyen-endpoint.js';
 import { reportedAnalytics } from '../shared/checkout-analytics.js';
 import { readCheckoutCapture } from '../shared/checkout-capture.js';
-import { collectShadowRoots, readCheckoutDom } from '../shared/checkout-signals.js';
+import {
+  collectShadowRoots,
+  readCheckoutDom,
+  type ShadowRootLookup,
+} from '../shared/checkout-signals.js';
 import { mergeCheckoutConfigs, readCheckoutOptions } from '../shared/checkout-config-schema.js';
 import { PAGE_GLOBALS, type PageGlobalValues } from '../shared/constants.js';
 import { readObservedRequest } from '../shared/observed-requests.js';
@@ -199,7 +203,7 @@ Finds ALL Preact vnode root mount points on the page, including inside
 Shadow DOMs. A root is a DOM element with `__k` whose parent does NOT
 have `__k`.
 */
-function findAllVnodeRoots(): ElementWithVnode[] {
+function findAllVnodeRoots(shadowRootOf: ShadowRootLookup): ElementWithVnode[] {
   const roots: ElementWithVnode[] = [];
   let scanned = 0;
 
@@ -239,21 +243,44 @@ function findAllVnodeRoots(): ElementWithVnode[] {
 /**
 Finds Adyen checkout elements including inside Shadow DOMs.
 */
-/**
-Open shadow roots, and closed ones the config interceptor saw the page attach.
-*/
-function shadowRootOf(element: Element): ShadowRoot | null {
-  const closed = (globalThis as GlobalWithAdyen)[PAGE_GLOBALS.closedShadowRoots];
-  return element.shadowRoot ?? (closed instanceof WeakMap ? (closed.get(element) ?? null) : null);
+function readInternalsShadowRoots(internals: unknown): ShadowRoot[] {
+  const references: unknown[] = Array.isArray(internals) ? internals : [];
+  return references.flatMap((reference) => {
+    const target: unknown = reference instanceof WeakRef ? reference.deref() : undefined;
+    const shadowRoot = target instanceof ElementInternals ? target.shadowRoot : null;
+    return shadowRoot === null ? [] : [shadowRoot];
+  });
 }
 
-function findAdyenElements(): Element[] {
+/**
+Builds the shadow root lookup for one extraction: open roots, closed ones the
+config interceptor saw the page attach, and closed ones declared in HTML that
+custom elements reach through their internals. Page scripts can replace
+either record, so both are checked.
+*/
+function createShadowRootLookup(): ShadowRootLookup {
+  const g = globalThis as GlobalWithAdyen;
+  const attached = g[PAGE_GLOBALS.closedShadowRoots];
+  const declared = new Map(
+    readInternalsShadowRoots(g[PAGE_GLOBALS.elementInternals]).map((root) => [root.host, root])
+  );
+  return (element) =>
+    element.shadowRoot ??
+    (attached instanceof WeakMap ? attached.get(element) : undefined) ??
+    declared.get(element) ??
+    null;
+}
+
+function findAdyenElements(shadowRootOf: ShadowRootLookup): Element[] {
   return [document, ...collectShadowRoots(document, shadowRootOf)].flatMap((root) => [
     ...root.querySelectorAll('[class*="adyen-checkout"]'),
   ]);
 }
 
-function collectMountPoints(adyenElements: Element[]): Set<ElementWithVnode> {
+function collectMountPoints(
+  adyenElements: Element[],
+  shadowRootOf: ShadowRootLookup
+): Set<ElementWithVnode> {
   const mountPoints = new Set<ElementWithVnode>();
 
   for (const element of adyenElements) {
@@ -267,7 +294,7 @@ function collectMountPoints(adyenElements: Element[]): Set<ElementWithVnode> {
   // Only scan for additional vnode roots when Adyen elements are present on
   // the page. This avoids counting unrelated Preact apps as Adyen mounts.
   if (adyenElements.length > 0) {
-    const allRoots = findAllVnodeRoots();
+    const allRoots = findAllVnodeRoots(shadowRootOf);
     for (const root of allRoots) {
       mountPoints.add(root);
     }
@@ -301,10 +328,10 @@ function processMountPoints(mountPoints: Set<ElementWithVnode>): {
   return { merged: mergeCheckoutConfigs(configs), instanceCount: instances.size };
 }
 
-function extractComponentConfig(): ComponentExtraction {
-  const adyenElements = findAdyenElements();
+function extractComponentConfig(shadowRootOf: ShadowRootLookup): ComponentExtraction {
+  const adyenElements = findAdyenElements(shadowRootOf);
 
-  const mountPoints = collectMountPoints(adyenElements);
+  const mountPoints = collectMountPoints(adyenElements, shadowRootOf);
 
   if (mountPoints.size === 0) {
     return { config: null, mountCount: 0 };
@@ -435,7 +462,8 @@ function extract(): PageExtractResult {
   const g = globalThis as GlobalWithAdyen;
 
   const metadata = extractMetadata(g);
-  const { config: componentConfig, mountCount } = extractComponentConfig();
+  const shadowRootOf = createShadowRootLookup();
+  const { config: componentConfig, mountCount } = extractComponentConfig(shadowRootOf);
   const capture = readCheckoutCapture(g[PAGE_GLOBALS.checkoutCapture]);
   const isApiKeyDetected = isApiKeyExposed(capture);
   const dom = readCheckoutDom(document, shadowRootOf);

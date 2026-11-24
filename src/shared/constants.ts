@@ -115,6 +115,7 @@ export const PAGE_GLOBALS = {
   pageExtractResultJson: '__adyenWebInspectorPageExtractResultJson',
   closedShadowRoots: '__adyenWebInspectorClosedShadowRoots',
   observedResources: '__adyenWebInspectorObservedResources',
+  elementInternals: '__adyenWebInspectorElementInternals',
 } as const;
 
 /**
@@ -141,6 +142,10 @@ export interface PageGlobalValues {
   Checkout-related Resource Timing entries recorded from the start of the page, past the browser's buffer limit.
   */
   [PAGE_GLOBALS.observedResources]?: PerformanceEntry[];
+  /**
+  Custom elements' internals, whose shadowRoot is the only reach into a closed root declared in HTML.
+  */
+  [PAGE_GLOBALS.elementInternals]?: WeakRef<ElementInternals>[];
 }
 
 // ─── Version Gates ────────────────────────────────────────────────────────────

@@ -275,6 +275,24 @@ import type { CallbackSource, CheckoutCapture } from '../shared/types.js';
   // A closed root is unreachable from its host, so it is recorded as the page attaches it.
   const closedShadowRoots = new WeakMap<Element, ShadowRoot>();
   pageGlobals[PAGE_GLOBALS.closedShadowRoots] = closedShadowRoots;
+  // A closed root declared in HTML (<template shadowrootmode="closed">) is never
+  // attached by script; its custom element reaches it through ElementInternals,
+  // whose shadowRoot is read at scan time because the root can arrive later.
+  const ELEMENT_INTERNALS_LIMIT = 1000;
+  const elementInternals: WeakRef<ElementInternals>[] = [];
+  pageGlobals[PAGE_GLOBALS.elementInternals] = elementInternals;
+  attempt(() => {
+    HTMLElement.prototype.attachInternals = observeCalls(HTMLElement.prototype.attachInternals, {
+      after: (internals) => {
+        if (
+          internals instanceof ElementInternals &&
+          elementInternals.length < ELEMENT_INTERNALS_LIMIT
+        ) {
+          elementInternals.push(new WeakRef(internals));
+        }
+      },
+    });
+  });
   attempt(() => {
     Element.prototype.attachShadow = observeCalls(Element.prototype.attachShadow, {
       after: (root) => {

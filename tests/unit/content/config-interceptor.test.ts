@@ -7,6 +7,8 @@ const INSTALLED_KEY = PAGE_GLOBALS.interceptorInstalled;
 const NATIVE_JSON_PARSE = JSON.parse;
 // eslint-disable-next-line @typescript-eslint/unbound-method -- Restored onto Element.prototype, its own receiver.
 const NATIVE_ATTACH_SHADOW = Element.prototype.attachShadow;
+// eslint-disable-next-line @typescript-eslint/unbound-method -- Restored onto HTMLElement.prototype, its own receiver.
+const NATIVE_ATTACH_INTERNALS = HTMLElement.prototype.attachInternals;
 
 type CapturedConfig = Record<string, unknown>;
 type CheckoutFactory = (config: unknown) => Promise<unknown>;
@@ -43,6 +45,7 @@ function resetGlobals(): void {
   Reflect.deleteProperty(g, 'define');
   JSON.parse = NATIVE_JSON_PARSE;
   Element.prototype.attachShadow = NATIVE_ATTACH_SHADOW;
+  HTMLElement.prototype.attachInternals = NATIVE_ATTACH_INTERNALS;
   Reflect.deleteProperty(g, PAGE_GLOBALS.closedShadowRoots);
   vi.stubGlobal('fetch', undefined);
   vi.stubGlobal('XMLHttpRequest', undefined);
@@ -782,6 +785,17 @@ describe('config-interceptor installation and edge cases', () => {
 
     await callAdyenCheckout({ locale: 'de-DE' });
     expect(getCapturedConfig()).toEqual({ locale: 'de-DE' });
+  });
+
+  it('records custom element internals, up to a limit, and leaves attachInternals working', () => {
+    class Widget extends HTMLElement {}
+    customElements.define(`interceptor-widget-${Date.now()}`, Widget);
+    const internals = Array.from({ length: 1001 }, () => new Widget().attachInternals());
+
+    const recorded = g[PAGE_GLOBALS.elementInternals] as WeakRef<ElementInternals>[];
+    expect(recorded).toHaveLength(1000);
+    expect(recorded[0]?.deref()).toBe(internals[0]);
+    expect(internals[0]).toBeInstanceOf(ElementInternals);
   });
 
   it('records closed shadow roots by host and leaves attachShadow working', () => {

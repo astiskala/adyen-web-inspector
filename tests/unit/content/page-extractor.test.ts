@@ -367,6 +367,36 @@ describe('page extractor mounted component configuration', () => {
     });
   });
 
+  it('reads checkout in a closed root a custom element reaches through its internals', async () => {
+    class PaymentPanel extends HTMLElement {
+      readonly internals = this.attachInternals();
+    }
+    customElements.define('payment-panel-internals', PaymentPanel);
+    const host = new PaymentPanel();
+    document.body.append(host);
+    const closed = host.attachShadow({ mode: 'closed' });
+    mountTree(
+      '<div class="adyen-checkout__dropin"></div>',
+      coreOptions({ locale: 'da-DK' }),
+      closed
+    );
+    pageGlobals[PAGE_GLOBALS.elementInternals] = [
+      new WeakRef(host.internals),
+      new WeakRef({}),
+      'tampered',
+    ];
+
+    await expect(extractPage()).resolves.toMatchObject({
+      observedConfig: { component: { locale: 'da-DK' } },
+    });
+  });
+
+  it('ignores an internals record the page replaced', async () => {
+    pageGlobals[PAGE_GLOBALS.elementInternals] = { length: 1 };
+
+    await expect(extractPage()).resolves.toMatchObject({ observedConfig: { component: null } });
+  });
+
   it('ignores a closed-root record the page overwrote', async () => {
     const host = document.createElement('payment-widget');
     document.body.append(host);
