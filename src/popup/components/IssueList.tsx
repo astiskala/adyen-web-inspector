@@ -6,16 +6,16 @@ import { cssModule } from './css-module.js';
 
 const s = cssModule(styles);
 
-interface Props {
+interface Properties {
   readonly checks: readonly CheckResult[];
 }
 
-interface IssueItemProps {
+interface IssueItemProperties {
   readonly issue: IssueRow;
   readonly dotClass: string;
 }
 
-function IssueItem({ issue, dotClass }: IssueItemProps): JSX.Element {
+function IssueItem({ issue, dotClass }: IssueItemProperties): JSX.Element {
   return (
     <li class={s('item')}>
       <details>
@@ -35,13 +35,13 @@ function IssueItem({ issue, dotClass }: IssueItemProps): JSX.Element {
   );
 }
 
-interface ImpactGroupProps {
+interface ImpactGroupProperties {
   readonly group: IssueGroup;
   readonly badgeClass: string;
   readonly dotClass: string;
 }
 
-function ImpactGroup({ group, badgeClass, dotClass }: ImpactGroupProps): JSX.Element {
+function ImpactGroup({ group, badgeClass, dotClass }: ImpactGroupProperties): JSX.Element {
   return (
     <div>
       <div class={s('priorityHeader')}>
@@ -72,7 +72,7 @@ function countIssues(groups: readonly IssueGroup[]): number {
  * Renders issue rows from the finding projection by severity, then impact,
  * with expandable detail, remediation, and documentation.
  */
-export function IssueList({ checks }: Props): JSX.Element {
+export function IssueList({ checks }: Properties): JSX.Element {
   const failures = issueGroupsWithSeverity(checks, 'fail');
   const warnings = issueGroupsWithSeverity(checks, 'warn');
   const notices = issueGroupsWithSeverity(checks, 'notice').flatMap((group) => group.issues);

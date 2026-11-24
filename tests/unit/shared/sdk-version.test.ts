@@ -20,7 +20,9 @@ function evidenceWith(
   };
 }
 
-/** An in-memory script server for the bundle-text signal. */
+/**
+An in-memory script server for the bundle-text signal.
+ */
 function serveScripts(
   texts: Readonly<Record<string, string>>
 ): ReturnType<typeof vi.fn<(url: string) => Promise<string | null>>> {

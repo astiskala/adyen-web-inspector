@@ -14,37 +14,51 @@ import type {
   SdkVersionSource,
   VersionInfo,
 } from './types.js';
-import { extractHostname } from './utils.js';
-import { parseVersion } from './version-utils.js';
+import { extractHostname } from './utilities.js';
+import { parseVersion } from './version-utilities.js';
 
-/** Patterns that read a version from Adyen CDN script and asset URLs. */
+/**
+Patterns that read a version from Adyen CDN script and asset URLs.
+ */
 const SDK_URL_VERSION_PATTERNS = [
   /checkoutshopper-sdk[./](\d+\.\d+\.\d+)/,
   /\/sdk\/(\d+\.\d+\.\d+)\//,
 ] as const;
 
-/** Patterns that read a version from bundled Adyen Web source, most specific first. */
+/**
+Patterns that read a version from bundled Adyen Web source, most specific first.
+ */
 const BUNDLE_VERSION_PATTERNS = [
   /@adyen\/adyen-web\D{0,80}["'`]?(\d+\.\d+\.\d+)["'`]?/i,
   /adyen-web\D{0,80}["'`]?(\d+\.\d+\.\d+)["'`]?/i,
   /checkoutshopper\D{0,80}["'`]?(\d+\.\d+\.\d+)["'`]?/i,
 ] as const;
 
-/** At most this many same-origin bundles are fetched per scan. */
+/**
+At most this many same-origin bundles are fetched per scan.
+ */
 const BUNDLE_FETCH_LIMIT = 4;
-/** Only the start of each bundle is searched. */
+/**
+Only the start of each bundle is searched.
+ */
 const BUNDLE_TEXT_SCAN_LIMIT = 1_500_000;
 
-/** Fetches a script's text; resolves null when it is unavailable. */
+/**
+Fetches a script's text; resolves null when it is unavailable.
+ */
 type FetchScriptText = (url: string) => Promise<string | null>;
 
 interface VersionEvidence {
   readonly page: Pick<CheckoutPage, 'adyenMetadata' | 'scripts' | 'pageUrl'>;
   readonly analyticsData: AnalyticsData | null;
   readonly capturedRequests: readonly CapturedRequest[];
-  /** Latest published version on npm, the comparison point. */
+  /**
+  Latest published version on npm, the comparison point.
+   */
   readonly latest: string | null;
-  /** Publish timestamps from npm, keyed by version. */
+  /**
+  Publish timestamps from npm, keyed by version.
+   */
   readonly releaseDates?: Readonly<Record<string, string>>;
 }
 
@@ -53,7 +67,9 @@ interface DetectedVersion {
   readonly source: SdkVersionSource;
 }
 
-/** Returns the first SDK version found in Adyen CDN script or asset URLs. */
+/**
+Returns the first SDK version found in Adyen CDN script or asset URLs.
+ */
 export function findSdkVersionInUrls(urls: Iterable<string>): string | null {
   for (const url of urls) {
     for (const pattern of SDK_URL_VERSION_PATTERNS) {
@@ -78,11 +94,12 @@ function bundlePriority(url: string): number {
   if (lower.includes('main')) return 5;
   if (lower.includes('vendor')) return 4;
   if (lower.includes('bundle')) return 3;
-  if (lower.includes('chunk')) return 2;
-  return 1;
+  return lower.includes('chunk') ? 2 : 1;
 }
 
-/** Same-origin scripts most likely to bundle Adyen Web, in fetch order. */
+/**
+Same-origin scripts most likely to bundle Adyen Web, in fetch order.
+ */
 function selectBundleCandidates(pageUrl: string, scriptUrls: readonly string[]): string[] {
   const pageHost = extractHostname(pageUrl);
   if (pageHost === null || pageHost === '') return [];
@@ -147,6 +164,6 @@ export async function resolveVersionInfo(
     detected: detected.version,
     source: detected.source,
     latest: evidence.latest,
-    ...(releasedAt === undefined ? {} : { detectedReleasedAt: releasedAt }),
+    ...(releasedAt !== undefined && { detectedReleasedAt: releasedAt }),
   };
 }

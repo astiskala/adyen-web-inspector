@@ -7,7 +7,9 @@ import {
   DEVTOOLS_PANEL_TITLE,
 } from '../../../src/shared/constants';
 
-let createPanel: ReturnType<typeof vi.fn>;
+const harness = {} as {
+  createPanel: ReturnType<typeof vi.fn>;
+};
 
 async function load(entry: string): Promise<void> {
   vi.resetModules();
@@ -19,12 +21,14 @@ async function load(entry: string): Promise<void> {
 beforeEach(() => {
   document.body.className = '';
   document.body.replaceChildren();
-  createPanel = vi.fn((_title: string, _icon: string, _page: string, created: () => void) => {
-    created();
-  });
+  harness.createPanel = vi.fn(
+    (_title: string, _icon: string, _page: string, created: () => void) => {
+      created();
+    }
+  );
   vi.stubGlobal('chrome', {
     tabs: { query: vi.fn().mockResolvedValue([{ id: 1 }]) },
-    devtools: { inspectedWindow: { tabId: 1 }, panels: { create: createPanel } },
+    devtools: { inspectedWindow: { tabId: 1 }, panels: { create: harness.createPanel } },
     runtime: {
       sendMessage: vi.fn().mockResolvedValue(null),
       onMessage: { addListener: vi.fn(), removeListener: vi.fn() },
@@ -32,9 +36,13 @@ beforeEach(() => {
   });
 });
 
-afterEach(() => {
+afterEach(async () => {
   const root = document.querySelector('#root');
-  if (root !== null) render(null, root);
+  if (root !== null) {
+    await act(() => {
+      render(null, root);
+    });
+  }
   vi.unstubAllGlobals();
 });
 
@@ -63,7 +71,7 @@ describe('extension page entries', () => {
   it('registers the Inspector panel in DevTools', async () => {
     await load('../../../src/devtools/devtools');
 
-    expect(createPanel).toHaveBeenCalledWith(
+    expect(harness.createPanel).toHaveBeenCalledWith(
       DEVTOOLS_PANEL_TITLE,
       DEVTOOLS_PANEL_ICON_PATH,
       DEVTOOLS_PANEL_PAGE,

@@ -4,6 +4,7 @@ import type { CheckoutCapture, InferenceSignal } from '../../../src/shared/types
 
 const CAPTURE_KEY = PAGE_GLOBALS.checkoutCapture;
 const INSTALLED_KEY = PAGE_GLOBALS.interceptorInstalled;
+const NATIVE_JSON_PARSE = JSON.parse;
 
 type CapturedConfig = Record<string, unknown>;
 type CheckoutFactory = (config: unknown) => Promise<unknown>;
@@ -31,20 +32,19 @@ function resetGlobals(): void {
   Reflect.deleteProperty(g, INSTALLED_KEY);
   Reflect.deleteProperty(g, 'AdyenCheckout');
   Reflect.deleteProperty(g, 'AdyenWeb');
-  // @ts-expect-error - testing environment cleanup
-  globalThis.fetch = undefined;
-  // @ts-expect-error - testing environment cleanup
-  globalThis.XMLHttpRequest = undefined;
+  JSON.parse = NATIVE_JSON_PARSE;
+  vi.stubGlobal('fetch', undefined);
+  vi.stubGlobal('XMLHttpRequest', undefined);
 }
 
 async function loadInterceptor(): Promise<void> {
   vi.resetModules();
-  globalThis.fetch = vi.fn().mockResolvedValue({});
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({}));
 
   // Create a proper XHR mock
   const openMock = vi.fn();
-  globalThis.XMLHttpRequest = vi.fn() as unknown as typeof XMLHttpRequest;
-  globalThis.XMLHttpRequest.prototype.open = openMock;
+  vi.stubGlobal('XMLHttpRequest', vi.fn());
+  XMLHttpRequest.prototype.open = openMock;
 
   await import('../../../src/content/config-interceptor.js');
 }
@@ -61,7 +61,7 @@ function Dropin(_checkout: unknown, options: unknown): { options: unknown } {
 }
 
 function installAdyenCheckoutFactory(factory: CheckoutFactory): void {
-  (globalThis as unknown as Record<string, unknown>)['AdyenCheckout'] = factory;
+  Reflect.set(globalThis, 'AdyenCheckout', factory);
 }
 
 function callAdyenCheckout(config: unknown): Promise<unknown> {
@@ -188,7 +188,7 @@ describe('config-interceptor', () => {
 
     it('wraps create on the captured instance for component config', async () => {
       const fakeCheckout: Record<string, unknown> = {
-        create: (_type: unknown, _cfg?: unknown) => ({}),
+        create: (_type: unknown, _config?: unknown) => ({}),
         options: { clientKey: 'test_WRAP', environment: 'test' },
       };
 
@@ -309,6 +309,41 @@ describe('config-interceptor', () => {
         countryCode: 'NL',
       });
       expect(getCapture()).toBe(before);
+    });
+  });
+
+  describe('Adyen checkout analytics bodies', () => {
+    const ANALYTICS_URL =
+      'https://checkoutanalytics-test.adyen.com/checkoutanalytics/v3/analytics/attempt-1?clientKey=test_K';
+    const renderedPayPal = JSON.stringify({
+      channel: 'Web',
+      info: [{ type: 'rendered', component: 'paypal', configData: { showPayButton: false } }],
+    });
+
+    it('records component events from analytics requests and from no other request', async () => {
+      await globalThis.fetch(ANALYTICS_URL, { method: 'POST', body: renderedPayPal });
+      await globalThis.fetch('https://merchant.example/log', {
+        method: 'POST',
+        body: JSON.stringify({ info: [{ type: 'rendered', component: 'klarna' }] }),
+      });
+
+      expect(getCapture()?.events).toEqual({
+        rendered: [{ type: 'paypal', showPayButton: false }],
+        paymentMethods: ['paypal'],
+      });
+    });
+
+    it('ignores bodies it cannot read synchronously, and does not read them as page JSON', async () => {
+      await globalThis.fetch(ANALYTICS_URL, { method: 'POST', body: 'not json' });
+      await globalThis.fetch(ANALYTICS_URL, { method: 'POST', body: new Blob([renderedPayPal]) });
+      await globalThis.fetch(new Request(ANALYTICS_URL, { method: 'POST', body: renderedPayPal }));
+      await globalThis.fetch(ANALYTICS_URL, {
+        method: 'POST',
+        body: JSON.stringify({ version: '6.0.0', locale: 'nl-NL', countryCode: 'NL' }),
+      });
+
+      expect(getCapture()?.events).toEqual({ rendered: [], paymentMethods: [] });
+      expect(getInferredConfig('page-json')).toBeUndefined();
     });
   });
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { describeError } from '../../../src/shared/utils';
+import { describeError } from '../../../src/shared/utilities';
 
 describe('describeError', () => {
   it.each([

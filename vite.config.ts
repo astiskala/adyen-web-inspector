@@ -6,7 +6,9 @@ import { dirname, relative, resolve } from 'node:path';
 const root = import.meta.dirname;
 const OUT_DIR = resolve(root, 'dist');
 
-/** Fails the build if a content script would need ESM loading, which Chrome does not provide. */
+/**
+Fails the build if a content script would need ESM loading, which Chrome does not provide.
+ */
 async function assertClassicScript(file: string): Promise<void> {
   const code = await readFile(file, 'utf8');
   if (/^(?:import|export)\b/m.test(code)) {
@@ -16,7 +18,9 @@ async function assertClassicScript(file: string): Promise<void> {
   }
 }
 
-/** Scripts Chrome runs as classic scripts: manifest content scripts and executeScript files. */
+/**
+Scripts Chrome runs as classic scripts: manifest content scripts and executeScript files.
+ */
 const CONTENT_SCRIPTS = {
   'config-interceptor': 'src/content/config-interceptor.ts',
   detector: 'src/content/detector.ts',
@@ -36,8 +40,8 @@ function buildContentScripts(): Plugin {
     async buildStart(): Promise<void> {
       for (const directory of ['src/content', 'src/shared']) {
         const entries = await readdir(resolve(root, directory));
-        for (const entry of entries.filter((name) => name.endsWith('.ts'))) {
-          this.addWatchFile(resolve(root, directory, entry));
+        for (const entry of entries) {
+          if (entry.endsWith('.ts')) this.addWatchFile(resolve(root, directory, entry));
         }
       }
     },

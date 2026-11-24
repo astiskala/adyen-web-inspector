@@ -27,12 +27,12 @@ describe('environment and region', () => {
     ['live', { value: 'live', source: 'config' }, { value: 'EU', source: 'config' }],
     ['live-in', { value: 'live-in', source: 'config' }, { value: 'IN', source: 'config' }],
     ['staging', { value: null, source: 'unknown' }, { value: 'unknown', source: 'unknown' }],
-  ])('reads the configured environment %s', (environment, expectedEnv, expectedRegion) => {
-    const { environment: env, region } = readImplementationAttributes(
+  ])('reads the configured environment %s', (environment, expectedEnvironment, expectedRegion) => {
+    const { environment: environment_, region } = readImplementationAttributes(
       makeAdyenPayload({}, { environment, clientKey: 'pub.v2.ORIGIN' })
     );
 
-    expect(env).toMatchObject(expectedEnv);
+    expect(environment_).toMatchObject(expectedEnvironment);
     expect(region).toMatchObject(expectedRegion);
   });
 
@@ -45,10 +45,11 @@ describe('environment and region', () => {
   });
 
   it('reads the strongest client key prefix separately from the resolved environment', () => {
+    const capturedConfig = makeCapturedConfig({ clientKey: 'pub.v2.ORIGIN' });
     const { environment } = readImplementationAttributes(
       makeScanPayload({
         page: makeCheckoutPage({
-          capturedConfig: makeCapturedConfig({ clientKey: 'pub.v2.ORIGIN' }),
+          capturedConfig,
           inferredConfig: { clientKey: 'test_INFERRED' },
         }),
       })
@@ -85,12 +86,16 @@ describe('environment and region', () => {
     ['https://checkout-live-nea.adyenpayments.com/v71/sessions', 'live', 'NEA'],
     ['https://checkout-live-in-x.adyenpayments.com/v71/paymentMethods', 'live-in', 'IN'],
     ['https://pal-live.adyen.com/v71/payments/details', 'live', 'unknown'],
-  ])('reads the network environment from %s', (url, env, region) => {
+  ])('reads the network environment from %s', (url, environment, region) => {
     const attributes = readImplementationAttributes(
       makeScanPayload({ capturedRequests: [makeRequest(url)] })
     );
 
-    expect(attributes.environment).toMatchObject({ value: env, source: 'network', network: env });
+    expect(attributes.environment).toMatchObject({
+      value: environment,
+      source: 'network',
+      network: environment,
+    });
     expect(attributes.region.value).toBe(region);
   });
 
@@ -159,10 +164,11 @@ describe('option-shaped page JSON', () => {
   });
 
   it('does not turn a session object in page JSON into Sessions flow', () => {
+    const capturedConfig = makeCapturedConfig({ clientKey: 'test_K' });
     const { flow } = readImplementationAttributes(
       makeScanPayload({
         page: makeCheckoutPage({
-          capturedConfig: makeCapturedConfig({ clientKey: 'test_K' }),
+          capturedConfig,
           pageJsonConfig: { hasSession: true },
         }),
       })
@@ -269,10 +275,11 @@ describe('integration flavor, import method, and checkout activity', () => {
 
 describe('region from an unrecognised live environment option', () => {
   it('leaves the region to other signals when the option names no known region', () => {
+    const capturedConfig = makeCapturedConfig({ environment: 'live-xx' });
     const { region } = readImplementationAttributes(
       makeScanPayload({
         page: makeCheckoutPage({
-          capturedConfig: makeCapturedConfig({ environment: 'live-xx' }),
+          capturedConfig,
         }),
       })
     );

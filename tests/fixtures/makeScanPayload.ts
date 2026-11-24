@@ -29,12 +29,16 @@ const EMPTY_PAGE = {
   pageProtocol: 'https:',
 } as const satisfies Partial<CheckoutPage>;
 
-/** Default minimal Checkout page with all Adyen-related fields set as safe defaults. */
+/**
+Default minimal Checkout page with all Adyen-related fields set as safe defaults.
+ */
 export function makeCheckoutPage(overrides: Partial<CheckoutPage> = {}): CheckoutPage {
   return { ...EMPTY_PAGE, checkoutInIframe: false, ...overrides };
 }
 
-/** Default minimal single-frame page extraction, as the page extractor produces it. */
+/**
+Default minimal single-frame page extraction, as the page extractor produces it.
+ */
 export function makePageExtract(overrides: Partial<PageExtractResult> = {}): PageExtractResult {
   return { ...EMPTY_PAGE, isInsideIframe: false, ...overrides };
 }
@@ -80,9 +84,19 @@ export function makeCheckoutConfig(overrides: CheckoutConfigOverrides = {}): Che
  */
 export function makeCapturedConfig(
   options: CheckoutConfig,
-  complete = false
+  isComplete = false
 ): CapturedCheckoutOptions {
-  return { options, complete };
+  return { options, complete: isComplete };
+}
+
+/**
+ * Creates captured AdyenCheckout options from checkout config overrides.
+ */
+export function makeCapturedCheckoutConfig(
+  overrides: CheckoutConfigOverrides = {},
+  isComplete = false
+): CapturedCheckoutOptions {
+  return makeCapturedConfig(makeCheckoutConfig(overrides), isComplete);
 }
 
 /**
@@ -109,10 +123,14 @@ export function makeAnalyticsData(overrides: Partial<AnalyticsData> = {}): Analy
   };
 }
 
-/** Checkout document headers the scan could not observe. */
+/**
+Checkout document headers the scan could not observe.
+ */
 export const UNAVAILABLE_DOCUMENT_HEADERS: DocumentHeaders = { status: 'unavailable' };
 
-/** Checkout document headers captured from the tab's own response. */
+/**
+Checkout document headers captured from the tab's own response.
+ */
 export function makeDocumentHeaders(
   headers: readonly CapturedHeader[] = [],
   url = 'https://example.com/checkout'
@@ -167,7 +185,7 @@ export function makeAdyenPayload(
   return makeScanPayload({
     page: makeCheckoutPage({
       adyenMetadata: makeAdyenMetadata(metaOverrides),
-      capturedConfig: makeCapturedConfig(makeCheckoutConfig(configOverrides), true),
+      capturedConfig: makeCapturedCheckoutConfig(configOverrides, true),
     }),
     ...payloadOverrides,
   });

@@ -57,26 +57,24 @@ const CATEGORY = 'environment' as const;
 
 export const ENVIRONMENT_CHECKS = createRegistry(CATEGORY)
   .add('env-cdn-mismatch', (_payload, { attributes, skip, pass, fail }) => {
-    const cdnEnv = attributes.environment.cdn;
-    if (cdnEnv === null) {
+    const cdnEnvironment = attributes.environment.cdn;
+    if (cdnEnvironment === null) {
       return skip(STRINGS.CDN_SKIP_TITLE, STRINGS.CDN_NO_REQUESTS_SKIP_REASON);
     }
 
-    const configuredEnv = attributes.environment.value;
-    if (configuredEnv === null) {
+    const configuredEnvironment = attributes.environment.value;
+    if (configuredEnvironment === null) {
       return skip(STRINGS.CDN_SKIP_TITLE, STRINGS.CDN_ENV_UNKNOWN_SKIP_REASON);
     }
 
-    if (cdnEnv !== configuredEnv) {
-      return fail(
-        `CDN environment (${cdnEnv}) does not match configured environment (${configuredEnv}).`,
-        `Assets are being loaded from the Adyen ${cdnEnv} CDN, but the checkout is configured for ${configuredEnv}. This mismatch can cause subtle failures such as mismatched locale files, component versions, or payment method availability.`,
-        `Ensure your checkoutConfig.environment matches the CDN you are loading assets from. If you intend to use the ${configuredEnv} environment, update your script and stylesheet URLs to use the corresponding ${configuredEnv} CDN origin.`,
-        STRINGS.CDN_MISMATCH_FAIL_URL
-      );
-    }
-
-    return pass(`CDN environment matches configured environment (${configuredEnv}).`);
+    return cdnEnvironment === configuredEnvironment
+      ? pass(`CDN environment matches configured environment (${configuredEnvironment}).`)
+      : fail(
+          `CDN environment (${cdnEnvironment}) does not match configured environment (${configuredEnvironment}).`,
+          `Assets are being loaded from the Adyen ${cdnEnvironment} CDN, but the checkout is configured for ${configuredEnvironment}. This mismatch can cause subtle failures such as mismatched locale files, component versions, or payment method availability.`,
+          `Ensure your checkoutConfig.environment matches the CDN you are loading assets from. If you intend to use the ${configuredEnvironment} environment, update your script and stylesheet URLs to use the corresponding ${configuredEnvironment} CDN origin.`,
+          STRINGS.CDN_MISMATCH_FAIL_URL
+        );
   })
   .add('env-region-mismatch', (_payload, { attributes, skip, pass, warn }) => {
     const cdnRegion = attributes.region.cdn;
@@ -92,16 +90,14 @@ export const ENVIRONMENT_CHECKS = createRegistry(CATEGORY)
       );
     }
 
-    if (cdnRegion !== configuredRegion) {
-      return warn(
-        `${STRINGS.REGION_MISMATCH_WARN_TITLE} (${cdnRegion} vs ${configuredRegion})`,
-        STRINGS.REGION_MISMATCH_WARN_DETAIL,
-        STRINGS.REGION_MISMATCH_WARN_REMEDIATION,
-        STRINGS.CDN_MISMATCH_FAIL_URL
-      );
-    }
-
-    return pass(`CDN region matches configured region (${configuredRegion}).`);
+    return cdnRegion === configuredRegion
+      ? pass(`CDN region matches configured region (${configuredRegion}).`)
+      : warn(
+          `${STRINGS.REGION_MISMATCH_WARN_TITLE} (${cdnRegion} vs ${configuredRegion})`,
+          STRINGS.REGION_MISMATCH_WARN_DETAIL,
+          STRINGS.REGION_MISMATCH_WARN_REMEDIATION,
+          STRINGS.CDN_MISMATCH_FAIL_URL
+        );
   })
   .add('env-region', (_payload, { attributes, skip, info }) => {
     if (attributes.environment.value === 'test') {
@@ -123,40 +119,38 @@ export const ENVIRONMENT_CHECKS = createRegistry(CATEGORY)
       return skip(STRINGS.KEY_SKIP_TITLE, STRINGS.KEY_NO_KEY_SKIP_REASON);
     }
 
-    const { clientKey: envFromKey, network: envFromRequests } = attributes.environment;
+    const { clientKey: environmentFromKey, network: environmentFromRequests } =
+      attributes.environment;
 
-    if (envFromKey === null || envFromRequests === null) {
+    if (environmentFromKey === null || environmentFromRequests === null) {
       return skip(STRINGS.KEY_SKIP_TITLE, STRINGS.KEY_NO_ENV_SKIP_REASON);
     }
 
-    if (envFromKey !== envFromRequests) {
-      return fail(
-        `Client key prefix (${envFromKey}) does not match API endpoint environment (${envFromRequests}).`,
-        `Using a ${envFromKey} client key against a ${envFromRequests} endpoint will cause authentication errors.`,
-        STRINGS.KEY_MISMATCH_FAIL_REMEDIATION,
-        STRINGS.KEY_MISMATCH_FAIL_URL
-      );
-    }
-
-    return pass(STRINGS.KEY_PASS_TITLE);
+    return environmentFromKey === environmentFromRequests
+      ? pass(STRINGS.KEY_PASS_TITLE)
+      : fail(
+          `Client key prefix (${environmentFromKey}) does not match API endpoint environment (${environmentFromRequests}).`,
+          `Using a ${environmentFromKey} client key against a ${environmentFromRequests} endpoint will cause authentication errors.`,
+          STRINGS.KEY_MISMATCH_FAIL_REMEDIATION,
+          STRINGS.KEY_MISMATCH_FAIL_URL
+        );
   })
   .add('env-not-iframe', (payload, { pass, warn, notice }) => {
     if (payload.page.checkoutInIframe) {
       const topRedirect = readCheckoutField(payload, 'redirectFromTopWhenInIframe');
-      if (topRedirect.state === 'present' && topRedirect.value) {
-        return notice(
-          STRINGS.IFRAME_TOP_REDIRECT_NOTICE_TITLE,
-          STRINGS.IFRAME_TOP_REDIRECT_NOTICE_DETAIL,
-          STRINGS.IFRAME_TOP_REDIRECT_NOTICE_REMEDIATION,
-          STRINGS.IFRAME_WARN_URL
-        );
-      }
-      return warn(
-        STRINGS.IFRAME_WARN_TITLE,
-        STRINGS.IFRAME_WARN_DETAIL,
-        STRINGS.IFRAME_WARN_REMEDIATION,
-        STRINGS.IFRAME_WARN_URL
-      );
+      return topRedirect.state === 'present' && topRedirect.value
+        ? notice(
+            STRINGS.IFRAME_TOP_REDIRECT_NOTICE_TITLE,
+            STRINGS.IFRAME_TOP_REDIRECT_NOTICE_DETAIL,
+            STRINGS.IFRAME_TOP_REDIRECT_NOTICE_REMEDIATION,
+            STRINGS.IFRAME_WARN_URL
+          )
+        : warn(
+            STRINGS.IFRAME_WARN_TITLE,
+            STRINGS.IFRAME_WARN_DETAIL,
+            STRINGS.IFRAME_WARN_REMEDIATION,
+            STRINGS.IFRAME_WARN_URL
+          );
     }
 
     return pass(STRINGS.IFRAME_PASS_TITLE);

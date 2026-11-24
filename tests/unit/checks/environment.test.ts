@@ -6,20 +6,20 @@ import {
   makeCheckoutPage,
   makeRequest,
   makeCheckoutConfig,
-  makeCapturedConfig,
+  makeCapturedCheckoutConfig,
 } from '../../fixtures/makeScanPayload';
 import { requireCheck } from './requireCheck';
 
-const envRegion = requireCheck(ENVIRONMENT_CHECKS, 'env-region');
-const envCdnMismatch = requireCheck(ENVIRONMENT_CHECKS, 'env-cdn-mismatch');
-const envKeyMismatch = requireCheck(ENVIRONMENT_CHECKS, 'env-key-mismatch');
-const envNotIframe = requireCheck(ENVIRONMENT_CHECKS, 'env-not-iframe');
-const envRegionMismatch = requireCheck(ENVIRONMENT_CHECKS, 'env-region-mismatch');
+const environmentRegion = requireCheck(ENVIRONMENT_CHECKS, 'env-region');
+const environmentCdnMismatch = requireCheck(ENVIRONMENT_CHECKS, 'env-cdn-mismatch');
+const environmentKeyMismatch = requireCheck(ENVIRONMENT_CHECKS, 'env-key-mismatch');
+const environmentNotIframe = requireCheck(ENVIRONMENT_CHECKS, 'env-not-iframe');
+const environmentRegionMismatch = requireCheck(ENVIRONMENT_CHECKS, 'env-region-mismatch');
 
 describe('env-region', () => {
   it('skips region check in test environment', () => {
     const payload = makeAdyenPayload({}, { environment: 'test' });
-    const result = envRegion.run(payload);
+    const result = environmentRegion.run(payload);
     expect(result.severity).toBe('skip');
     expect(result.title).toContain('skipped');
   });
@@ -30,7 +30,7 @@ describe('env-region', () => {
       { environment: 'live' },
       { capturedRequests: [makeRequest('https://checkout-live.adyenpayments.com/v71/sessions')] }
     );
-    const result = envRegion.run(payload);
+    const result = environmentRegion.run(payload);
     expect(result.severity).toBe('info');
     expect(result.title).toContain('Region: EU.');
     expect(result.detail).toContain('checkoutConfig.environment');
@@ -38,7 +38,7 @@ describe('env-region', () => {
 
   it('uses checkout config region when environment includes live region suffix', () => {
     const payload = makeAdyenPayload({}, { environment: 'live-us' });
-    const result = envRegion.run(payload);
+    const result = environmentRegion.run(payload);
     expect(result.severity).toBe('info');
     expect(result.title).toContain('Region: US.');
     expect(result.detail).toContain('checkoutConfig.environment');
@@ -48,7 +48,7 @@ describe('env-region', () => {
 describe('env-cdn-mismatch', () => {
   it('skips when no CDN requests are present', () => {
     const payload = makeAdyenPayload({}, { environment: 'live' });
-    expect(envCdnMismatch.run(payload).severity).toBe('skip');
+    expect(environmentCdnMismatch.run(payload).severity).toBe('skip');
   });
 
   it('skips when CDN env is detected but no configured environment', () => {
@@ -58,7 +58,7 @@ describe('env-cdn-mismatch', () => {
         makeRequest('https://checkoutshopper-live.cdn.adyen.com/checkoutshopper/sdk.js'),
       ],
     });
-    expect(envCdnMismatch.run(payload).severity).toBe('skip');
+    expect(environmentCdnMismatch.run(payload).severity).toBe('skip');
   });
 
   it('passes when CDN live matches configured live', () => {
@@ -71,7 +71,7 @@ describe('env-cdn-mismatch', () => {
         ],
       }
     );
-    expect(envCdnMismatch.run(payload).severity).toBe('pass');
+    expect(environmentCdnMismatch.run(payload).severity).toBe('pass');
   });
 
   it('passes when CDN test matches configured test', () => {
@@ -84,7 +84,7 @@ describe('env-cdn-mismatch', () => {
         ],
       }
     );
-    expect(envCdnMismatch.run(payload).severity).toBe('pass');
+    expect(environmentCdnMismatch.run(payload).severity).toBe('pass');
   });
 
   it('fails when CDN is live but configured environment is test', () => {
@@ -97,7 +97,7 @@ describe('env-cdn-mismatch', () => {
         ],
       }
     );
-    expect(envCdnMismatch.run(payload).severity).toBe('fail');
+    expect(environmentCdnMismatch.run(payload).severity).toBe('fail');
   });
 
   it('fails when CDN is test but configured environment is live', () => {
@@ -110,7 +110,7 @@ describe('env-cdn-mismatch', () => {
         ],
       }
     );
-    expect(envCdnMismatch.run(payload).severity).toBe('fail');
+    expect(environmentCdnMismatch.run(payload).severity).toBe('fail');
   });
 
   it('passes when live region CDN matches configured live', () => {
@@ -123,7 +123,7 @@ describe('env-cdn-mismatch', () => {
         ],
       }
     );
-    expect(envCdnMismatch.run(payload).severity).toBe('pass');
+    expect(environmentCdnMismatch.run(payload).severity).toBe('pass');
   });
 });
 
@@ -134,7 +134,7 @@ describe('env-key-mismatch', () => {
       { clientKey: 'test_XXXX' },
       { capturedRequests: [makeRequest('https://checkout-test.adyen.com/v71/sessions')] }
     );
-    expect(envKeyMismatch.run(payload).severity).toBe('pass');
+    expect(environmentKeyMismatch.run(payload).severity).toBe('pass');
   });
 
   it('fails when live key used with test requests', () => {
@@ -143,7 +143,7 @@ describe('env-key-mismatch', () => {
       { clientKey: 'live_XXXX' },
       { capturedRequests: [makeRequest('https://checkout-test.adyen.com/v71/sessions')] }
     );
-    expect(envKeyMismatch.run(payload).severity).toBe('fail');
+    expect(environmentKeyMismatch.run(payload).severity).toBe('fail');
   });
 
   it('fails when test key used with live requests', () => {
@@ -152,7 +152,7 @@ describe('env-key-mismatch', () => {
       { clientKey: 'test_XXXX' },
       { capturedRequests: [makeRequest('https://checkout-live.adyen.com/v71/sessions')] }
     );
-    expect(envKeyMismatch.run(payload).severity).toBe('fail');
+    expect(environmentKeyMismatch.run(payload).severity).toBe('fail');
   });
 
   it('fails when test key used with live adyenpayments requests', () => {
@@ -161,17 +161,17 @@ describe('env-key-mismatch', () => {
       { clientKey: 'test_XXXX' },
       { capturedRequests: [makeRequest('https://checkout-live-us.adyenpayments.com/v71/sessions')] }
     );
-    expect(envKeyMismatch.run(payload).severity).toBe('fail');
+    expect(environmentKeyMismatch.run(payload).severity).toBe('fail');
   });
 
   it('skips when no client key', () => {
     const payload = makeAdyenPayload({}, { clientKey: undefined });
-    expect(envKeyMismatch.run(payload).severity).toBe('skip');
+    expect(environmentKeyMismatch.run(payload).severity).toBe('skip');
   });
 
   it('skips when no captured requests', () => {
     const payload = makeAdyenPayload({}, { clientKey: 'test_XXXX' });
-    expect(envKeyMismatch.run(payload).severity).toBe('skip');
+    expect(environmentKeyMismatch.run(payload).severity).toBe('skip');
   });
 });
 
@@ -180,14 +180,14 @@ describe('env-not-iframe', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({ checkoutInIframe: false }),
     });
-    expect(envNotIframe.run(payload).severity).toBe('pass');
+    expect(environmentNotIframe.run(payload).severity).toBe('pass');
   });
 
   it('warns when page is inside iframe with actionable redirect guidance', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({ checkoutInIframe: true }),
     });
-    const result = envNotIframe.run(payload);
+    const result = environmentNotIframe.run(payload);
     expect(result.severity).toBe('warn');
     expect(result.detail).toContain('redirect');
     expect(result.detail).toContain('different domain');
@@ -201,12 +201,10 @@ describe('env-not-iframe', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
         checkoutInIframe: true,
-        capturedConfig: makeCapturedConfig(
-          makeCheckoutConfig({ redirectFromTopWhenInIframe: true })
-        ),
+        capturedConfig: makeCapturedCheckoutConfig({ redirectFromTopWhenInIframe: true }),
       }),
     });
-    const result = envNotIframe.run(payload);
+    const result = environmentNotIframe.run(payload);
     expect(result).toMatchObject({ severity: 'notice', impact: 'manual' });
     expect(result.detail).toContain('allow-top-navigation');
   });
@@ -215,12 +213,10 @@ describe('env-not-iframe', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
         checkoutInIframe: true,
-        capturedConfig: makeCapturedConfig(
-          makeCheckoutConfig({ redirectFromTopWhenInIframe: false })
-        ),
+        capturedConfig: makeCapturedCheckoutConfig({ redirectFromTopWhenInIframe: false }),
       }),
     });
-    expect(envNotIframe.run(payload).severity).toBe('warn');
+    expect(environmentNotIframe.run(payload).severity).toBe('warn');
   });
 });
 
@@ -231,7 +227,7 @@ describe('env-region-mismatch', () => {
       { environment: 'live-us' },
       { capturedRequests: [makeRequest('https://checkoutshopper-live.cdn.adyen.com/sdk.js')] }
     );
-    expect(envRegionMismatch.run(payload).severity).toBe('skip');
+    expect(environmentRegionMismatch.run(payload).severity).toBe('skip');
   });
 
   it('passes when CDN region matches configured region', () => {
@@ -240,7 +236,7 @@ describe('env-region-mismatch', () => {
       { environment: 'live-us' },
       { capturedRequests: [makeRequest('https://checkoutshopper-live-us.cdn.adyen.com/sdk.js')] }
     );
-    expect(envRegionMismatch.run(payload).severity).toBe('pass');
+    expect(environmentRegionMismatch.run(payload).severity).toBe('pass');
   });
 
   it('warns when CDN region mismatches configured region', () => {
@@ -249,7 +245,7 @@ describe('env-region-mismatch', () => {
       { environment: 'live-apse' },
       { capturedRequests: [makeRequest('https://checkoutshopper-live-us.cdn.adyen.com/sdk.js')] }
     );
-    const result = envRegionMismatch.run(payload);
+    const result = environmentRegionMismatch.run(payload);
     expect(result.severity).toBe('warn');
     expect(result.title).toContain('US vs APSE');
   });
@@ -260,7 +256,7 @@ describe('env-region-mismatch', () => {
       { environment: 'live' },
       { capturedRequests: [makeRequest('https://checkoutshopper-live-us.cdn.adyen.com/sdk.js')] }
     );
-    const result = envRegionMismatch.run(payload);
+    const result = environmentRegionMismatch.run(payload);
     expect(result.severity).toBe('warn');
     expect(result.title).toContain('US vs EU');
   });
@@ -274,7 +270,7 @@ describe('componentConfig fallback', () => {
       }),
       capturedRequests: [makeRequest('https://checkout-test.adyen.com/v71/sessions')],
     });
-    expect(envKeyMismatch.run(payload).severity).toBe('pass');
+    expect(environmentKeyMismatch.run(payload).severity).toBe('pass');
   });
 });
 
@@ -284,7 +280,7 @@ describe('region edge cases', () => {
       capturedRequests: [makeRequest('https://checkoutshopper-live-us.cdn.adyen.com/sdk.js')],
     });
 
-    const result = envRegionMismatch.run(payload);
+    const result = environmentRegionMismatch.run(payload);
     expect(result.severity).toBe('skip');
     expect(result.detail).toBe('Configured region unknown.');
   });
@@ -294,7 +290,7 @@ describe('region edge cases', () => {
       capturedRequests: [makeRequest('https://checkout-live-au.adyenpayments.com/v71/sessions')],
     });
 
-    const result = envRegion.run(payload);
+    const result = environmentRegion.run(payload);
     expect(result).toMatchObject({ severity: 'info', title: 'Region: AU.' });
     expect(result.detail).toContain('request hostnames');
   });

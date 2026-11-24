@@ -8,7 +8,9 @@ import type { CheckoutCapture, HealthScore, IntegrationFlow, Severity } from './
 
 export const CLIENT_KEY_TEST_PREFIX = 'test_';
 export const CLIENT_KEY_LIVE_PREFIX = 'live_';
-/** Legacy origin key prefix — should be migrated to client key. */
+/**
+Legacy origin key prefix — should be migrated to client key.
+ */
 export const ORIGIN_KEY_PREFIX = 'pub.v2.';
 
 // ─── Adyen Translation Locales ───────────────────────────────────────────────
@@ -120,21 +122,29 @@ export const PAGE_GLOBALS = {
  * readers still check their shape.
  */
 export interface PageGlobalValues {
-  /** The config interceptor's capture record for this frame. */
+  /**
+  The config interceptor's capture record for this frame.
+   */
   [PAGE_GLOBALS.checkoutCapture]?: CheckoutCapture;
   [PAGE_GLOBALS.interceptorInstalled]?: boolean;
-  /** The page extractor's serialized `PageExtractResult` for this frame. */
+  /**
+  The page extractor's serialized `PageExtractResult` for this frame.
+   */
   [PAGE_GLOBALS.pageExtractResultJson]?: string;
 }
 
 // ─── Version Gates ────────────────────────────────────────────────────────────
 
-/** Minimum major version required for full inspection. Versions below this are blocked. */
+/**
+Minimum major version required for full inspection. Versions below this are blocked.
+ */
 export const MIN_SUPPORTED_MAJOR_VERSION = 6;
 
 // ─── UI Constants ─────────────────────────────────────────────────────────────
 
-/** Status colours for the badge and printed report, matching the light palette in base.css. */
+/**
+Status colours for the badge and printed report, matching the light palette in base.css.
+ */
 export const STATUS_COLORS = {
   pass: '#188038',
   warn: '#f29900',
@@ -142,7 +152,9 @@ export const STATUS_COLORS = {
   info: '#1a73e8',
 } as const;
 
-/** Colour of each check severity in reports. */
+/**
+Colour of each check severity in reports.
+ */
 export const SEVERITY_COLORS: Readonly<Record<Severity, string>> = {
   pass: STATUS_COLORS.pass,
   warn: STATUS_COLORS.warn,
@@ -152,14 +164,18 @@ export const SEVERITY_COLORS: Readonly<Record<Severity, string>> = {
   skip: '#6b7280',
 };
 
-/** Colour of each health tier, shared by the badge and reports. */
+/**
+Colour of each health tier, shared by the badge and reports.
+ */
 export const HEALTH_TIER_COLORS: Readonly<Record<HealthScore['tier'], string>> = {
   excellent: STATUS_COLORS.pass,
   issues: STATUS_COLORS.warn,
   critical: STATUS_COLORS.fail,
 };
 
-/** Display labels for integration flows, shared by every view. */
+/**
+Display labels for integration flows, shared by every view.
+ */
 export const INTEGRATION_FLOW_LABELS: Readonly<Record<IntegrationFlow, string>> = {
   sessions: 'Sessions',
   advanced: 'Advanced',

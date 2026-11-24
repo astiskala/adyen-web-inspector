@@ -24,12 +24,14 @@ interface PendingScan {
   reject: (error: Error) => void;
 }
 
-let host: HTMLDivElement;
-let session: ScanSession;
-let browser: FakeTabStateBrowser;
-let tabState: ReturnType<typeof createTabState>;
-let client: TabStateClient;
-let pending: PendingScan[];
+const harness = {} as {
+  host: HTMLDivElement;
+  session: ScanSession;
+  browser: FakeTabStateBrowser;
+  tabState: ReturnType<typeof createTabState>;
+  client: TabStateClient;
+  pending: PendingScan[];
+};
 
 function TestView({
   target,
@@ -38,59 +40,63 @@ function TestView({
   readonly target: TabTarget;
   readonly tabClient: TabStateClient;
 }): JSX.Element | null {
-  session = useScanLifecycle(target, tabClient);
+  harness.session = useScanLifecycle(target, tabClient);
   return null;
 }
 
-/** Lets queued tab state transitions and view updates finish. */
+/**
+Lets queued tab state transitions and view updates finish.
+ */
 async function settle(): Promise<void> {
   await act(async () => {
-    for (let i = 0; i < 12; i += 1) await Promise.resolve();
+    for (let index = 0; index < 12; index += 1) await Promise.resolve();
   });
 }
 
 const INSPECTED_TAB: TabTarget = { getTabId: () => TAB };
 
-async function mount(target = INSPECTED_TAB, tabClient = client): Promise<void> {
+async function mount(target = INSPECTED_TAB, tabClient = harness.client): Promise<void> {
   await act(async () => {
-    render(h(TestView, { target, tabClient }), host);
+    render(h(TestView, { target, tabClient }), harness.host);
   });
   await settle();
 }
 
 async function startScan(): Promise<void> {
   await act(async () => {
-    session.scan();
+    harness.session.scan();
   });
   await settle();
 }
 
 beforeEach(() => {
-  host = document.createElement('div');
-  document.body.append(host);
-  browser = createFakeTabStateBrowser();
-  pending = [];
-  tabState = createTabState(
-    browser,
+  harness.host = document.createElement('div');
+  document.body.append(harness.host);
+  harness.browser = createFakeTabStateBrowser();
+  harness.pending = [];
+  harness.tabState = createTabState(
+    harness.browser,
     () =>
       new Promise<ScanResult>((resolve, reject) => {
-        pending.push({ resolve, reject });
+        harness.pending.push({ resolve, reject });
       })
   );
-  client = connectTabStateClient(tabState, browser);
+  harness.client = connectTabStateClient(harness.tabState, harness.browser);
 });
 
-afterEach(() => {
-  render(null, host);
-  host.remove();
+afterEach(async () => {
+  await act(() => {
+    render(null, harness.host);
+  });
+  harness.host.remove();
 });
 
 describe('useScanLifecycle', () => {
   it('loads the tab snapshot, then follows a Scan to its stored result', async () => {
-    await tabState.checkoutActivityDetected(TAB, '6.31.0');
+    await harness.tabState.checkoutActivityDetected(TAB, '6.31.0');
     await mount();
 
-    expect(session).toMatchObject({
+    expect(harness.session).toMatchObject({
       result: null,
       checkoutActivity: { detected: true, version: '6.31.0' },
       scanning: false,
@@ -99,43 +105,43 @@ describe('useScanLifecycle', () => {
     });
 
     await startScan();
-    expect(session.scanning).toBe(true);
-    expect(pending).toHaveLength(1);
+    expect(harness.session.scanning).toBe(true);
+    expect(harness.pending).toHaveLength(1);
 
     const result = makeScanResult({ tabId: TAB });
-    pending[0]?.resolve(result);
+    harness.pending[0]?.resolve(result);
     await settle();
-    expect(session).toMatchObject({ result, scanning: false, error: null });
+    expect(harness.session).toMatchObject({ result, scanning: false, error: null });
   });
 
   it('shows a Scan that was already running when the view opened', async () => {
-    tabState.requestScan(TAB).catch(() => {});
+    void harness.tabState.requestScan(TAB).catch(() => {});
     await settle();
     await mount();
 
-    expect(session.scanning).toBe(true);
+    expect(harness.session.scanning).toBe(true);
   });
 
   it('shows checkout activity the detector reports while the view is open', async () => {
     await mount();
-    expect(session.checkoutActivity).toEqual({ detected: false });
+    expect(harness.session.checkoutActivity).toEqual({ detected: false });
 
-    await tabState.checkoutActivityDetected(TAB, '6.31.0');
+    await harness.tabState.checkoutActivityDetected(TAB, '6.31.0');
     await settle();
-    expect(session.checkoutActivity).toEqual({ detected: true, version: '6.31.0' });
+    expect(harness.session.checkoutActivity).toEqual({ detected: true, version: '6.31.0' });
   });
 
   it('clears the view when the tab navigates', async () => {
-    await tabState.checkoutActivityDetected(TAB);
+    await harness.tabState.checkoutActivityDetected(TAB);
     await mount();
     await startScan();
-    pending[0]?.resolve(makeScanResult({ tabId: TAB }));
+    harness.pending[0]?.resolve(makeScanResult({ tabId: TAB }));
     await settle();
-    expect(session.result).not.toBeNull();
+    expect(harness.session.result).not.toBeNull();
 
-    await tabState.navigated(TAB);
+    await harness.tabState.navigated(TAB);
     await settle();
-    expect(session).toMatchObject({
+    expect(harness.session).toMatchObject({
       result: null,
       checkoutActivity: { detected: false },
       scanning: false,
@@ -144,46 +150,49 @@ describe('useScanLifecycle', () => {
 
   it('ignores snapshots published for other tabs', async () => {
     await mount({ getTabId: async () => TAB });
-    await tabState.checkoutActivityDetected(TAB + 1);
-    tabState.requestScan(TAB + 1).catch(() => {});
+    await harness.tabState.checkoutActivityDetected(TAB + 1);
+    void harness.tabState.requestScan(TAB + 1).catch(() => {});
     await settle();
 
-    expect(session).toMatchObject({ scanning: false, checkoutActivity: { detected: false } });
+    expect(harness.session).toMatchObject({
+      scanning: false,
+      checkoutActivity: { detected: false },
+    });
   });
 
   it('shows a failed Scan and clears the failure when a retry starts', async () => {
     await mount();
     await startScan();
-    pending[0]?.reject(new Error('Blocked page'));
+    harness.pending[0]?.reject(new Error('Blocked page'));
     await settle();
-    expect(session).toMatchObject({
+    expect(harness.session).toMatchObject({
       scanning: false,
       error: { kind: 'scan', message: 'Blocked page' },
     });
 
     await startScan();
-    expect(session).toMatchObject({ scanning: true, error: null });
+    expect(harness.session).toMatchObject({ scanning: true, error: null });
   });
 
   it('surfaces a scan request that cannot be sent', async () => {
     const cause = new Error('Extension context invalidated');
     await mount(undefined, {
-      ...client,
+      ...harness.client,
       requestScan: async () => {
         throw cause;
       },
     });
     await startScan();
 
-    expect(session).toMatchObject({ scanning: false, error: { kind: 'request', cause } });
+    expect(harness.session).toMatchObject({ scanning: false, error: { kind: 'request', cause } });
   });
 
   it('reports a view without an inspectable tab', async () => {
     await mount({ getTabId: () => undefined });
-    expect(session).toMatchObject({ loading: false, error: null, result: null });
+    expect(harness.session).toMatchObject({ loading: false, error: null, result: null });
 
     await startScan();
-    expect(session).toMatchObject({ scanning: false, error: { kind: 'tab' } });
+    expect(harness.session).toMatchObject({ scanning: false, error: { kind: 'tab' } });
   });
 
   it('reports a runtime failure when the tab cannot be resolved or read', async () => {
@@ -193,29 +202,29 @@ describe('useScanLifecycle', () => {
         throw cause;
       },
     });
-    expect(session).toMatchObject({ loading: false, error: { kind: 'runtime', cause } });
+    expect(harness.session).toMatchObject({ loading: false, error: { kind: 'runtime', cause } });
 
     await startScan();
-    expect(session.error).toEqual({ kind: 'runtime', cause });
+    expect(harness.session.error).toEqual({ kind: 'runtime', cause });
 
-    render(null, host);
+    render(null, harness.host);
     await mount(undefined, {
-      ...client,
+      ...harness.client,
       read: async () => {
         throw cause;
       },
     });
-    expect(session.error).toEqual({ kind: 'runtime', cause });
+    expect(harness.session.error).toEqual({ kind: 'runtime', cause });
   });
 
   it('stops following the tab after unmounting', async () => {
     await mount();
-    render(null, host);
-    const before = session;
+    render(null, harness.host);
+    const before = harness.session;
 
-    await tabState.checkoutActivityDetected(TAB);
+    await harness.tabState.checkoutActivityDetected(TAB);
     await settle();
-    expect(session).toBe(before);
+    expect(harness.session).toBe(before);
   });
 });
 
@@ -225,16 +234,16 @@ describe('useScanLifecycle after the view closes', () => {
     const target: TabTarget = { getTabId: () => tab.promise };
     let reads = 0;
     const counting: TabStateClient = {
-      ...client,
+      ...harness.client,
       read: async (tabId) => {
         reads += 1;
-        return client.read(tabId);
+        return harness.client.read(tabId);
       },
     };
     await mount(target, counting);
 
     await act(async () => {
-      render(null, host);
+      render(null, harness.host);
     });
     tab.resolve(TAB);
     await settle();
@@ -244,17 +253,17 @@ describe('useScanLifecycle after the view closes', () => {
 
   it('ignores a snapshot that arrives after the view closed', async () => {
     const snapshot = Promise.withResolvers<Awaited<ReturnType<TabStateClient['read']>>>();
-    const slow: TabStateClient = { ...client, read: () => snapshot.promise };
+    const slow: TabStateClient = { ...harness.client, read: () => snapshot.promise };
     await mount(INSPECTED_TAB, slow);
-    const before = session;
+    const before = harness.session;
 
     await act(async () => {
-      render(null, host);
+      render(null, harness.host);
     });
-    snapshot.resolve(await client.read(TAB));
+    snapshot.resolve(await harness.client.read(TAB));
     await settle();
 
-    expect(session).toBe(before);
-    expect(session.loading).toBe(true);
+    expect(harness.session).toBe(before);
+    expect(harness.session.loading).toBe(true);
   });
 });

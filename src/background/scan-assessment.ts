@@ -1,5 +1,5 @@
 import type { CheckoutPage, ScanPayload, ScanResult } from '../shared/types.js';
-import { calculateHealthScore } from '../shared/utils.js';
+import { calculateHealthScore } from '../shared/utilities.js';
 import { readImplementationAttributes } from '../shared/implementation-attributes.js';
 import { withRequestDerivedLocale } from '../shared/scan-evidence.js';
 import { detectSdkPresence } from '../shared/sdk-presence.js';
@@ -13,7 +13,9 @@ interface ScanEvidence {
   readonly page: CheckoutPage;
   readonly traffic: CapturedTraffic;
   readonly latestVersion: string | null;
-  /** Publish timestamps from npm, keyed by version. */
+  /**
+  Publish timestamps from npm, keyed by version.
+   */
   readonly releaseDates?: Readonly<Record<string, string>>;
   readonly scannedAt: string;
 }
@@ -34,7 +36,7 @@ export async function assessScan(
       analyticsData,
       capturedRequests,
       latest: latestVersion,
-      ...(releaseDates === undefined ? {} : { releaseDates }),
+      ...(releaseDates !== undefined && { releaseDates }),
     },
     fetchScriptText
   );

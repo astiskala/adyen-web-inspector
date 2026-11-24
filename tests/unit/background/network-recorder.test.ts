@@ -22,8 +22,10 @@ function fakeEvent<L>(): FakeEvent<L> {
   };
 }
 
-let onHeadersReceived: FakeEvent<HeadersListener>;
-let onBeforeRequest: FakeEvent<BodyListener>;
+const harness = {} as {
+  onHeadersReceived: FakeEvent<HeadersListener>;
+  onBeforeRequest: FakeEvent<BodyListener>;
+};
 
 function startRecorder(tabId = 7): NetworkRecorder {
   const recorder = new NetworkRecorder(tabId);
@@ -36,9 +38,14 @@ function bytesOf(text: string): ArrayBuffer {
 }
 
 beforeEach(() => {
-  onHeadersReceived = fakeEvent();
-  onBeforeRequest = fakeEvent();
-  vi.stubGlobal('chrome', { webRequest: { onHeadersReceived, onBeforeRequest } });
+  harness.onHeadersReceived = fakeEvent();
+  harness.onBeforeRequest = fakeEvent();
+  vi.stubGlobal('chrome', {
+    webRequest: {
+      onHeadersReceived: harness.onHeadersReceived,
+      onBeforeRequest: harness.onBeforeRequest,
+    },
+  });
 });
 
 afterEach(() => {
@@ -49,12 +56,12 @@ describe('NetworkRecorder', () => {
   it('registers tab-scoped listeners on start and removes the same listeners on stop', () => {
     const recorder = startRecorder(42);
 
-    expect(onHeadersReceived.addListener).toHaveBeenCalledWith(
+    expect(harness.onHeadersReceived.addListener).toHaveBeenCalledWith(
       expect.any(Function),
       { tabId: 42, urls: ['<all_urls>'] },
       ['responseHeaders']
     );
-    expect(onBeforeRequest.addListener).toHaveBeenCalledWith(
+    expect(harness.onBeforeRequest.addListener).toHaveBeenCalledWith(
       expect.any(Function),
       { tabId: 42, urls: [...ANALYTICS_URL_PATTERNS] },
       ['requestBody']
@@ -62,14 +69,18 @@ describe('NetworkRecorder', () => {
 
     recorder.stop();
 
-    expect(onHeadersReceived.removeListener).toHaveBeenCalledWith(onHeadersReceived.listener());
-    expect(onBeforeRequest.removeListener).toHaveBeenCalledWith(onBeforeRequest.listener());
+    expect(harness.onHeadersReceived.removeListener).toHaveBeenCalledWith(
+      harness.onHeadersReceived.listener()
+    );
+    expect(harness.onBeforeRequest.removeListener).toHaveBeenCalledWith(
+      harness.onBeforeRequest.listener()
+    );
   });
 
   it('records every response as the browser reports it', () => {
     const recorder = startRecorder();
 
-    const returned = onHeadersReceived.listener()({
+    const returned = harness.onHeadersReceived.listener()({
       url: 'https://merchant.example/checkout',
       type: 'main_frame',
       statusCode: 200,
@@ -78,7 +89,7 @@ describe('NetworkRecorder', () => {
         { name: 'X-Empty' },
       ],
     });
-    onHeadersReceived.listener()({
+    harness.onHeadersReceived.listener()({
       url: 'https://cdn.example/font.woff2',
       type: 'font',
       statusCode: 304,
@@ -102,7 +113,7 @@ describe('NetworkRecorder', () => {
   it('records POST bodies decoded as text, joining multi-part bodies', () => {
     const recorder = startRecorder();
 
-    const returned = onBeforeRequest.listener()({
+    const returned = harness.onBeforeRequest.listener()({
       url: ANALYTICS_URL,
       method: 'POST',
       requestBody: { raw: [{ bytes: bytesOf('{"flavor":') }, {}, { bytes: bytesOf('"dropin"}') }] },
@@ -119,14 +130,14 @@ describe('NetworkRecorder', () => {
   ])('skips %s', (_label, details) => {
     const recorder = startRecorder();
 
-    onBeforeRequest.listener()({ url: ANALYTICS_URL, ...details });
+    harness.onBeforeRequest.listener()({ url: ANALYTICS_URL, ...details });
 
     expect(recorder.result().posts).toEqual([]);
   });
 
   it('returns copies so callers cannot mutate recorded traffic', () => {
     const recorder = startRecorder();
-    onHeadersReceived.listener()({
+    harness.onHeadersReceived.listener()({
       url: 'https://merchant.example/',
       type: 'main_frame',
       statusCode: 200,

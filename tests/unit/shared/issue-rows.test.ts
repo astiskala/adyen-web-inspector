@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { groupIssuesByImpact, type IssueRow } from '../../../src/shared/export-report';
 import type { CheckId, CheckResult, Severity } from '../../../src/shared/types';
 
-/** Issue rows in the order every flat view lists them: impact, severity, then title. */
+/**
+Issue rows in the order every flat view lists them: impact, severity, then title.
+ */
 function buildIssueRows(checks: readonly CheckResult[]): IssueRow[] {
   return groupIssuesByImpact(checks).flatMap((group) => group.issues);
 }
@@ -23,10 +25,12 @@ function makeCheck(
   };
 }
 
-/** Asserts that the array has at least one element and returns the first. */
-function first<T>(arr: readonly T[]): T {
-  expect(arr.length).toBeGreaterThan(0);
-  const item = arr[0];
+/**
+Asserts that the array has at least one element and returns the first.
+ */
+function first<T>(array: readonly T[]): T {
+  expect(array.length).toBeGreaterThan(0);
+  const item = array[0];
   if (item === undefined) {
     throw new Error('Expected array to have at least one element');
   }

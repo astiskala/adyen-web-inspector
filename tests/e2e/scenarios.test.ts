@@ -334,7 +334,7 @@ test('Live CDN region mismatch is independent of CDN environment and configured 
   expect(requireCheck(result, 'sdk-bundle-type').severity).toBe('skip');
 });
 
-test('Selective custom pay button flags unsupported methods and unhandled callbacks', async ({
+test('Custom pay button that hides PayPal fails from its rendered analytics event', async ({
   context,
   extensionId,
 }) => {
@@ -344,14 +344,38 @@ test('Selective custom pay button flags unsupported methods and unhandled callba
     'dummy-merchant.html?scenario=custom-pay-button'
   );
 
-  expect(result.payload.page.capturedConfig?.options.beforeSubmit).toBe('checkout');
-  expect(
-    result.payload.capturedRequests.some((request) => request.url.includes('variant=paypal'))
-  ).toBe(true);
+  expect(result.payload.page.capturedConfig?.options).toMatchObject({
+    beforeSubmit: 'checkout',
+    showPayButton: false,
+  });
+  expect(result.payload.page.analyticsEvents?.rendered).toEqual([
+    { type: 'scheme', showPayButton: false },
+    { type: 'paypal', showPayButton: false },
+  ]);
   expect(requireCheck(result, 'callback-on-submit-filtering').severity).toBe('warn');
   expect(requireCheck(result, 'callback-before-submit').severity).toBe('pass');
   expect(requireCheck(result, 'callback-multiple-submissions').severity).toBe('info');
-  expect(requireCheck(result, 'callback-custom-pay-button-compatibility').severity).toBe('warn');
+  const compatibility = requireCheck(result, 'callback-custom-pay-button-compatibility');
+  expect(compatibility.severity).toBe('fail');
+  expect(compatibility.title).toContain('PayPal');
+});
+
+test('Card-only onSubmit logic with PayPal on its own button raises no false positives', async ({
+  context,
+  extensionId,
+}) => {
+  const result = await scanFixture(
+    context,
+    extensionId,
+    'dummy-merchant.html?scenario=selective-onsubmit'
+  );
+
+  expect(result.payload.page.analyticsEvents?.rendered).toEqual([
+    { type: 'scheme', showPayButton: true },
+    { type: 'paypal', showPayButton: true },
+  ]);
+  expect(requireCheck(result, 'callback-on-submit-filtering').severity).toBe('notice');
+  expect(requireCheck(result, 'callback-custom-pay-button-compatibility').severity).toBe('pass');
 });
 
 test('Restrictive CSP and missing CSS SRI are reported while iframe referrer policy is present', async ({
@@ -405,7 +429,7 @@ test('Checkout analytics POST during a scan supplies flavor and Sessions flow ev
           'https://checkoutanalytics-test.adyen.com/checkoutanalytics/v3/setup',
           {
             method: 'POST',
-            body: globalThis.JSON.stringify({
+            body: JSON.stringify({
               flavor: 'custom',
               version: '6.31.0',
               buildType: 'esm',

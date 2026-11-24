@@ -8,6 +8,7 @@ import {
   makeAnalyticsData,
   makeRequest,
   makeCheckoutConfig,
+  makeCapturedCheckoutConfig,
   makeCapturedConfig,
 } from '../../fixtures/makeScanPayload';
 import { requireCheck } from './requireCheck';
@@ -130,6 +131,15 @@ describe('sdk-bundle-type', () => {
     expect(result.docsUrl).toBe(SESSIONS_DROP_IN_BUNDLE_DOC);
   });
 
+  it('reports an unknown bundle type when metadata and analytics name none', () => {
+    const payload = makeScanPayload({
+      page: makeCheckoutPage({ adyenMetadata: { version: '6.30.0' } }),
+    });
+    const result = sdkBundleType.run(payload);
+    expect(result.severity).toBe('pass');
+    expect(result.title).toContain('unknown');
+  });
+
   it('prefers metadata bundleType over analytics buildType', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
@@ -207,7 +217,7 @@ describe('sdk-flavor', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
         adyenMetadata: makeAdyenMetadata(),
-        capturedConfig: makeCapturedConfig(makeCheckoutConfig()),
+        capturedConfig: makeCapturedCheckoutConfig(),
         hasDropinDOM: true,
       }),
     });

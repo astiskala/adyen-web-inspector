@@ -92,10 +92,10 @@ test.describe('Popup', () => {
 
     const result = await requireStoredResult(context, extensionId, page);
     const { score, passing, total } = result.health;
-    expect(await getBadgeText(context, extensionId, page)).toBe(`${score}`);
+    expect(await getBadgeText(context, extensionId, page)).toBe(score.toString());
     const passRatio = popup.getByText(`${passing}/${total} checks passing`, { exact: true });
     await expect(passRatio).toBeVisible();
-    await expect(passRatio.locator('xpath=following-sibling::span')).toHaveText(`${score}`);
+    await expect(passRatio.locator('xpath=following-sibling::span')).toHaveText(score.toString());
 
     await expect(popup.getByText('Implementation Attributes')).toBeVisible();
     await expect(popup.getByText('6.31.0', { exact: true })).toBeVisible();
@@ -106,7 +106,7 @@ test.describe('Popup', () => {
     expect(cspFinding.severity).toBe('warn');
     const warningCount = result.checks.filter((check) => check.severity === 'warn').length;
     const warnings = popup.locator('summary', { hasText: 'Warnings' });
-    await expect(warnings).toContainText(`${warningCount}`);
+    await expect(warnings).toContainText(warningCount.toString());
     await expect(popup.getByText(cspFinding.title, { exact: true })).toBeHidden();
     await warnings.click();
     await expect(popup.getByText(cspFinding.title, { exact: true })).toBeVisible();

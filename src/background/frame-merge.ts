@@ -8,7 +8,7 @@ import { mergeCheckoutConfigs } from '../shared/checkout-config-schema.js';
 import {
   checkoutStrength,
   isMerchantDocument,
-  rendersCheckout,
+  isRenderingCheckout,
 } from '../shared/checkout-signals.js';
 import type {
   CapturedCheckoutOptions,
@@ -33,6 +33,7 @@ const FIELD_SCOPE = {
   inferredConfig: 'all-frames',
   pageJsonConfig: 'all-frames',
   componentConfig: 'all-frames',
+  analyticsEvents: 'all-frames',
   componentMountCount: 'selected',
   hasDropinDOM: 'selected-or-merchant',
   hasCardDOM: 'selected-or-merchant',
@@ -70,7 +71,9 @@ function fieldsWithScope<S extends FieldScope>(scope: S): ScopedField<S>[] {
 const SELECTED_FIELDS = fieldsWithScope('selected');
 const MERCHANT_FLAGS = fieldsWithScope('selected-or-merchant');
 
-/** Picks the frame with the strongest checkout signals; the top frame wins ties. */
+/**
+Picks the frame with the strongest checkout signals; the top frame wins ties.
+ */
 function selectFrame(first: ExtractedFrame, rest: readonly ExtractedFrame[]): ExtractedFrame {
   let selected = first;
   for (const frame of rest) {
@@ -105,13 +108,34 @@ function mergeSlot(frames: readonly PageExtractResult[], slot: ConfigSlot): Chec
   );
 }
 
-/** Merges captured options across frames; the capture is complete when any frame's is. */
+/**
+Merges captured options across frames; the capture is complete when any frame's is.
+ */
 function mergeCaptured(frames: readonly PageExtractResult[]): CapturedCheckoutOptions | null {
   const captures = frames.map((frame) => frame.capturedConfig).filter((c) => c !== null);
   const options = mergeCheckoutConfigs(captures.map((capture) => capture.options));
   return options === null
     ? null
     : { options, complete: captures.some((capture) => capture.complete) };
+}
+
+/**
+Combines analytics component events; earlier frames win per rendered component type.
+ */
+function mergeAnalyticsEvents(
+  frames: readonly PageExtractResult[]
+): Pick<CheckoutPage, 'analyticsEvents'> {
+  const summaries = frames.flatMap((frame) => frame.analyticsEvents ?? []);
+  if (summaries.length === 0) return {};
+  const rendered = summaries.flatMap((summary) => summary.rendered);
+  return {
+    analyticsEvents: {
+      rendered: rendered.filter(
+        (component, index) => rendered.findIndex(({ type }) => type === component.type) === index
+      ),
+      paymentMethods: [...new Set(summaries.flatMap((summary) => summary.paymentMethods))],
+    },
+  };
 }
 
 function mergeMerchantFlags(
@@ -141,8 +165,8 @@ export function mergeFrames(frames: readonly FrameExtraction[]): CheckoutPage | 
   const selected = selectFrame(first, rest);
   const results = extracted.map((frame) => frame.result);
   const merchantFrames = extracted.filter(isMerchantFrame);
-  const checkoutInChildFrame = merchantFrames.some(
-    (frame) => frame.frameId !== TOP_FRAME_ID && rendersCheckout(frame.result)
+  const isCheckoutInChildFrame = merchantFrames.some(
+    (frame) => frame.frameId !== TOP_FRAME_ID && isRenderingCheckout(frame.result)
   );
 
   return {
@@ -155,13 +179,14 @@ export function mergeFrames(frames: readonly FrameExtraction[]): CheckoutPage | 
     componentConfig: mergeSlot(results, 'componentConfig'),
     inferredConfig: mergeSlot(results, 'inferredConfig'),
     pageJsonConfig: mergeSlot(results, 'pageJsonConfig'),
+    ...mergeAnalyticsEvents(results),
     ...mergeMerchantFlags(
       selected.result,
       merchantFrames.map((frame) => frame.result)
     ),
-    ...(results.some((result) => result.apiKeyDetected === true) ? { apiKeyDetected: true } : {}),
+    ...(results.some((result) => result.apiKeyDetected === true) && { apiKeyDetected: true }),
     checkoutInIframe:
       (selected.frameId !== TOP_FRAME_ID && merchantFrames.includes(selected)) ||
-      checkoutInChildFrame,
+      isCheckoutInChildFrame,
   };
 }

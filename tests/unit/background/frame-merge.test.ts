@@ -5,9 +5,9 @@ import type { CheckoutPage, PageExtractResult } from '../../../src/shared/types'
 import { readCheckoutField } from '../../../src/shared/scan-evidence';
 import {
   makeAdyenMetadata,
-  makeCheckoutConfig,
   makePageExtract,
   makeScanPayload,
+  makeCapturedCheckoutConfig,
   makeCapturedConfig,
 } from '../../fixtures/makeScanPayload';
 import { framesOf } from '../../fixtures/fakeScanBrowser';
@@ -30,7 +30,7 @@ describe('mergeFrames frame selection', () => {
         pageUrl: 'https://merchant.example/',
       }),
       makePageExtract({
-        capturedConfig: makeCapturedConfig(makeCheckoutConfig()),
+        capturedConfig: makeCapturedCheckoutConfig(),
         pageUrl: 'https://merchant.example/embedded-checkout',
         isInsideIframe: true,
       })
@@ -54,7 +54,7 @@ describe('mergeFrames frame selection', () => {
       {
         frameId: 0,
         result: makePageExtract({
-          capturedConfig: makeCapturedConfig(makeCheckoutConfig()),
+          capturedConfig: makeCapturedCheckoutConfig(),
           pageUrl: 'https://merchant.example/checkout',
         }),
       },
@@ -88,9 +88,8 @@ describe('mergeFrames frame selection', () => {
   });
 
   it('ignores frames that return null and returns null when none produced a result', () => {
-    expect(
-      merge(null, makePageExtract({ capturedConfig: makeCapturedConfig(makeCheckoutConfig()) }))
-    ).toMatchObject({
+    const configured = makePageExtract({ capturedConfig: makeCapturedCheckoutConfig() });
+    expect(merge(null, configured)).toMatchObject({
       checkoutInIframe: true,
     });
     expect(mergeFrames(framesOf(null))).toBeNull();
@@ -101,7 +100,7 @@ describe('mergeFrames frame selection', () => {
 describe('mergeFrames field scope', () => {
   it('reports an embedded checkout even when the top frame scores higher', () => {
     const page = merge(
-      makePageExtract({ capturedConfig: makeCapturedConfig(makeCheckoutConfig()) }),
+      makePageExtract({ capturedConfig: makeCapturedCheckoutConfig() }),
       makePageExtract({ hasDropinDOM: true, pageUrl: 'https://merchant.example/embedded' })
     );
 
@@ -112,7 +111,7 @@ describe('mergeFrames field scope', () => {
 
   it('does not confuse hosted card fields with a merchant checkout iframe', () => {
     const page = merge(
-      makePageExtract({ capturedConfig: makeCapturedConfig(makeCheckoutConfig()) }),
+      makePageExtract({ capturedConfig: makeCapturedCheckoutConfig() }),
       makePageExtract({
         hasCardDOM: true,
         hasNewCardFormDOM: true,
@@ -129,7 +128,7 @@ describe('mergeFrames field scope', () => {
 
   it('merges card form DOM flags from merchant frames', () => {
     const page = merge(
-      makePageExtract({ capturedConfig: makeCapturedConfig(makeCheckoutConfig()) }),
+      makePageExtract({ capturedConfig: makeCapturedCheckoutConfig() }),
       makePageExtract({
         hasCardDOM: true,
         hasNewCardFormDOM: true,
@@ -199,6 +198,38 @@ describe('mergeFrames field scope', () => {
     expect(readCheckoutField(makeScanPayload({ page }), 'countryCode')).toEqual({
       state: 'absent',
     });
+  });
+
+  it('combines analytics component events across frames, earlier frames winning per component', () => {
+    const page = merge(
+      makePageExtract(),
+      makePageExtract({
+        analyticsEvents: {
+          rendered: [{ type: 'paypal', showPayButton: false }],
+          paymentMethods: ['paypal', 'dropin'],
+        },
+        pageUrl: 'https://merchant.example/a',
+      }),
+      makePageExtract({
+        analyticsEvents: {
+          rendered: [
+            { type: 'paypal', showPayButton: true },
+            { type: 'scheme', showPayButton: true },
+          ],
+          paymentMethods: ['scheme', 'paypal'],
+        },
+        pageUrl: 'https://merchant.example/b',
+      })
+    );
+
+    expect(page.analyticsEvents).toEqual({
+      rendered: [
+        { type: 'paypal', showPayButton: false },
+        { type: 'scheme', showPayButton: true },
+      ],
+      paymentMethods: ['paypal', 'dropin', 'scheme'],
+    });
+    expect(merge(makePageExtract())).not.toHaveProperty('analyticsEvents');
   });
 
   it('leaves absence unproven when no frame captured options whole', () => {

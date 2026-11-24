@@ -23,6 +23,30 @@ function renderCard(componentOptions) {
   return card;
 }
 
+// Mirrors Adyen Web v6 analytics: a mounted component reports a `rendered` info event with the
+// showPayButton it rendered with, inherited from AdyenCheckout unless the component sets its own.
+// Only scenarios that enable analytics explicitly send it, so other scenarios see no extra traffic.
+function reportRendered(checkoutOptions, type, componentOptions) {
+  if (checkoutOptions.analytics?.enabled !== true) return;
+  const showPayButton = componentOptions.showPayButton ?? checkoutOptions.showPayButton ?? true;
+  const component = type === 'card' ? 'scheme' : type;
+  globalThis
+    .fetch(
+      'https://checkoutanalytics-test.adyen.com/checkoutanalytics/v3/analytics/dummy-attempt?clientKey=test_dummy',
+      {
+        method: 'POST',
+        body: globalThis.JSON.stringify({
+          channel: 'Web',
+          platform: 'Web',
+          info: [{ type: 'rendered', component, configData: { showPayButton } }],
+          errors: [],
+          logs: [],
+        }),
+      }
+    )
+    .catch(() => {});
+}
+
 globalThis.AdyenCheckout = async function AdyenCheckout(options) {
   return {
     options,
@@ -35,6 +59,7 @@ globalThis.AdyenCheckout = async function AdyenCheckout(options) {
               ? renderCard(componentOptions)
               : renderElement(`adyen-checkout__${type}`, `Dummy ${type} component`);
           container.append(component);
+          reportRendered(options, type, componentOptions);
           return { element: component, options: componentOptions };
         },
       };
@@ -59,4 +84,5 @@ globalThis.AdyenWeb = {
   AdyenCheckout: globalThis.AdyenCheckout,
   Dropin: makeComponent('dropin'),
   Card: makeComponent('card'),
+  PayPal: makeComponent('paypal'),
 };

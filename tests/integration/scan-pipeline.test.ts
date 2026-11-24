@@ -19,9 +19,8 @@ import {
   makeScanPayload,
   makeCheckoutPage,
   makeAdyenMetadata,
-  makeCheckoutConfig,
   makeVersionInfo,
-  makeCapturedConfig,
+  makeCapturedCheckoutConfig,
   makeDocumentHeaders,
 } from '../fixtures/makeScanPayload';
 
@@ -112,20 +111,18 @@ function makeGoodPayload(): ScanPayload {
         bundleType: 'esm',
         variants: ['dropin'],
       }),
-      capturedConfig: makeCapturedConfig(
-        makeCheckoutConfig({
-          clientKey: 'live_ABCDEFGHIJK',
-          environment: 'live',
-          locale: 'en-US',
-          countryCode: 'US',
-          onSubmit: 'checkout',
-          onAdditionalDetails: 'checkout',
-          onPaymentCompleted: 'checkout',
-          onPaymentFailed: 'checkout',
-          onError: 'checkout',
-          hasSession: true,
-        })
-      ),
+      capturedConfig: makeCapturedCheckoutConfig({
+        clientKey: 'live_ABCDEFGHIJK',
+        environment: 'live',
+        locale: 'en-US',
+        countryCode: 'US',
+        onSubmit: 'checkout',
+        onAdditionalDetails: 'checkout',
+        onPaymentCompleted: 'checkout',
+        onPaymentFailed: 'checkout',
+        onError: 'checkout',
+        hasSession: true,
+      }),
       hasDropinDOM: true,
       pageUrl: 'https://merchant.com/checkout',
       pageProtocol: 'https:',
@@ -194,12 +191,10 @@ describe('Misconfigured integration', () => {
           pageUrl: 'http://insecure.example.com',
           pageProtocol: 'http:',
           adyenMetadata: makeAdyenMetadata(),
-          capturedConfig: makeCapturedConfig(
-            makeCheckoutConfig({
-              environment: 'live',
-              clientKey: 'live_ABCDEFGHIJK',
-            })
-          ),
+          capturedConfig: makeCapturedCheckoutConfig({
+            environment: 'live',
+            clientKey: 'live_ABCDEFGHIJK',
+          }),
         }),
         capturedRequests: [
           makeRequest(
@@ -272,7 +267,7 @@ describe('Health score tiers from check results', () => {
         pageUrl: 'http://insecure.test',
         pageProtocol: 'http:',
         adyenMetadata: makeAdyenMetadata(),
-        capturedConfig: makeCapturedConfig(makeCheckoutConfig()),
+        capturedConfig: makeCapturedCheckoutConfig(),
       }),
     });
 

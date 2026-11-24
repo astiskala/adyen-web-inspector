@@ -9,15 +9,15 @@ import { resolve } from 'node:path';
  * Run with `RUN_LINK_CHECKS=1 pnpm test` to check external links.
  */
 
-function collectDocsUrls(): Set<string> {
-  const checksDir = resolve(__dirname, '../../../src/background/checks');
+function collectDocumentationUrls(): Set<string> {
+  const checksDirectory = resolve(__dirname, '../../../src/background/checks');
   const allUrls = new Set<string>();
   // Match URLs in docsUrl properties and string constant assignments.
   const urlPattern = /['"`](https?:\/\/[^'"`\s]+)['"`]/g;
 
-  for (const file of readdirSync(checksDir)) {
+  for (const file of readdirSync(checksDirectory)) {
     if (!file.endsWith('.ts')) continue;
-    const content = readFileSync(resolve(checksDir, file), 'utf8');
+    const content = readFileSync(resolve(checksDirectory, file), 'utf8');
     for (const match of content.matchAll(urlPattern)) {
       const url = match[1];
       if (url !== undefined && url !== '') {
@@ -29,7 +29,7 @@ function collectDocsUrls(): Set<string> {
   return allUrls;
 }
 
-const allowedDocHosts = [
+const allowedDocumentHosts = [
   'docs.adyen.com',
   'owasp.org',
   'github.com',
@@ -40,7 +40,7 @@ const allowedDocHosts = [
 function isAllowedHost(url: string): boolean {
   try {
     const { hostname } = new URL(url);
-    return allowedDocHosts.some(
+    return allowedDocumentHosts.some(
       (allowedHost) => hostname === allowedHost || hostname.endsWith(`.${allowedHost}`)
     );
   } catch {
@@ -49,7 +49,7 @@ function isAllowedHost(url: string): boolean {
   }
 }
 
-const urlsToTest = [...collectDocsUrls()].filter((url) => isAllowedHost(url));
+const urlsToTest = [...collectDocumentationUrls()].filter((url) => isAllowedHost(url));
 
 describe.skipIf(process.env['RUN_LINK_CHECKS'] === undefined)('Link Validation', () => {
   describe('Referenced Documentation Links', () => {
@@ -60,8 +60,8 @@ describe.skipIf(process.env['RUN_LINK_CHECKS'] === undefined)('Link Validation',
           const response = await fetch(url, { method: 'HEAD' });
           // Some sites might return 405 for HEAD, so we retry with GET if needed
           if (response.status === 405) {
-            const getResponse = await fetch(url, { method: 'GET' });
-            expect(getResponse.status).toBeLessThan(400);
+            const retryResponse = await fetch(url);
+            expect(retryResponse.status).toBeLessThan(400);
           } else {
             expect(response.status).toBeLessThan(400);
           }

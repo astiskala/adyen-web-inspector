@@ -15,7 +15,7 @@ export function connectTabStateClient(
   return {
     read: (tabId) => tabState.read(tabId),
     requestScan: async (tabId): Promise<void> => {
-      tabState.requestScan(tabId).catch(() => {});
+      void tabState.requestScan(tabId).catch(() => {});
     },
     subscribe: (listener) =>
       browser.onNotify((message) => {

@@ -3,14 +3,18 @@ import { PAGE_GLOBALS } from '../../../src/shared/constants';
 import type { PageExtractResult } from '../../../src/shared/types';
 
 const pageGlobals = globalThis as unknown as Record<string, unknown>;
-/** Shaped like an Adyen API key (`AQ…==-…=-…`) without being one. */
+/**
+Shaped like an Adyen API key (`AQ…==-…=-…`) without being one.
+ */
 const FAKE_API_KEY = `AQE${'x'.repeat(40)}==-${'y'.repeat(12)}=-${'z'.repeat(6)}`;
 
 interface VnodeElement extends Element {
   __k?: unknown;
 }
 
-/** Runs the page extractor in the current document and reads back the result it publishes. */
+/**
+Runs the page extractor in the current document and reads back the result it publishes.
+ */
 async function extractPage(): Promise<PageExtractResult> {
   vi.resetModules();
   await import('../../../src/content/page-extractor');
@@ -19,7 +23,9 @@ async function extractPage(): Promise<PageExtractResult> {
   return JSON.parse(json) as PageExtractResult;
 }
 
-/** Wraps a vnode in `depth` parent vnodes. */
+/**
+Wraps a vnode in `depth` parent vnodes.
+ */
 function nestVnode(depth: number, vnode: unknown): unknown {
   let tree = vnode;
   for (let level = 0; level < depth; level += 1) tree = { __k: tree };
@@ -30,7 +36,9 @@ function coreOptions(options: unknown): unknown {
   return { __c: { props: { core: { options } } } };
 }
 
-/** Mounts markup whose outer element carries a Preact vnode tree, like a mounted Adyen Web root. */
+/**
+Mounts markup whose outer element carries a Preact vnode tree, like a mounted Adyen Web root.
+ */
 function mountTree(markup: string, tree: unknown, parent: ParentNode = document.body): Element {
   const mount = document.createElement('div');
   mount.innerHTML = markup;
@@ -92,6 +100,18 @@ describe('page extractor', () => {
       pageJsonConfig: { countryCode: 'NL' },
       checkoutInitCount: 2,
     });
+  });
+
+  it('publishes the component events of the capture record when there are any', async () => {
+    const events = {
+      rendered: [{ type: 'paypal', showPayButton: false }],
+      paymentMethods: ['paypal'],
+    };
+    pageGlobals[PAGE_GLOBALS.checkoutCapture] = { events };
+    await expect(extractPage()).resolves.toMatchObject({ analyticsEvents: events });
+
+    pageGlobals[PAGE_GLOBALS.checkoutCapture] = { events: { rendered: [], paymentMethods: [] } };
+    await expect(extractPage()).resolves.not.toHaveProperty('analyticsEvents');
   });
 
   it('tolerates a capture record that page scripts overwrote', async () => {
@@ -225,6 +245,21 @@ describe('page extractor mounted component configuration', () => {
     });
   });
 
+  it("reads Drop-in's per-method configuration from the props that carry the core", async () => {
+    mountTree('<div class="adyen-checkout__dropin"></div>', {
+      __c: {
+        props: {
+          core: { options: { showPayButton: true } },
+          paymentMethodsConfiguration: { paypal: { showPayButton: false } },
+        },
+      },
+    });
+
+    await expect(extractPage()).resolves.toMatchObject({
+      componentConfig: { showPayButton: true, hiddenPayButtonMethods: ['paypal'] },
+    });
+  });
+
   it('finds mounts inside shadow roots and merges them, earlier mounts winning', async () => {
     mountTree('<div class="adyen-checkout__card-input"></div>', coreOptions({ locale: 'nl-NL' }));
     const host = document.createElement('div');
@@ -339,7 +374,9 @@ describe('page extractor styling', () => {
 
   it('keeps at most five sample override selectors', async () => {
     addStyleSheet(
-      Array.from({ length: 7 }, (_, i) => `.adyen-checkout__el${i} { color: red; }`).join('\n')
+      Array.from({ length: 7 }, (_, index) => `.adyen-checkout__el${index} { color: red; }`).join(
+        '\n'
+      )
     );
 
     const { adyenStyles } = await extractPage();
@@ -350,7 +387,9 @@ describe('page extractor styling', () => {
 
   it("skips Adyen's own stylesheets and cross-origin sheets", async () => {
     const bundled = addStyleSheet(
-      Array.from({ length: 50 }, (_, i) => `.adyen-checkout__sdk${i} { color: red; }`).join('\n')
+      Array.from({ length: 50 }, (_, index) => `.adyen-checkout__sdk${index} { color: red; }`).join(
+        '\n'
+      )
     );
     const merchant = addStyleSheet('.adyen-checkout__merchant { color: red; }');
     const cdn = {

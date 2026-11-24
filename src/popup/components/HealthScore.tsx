@@ -5,7 +5,7 @@ import { cssModule } from './css-module.js';
 
 const s = cssModule(styles);
 
-interface Props {
+interface Properties {
   readonly result: ScanResult;
 }
 
@@ -20,7 +20,7 @@ const TIER_CLASSES: Readonly<
 /**
  * Displays the scan health score, pass ratio, and progress bar indicator.
  */
-export function HealthScore({ result }: Props): JSX.Element {
+export function HealthScore({ result }: Properties): JSX.Element {
   const { score, passing, total, tier } = result.health;
   const scoreClass = s(TIER_CLASSES[tier].score);
   const fillClasses = `${s('fill')} ${s(TIER_CLASSES[tier].fill)}`;

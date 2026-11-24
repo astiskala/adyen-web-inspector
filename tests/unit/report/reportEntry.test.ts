@@ -4,10 +4,14 @@ import { makeScanResult } from '../../fixtures/makeScanPayload';
 
 const TOKEN = 'report-token';
 
-let session: { get: ReturnType<typeof vi.fn>; remove: ReturnType<typeof vi.fn> };
-let print: ReturnType<typeof vi.fn>;
+const harness = {} as {
+  session: { get: ReturnType<typeof vi.fn>; remove: ReturnType<typeof vi.fn> };
+  print: ReturnType<typeof vi.fn>;
+};
 
-/** Opens the report page for a token (or none) and waits for it to finish loading. */
+/**
+Opens the report page for a token (or none) and waits for it to finish loading.
+ */
 async function openReport(token: string | null): Promise<void> {
   const query = token === null ? '' : `?${PDF_REPORT_TOKEN_PARAM}=${token}`;
   history.replaceState(null, '', `/report/report.html${query}`);
@@ -16,23 +20,26 @@ async function openReport(token: string | null): Promise<void> {
 }
 
 function storeResult(value: unknown): void {
-  session.get.mockResolvedValue({ [getPdfReportStorageKey(TOKEN)]: value });
+  harness.session.get.mockResolvedValue({ [getPdfReportStorageKey(TOKEN)]: value });
 }
 
 beforeEach(() => {
   document.head.replaceChildren();
   document.body.replaceChildren();
-  session = { get: vi.fn().mockResolvedValue({}), remove: vi.fn().mockResolvedValue(undefined) };
-  print = vi.fn();
+  harness.session = {
+    get: vi.fn().mockResolvedValue({}),
+    remove: vi.fn().mockResolvedValue(undefined),
+  };
+  harness.print = vi.fn();
   vi.stubGlobal('chrome', {
-    storage: { session },
+    storage: { session: harness.session },
     runtime: { getManifest: () => ({ version: '1.4.0' }) },
   });
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
     callback(0);
     return 0;
   });
-  vi.stubGlobal('print', print);
+  vi.stubGlobal('print', harness.print);
   vi.stubGlobal('focus', vi.fn());
 });
 
@@ -46,19 +53,19 @@ describe('report page', () => {
 
     await openReport(TOKEN);
 
-    expect(session.remove).toHaveBeenCalledWith(getPdfReportStorageKey(TOKEN));
+    expect(harness.session.remove).toHaveBeenCalledWith(getPdfReportStorageKey(TOKEN));
     expect(document.documentElement.lang).toBe('en');
     expect(document.body.textContent).toContain('https://merchant.example/checkout');
-    expect(print).toHaveBeenCalledTimes(1);
+    expect(harness.print).toHaveBeenCalledTimes(1);
   });
 
   it('still renders when the stored result cannot be removed', async () => {
     storeResult(makeScanResult());
-    session.remove.mockRejectedValue(new Error('storage gone'));
+    harness.session.remove.mockRejectedValue(new Error('storage gone'));
 
     await openReport(TOKEN);
 
-    expect(print).toHaveBeenCalledTimes(1);
+    expect(harness.print).toHaveBeenCalledTimes(1);
   });
 
   it.each([
@@ -69,7 +76,7 @@ describe('report page', () => {
 
     expect(document.title).toBe('Adyen Web Inspector - PDF Export Failed');
     expect(document.body.textContent).toContain('missing its report token');
-    expect(print).not.toHaveBeenCalled();
+    expect(harness.print).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -84,7 +91,7 @@ describe('report page', () => {
   });
 
   it('explains export data that storage could not read', async () => {
-    session.get.mockRejectedValue(new Error('storage gone'));
+    harness.session.get.mockRejectedValue(new Error('storage gone'));
 
     await openReport(TOKEN);
 
@@ -105,6 +112,6 @@ describe('report page', () => {
     await openReport(TOKEN);
 
     expect(document.body.textContent).toContain('An unexpected error occurred');
-    expect(print).not.toHaveBeenCalled();
+    expect(harness.print).not.toHaveBeenCalled();
   });
 });

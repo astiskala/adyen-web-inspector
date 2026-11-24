@@ -5,10 +5,9 @@ import {
   makeAdyenPayload,
   makeHeader,
   makeCheckoutPage,
-  makeCheckoutConfig,
   makeAdyenMetadata,
   makeRequest,
-  makeCapturedConfig,
+  makeCapturedCheckoutConfig,
   makeDocumentHeaders,
   UNAVAILABLE_DOCUMENT_HEADERS,
 } from '../../fixtures/makeScanPayload';
@@ -37,9 +36,7 @@ describe('Security Checks', () => {
       const page = makeCheckoutPage({
         pageProtocol: 'http:',
         pageUrl: 'http://example.com',
-        capturedConfig: makeCapturedConfig(
-          makeCheckoutConfig({ clientKey: 'live_XXXX', environment: 'live' })
-        ),
+        capturedConfig: makeCapturedCheckoutConfig({ clientKey: 'live_XXXX', environment: 'live' }),
         adyenMetadata: makeAdyenMetadata(),
       });
       expect(securityHttps.run(makeScanPayload({ page })).severity).toBe('fail');
@@ -48,9 +45,10 @@ describe('Security Checks', () => {
     it('fails when India live environment is served over http', () => {
       const page = makeCheckoutPage({
         pageProtocol: 'http:',
-        capturedConfig: makeCapturedConfig(
-          makeCheckoutConfig({ environment: 'live-in', clientKey: 'live_XXXX' })
-        ),
+        capturedConfig: makeCapturedCheckoutConfig({
+          environment: 'live-in',
+          clientKey: 'live_XXXX',
+        }),
       });
       expect(securityHttps.run(makeScanPayload({ page })).severity).toBe('fail');
     });
