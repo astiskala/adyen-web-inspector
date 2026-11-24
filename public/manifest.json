@@ -10,7 +10,7 @@
     "48": "assets/icon-48.png",
     "128": "assets/icon-128.png"
   },
-  "permissions": ["activeTab", "scripting", "webRequest", "storage", "declarativeContent"],
+  "permissions": ["activeTab", "scripting", "webRequest", "storage"],
   "host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "worker.js",
@@ -40,11 +40,5 @@
       "48": "assets/icon-48.png"
     }
   },
-  "devtools_page": "devtools/devtools.html",
-  "web_accessible_resources": [
-    {
-      "resources": ["page-extractor.js"],
-      "matches": ["<all_urls>"]
-    }
-  ]
+  "devtools_page": "devtools/devtools.html"
 }

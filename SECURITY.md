@@ -34,11 +34,13 @@ You should receive an acknowledgement within 48 hours. A fix will be prioritised
 
 ### Permissions
 
-The extension requests `host_permissions: ["<all_urls>"]` because it needs to inspect arbitrary merchant checkout pages. This is required by the current design, which uses `chrome.webRequest` and `chrome.scripting` across any scanned checkout origin.
+The extension requests `host_permissions: ["<all_urls>"]` because it needs to inspect arbitrary merchant checkout pages. This is required by the current design, which uses `chrome.webRequest` and `chrome.scripting` across any scanned checkout origin. The other permissions are `scripting` (page extraction), `webRequest` (passive observation during a scan), `storage` (session tab state and the npm version cache), and `activeTab`, which keeps the toolbar scan working when a user restricts the extension's site access to "on click".
+
+The extension declares no web-accessible resources, so pages cannot load or fingerprint its files. The service worker accepts checkout activity reports only from tabs, and scan requests and tab state reads only from the extension's own pages, because a compromised page renderer can forge content script messages.
 
 ### Content Security
 
-- The config interceptor (`config-interceptor.ts`) runs in all matching frames in the MAIN world at `document_start`, including before a scan. It wraps Adyen globals and page `fetch`, `XMLHttpRequest.open`, and `JSON.parse` to capture checkout settings and infer values from request URLs/parsed objects. It attaches a handler to promises returned by wrapped checkout factories; it does **not** wrap `Promise.prototype.then`. It stores selected fields on page globals, does not read request bodies or initiate network requests, and does not modify the DOM.
+- The config interceptor (`config-interceptor.ts`) runs in all matching frames in the MAIN world at `document_start`, including before a scan. It wraps Adyen globals and page `fetch`, `XMLHttpRequest.open`, and `JSON.parse` to capture checkout settings and infer values from request URLs/parsed objects. It attaches a handler to promises returned by wrapped checkout factories; it does **not** wrap `Promise.prototype.then`. It stores selected fields on page globals, reads only string request bodies sent to Adyen checkout analytics hosts (keeping their SDK fields and component events), initiates no network requests, and does not modify the DOM.
 - The page-world extractor (`page-extractor.ts`) runs via `chrome.scripting.executeScript` with `world: "MAIN"` during a scan — it reads globals, DOM elements, stylesheets, and resource timing in accessible frames but does not modify the page DOM.
 - The passive detector (`detector.ts`) uses lightweight DOM selectors and route/mutation listeners to report checkout activity (mounted Drop-in, Components, or Adyen iframes) before a scan; it does not execute remote code or make network calls.
 - Content scripts are bundled at build time into self-contained classic scripts; the build fails if a bundle would need to load another module, and no content script loads code at runtime.
@@ -47,7 +49,7 @@ The extension requests `host_permissions: ["<all_urls>"]` because it needs to in
 
 ### Storage
 
-- Per-tab scan results and the detector's checkout activity flag are stored in `chrome.storage.session` and cleared on tab close or navigation start.
+- Per-tab scan results and the detector's checkout activity flag are stored in `chrome.storage.session` and cleared on tab close or navigation start, including same-document navigations; the detector then reports again for the page now showing.
 - Latest npm version cache is stored in `chrome.storage.local` with a 24-hour TTL.
 
 ### Dependencies
