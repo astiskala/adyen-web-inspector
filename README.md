@@ -55,7 +55,7 @@ The popup hides scan controls when it detects an SDK version below v6; the DevTo
 ### Known limitations
 
 - The page extraction runs in the page's own JavaScript context, so a page can make its scan report anything; a scan describes what the page shows, not a verified integration.
-- To capture CDN integrations, the config interceptor defines `AdyenCheckout` and `AdyenWeb` as accessor properties on `window` before the page runs. Their values stay `undefined` until the SDK assigns them, but `'AdyenCheckout' in window` is `true` from the start, so page code that tests for the SDK with `in` rather than by value can wrongly conclude it is loaded.
+- To capture CDN integrations, the config interceptor defines `AdyenCheckout`, `AdyenWeb`, and the AMD `define` as accessor properties on `window` before the page runs. Their values stay `undefined` until the SDK assigns them, but `'AdyenCheckout' in window` is `true` from the start, so page code that tests for the SDK with `in` rather than by value can wrongly conclude it is loaded.
 - Scan results are kept in extension session storage (10 MB). Scanning a very large number of tabs in one browser session can exhaust it, and further scans then report a storage error until tabs are closed.
 
 ## Quality Commands
