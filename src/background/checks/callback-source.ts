@@ -21,6 +21,9 @@ const PAYMENT_METHOD_SELECTOR_PATTERN =
   /\bpaymentMethod(?:\?\.)?\.type\b|\bpaymentMethod\s*\[\s*['"]type['"]\s*\]/;
 const ACTION_CODE_SELECTOR_PATTERN =
   /\bresultCode\b|\baction(?:\?\.)?\.type\b|\baction\s*\[\s*['"]type['"]\s*\]/;
+/** Code that resolves the submission itself or hands `actions` to code that does. */
+const RESOLUTION_HANDOFF_PATTERN = /\bactions\b|\bcomponent\.handleAction\(/;
+const EXIT_PATTERN = /\b(?:return|throw)\b/;
 
 const WHITESPACE_CHARS: ReadonlySet<string | undefined> = new Set([' ', '\n', '\r', '\t', '\f']);
 
@@ -111,6 +114,16 @@ function parseSwitchStatement(source: string, switchStart: number): ParsedSwitch
   };
 }
 
+/**
+ * A selective branch leaves submissions unhandled when no code after it
+ * resolves them, or when it exits without resolving its own. A branch that
+ * only adjusts data falls through to the resolution after it.
+ */
+function leavesSubmissionsUnhandled(branch: string, codeAfter: string): boolean {
+  if (!RESOLUTION_HANDOFF_PATTERN.test(codeAfter)) return true;
+  return EXIT_PATTERN.test(branch) && !RESOLUTION_HANDOFF_PATTERN.test(branch);
+}
+
 function hasStringCasesWithoutDefault(switchBlock: string): boolean {
   const hasStringCases = /\bcase\s*['"`][^'"`\n]+['"`]\s*:/.test(switchBlock);
   const hasDefaultCase = /\bdefault\s*:/.test(switchBlock);
@@ -135,7 +148,15 @@ function hasUnhandledSelectorIfStatement(source: string, selectorPattern: RegExp
       if (statementEnd === -1) return false;
 
       const trailingTokenStart = skipWhitespace(source, statementEnd + 1);
-      if (!source.startsWith('else', trailingTokenStart)) return true;
+      if (
+        !source.startsWith('else', trailingTokenStart) &&
+        leavesSubmissionsUnhandled(
+          source.slice(statementStart, statementEnd + 1),
+          source.slice(statementEnd + 1)
+        )
+      ) {
+        return true;
+      }
     }
 
     ifPattern.lastIndex = conditionEnd + 1;
@@ -157,7 +178,8 @@ function hasUnhandledSelectorSwitchStatement(source: string, selectorPattern: Re
       parsed.condition !== undefined &&
       parsed.block !== undefined &&
       selectorPattern.test(parsed.condition) &&
-      hasStringCasesWithoutDefault(parsed.block)
+      hasStringCasesWithoutDefault(parsed.block) &&
+      leavesSubmissionsUnhandled(parsed.block, source.slice(parsed.nextSearchIndex))
     ) {
       return true;
     }
@@ -171,7 +193,8 @@ function hasUnhandledSelectorSwitchStatement(source: string, selectorPattern: Re
 
 /**
  * Detects onSubmit branches that select specific payment methods or action
- * codes without an else or default fallback.
+ * codes without an else or default fallback, when other submissions cannot
+ * reach a resolution after them.
  */
 function detectUnhandledOnSubmitFilters(source: string): UnhandledOnSubmitFilters {
   return {

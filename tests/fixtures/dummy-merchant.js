@@ -274,22 +274,40 @@ async function runScenario() {
     button.id = 'pay-button';
     button.textContent = 'Pay';
     globalThis.document.querySelector('#checkout').append(button);
-    await mountCheckout(
-      {
-        ...baseConfig,
-        onSubmit(state, _component, actions) {
-          if (state.data.paymentMethod.type === 'paypal') {
-            actions.resolve({ resultCode: 'Authorised' });
-          }
-        },
-        beforeSubmit() {
-          const payButton = globalThis.document.querySelector('#pay-button');
-          payButton.disabled = true;
-        },
+    const checkout = await globalThis.AdyenWeb.AdyenCheckout({
+      ...baseConfig,
+      analytics: { enabled: true },
+      showPayButton: false,
+      onSubmit(state, _component, actions) {
+        if (state.data.paymentMethod.type === 'paypal') {
+          actions.resolve({ resultCode: 'Authorised' });
+        }
       },
-      'card'
-    );
-    await globalThis.fetch('https://checkout-test.adyen.com/v71/paymentMethods?variant=paypal');
+      beforeSubmit() {
+        const payButton = globalThis.document.querySelector('#pay-button');
+        payButton.disabled = true;
+      },
+    });
+    new globalThis.AdyenWeb.Card(checkout).mount('#checkout');
+    new globalThis.AdyenWeb.PayPal(checkout).mount('#checkout');
+  } else if (scenario === 'selective-onsubmit') {
+    const checkout = await globalThis.AdyenWeb.AdyenCheckout({
+      ...baseConfig,
+      analytics: { enabled: true },
+      async onSubmit(state, _component, actions) {
+        if (state.data.paymentMethod.type === 'scheme') {
+          state.data.storePaymentMethod = true;
+        }
+        const response = await globalThis.fetch('/api/payments', {
+          method: 'POST',
+          body: globalThis.JSON.stringify(state.data),
+        });
+        actions.resolve(await response.json());
+      },
+      onAdditionalDetails() {},
+    });
+    new globalThis.AdyenWeb.Card(checkout).mount('#checkout');
+    new globalThis.AdyenWeb.PayPal(checkout).mount('#checkout');
   } else if (scenario === 'exposed-decoy') {
     await mountCheckout(baseConfig, 'card');
     const decoy = `AQ${'A'.repeat(24)}==-${'B'.repeat(24)}=-${'C'.repeat(24)}`;

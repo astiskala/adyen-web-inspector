@@ -145,8 +145,6 @@ export interface AnalyticsData {
   readonly locale?: string;
   /** Session ID — presence indicates Sessions integration flow. */
   readonly sessionId?: string;
-  /** Payment method variants detected in analytics. */
-  readonly variants?: string[];
 }
 
 // ─── Page Extraction Result ───────────────────────────────────────────────────
@@ -198,6 +196,24 @@ export interface CapturedCheckoutOptions {
 /** The partial signal an inferred configuration value was read from. */
 export type InferenceSignal = 'adyen-request' | 'page-json';
 
+/** A component's latest analytics `rendered` event that reported its pay button. */
+export interface RenderedComponent {
+  /** Component type, such as `paypal`, `scheme`, or `dropin`. */
+  readonly type: string;
+  /** The showPayButton value the component rendered with, after inheriting AdyenCheckout's. */
+  readonly showPayButton: boolean;
+  /** True when the component was rendered with `_disableClickToPay: true`. */
+  readonly clickToPayDisabled?: true;
+}
+
+/** What Adyen Web's own analytics events reported about the page's components. */
+export interface AnalyticsComponentEvents {
+  /** The latest `rendered` event per component type, oldest first. */
+  readonly rendered: readonly RenderedComponent[];
+  /** Component types any info event named, and the payment methods Drop-in listed as available. */
+  readonly paymentMethods: readonly string[];
+}
+
 /**
  * The capture record: everything the config interceptor observed in one
  * frame, published on a page global for the page extractor.
@@ -208,6 +224,8 @@ export interface CheckoutCapture {
   readonly inferred: Readonly<Partial<Record<InferenceSignal, CheckoutConfig>>>;
   /** Number of AdyenCheckout initialisations. */
   readonly initCount: number;
+  /** Component events read from the page's Adyen checkout analytics requests. */
+  readonly events: AnalyticsComponentEvents;
 }
 
 /** One frame's page extraction, produced by the page extractor in each accessible frame. */
@@ -223,6 +241,8 @@ export interface PageExtractResult {
   readonly componentConfig: CheckoutConfig | null;
   /** Number of vnode mount points whose trees exposed Adyen core options. */
   readonly componentMountCount?: number;
+  /** Component events from Adyen checkout analytics requests; absent when none were read. */
+  readonly analyticsEvents?: AnalyticsComponentEvents;
   /** True when a `.adyen-checkout__dropin` element is present in the DOM. */
   readonly hasDropinDOM?: boolean;
   /** True when a `.adyen-checkout__card-input` Card component element is present. */
@@ -255,6 +275,7 @@ type MergedFrameField =
   | 'inferredConfig'
   | 'pageJsonConfig'
   | 'componentConfig'
+  | 'analyticsEvents'
   | 'hasDropinDOM'
   | 'hasCardDOM'
   | 'hasNewCardFormDOM'
@@ -278,6 +299,8 @@ export interface CheckoutPage extends Omit<PageExtractResult, MergedFrameField> 
   readonly pageJsonConfig: CheckoutConfig | null;
   /** All frames; earlier frames win per field. */
   readonly componentConfig: CheckoutConfig | null;
+  /** All frames; earlier frames win per rendered component type, and payment methods are combined. */
+  readonly analyticsEvents?: AnalyticsComponentEvents;
   /** Selected frame or any merchant frame: a `.adyen-checkout__dropin` element is present. */
   readonly hasDropinDOM?: boolean;
   /** Selected frame or any merchant frame: a `.adyen-checkout__card-input` Card element is present. */
@@ -323,6 +346,10 @@ export interface CheckoutConfig {
   readonly hasSession?: boolean;
   /** When true, Adyen Web performs redirects in the top-level window when checkout runs in an iframe. */
   readonly redirectFromTopWhenInIframe?: boolean;
+  /** AdyenCheckout-level showPayButton, which every component inherits unless it sets its own. */
+  readonly showPayButton?: boolean;
+  /** Payment method types whose `paymentMethodsConfiguration` entry sets `showPayButton: false`. */
+  readonly hiddenPayButtonMethods?: readonly string[];
   // ─── v6 Deprecated Properties ───────────────────────────────────────────────
   /** Deprecated in v6: use disableFinalAnimation instead. */
   readonly setStatusAutomatically?: boolean;

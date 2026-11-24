@@ -79,6 +79,35 @@ describe('readCheckoutOptions', () => {
     ).toEqual({ redirectFromTopWhenInIframe: true });
   });
 
+  it('reads showPayButton only from AdyenCheckout options, where it applies to every component', () => {
+    expect(readCheckoutOptions({ showPayButton: false }, 'checkout')).toEqual({
+      showPayButton: false,
+    });
+    expect(readCheckoutOptions({ showPayButton: false }, 'component')).toEqual({});
+    expect(readCheckoutOptions({ showPayButton: 'no' }, 'checkout')).toEqual({});
+  });
+
+  it('lists the payment methods whose paymentMethodsConfiguration hides the pay button', () => {
+    expect(
+      readCheckoutOptions(
+        {
+          paymentMethodsConfiguration: {
+            paypal: { showPayButton: false },
+            klarna_account: { showPayButton: false },
+            card: { showPayButton: true },
+            ideal: { showImage: false },
+            scheme: null,
+          },
+        },
+        'component'
+      )
+    ).toEqual({ hiddenPayButtonMethods: ['paypal', 'klarna_account'] });
+    expect(readCheckoutOptions({ paymentMethodsConfiguration: { card: {} } }, 'checkout')).toEqual(
+      {}
+    );
+    expect(readCheckoutOptions({ paymentMethodsConfiguration: 'none' }, 'checkout')).toEqual({});
+  });
+
   it('records callback placement and callback source', () => {
     const config = readCheckoutOptions(
       {

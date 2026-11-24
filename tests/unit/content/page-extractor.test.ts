@@ -94,6 +94,18 @@ describe('page extractor', () => {
     });
   });
 
+  it('publishes the component events of the capture record when there are any', async () => {
+    const events = {
+      rendered: [{ type: 'paypal', showPayButton: false }],
+      paymentMethods: ['paypal'],
+    };
+    pageGlobals[PAGE_GLOBALS.checkoutCapture] = { events };
+    await expect(extractPage()).resolves.toMatchObject({ analyticsEvents: events });
+
+    pageGlobals[PAGE_GLOBALS.checkoutCapture] = { events: { rendered: [], paymentMethods: [] } };
+    await expect(extractPage()).resolves.not.toHaveProperty('analyticsEvents');
+  });
+
   it('tolerates a capture record that page scripts overwrote', async () => {
     pageGlobals[PAGE_GLOBALS.checkoutCapture] = {
       captured: { options: 'x' },
@@ -222,6 +234,21 @@ describe('page extractor mounted component configuration', () => {
     await expect(extractPage()).resolves.toMatchObject({
       componentConfig: { clientKey: 'test_TREE', locale: 'nl-NL', analyticsEnabled: false },
       componentMountCount: 1,
+    });
+  });
+
+  it("reads Drop-in's per-method configuration from the props that carry the core", async () => {
+    mountTree('<div class="adyen-checkout__dropin"></div>', {
+      __c: {
+        props: {
+          core: { options: { showPayButton: true } },
+          paymentMethodsConfiguration: { paypal: { showPayButton: false } },
+        },
+      },
+    });
+
+    await expect(extractPage()).resolves.toMatchObject({
+      componentConfig: { showPayButton: true, hiddenPayButtonMethods: ['paypal'] },
     });
   });
 

@@ -33,6 +33,7 @@ const FIELD_SCOPE = {
   inferredConfig: 'all-frames',
   pageJsonConfig: 'all-frames',
   componentConfig: 'all-frames',
+  analyticsEvents: 'all-frames',
   componentMountCount: 'selected',
   hasDropinDOM: 'selected-or-merchant',
   hasCardDOM: 'selected-or-merchant',
@@ -114,6 +115,23 @@ function mergeCaptured(frames: readonly PageExtractResult[]): CapturedCheckoutOp
     : { options, complete: captures.some((capture) => capture.complete) };
 }
 
+/** Combines analytics component events; earlier frames win per rendered component type. */
+function mergeAnalyticsEvents(
+  frames: readonly PageExtractResult[]
+): Pick<CheckoutPage, 'analyticsEvents'> {
+  const summaries = frames.flatMap((frame) => frame.analyticsEvents ?? []);
+  if (summaries.length === 0) return {};
+  const rendered = summaries.flatMap((summary) => summary.rendered);
+  return {
+    analyticsEvents: {
+      rendered: rendered.filter(
+        (component, index) => rendered.findIndex(({ type }) => type === component.type) === index
+      ),
+      paymentMethods: [...new Set(summaries.flatMap((summary) => summary.paymentMethods))],
+    },
+  };
+}
+
 function mergeMerchantFlags(
   selected: PageExtractResult,
   merchantFrames: readonly PageExtractResult[]
@@ -155,6 +173,7 @@ export function mergeFrames(frames: readonly FrameExtraction[]): CheckoutPage | 
     componentConfig: mergeSlot(results, 'componentConfig'),
     inferredConfig: mergeSlot(results, 'inferredConfig'),
     pageJsonConfig: mergeSlot(results, 'pageJsonConfig'),
+    ...mergeAnalyticsEvents(results),
     ...mergeMerchantFlags(
       selected.result,
       merchantFrames.map((frame) => frame.result)
