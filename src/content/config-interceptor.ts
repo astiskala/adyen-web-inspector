@@ -230,8 +230,13 @@ import type { CallbackSource, CheckoutCapture } from '../shared/types.js';
     return typeof value === 'function' && !wrapped.has(value);
   }
 
+  const wrappedNamespaces = new WeakSet<object>();
+
   function wrapNamespace(namespace: unknown): void {
-    if (namespace === null || typeof namespace !== 'object') return;
+    if (namespace === null || typeof namespace !== 'object' || wrappedNamespaces.has(namespace)) {
+      return;
+    }
+    wrappedNamespaces.add(namespace);
     const record = namespace as PlainRecord;
     for (const [key, value] of Object.entries(record)) {
       if (isUnwrappedFunction(value)) {
@@ -243,9 +248,28 @@ import type { CallbackSource, CheckoutCapture } from '../shared/types.js';
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // SDK globals (UMD/CDN builds)
+  // ---------------------------------------------------------------------------
+
+  function wrapCheckoutGlobal(value: unknown): unknown {
+    return isUnwrappedFunction(value) ? wrapCheckoutFactory(value) : value;
+  }
+
+  function wrapNamespaceGlobal(value: unknown): unknown {
+    wrapNamespace(value);
+    return value;
+  }
+
+  /**
+  Traps assignment to an SDK global, so a factory is wrapped the moment a
+  script defines it, even when the same script calls it straight away, as in
+  a bundle that concatenates the SDK with the merchant's code.
+  */
   function trapGlobal(name: string, wrap: (value: unknown) => unknown): void {
-    let stored: unknown;
     attempt(() => {
+      // A frame can define the SDK before the interceptor runs; the trap keeps that value.
+      let stored = wrap(Reflect.get(globalThis, name));
       Object.defineProperty(globalThis, name, {
         get: () => stored,
         set: (value: unknown) => {
@@ -257,11 +281,39 @@ import type { CallbackSource, CheckoutCapture } from '../shared/types.js';
     });
   }
 
-  trapGlobal('AdyenCheckout', (value) =>
-    isUnwrappedFunction(value) ? wrapCheckoutFactory(value) : value
+  /**
+  Wraps SDK globals that bypassed the traps: a top-level function or var
+  declaration, or Object.defineProperty, replaces a trap or keeps it from
+  being installed. A global the page made read-only stays unwrapped.
+  */
+  function wrapSdkGlobals(): void {
+    attempt(() => {
+      const checkout: unknown = Reflect.get(globalThis, 'AdyenCheckout');
+      if (isUnwrappedFunction(checkout)) {
+        Reflect.set(globalThis, 'AdyenCheckout', wrapCheckoutGlobal(checkout));
+      }
+    });
+    attempt(() => {
+      wrapNamespace(Reflect.get(globalThis, 'AdyenWeb'));
+    });
+  }
+
+  trapGlobal('AdyenCheckout', wrapCheckoutGlobal);
+  trapGlobal('AdyenWeb', wrapNamespaceGlobal);
+  // A script's load event fires right after it runs and, in the capture phase,
+  // before its own onload handlers, so sync, async, deferred, and lazily
+  // inserted SDK scripts are wrapped before merchant code can call them.
+  document.addEventListener('load', wrapSdkGlobals, true);
+  // The parser runs microtasks before each script it inserts, so mutation
+  // callbacks also wrap an SDK defined by an earlier inline script.
+  const parserObserver = new MutationObserver(wrapSdkGlobals);
+  parserObserver.observe(document, { childList: true, subtree: true });
+  document.addEventListener(
+    'DOMContentLoaded',
+    () => {
+      parserObserver.disconnect();
+      wrapSdkGlobals();
+    },
+    { once: true }
   );
-  trapGlobal('AdyenWeb', (value) => {
-    wrapNamespace(value);
-    return value;
-  });
 })();

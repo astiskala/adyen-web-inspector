@@ -26,7 +26,13 @@ function getInferredConfig(signal: InferenceSignal = 'adyen-request'): CapturedC
   return getCapture()?.inferred[signal] as CapturedConfig | undefined;
 }
 
+/**
+Removes the listeners and observers earlier interceptor copies installed, so only the current copy reacts.
+*/
+const cleanups: (() => void)[] = [];
+
 function resetGlobals(): void {
+  for (const cleanup of cleanups.splice(0)) cleanup();
   const g = globalThis as unknown as Record<string, unknown>;
   Reflect.deleteProperty(g, CAPTURE_KEY);
   Reflect.deleteProperty(g, INSTALLED_KEY);
@@ -50,7 +56,32 @@ async function loadInterceptor(): Promise<void> {
   vi.stubGlobal('XMLHttpRequest', vi.fn());
   XMLHttpRequest.prototype.open = nativeOpen;
 
+  const addListener = vi.spyOn(document, 'addEventListener');
+  const observe = vi.spyOn(MutationObserver.prototype, 'observe');
   await import('../../../src/content/config-interceptor.js');
+  for (const [type, listener, options] of addListener.mock.calls) {
+    cleanups.push(() => {
+      document.removeEventListener(type, listener, options);
+    });
+  }
+  for (const observer of observe.mock.contexts) {
+    cleanups.push(() => {
+      (observer as MutationObserver).disconnect();
+    });
+  }
+  addListener.mockRestore();
+  observe.mockRestore();
+}
+
+/**
+Defines an SDK global as a CDN script would, then fires that script's load event.
+*/
+function loadSdkScript(name: 'AdyenCheckout' | 'AdyenWeb', value: unknown): void {
+  Reflect.set(globalThis, name, value);
+  const script = document.createElement('script');
+  document.head.append(script);
+  script.dispatchEvent(new Event('load'));
+  script.remove();
 }
 
 class Card {
@@ -65,7 +96,7 @@ function Dropin(_checkout: unknown, options: unknown): { options: unknown } {
 }
 
 function installAdyenCheckoutFactory(factory: CheckoutFactory): void {
-  Reflect.set(globalThis, 'AdyenCheckout', factory);
+  loadSdkScript('AdyenCheckout', factory);
 }
 
 function callAdyenCheckout(config: unknown): Promise<unknown> {
@@ -86,7 +117,7 @@ describe('config-interceptor', () => {
     resetGlobals();
   });
 
-  describe('Global property traps', () => {
+  describe('SDK globals', () => {
     it('captures full config from a resolved Adyen Core instance', async () => {
       const fakeCheckout = {
         create: (): void => {},
@@ -214,7 +245,7 @@ describe('config-interceptor', () => {
   describe('AdyenWeb namespace', () => {
     it('wraps the checkout factory and component constructors it exposes', async () => {
       const g = globalThis as unknown as Record<string, unknown>;
-      g['AdyenWeb'] = {
+      loadSdkScript('AdyenWeb', {
         AdyenCheckout: async (): Promise<unknown> => ({
           create: (): void => {},
           options: { clientKey: 'test_NS' },
@@ -222,7 +253,7 @@ describe('config-interceptor', () => {
         Card,
         Dropin,
         version: '6.31.0',
-      };
+      });
       const namespace = g['AdyenWeb'] as Record<string, unknown>;
 
       await (namespace['AdyenCheckout'] as CheckoutFactory)({ countryCode: 'NL' });
@@ -357,14 +388,14 @@ describe('config-interceptor', () => {
   });
 
   describe('checkout factory edge cases', () => {
-    it('stores non-function AdyenCheckout values and does not wrap a factory twice', async () => {
+    it('leaves non-function AdyenCheckout values alone and does not wrap a factory twice', async () => {
       const g = globalThis as unknown as Record<string, unknown>;
-      g['AdyenCheckout'] = { notAFactory: true };
+      loadSdkScript('AdyenCheckout', { notAFactory: true });
       expect(g['AdyenCheckout']).toEqual({ notAFactory: true });
 
       installAdyenCheckoutFactory(async () => null);
       const wrapped = g['AdyenCheckout'];
-      g['AdyenCheckout'] = wrapped;
+      loadSdkScript('AdyenCheckout', wrapped);
       expect(g['AdyenCheckout']).toBe(wrapped);
     });
 
@@ -475,7 +506,7 @@ describe('config-interceptor with SDK-shaped classes', () => {
   });
 
   function installNamespace(namespace: Record<string, unknown>): Record<string, unknown> {
-    g['AdyenWeb'] = namespace;
+    loadSdkScript('AdyenWeb', namespace);
     return g['AdyenWeb'] as Record<string, unknown>;
   }
 
@@ -537,7 +568,7 @@ describe('config-interceptor with SDK-shaped classes', () => {
         return {};
       }
     }
-    g['AdyenCheckout'] = LegacyCheckout;
+    loadSdkScript('AdyenCheckout', LegacyCheckout);
     const Checkout = g['AdyenCheckout'] as typeof LegacyCheckout;
 
     const checkout = new Checkout({ clientKey: 'test_V4' });
@@ -573,6 +604,114 @@ describe('config-interceptor installation and edge cases', () => {
 
   afterAll(() => {
     resetGlobals();
+  });
+
+  it('leaves SDK globals undefined until a script defines them', () => {
+    expect(typeof g['AdyenCheckout']).toBe('undefined');
+    expect(g['AdyenWeb']).toBeUndefined();
+  });
+
+  it('captures a bundle that defines the SDK and calls it in the same script', async () => {
+    g['AdyenCheckout'] = async (): Promise<unknown> => null;
+    await callAdyenCheckout({ countryCode: 'BE' });
+
+    expect(getCapturedConfig()).toEqual({ countryCode: 'BE' });
+  });
+
+  it('wraps an SDK global that replaced the trap once its script has loaded', async () => {
+    Object.defineProperty(globalThis, 'AdyenCheckout', {
+      value: async (): Promise<unknown> => null,
+      writable: true,
+      configurable: true,
+    });
+    const script = document.createElement('script');
+    document.head.append(script);
+    script.dispatchEvent(new Event('load'));
+
+    await callAdyenCheckout({ locale: 'it-IT' });
+    expect(getCapturedConfig()).toEqual({ locale: 'it-IT' });
+  });
+
+  it('leaves an SDK global the page made read-only unwrapped and working', async () => {
+    const factory = async (): Promise<unknown> => null;
+    Object.defineProperty(globalThis, 'AdyenCheckout', {
+      value: factory,
+      writable: false,
+      configurable: true,
+    });
+    const script = document.createElement('script');
+    document.head.append(script);
+    script.dispatchEvent(new Event('load'));
+
+    expect(g['AdyenCheckout']).toBe(factory);
+    await callAdyenCheckout({ locale: 'it-IT' });
+    expect(getCapture()).toBeUndefined();
+  });
+
+  it('wraps the SDK before the loading script runs its own onload handler', async () => {
+    let calledWith: unknown;
+    const script = document.createElement('script');
+    script.addEventListener('load', () => {
+      calledWith = g['AdyenCheckout'];
+      void callAdyenCheckout({ locale: 'nl-NL' });
+    });
+    document.head.append(script);
+    const factory = async (): Promise<unknown> => null;
+    g['AdyenCheckout'] = factory;
+
+    script.dispatchEvent(new Event('load'));
+    await Promise.resolve();
+
+    expect(calledWith).not.toBe(factory);
+    expect(getCapturedConfig()).toEqual({ locale: 'nl-NL' });
+  });
+
+  it('wraps an SDK an inline script declared before the parser inserts the next script', async () => {
+    // A top-level declaration replaces the trap with a plain data property.
+    Object.defineProperty(globalThis, 'AdyenCheckout', {
+      value: async (): Promise<unknown> => null,
+      writable: true,
+      configurable: true,
+      enumerable: true,
+    });
+    document.body.append(document.createElement('script'));
+    // Mutation callbacks run in the microtask checkpoint the parser performs before each script.
+    await Promise.resolve();
+
+    await callAdyenCheckout({ countryCode: 'NL' });
+    expect(getCapturedConfig()).toEqual({ countryCode: 'NL' });
+  });
+
+  it('stops observing the parser at DOMContentLoaded but still wraps lazily loaded SDK scripts', async () => {
+    document.dispatchEvent(new Event('DOMContentLoaded'));
+    const defineDirectly = (): void => {
+      Object.defineProperty(globalThis, 'AdyenCheckout', {
+        value: async (): Promise<unknown> => null,
+        writable: true,
+        configurable: true,
+      });
+    };
+    defineDirectly();
+    document.body.append(document.createElement('div'));
+    await Promise.resolve();
+    await callAdyenCheckout({ locale: 'en-US' });
+    expect(getCapture()).toBeUndefined();
+
+    defineDirectly();
+    const script = document.createElement('script');
+    document.head.append(script);
+    script.dispatchEvent(new Event('load'));
+    await callAdyenCheckout({ locale: 'fr-FR' });
+    expect(getCapturedConfig()).toEqual({ locale: 'fr-FR' });
+  });
+
+  it('wraps SDK globals already defined when the interceptor starts, as in a late frame', async () => {
+    resetGlobals();
+    g['AdyenCheckout'] = async (): Promise<unknown> => null;
+    await loadInterceptor();
+
+    await callAdyenCheckout({ locale: 'de-DE' });
+    expect(getCapturedConfig()).toEqual({ locale: 'de-DE' });
   });
 
   it('leaves page APIs alone when another copy is already installed', async () => {
@@ -616,7 +755,7 @@ describe('config-interceptor installation and edge cases', () => {
         this.checkout = checkout;
       }
     }
-    g['AdyenWeb'] = { Card: StaticCard };
+    loadSdkScript('AdyenWeb', { Card: StaticCard });
     const namespace = g['AdyenWeb'] as { Card: typeof StaticCard };
 
     const card = new namespace.Card({});
@@ -626,15 +765,15 @@ describe('config-interceptor installation and edge cases', () => {
     expect(getCapture()).toBeUndefined();
   });
 
-  it('stores AdyenWeb values that are not namespaces', () => {
-    g['AdyenWeb'] = undefined;
+  it('leaves AdyenWeb values that are not namespaces alone', () => {
+    loadSdkScript('AdyenWeb', undefined);
 
     expect(g['AdyenWeb']).toBeUndefined();
   });
 
   it('reads the instance a synchronous factory returns', () => {
     const instance = { create: (): void => {}, options: { clientKey: 'test_SYNC' } };
-    g['AdyenCheckout'] = (): unknown => instance;
+    loadSdkScript('AdyenCheckout', (): unknown => instance);
 
     (g['AdyenCheckout'] as (config: unknown) => unknown)({ countryCode: 'NL' });
 
@@ -643,7 +782,7 @@ describe('config-interceptor installation and edge cases', () => {
 
   it('leaves read-only namespaces, such as module namespace objects, unwrapped', () => {
     const namespace = Object.freeze({ Card: SdkCard });
-    g['AdyenWeb'] = namespace;
+    loadSdkScript('AdyenWeb', namespace);
 
     expect(g['AdyenWeb']).toBe(namespace);
     expect(namespace.Card).toBe(SdkCard);
