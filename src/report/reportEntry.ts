@@ -1,5 +1,7 @@
+import { h, render } from 'preact';
 import { chromeReportBrowser } from '../popup/components/chrome-report-browser.js';
 import { takePdfReport } from '../shared/report-export.js';
+import { Report } from './Report.js';
 
 function showError(message: string): void {
   document.title = 'Adyen Web Inspector - PDF Export Failed';
@@ -21,12 +23,10 @@ function showError(message: string): void {
   document.body.append(container);
 }
 
-function renderReportHtml(html: string): void {
-  const parsed = new DOMParser().parseFromString(html, 'text/html');
-  document.title = parsed.title;
-  document.documentElement.lang = parsed.documentElement.lang;
-  document.head.replaceChildren(...parsed.head.childNodes);
-  document.body.replaceChildren(...parsed.body.childNodes);
+function renderReport(report: Parameters<typeof Report>[0]): void {
+  document.body.replaceChildren();
+  render(h(Report, report), document.body);
+  document.title = `Adyen Web Inspector — ${report.result.pageUrl}`;
 }
 
 function triggerPrint(): void {
@@ -43,7 +43,7 @@ try {
   if ('error' in report) {
     showError(report.error);
   } else {
-    renderReportHtml(report.html);
+    renderReport(report);
     triggerPrint();
   }
 } catch {

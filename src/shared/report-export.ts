@@ -6,9 +6,8 @@ report data. Views and the report page reach the browser only through a
 `ReportBrowser`: Chrome in production, in memory in tests.
 */
 
-import { describeBrowser } from './export-metadata.js';
+import { describeBrowser, type ReportMetadata } from './export-metadata.js';
 import { buildJsonExport } from './export-json.js';
-import { buildPrintableHtml, type PrintableReportMetadata } from './export-pdf.js';
 import type { ScanResult } from './types.js';
 import { isScanResult } from './utilities.js';
 
@@ -59,15 +58,16 @@ export interface ReportBrowser {
 }
 
 /**
-What the report page shows: the printable HTML, or why it cannot.
+What the report page shows: the scan result with who exported it, or why it cannot.
 */
-type PdfReport = { readonly html: string } | { readonly error: string };
+type PdfReport =
+  { readonly result: ScanResult; readonly metadata: ReportMetadata } | { readonly error: string };
 
 function storageKey(token: string): string {
   return `${PDF_REPORT_STORAGE_PREFIX}${token}`;
 }
 
-function reportMetadata(browser: ReportBrowser): PrintableReportMetadata {
+function reportMetadata(browser: ReportBrowser): ReportMetadata {
   return { extensionVersion: browser.extensionVersion(), browser: describeBrowser() };
 }
 
@@ -89,8 +89,8 @@ export async function exportPdf(result: ScanResult, browser: ReportBrowser): Pro
 }
 
 /**
-Takes the result handed to the report page at this URL, once, and builds
-its printable HTML. Storage failures read as unavailable data.
+Takes the result handed to the report page at this URL, once, with the
+metadata the report prints. Storage failures read as unavailable data.
 */
 export async function takePdfReport(url: string, browser: ReportBrowser): Promise<PdfReport> {
   const token = new URL(url).searchParams.get(PDF_REPORT_TOKEN_PARAM);
@@ -99,7 +99,7 @@ export async function takePdfReport(url: string, browser: ReportBrowser): Promis
   const [stored] = await Promise.allSettled([browser.read(key)]);
   await Promise.allSettled([browser.remove(key)]);
   return stored.status === 'fulfilled' && isScanResult(stored.value)
-    ? { html: buildPrintableHtml(stored.value, reportMetadata(browser)) }
+    ? { result: stored.value, metadata: reportMetadata(browser) }
     : { error: MESSAGES.unavailable };
 }
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildJsonExport } from '../../../src/shared/export-json';
-import type { PrintableReportMetadata } from '../../../src/shared/export-pdf';
+import type { ReportMetadata } from '../../../src/shared/export-metadata';
 import type { CheckResult, ScanResult } from '../../../src/shared/types';
 import { makeScanPayload, makeScanResult } from '../../fixtures/makeScanPayload';
 
@@ -35,7 +35,7 @@ function makeCheck(overrides: Partial<CheckResult>): CheckResult {
 }
 
 describe('buildJsonExport', () => {
-  const metadata: PrintableReportMetadata = {
+  const metadata: ReportMetadata = {
     extensionVersion: '1.2.3',
     browser: 'Google Chrome 135.0.0.0 on macOS',
   };

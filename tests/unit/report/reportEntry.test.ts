@@ -68,7 +68,7 @@ describe('report page', () => {
     );
 
     expect(harness.storage.size).toBe(0);
-    expect(document.documentElement.lang).toBe('en');
+    expect(document.title).toBe('Adyen Web Inspector — https://merchant.example/checkout');
     expect(document.body.textContent).toContain('https://merchant.example/checkout');
     expect(harness.print).toHaveBeenCalledTimes(1);
   });

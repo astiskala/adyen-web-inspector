@@ -15,9 +15,10 @@ describe('PDF report handoff', () => {
     const report = await takePdfReport(url, browser);
 
     expect(url.startsWith(`${REPORT_PAGE}?`)).toBe(true);
-    const html = 'html' in report ? report.html : '';
-    expect(html).toContain('https://merchant.example/checkout');
-    expect(html).toContain('1.4.0');
+    expect(report).toMatchObject({
+      result: { pageUrl: 'https://merchant.example/checkout' },
+      metadata: { extensionVersion: '1.4.0' },
+    });
     expect(browser.storage.size).toBe(0);
     await expect(takePdfReport(url, browser)).resolves.toEqual({
       error: 'The export data was unavailable. Please rerun the scan and try again.',
@@ -44,7 +45,7 @@ describe('PDF report handoff', () => {
     await exportPdf(makeScanResult(), browser);
     browser.failing.add('remove');
 
-    await expect(takePdfReport(browser.opened[0] ?? '', browser)).resolves.toHaveProperty('html');
+    await expect(takePdfReport(browser.opened[0] ?? '', browser)).resolves.toHaveProperty('result');
   });
 
   it.each([REPORT_PAGE, `${REPORT_PAGE}?token=`])(

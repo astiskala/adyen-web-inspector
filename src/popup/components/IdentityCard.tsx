@@ -1,7 +1,6 @@
 import type { JSX } from 'preact';
 import type { AdyenEnvironment, ScanResult } from '../../shared/types.js';
-import { summarizeImplementation } from '../../shared/export-report.js';
-import { INTEGRATION_FLOW_LABELS } from '../../shared/constants.js';
+import { implementationRows, summarizeImplementation } from '../../shared/export-report.js';
 import styles from './IdentityCard.module.css';
 import { cssModule } from './css-module.js';
 
@@ -18,43 +17,28 @@ const ENVIRONMENT_BADGES: Readonly<Record<AdyenEnvironment | 'unknown', string>>
   unknown: 'badgeUnknown',
 };
 
+type Row = ReturnType<typeof implementationRows>[number];
+
+function valueClass(key: Row['key'], environment: AdyenEnvironment | 'unknown'): string {
+  if (key === 'environment') return `${s('badge')} ${s(ENVIRONMENT_BADGES[environment])}`;
+  return key === 'sdkVersion' ? `${s('value')} monospace` : s('value');
+}
+
 /**
 Shows derived implementation attributes for the current checkout page.
 */
 export function IdentityCard({ result }: Properties): JSX.Element {
-  const attributes = summarizeImplementation(result);
-  const environment = attributes.environment;
-  const isShowRegion = attributes.region !== null;
+  const summary = summarizeImplementation(result);
 
   return (
     <div class={s('card')}>
       <h2>Implementation Attributes</h2>
-      <div class={s('row')}>
-        <span class={s('label')}>Version</span>
-        <span class={`${s('value')} monospace`}>{attributes.sdkVersion}</span>
-      </div>
-      <div class={s('row')}>
-        <span class={s('label')}>Environment</span>
-        <span class={`${s('badge')} ${s(ENVIRONMENT_BADGES[environment])}`}>{environment}</span>
-      </div>
-      {isShowRegion && (
-        <div class={s('row')}>
-          <span class={s('label')}>Region</span>
-          <span class={s('value')}>{attributes.region}</span>
+      {implementationRows(summary).map((row) => (
+        <div key={row.key} class={s('row')}>
+          <span class={s('label')}>{row.label}</span>
+          <span class={valueClass(row.key, summary.environment)}>{row.value}</span>
         </div>
-      )}
-      <div class={s('row')}>
-        <span class={s('label')}>Flow</span>
-        <span class={s('value')}>{INTEGRATION_FLOW_LABELS[attributes.flow]}</span>
-      </div>
-      <div class={s('row')}>
-        <span class={s('label')}>Flavor</span>
-        <span class={s('value')}>{attributes.flavor}</span>
-      </div>
-      <div class={s('row')}>
-        <span class={s('label')}>Import</span>
-        <span class={s('value')}>{attributes.importMethod}</span>
-      </div>
+      ))}
     </div>
   );
 }

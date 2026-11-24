@@ -2,6 +2,14 @@
 Browser label for exported reports, read from the user agent client hints and string.
 */
 
+/**
+Who produced an exported report: the extension version and the browser label.
+*/
+export interface ReportMetadata {
+  readonly extensionVersion: string;
+  readonly browser: string;
+}
+
 interface NavigatorBrand {
   readonly brand: string;
   readonly version: string;

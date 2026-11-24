@@ -4,7 +4,8 @@ import {
   buildReportExportData,
   groupIssuesByImpact,
 } from '../../../src/shared/export-report';
-import { buildPrintableHtml } from '../../../src/shared/export-pdf';
+import { h, render } from 'preact';
+import { Report } from '../../../src/report/Report';
 import type { CheckResult, ScanResult } from '../../../src/shared/types';
 import { makeScanPayload, makeScanResult } from '../../fixtures/makeScanPayload';
 
@@ -139,14 +140,18 @@ describe('buildFindingProjection', () => {
     const grouped = buildFindingProjection(result).bestPractices.issueGroups;
     const projected = grouped.flatMap((group) => group.issues.map((issue) => issue.title));
     const exported = buildReportExportData(result).bestPractices.issues.map((issue) => issue.title);
-    const html = buildPrintableHtml(result, { extensionVersion: '1', browser: 'Test' });
-    const document = new DOMParser().parseFromString(html, 'text/html');
-    const heading = [...document.querySelectorAll('h2')].find(
+    const host = document.createElement('div');
+    render(h(Report, { result, metadata: { extensionVersion: '1', browser: 'Test' } }), host);
+    const heading = [...host.querySelectorAll('h2')].find(
       (element) => element.textContent === 'Best Practices'
     );
-    const rows =
-      heading?.nextElementSibling?.querySelectorAll(':scope tbody tr:not(.impact-row)') ?? [];
-    const printed = [...rows].map((row) => row.querySelector(':scope td + td')?.textContent.trim());
+    const rows = [
+      ...(heading?.nextElementSibling?.querySelectorAll<HTMLTableRowElement>(':scope tbody tr') ??
+        []),
+    ];
+    const printed = rows
+      .filter((row) => row.cells.length === 3)
+      .map((row) => row.cells[1]?.textContent.trim());
 
     expect(grouped.map((group) => group.label)).toEqual([
       'High impact',

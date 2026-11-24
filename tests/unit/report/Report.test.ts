@@ -1,6 +1,7 @@
+import { h, render } from 'preact';
 import { describe, expect, it } from 'vitest';
-import { buildPrintableHtml } from '../../../src/shared/export-pdf';
-import type { PrintableReportMetadata } from '../../../src/shared/export-pdf';
+import { Report } from '../../../src/report/Report';
+import type { ReportMetadata } from '../../../src/shared/export-metadata';
 import type { CheckResult, ScanResult } from '../../../src/shared/types';
 import {
   makeCheckoutPage,
@@ -27,6 +28,17 @@ function makeResult(overrides: Partial<ScanResult> = {}): ScanResult {
   });
 }
 
+const METADATA: ReportMetadata = {
+  extensionVersion: '1.2.3',
+  browser: 'Google Chrome 135.0.0.0 on macOS',
+};
+
+function renderReport(result: ScanResult): HTMLElement {
+  const host = document.createElement('div');
+  render(h(Report, { result, metadata: METADATA }), host);
+  return host;
+}
+
 function makeCheck(overrides: Partial<CheckResult>): CheckResult {
   return {
     id: 'auth-client-key',
@@ -38,12 +50,7 @@ function makeCheck(overrides: Partial<CheckResult>): CheckResult {
   };
 }
 
-describe('buildPrintableHtml', () => {
-  const metadata: PrintableReportMetadata = {
-    extensionVersion: '1.2.3',
-    browser: 'Google Chrome 135.0.0.0 on macOS',
-  };
-
+describe('Report', () => {
   it('escapes page-controlled values, including a forged request status', () => {
     const hostile = '"><img src=x onerror=alert(1)>';
     const page = makeCheckoutPage({
@@ -66,10 +73,9 @@ describe('buildPrintableHtml', () => {
       }),
     });
 
-    const html = buildPrintableHtml(result, metadata);
-    const parsed = new DOMParser().parseFromString(html, 'text/html');
-    expect(parsed.querySelector('img')).toBeNull();
-    expect(html).not.toContain('<img');
+    const host = renderReport(result);
+    expect(host.querySelector('img')).toBeNull();
+    expect(host.textContent).toContain(hostile);
   });
 
   it('renders issues and successful checks in separate sections', () => {
@@ -111,12 +117,9 @@ describe('buildPrintableHtml', () => {
       ],
     });
 
-    const html = buildPrintableHtml(result, metadata);
-    const document = new DOMParser().parseFromString(html, 'text/html');
+    const host = renderReport(result);
 
-    const headings = [...document.querySelectorAll('h2')].map((heading) =>
-      heading.textContent.trim()
-    );
+    const headings = [...host.querySelectorAll('h2')].map((heading) => heading.textContent.trim());
     expect(headings).toEqual([
       'Implementation Attributes',
       'Best Practices',
@@ -127,12 +130,10 @@ describe('buildPrintableHtml', () => {
       'Extracted Config',
     ]);
 
-    const successfulChecksHeading = document.querySelector('h2:nth-of-type(4)');
-    expect(successfulChecksHeading?.textContent).toBe('Successful Checks');
-    expect(document.body.textContent).toContain('onSubmit callback detected.');
-    expect(document.body.textContent).toContain('Adyen script tags use SRI.');
-    expect(document.body.textContent).toContain('Client key format could not be verified.');
-    expect(document.body.textContent).toContain('Checkout page is not served over HTTPS.');
+    expect(host.textContent).toContain('onSubmit callback detected.');
+    expect(host.textContent).toContain('Adyen script tags use SRI.');
+    expect(host.textContent).toContain('Client key format could not be verified.');
+    expect(host.textContent).toContain('Checkout page is not served over HTTPS.');
   });
 
   it('renders unmet criteria, captured traffic, extracted config and empty sections', () => {
@@ -167,11 +168,8 @@ describe('buildPrintableHtml', () => {
       }),
     });
 
-    const document = new DOMParser().parseFromString(
-      buildPrintableHtml(result, metadata),
-      'text/html'
-    );
-    const text = document.body.textContent;
+    const host = renderReport(result);
+    const text = host.textContent;
 
     expect(text).toContain('Standard Drop-in criteria not met');
     expect(text).toContain('Not using Drop-in.');
@@ -183,20 +181,16 @@ describe('buildPrintableHtml', () => {
     expect(text).toContain('checkoutshopper-live.adyen.com/checkoutshopper/v1/sessions');
     expect(text).toContain('live_CLIENTKEY');
     expect(text).toContain('No inferred config captured.');
-    expect(
-      [...document.querySelectorAll('.docs-link')].map((link) => link.getAttribute('href'))
-    ).toEqual([
+    expect([...host.querySelectorAll('a')].map((link) => link.getAttribute('href'))).toEqual([
       'https://docs.adyen.com/standard',
       'https://docs.adyen.com/online-payments/web-best-practices/',
     ]);
   });
 
   it('includes inspected URL, extension version, and browser details', () => {
-    const result = makeResult();
-    const html = buildPrintableHtml(result, metadata);
-    const document = new DOMParser().parseFromString(html, 'text/html');
-    const bodyText = document.body.textContent;
-    const bodyChildren = [...document.body.children];
+    const host = renderReport(makeResult());
+    const bodyText = host.textContent;
+    const [metadataTable] = host.querySelectorAll('table');
 
     expect(bodyText).toContain('Inspected URL');
     expect(bodyText).toContain('https://example.com/checkout');
@@ -205,41 +199,41 @@ describe('buildPrintableHtml', () => {
     expect(bodyText).toContain('Browser');
     expect(bodyText).toContain('Google Chrome 135.0.0.0 on macOS');
     expect(bodyText).toContain('Generated by Adyen Web Inspector v1.2.3');
-    expect(bodyChildren[1]?.className).toBe('meta-table');
-    expect(bodyChildren[2]?.className).toBe('score-block');
+    expect(metadataTable?.textContent).toContain('Inspected URL');
   });
 });
 
-describe('buildPrintableHtml attributes', () => {
-  const metadata: PrintableReportMetadata = { extensionVersion: '1.2.3', browser: 'Test' };
-
+describe('Report attributes', () => {
   it('colours the score by tier and leaves out what a test integration does not have', () => {
     const versionInfo = makeVersionInfo({ detected: null });
-    const html = buildPrintableHtml(
+    const host = renderReport(
       makeResult({
         health: { score: 50, passing: 1, failing: 0, warnings: 1, total: 2, tier: 'issues' },
         payload: makeAdyenPayload({}, { environment: 'test' }, { versionInfo }),
-      }),
-      metadata
+      })
+    );
+    const labelled = new Map(
+      [...host.querySelectorAll('tr')].map((row) => [
+        row.cells[0]?.textContent,
+        row.cells[1]?.textContent,
+      ])
     );
 
-    expect(html).toContain('#b06000');
-    expect(html).toMatch(/SDK Version<\/[^>]+>\s*<[^>]+>Unknown/);
-    expect(html).not.toContain('>Region<');
+    expect(host.querySelector('[style]')?.getAttribute('style')).toContain('rgb(176, 96, 0)');
+    expect(labelled.get('SDK Version')).toBe('Unknown');
+    expect(labelled.has('Region')).toBe(false);
   });
 });
 
-describe('buildPrintableHtml skipped checks', () => {
+describe('Report skipped checks', () => {
   it('shows a dash for a skipped check without a recorded reason', () => {
-    const html = buildPrintableHtml(
+    const cells = renderReport(
       makeResult({
         checks: [
           { id: '3p-no-sri', category: 'third-party', severity: 'skip', title: 'SRI skipped' },
         ],
-      }),
-      { extensionVersion: '1.2.3', browser: 'Test' }
-    );
-    const cells = new DOMParser().parseFromString(html, 'text/html').querySelectorAll('td');
+      })
+    ).querySelectorAll('td');
 
     expect([...cells].map((cell) => cell.textContent)).toEqual(
       expect.arrayContaining(['SRI skipped', '—'])

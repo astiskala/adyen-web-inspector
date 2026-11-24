@@ -1,4 +1,4 @@
-import type { PrintableReportMetadata } from './export-pdf.js';
+import type { ReportMetadata } from './export-metadata.js';
 import { buildReportExportData, type ReportExportData } from './export-report.js';
 import type { ScanResult } from './types.js';
 
@@ -23,7 +23,7 @@ Builds the JSON export payload from the same report sections used by the PDF exp
 */
 export function buildJsonExport(
   result: ScanResult,
-  metadata: PrintableReportMetadata,
+  metadata: ReportMetadata,
   exportedAt: string
 ): JsonExportData {
   const reportData = buildReportExportData(result);

@@ -7,6 +7,7 @@ rows in projection order; none of them sorts or rewords issues itself.
 */
 
 import { readAdyenEndpoint } from './adyen-endpoint.js';
+import { INTEGRATION_FLOW_LABELS } from './constants.js';
 import {
   getImpactLevel,
   IMPACT_LABELS,
@@ -317,6 +318,36 @@ export function summarizeImplementation(result: ScanResult): ImplementationSumma
     flavor: attributes.flavor.value,
     importMethod: attributes.importMethod,
   };
+}
+
+/**
+One implementation attribute as every view labels and shows it.
+*/
+interface ImplementationRow {
+  readonly key: keyof ImplementationSummary;
+  readonly label: string;
+  readonly value: string;
+}
+
+/**
+The implementation attributes in display order, labelled once for the
+popup, panel, and PDF report. Region is left out for test.
+*/
+export function implementationRows(summary: ImplementationSummary): ImplementationRow[] {
+  return [
+    { key: 'sdkVersion', label: 'SDK Version', value: summary.sdkVersion },
+    {
+      key: 'environment',
+      label: 'Environment',
+      value: summary.environment === 'unknown' ? 'Unknown' : summary.environment,
+    },
+    ...(summary.region === null
+      ? []
+      : [{ key: 'region', label: 'Region', value: summary.region } as const]),
+    { key: 'flow', label: 'Integration Flow', value: INTEGRATION_FLOW_LABELS[summary.flow] },
+    { key: 'flavor', label: 'Integration Flavor', value: summary.flavor },
+    { key: 'importMethod', label: 'Import Method', value: summary.importMethod },
+  ];
 }
 
 /**
