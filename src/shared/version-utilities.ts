@@ -30,3 +30,21 @@ export function compareVersions(a: ParsedVersion, b: ParsedVersion): number {
   if (a.major !== b.major) return a.major - b.major;
   return a.minor === b.minor ? a.patch - b.patch : a.minor - b.minor;
 }
+
+/**
+Whether a version meets a minimum; `unknown` when either cannot be read.
+*/
+type VersionRequirement = 'met' | 'unmet' | 'unknown';
+
+/**
+Reads whether a detected version meets a minimum version.
+*/
+export function meetsMinimumVersion(
+  version: string | null | undefined,
+  minimum: string
+): VersionRequirement {
+  const parsed = parseVersion(version ?? '');
+  const parsedMinimum = parseVersion(minimum);
+  if (parsed === null || parsedMinimum === null) return 'unknown';
+  return compareVersions(parsed, parsedMinimum) < 0 ? 'unmet' : 'met';
+}

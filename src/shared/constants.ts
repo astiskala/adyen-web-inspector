@@ -139,6 +139,10 @@ export interface PageGlobalValues {
 Minimum major version required for full inspection. Versions below this are blocked.
 */
 export const MIN_SUPPORTED_MAJOR_VERSION = 6;
+/**
+Oldest Adyen Web version the inspector supports.
+*/
+export const MIN_SUPPORTED_VERSION = `${MIN_SUPPORTED_MAJOR_VERSION}.0.0`;
 
 // ─── UI Constants ─────────────────────────────────────────────────────────────
 

@@ -11,7 +11,7 @@ import {
   STRING_OPTION_KEYS,
 } from '../../shared/checkout-config-schema.js';
 import { readCheckoutField } from '../../shared/scan-evidence.js';
-import { parseVersion } from '../../shared/utilities.js';
+import { meetsMinimumVersion } from '../../shared/utilities.js';
 import { SKIP_REASONS } from './constants.js';
 import { createRegistry, type CheckContext, type CheckOutcome } from './registry.js';
 
@@ -19,6 +19,7 @@ const CATEGORY = 'version-lifecycle' as const;
 const UPGRADE_DOCS_URL =
   'https://docs.adyen.com/online-payments/upgrade-your-integration/upgrade-to-web-v6';
 
+const V6 = '6.0.0';
 const STRINGS = {
   PRE_V6_SKIP_REASON: 'SDK is running a pre-v6 version.',
   // WARN_TITLE stays inline (dynamic: lists the deprecated items found)
@@ -123,8 +124,7 @@ function buildDetail(found: readonly DeprecatedItem[]): string {
 }
 
 function isPreV6(payload: ScanPayload): boolean {
-  const version = parseVersion(payload.versionInfo.detected ?? '');
-  return version !== null && version.major < 6;
+  return meetsMinimumVersion(payload.versionInfo.detected, V6) === 'unmet';
 }
 
 interface DeprecationCheck {

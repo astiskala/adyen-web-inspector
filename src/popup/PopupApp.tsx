@@ -1,8 +1,8 @@
 import type { JSX } from 'preact';
-import { MIN_SUPPORTED_MAJOR_VERSION } from '../shared/constants.js';
+import { MIN_SUPPORTED_VERSION } from '../shared/constants.js';
 import type { CheckoutActivity } from '../shared/messages.js';
 import type { ScanResult } from '../shared/types.js';
-import { parseVersion } from '../shared/utilities.js';
+import { meetsMinimumVersion } from '../shared/utilities.js';
 import { exportPdf } from '../shared/report-export.js';
 import { chromeReportBrowser } from './components/chrome-report-browser.js';
 import { IdentityCard } from './components/IdentityCard.js';
@@ -37,8 +37,7 @@ Resolves the view for a tab without a scan result from the detector's checkout a
 */
 function getIdleView({ detected, version }: CheckoutActivity): PopupView {
   if (!detected) return { state: 'not-detected' };
-  const major = parseVersion(version ?? '')?.major;
-  return version !== undefined && major !== undefined && major < MIN_SUPPORTED_MAJOR_VERSION
+  return version !== undefined && meetsMinimumVersion(version, MIN_SUPPORTED_VERSION) === 'unmet'
     ? { state: 'version-outdated', version }
     : { state: 'ready' };
 }

@@ -4,7 +4,7 @@ the Adyen Uplift co-badged card minimum.
 */
 
 import type { SdkVersionSource, VersionInfo } from '../../shared/types.js';
-import { compareVersions, parseVersion } from '../../shared/utilities.js';
+import { compareVersions, meetsMinimumVersion, parseVersion } from '../../shared/utilities.js';
 import { createRegistry } from './registry.js';
 
 const RELEASE_NOTES_URL = 'https://docs.adyen.com/online-payments/release-notes/';
@@ -215,14 +215,15 @@ export const SDK_VERSION_CHECKS = createRegistry(CATEGORY)
       );
     }
 
-    const detected = parseVersion(payload.versionInfo.detected ?? '');
-    const minimum = parseVersion(UPLIFT_COBADGED_MINIMUM_VERSION);
-
-    if (detected === null || minimum === null) {
+    const requirement = meetsMinimumVersion(
+      payload.versionInfo.detected,
+      UPLIFT_COBADGED_MINIMUM_VERSION
+    );
+    if (requirement === 'unknown') {
       return skip(STRINGS.UPLIFT_VERSION_SKIP_TITLE, STRINGS.UPLIFT_VERSION_SKIP_REASON);
     }
 
-    return compareVersions(detected, minimum) < 0
+    return requirement === 'unmet'
       ? fail(
           STRINGS.UPLIFT_VERSION_FAIL_TITLE,
           STRINGS.UPLIFT_VERSION_FAIL_DETAIL,

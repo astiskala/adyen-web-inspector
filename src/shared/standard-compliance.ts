@@ -6,7 +6,7 @@ not claim compliance with the complete Standard integration checklist.
 */
 
 import type { ImplementationAttributes, StandardCompliance } from './types.js';
-import { compareVersions, parseVersion } from './utilities.js';
+import { meetsMinimumVersion } from './utilities.js';
 
 const MINIMUM_STANDARD_DROPIN_VERSION = '6.30.0';
 
@@ -31,11 +31,10 @@ export function computeStandardCompliance(
 ): StandardCompliance {
   const reasons: string[] = [];
 
-  const detectedVersion = parseVersion(sdkVersion ?? '');
-  const minimumVersion = parseVersion(MINIMUM_STANDARD_DROPIN_VERSION);
-  if (detectedVersion === null || minimumVersion === null) {
+  const sdkRequirement = meetsMinimumVersion(sdkVersion, MINIMUM_STANDARD_DROPIN_VERSION);
+  if (sdkRequirement === 'unknown') {
     reasons.push(`Web Drop-in ${MINIMUM_STANDARD_DROPIN_VERSION} or later could not be verified.`);
-  } else if (compareVersions(detectedVersion, minimumVersion) < 0) {
+  } else if (sdkRequirement === 'unmet') {
     reasons.push(`Web Drop-in ${MINIMUM_STANDARD_DROPIN_VERSION} or later is required.`);
   }
 
