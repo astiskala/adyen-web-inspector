@@ -121,6 +121,15 @@ describe('passive detector', () => {
     expect(sentTypes()).toEqual([MSG_CHECKOUT_ACTIVITY_DETECTED]);
   });
 
+  it('reports checkout rendered off-DOM and appended inside a plain wrapper', async () => {
+    const wrapper = document.createElement('section');
+    wrapper.innerHTML = '<div><div class="adyen-checkout__dropin"></div></div>';
+    document.body.append(wrapper);
+    await advance(200);
+
+    expect(sentTypes()).toEqual([MSG_CHECKOUT_ACTIVITY_DETECTED]);
+  });
+
   it('ignores mutations that cannot change checkout activity', async () => {
     append('plain text<div class="hero"></div><a href="/help">Help</a>');
     await advance(500);

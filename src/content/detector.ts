@@ -81,6 +81,7 @@ function scheduleDetection(delay = DETECTION_DEBOUNCE_MS): void {
 }
 
 const INTERESTING_TAG_NAMES: ReadonlySet<string> = new Set(['script', 'iframe', 'link']);
+const INTERESTING_DESCENDANTS = '[class*="adyen"], iframe';
 
 function isInterestingNode(node: Node): boolean {
   if (node.nodeType !== Node.ELEMENT_NODE) {
@@ -99,7 +100,12 @@ function isInterestingNode(node: Node): boolean {
 
   const source = element.getAttribute('src') ?? '';
   const href = element.getAttribute('href') ?? '';
-  return source.includes('adyen') || href.includes('adyen');
+  // Frameworks can render checkout off-DOM and append it inside a plain wrapper.
+  return (
+    source.includes('adyen') ||
+    href.includes('adyen') ||
+    element.querySelector(INTERESTING_DESCENDANTS) !== null
+  );
 }
 
 /**
