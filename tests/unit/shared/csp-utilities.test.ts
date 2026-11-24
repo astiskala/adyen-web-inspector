@@ -3,7 +3,20 @@ import {
   parseCsp,
   isUrlAllowedByCsp,
   getEffectiveCspSources,
+  readScriptAllowance,
 } from '../../../src/shared/csp-utilities';
+
+/**
+True when the policy lets the script load without further conditions.
+*/
+function isScriptAllowed(
+  csp: ReturnType<typeof parseCsp>,
+  url: string,
+  pageUrl: string,
+  nonce?: string
+): boolean {
+  return readScriptAllowance(csp, url, pageUrl, nonce === undefined ? {} : { nonce }) === 'allowed';
+}
 
 interface ParseDirectivesCase {
   readonly name: string;
@@ -102,72 +115,39 @@ describe('effective CSP sources', () => {
 
   it('uses script-src-elem before script-src, then default-src', () => {
     expect(
-      isUrlAllowedByCsp(
-        parseCsp("default-src https:; script-src 'self'"),
-        'script-src',
-        scriptUrl,
-        pageUrl
-      )
+      isScriptAllowed(parseCsp("default-src https:; script-src 'self'"), scriptUrl, pageUrl)
     ).toBe(false);
     expect(
-      isUrlAllowedByCsp(
-        parseCsp("script-src https:; script-src-elem 'self'"),
-        'script-src',
-        scriptUrl,
-        pageUrl
-      )
+      isScriptAllowed(parseCsp("script-src https:; script-src-elem 'self'"), scriptUrl, pageUrl)
     ).toBe(false);
-    expect(
-      isUrlAllowedByCsp(parseCsp('default-src https:'), 'script-src', scriptUrl, pageUrl)
-    ).toBe(true);
+    expect(isScriptAllowed(parseCsp('default-src https:'), scriptUrl, pageUrl)).toBe(true);
   });
 
   it('matches exact hosts and wildcard subdomains without matching lookalikes', () => {
-    expect(
-      isUrlAllowedByCsp(
-        parseCsp('script-src https://*.adyen.com'),
-        'script-src',
-        scriptUrl,
-        pageUrl
-      )
-    ).toBe(true);
-    expect(
-      isUrlAllowedByCsp(parseCsp('script-src https://adyen.com'), 'script-src', scriptUrl, pageUrl)
-    ).toBe(false);
-    expect(
-      isUrlAllowedByCsp(
-        parseCsp('script-src https://notadyen.com'),
-        'script-src',
-        scriptUrl,
-        pageUrl
-      )
-    ).toBe(false);
+    expect(isScriptAllowed(parseCsp('script-src https://*.adyen.com'), scriptUrl, pageUrl)).toBe(
+      true
+    );
+    expect(isScriptAllowed(parseCsp('script-src https://adyen.com'), scriptUrl, pageUrl)).toBe(
+      false
+    );
+    expect(isScriptAllowed(parseCsp('script-src https://notadyen.com'), scriptUrl, pageUrl)).toBe(
+      false
+    );
   });
 
   it.each(['https://evil-adyen.com/adyen.js', 'https://adyen.com/adyen.js'])(
     'does not let *.adyen.com allow %s, which is not a subdomain',
     (url) => {
-      expect(
-        isUrlAllowedByCsp(parseCsp('script-src https://*.adyen.com'), 'script-src', url, pageUrl)
-      ).toBe(false);
+      expect(isScriptAllowed(parseCsp('script-src https://*.adyen.com'), url, pageUrl)).toBe(false);
     }
   );
 
   it('honors self, scheme sources and none', () => {
     expect(
-      isUrlAllowedByCsp(
-        parseCsp("script-src 'self'"),
-        'script-src',
-        'https://merchant.example/app.js',
-        pageUrl
-      )
+      isScriptAllowed(parseCsp("script-src 'self'"), 'https://merchant.example/app.js', pageUrl)
     ).toBe(true);
-    expect(isUrlAllowedByCsp(parseCsp('script-src https:'), 'script-src', scriptUrl, pageUrl)).toBe(
-      true
-    );
-    expect(isUrlAllowedByCsp(parseCsp("script-src 'none'"), 'script-src', scriptUrl, pageUrl)).toBe(
-      false
-    );
+    expect(isScriptAllowed(parseCsp('script-src https:'), scriptUrl, pageUrl)).toBe(true);
+    expect(isScriptAllowed(parseCsp("script-src 'none'"), scriptUrl, pageUrl)).toBe(false);
   });
 
   it.each([
@@ -200,9 +180,7 @@ describe('effective CSP sources', () => {
     ['https://', false],
     ['checkoutshopper-test.adyen.com:https', false],
   ])('matches the source %s against an HTTPS script: %s', (source, allowed) => {
-    expect(
-      isUrlAllowedByCsp(parseCsp(`script-src ${source}`), 'script-src', scriptUrl, pageUrl)
-    ).toBe(allowed);
+    expect(isScriptAllowed(parseCsp(`script-src ${source}`), scriptUrl, pageUrl)).toBe(allowed);
   });
 
   it('matches explicit ports on plain HTTP resources', () => {
@@ -236,6 +214,14 @@ describe('effective CSP sources', () => {
     ).toBe(true);
   });
 
+  it('reads 443 as the default port of secure WebSocket URLs', () => {
+    const policy = parseCsp('connect-src wss://live.example:443');
+
+    expect(isUrlAllowedByCsp(policy, 'connect-src', 'wss://live.example/socket', pageUrl)).toBe(
+      true
+    );
+  });
+
   it('matches scheme sources beyond http and https, with secure upgrades', () => {
     expect(
       isUrlAllowedByCsp(parseCsp('img-src data:'), 'img-src', 'data:image/png;base64,AA', pageUrl)
@@ -249,9 +235,7 @@ describe('effective CSP sources', () => {
   });
 
   it('rejects resources when the page URL cannot be parsed', () => {
-    expect(
-      isUrlAllowedByCsp(parseCsp("script-src 'self'"), 'script-src', scriptUrl, 'not a url')
-    ).toBe(false);
+    expect(isScriptAllowed(parseCsp("script-src 'self'"), scriptUrl, 'not a url')).toBe(false);
   });
 
   it('returns null when a directive is unrestricted', () => {
@@ -280,16 +264,16 @@ describe('isUrlAllowedByCsp wildcard sources', () => {
   });
 });
 
-describe('isUrlAllowedByCsp script nonces', () => {
+describe('readScriptAllowance nonces', () => {
   const page = 'https://merchant.example/checkout';
   const sdk = 'https://checkoutshopper-live.cdn.adyen.com/checkoutshopper/sdk/6.48.1/adyen.js';
 
   it('allows a script whose nonce the policy lists, from any host', () => {
     const policy = parseCsp("script-src 'self' 'nonce-r4nd0m'");
 
-    expect(isUrlAllowedByCsp(policy, 'script-src', sdk, page, 'r4nd0m')).toBe(true);
-    expect(isUrlAllowedByCsp(policy, 'script-src', sdk, page, 'other')).toBe(false);
-    expect(isUrlAllowedByCsp(policy, 'script-src', sdk, page)).toBe(false);
+    expect(isScriptAllowed(policy, sdk, page, 'r4nd0m')).toBe(true);
+    expect(isScriptAllowed(policy, sdk, page, 'other')).toBe(false);
+    expect(isScriptAllowed(policy, sdk, page)).toBe(false);
   });
 
   it.each([
@@ -298,13 +282,67 @@ describe('isUrlAllowedByCsp script nonces', () => {
   ])('ignores host and scheme sources under strict-dynamic: %s', (header) => {
     const policy = parseCsp(header);
 
-    expect(isUrlAllowedByCsp(policy, 'script-src', sdk, page, 'r4nd0m')).toBe(true);
-    expect(isUrlAllowedByCsp(policy, 'script-src', sdk, page)).toBe(false);
+    expect(isScriptAllowed(policy, sdk, page, 'r4nd0m')).toBe(true);
+    expect(isScriptAllowed(policy, sdk, page)).toBe(false);
   });
 
   it('applies strict-dynamic to scripts only', () => {
     const policy = parseCsp("default-src 'strict-dynamic' https://*.adyen.com");
 
     expect(isUrlAllowedByCsp(policy, 'connect-src', sdk, page)).toBe(true);
+  });
+});
+
+describe('readScriptAllowance', () => {
+  const page = 'https://merchant.example/checkout';
+  const sdk = 'https://checkoutshopper-live.cdn.adyen.com/checkoutshopper/sdk/6.48.1/adyen.js';
+  const hash384 = 'sha384-ABCdef+/123=';
+  const hash512 = 'sha512-XYZ789=';
+
+  it('allows an external script whose every integrity hash the policy lists, on any host', () => {
+    const policy = parseCsp(`script-src 'self' '${hash384}' 'SHA512-XYZ789='`);
+
+    expect(readScriptAllowance(policy, sdk, page, { integrity: hash384 })).toBe('allowed');
+    expect(readScriptAllowance(policy, sdk, page, { integrity: `${hash384} ${hash512}` })).toBe(
+      'allowed'
+    );
+    expect(readScriptAllowance(policy, sdk, page, { integrity: `${hash384}?ct=x` })).toBe(
+      'allowed'
+    );
+  });
+
+  it('blocks when any integrity hash is unlisted, or a base64 value differs only in case', () => {
+    const policy = parseCsp(`script-src '${hash384}'`);
+
+    expect(readScriptAllowance(policy, sdk, page, { integrity: `${hash384} ${hash512}` })).toBe(
+      'blocked'
+    );
+    expect(readScriptAllowance(policy, sdk, page, { integrity: 'sha384-abcdef+/123=' })).toBe(
+      'blocked'
+    );
+    expect(readScriptAllowance(policy, sdk, page, { integrity: 'md5-ABCdef+/123=' })).toBe(
+      'blocked'
+    );
+    expect(readScriptAllowance(policy, sdk, page)).toBe('blocked');
+  });
+
+  it("lets a listed hash allow the script under 'strict-dynamic'", () => {
+    const policy = parseCsp(`script-src '${hash384}' 'strict-dynamic'`);
+
+    expect(readScriptAllowance(policy, sdk, page, { integrity: hash384 })).toBe('allowed');
+  });
+
+  it.each([
+    "script-src 'nonce-r4nd0m' 'strict-dynamic' https://checkoutshopper-live.cdn.adyen.com",
+    "script-src 'nonce-r4nd0m' 'STRICT-DYNAMIC'",
+  ])(
+    "leaves a script without a nonce or hash to trusted insertion under 'strict-dynamic': %s",
+    (header) => {
+      expect(readScriptAllowance(parseCsp(header), sdk, page)).toBe('needs-trusted-insertion');
+    }
+  );
+
+  it('allows scripts when the policy does not restrict them', () => {
+    expect(readScriptAllowance(parseCsp("img-src 'self'"), sdk, page)).toBe('allowed');
   });
 });

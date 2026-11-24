@@ -125,30 +125,105 @@ export function getEffectiveCspSources(
   return null;
 }
 
-/**
-Returns true when the policy allows loading the URL for the resource type.
-A script's `nonce` matches a listed nonce source on any host; under
-`'strict-dynamic'`, host and scheme sources no longer allow scripts.
-*/
-export function isUrlAllowedByCsp(
-  csp: ParsedCsp,
-  directive: CspFetchDirective,
+function isSourceListMatchingUrl(
+  sources: readonly string[],
   url: string,
-  pageUrl: string,
-  nonce?: string
+  pageUrl: string
 ): boolean {
-  const effective = getEffectiveCspSources(csp, directive);
-  if (effective === null) return true;
-  if (directive === 'script-src') {
-    if (nonce !== undefined && effective.sources.includes(`'nonce-${nonce}'`)) return true;
-    if (effective.sources.includes("'strict-dynamic'")) return false;
-  }
-
   try {
     const resource = new URL(url, pageUrl);
     const page = new URL(pageUrl);
-    return effective.sources.some((source) => isSourceMatchingUrl(source, resource, page));
+    return sources.some((source) => isSourceMatchingUrl(source, resource, page));
   } catch {
     return false;
   }
+}
+
+/**
+Returns true when the policy allows loading the URL for a resource type
+other than scripts, which `readScriptAllowance()` reads.
+*/
+export function isUrlAllowedByCsp(
+  csp: ParsedCsp,
+  directive: Exclude<CspFetchDirective, 'script-src'>,
+  url: string,
+  pageUrl: string
+): boolean {
+  const effective = getEffectiveCspSources(csp, directive);
+  return effective === null || isSourceListMatchingUrl(effective.sources, url, pageUrl);
+}
+
+/**
+Whether a policy lets an external script load: `allowed`, `blocked`, or
+`needs-trusted-insertion` under `'strict-dynamic'` when no nonce or hash
+allows it, because the script then loads only if a trusted script inserted
+it, which the page does not show.
+*/
+export type ScriptAllowance = 'allowed' | 'blocked' | 'needs-trusted-insertion';
+
+/**
+The attributes of a script element that can allow it regardless of its URL.
+*/
+interface ScriptAttributes {
+  readonly nonce?: string;
+  readonly integrity?: string;
+}
+
+const HASH_SOURCE = /^'(?:sha256|sha384|sha512)-\S+'$/i;
+const INTEGRITY_HASH = /^(?:sha256|sha384|sha512)-[^?\s]+/i;
+
+/**
+Hash algorithms compare case-insensitively; base64 values do not.
+*/
+function normalizeHash(expression: string): string {
+  const dash = expression.indexOf('-');
+  return `${expression.slice(0, dash).toLowerCase()}${expression.slice(dash)}`;
+}
+
+/**
+The hashes of an integrity attribute, as SRI parses them: tokens with an
+unknown algorithm are ignored, and options after `?` are dropped.
+*/
+function readIntegrityHashes(integrity: string): string[] {
+  return integrity
+    .split(/\s+/)
+    .map((token) => INTEGRITY_HASH.exec(token)?.[0])
+    .filter((hash) => hash !== undefined)
+    .map(normalizeHash);
+}
+
+function readListedHashes(sources: readonly string[]): ReadonlySet<string> {
+  return new Set(
+    sources
+      .filter((source) => HASH_SOURCE.test(source))
+      .map((source) => normalizeHash(source.slice(1, -1)))
+  );
+}
+
+/**
+Reads whether the policy lets an external script load, following CSP Level 3
+as Chromium implements it: a listed nonce, or an integrity attribute whose
+every hash the policy lists, allows the script on any host; otherwise
+`'strict-dynamic'` ignores host and scheme sources and allows only scripts a
+trusted script inserted.
+*/
+export function readScriptAllowance(
+  csp: ParsedCsp,
+  url: string,
+  pageUrl: string,
+  script: ScriptAttributes = {}
+): ScriptAllowance {
+  const effective = getEffectiveCspSources(csp, 'script-src');
+  if (effective === null) return 'allowed';
+  const { sources } = effective;
+  if (script.nonce !== undefined && sources.includes(`'nonce-${script.nonce}'`)) return 'allowed';
+
+  const hashes = readIntegrityHashes(script.integrity ?? '');
+  const listed = readListedHashes(sources);
+  if (hashes.length > 0 && hashes.every((hash) => listed.has(hash))) return 'allowed';
+
+  if (sources.some((source) => source.toLowerCase() === "'strict-dynamic'")) {
+    return 'needs-trusted-insertion';
+  }
+  return isSourceListMatchingUrl(sources, url, pageUrl) ? 'allowed' : 'blocked';
 }

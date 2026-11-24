@@ -368,7 +368,12 @@ export default defineConfig([
           patterns: [
             {
               group: ['**/shared/utilities.js', '**/shared/csp-utilities.js'],
-              importNames: ['parseCsp', 'isUrlAllowedByCsp', 'getEffectiveCspSources'],
+              importNames: [
+                'parseCsp',
+                'isUrlAllowedByCsp',
+                'getEffectiveCspSources',
+                'readScriptAllowance',
+              ],
               message:
                 'Read the Content-Security-Policy through readPagePolicy() in checks/page-policy.ts.',
             },

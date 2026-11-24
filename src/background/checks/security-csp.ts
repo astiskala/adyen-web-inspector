@@ -40,8 +40,14 @@ const STRINGS = {
   SCRIPT_SRC_WARN_TITLE: 'CSP may block an observed Adyen checkout script.',
   SCRIPT_SRC_WARN_DETAIL: `If script-src omits Adyen domains, checkout assets can be blocked or require unsafe CSP relaxations. ${COMMON_DETAILS.PCI_COMPLIANCE_NOTICE}`,
   SCRIPT_SRC_WARN_REMEDIATION:
-    "Update your Content-Security-Policy to include the Adyen CDN script domains. If script-src uses 'strict-dynamic', which ignores domains, load the Adyen script with your policy's nonce.",
+    "Update your Content-Security-Policy to include the Adyen CDN script domains, or allow the Adyen script tag by your policy's nonce or by listing the hash in its integrity attribute.",
   SCRIPT_SRC_WARN_URL: ADYEN_PCI_DSS_SCRIPT_SECURITY_DOC,
+  SCRIPT_SRC_STRICT_DYNAMIC_NOTICE_TITLE:
+    "CSP 'strict-dynamic' allows the Adyen script only if a trusted script inserted it.",
+  SCRIPT_SRC_STRICT_DYNAMIC_NOTICE_DETAIL:
+    "Under 'strict-dynamic', host allowlists are ignored: a script without a listed nonce or integrity hash loads only when an already trusted script inserts it, and is blocked when it is in the page markup. The page does not show which applies.",
+  SCRIPT_SRC_STRICT_DYNAMIC_NOTICE_REMEDIATION:
+    "Confirm that a nonced or hashed loader inserts the Adyen script, or give its script tag your policy's nonce, or an integrity attribute whose hash the policy lists.",
 
   FRAME_SRC_SKIP_TITLE: 'CSP frame-src check skipped.',
   FRAME_SRC_PASS_TITLE: 'CSP frame-src is compatible with Adyen 3DS iframe guidance.',
@@ -184,7 +190,7 @@ export const CSP_CHECKS = createRegistry(CATEGORY)
         );
   })
   .add('security-csp-script-src', (payload, context) => {
-    const { skip, pass, warn } = context;
+    const { skip, pass, warn, notice } = context;
     const policy = readPagePolicy(payload);
     if (policy.status !== 'enforced') {
       return skipUnenforced(policy, STRINGS.SCRIPT_SRC_SKIP_TITLE, context);
@@ -197,14 +203,23 @@ export const CSP_CHECKS = createRegistry(CATEGORY)
       return skip(STRINGS.SCRIPT_SRC_SKIP_TITLE, STRINGS.SCRIPT_SRC_NO_SCRIPTS_SKIP_REASON);
     }
 
-    return adyenScripts.every((script) => policy.allows('script-src', script.src, script.nonce))
-      ? pass(STRINGS.SCRIPT_SRC_PASS_TITLE)
-      : warn(
-          STRINGS.SCRIPT_SRC_WARN_TITLE,
-          STRINGS.SCRIPT_SRC_WARN_DETAIL,
-          STRINGS.SCRIPT_SRC_WARN_REMEDIATION,
+    const allowances = new Set(adyenScripts.map((script) => policy.scriptAllowance(script)));
+    if (allowances.has('blocked')) {
+      return warn(
+        STRINGS.SCRIPT_SRC_WARN_TITLE,
+        STRINGS.SCRIPT_SRC_WARN_DETAIL,
+        STRINGS.SCRIPT_SRC_WARN_REMEDIATION,
+        STRINGS.SCRIPT_SRC_WARN_URL
+      );
+    }
+    return allowances.has('needs-trusted-insertion')
+      ? notice(
+          STRINGS.SCRIPT_SRC_STRICT_DYNAMIC_NOTICE_TITLE,
+          STRINGS.SCRIPT_SRC_STRICT_DYNAMIC_NOTICE_DETAIL,
+          STRINGS.SCRIPT_SRC_STRICT_DYNAMIC_NOTICE_REMEDIATION,
           STRINGS.SCRIPT_SRC_WARN_URL
-        );
+        )
+      : pass(STRINGS.SCRIPT_SRC_PASS_TITLE);
   })
   .add('security-csp-frame-src', (payload, context) => {
     const { warn, pass } = context;

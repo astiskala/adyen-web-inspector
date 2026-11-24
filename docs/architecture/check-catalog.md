@@ -66,6 +66,7 @@ Current manual-review notice checks:
 - `callback-on-submit-state-data` (whole `state.data` or truncated callback source)
 - `callback-on-submit-state-data-fields` (truncated callback source)
 - `callback-multiple-submissions`
+- `security-csp-script-src` (`'strict-dynamic'` without a listed nonce or hash)
 - `risk-card-holder-name`
 - `3p-tag-manager`
 - `3p-no-sri`
@@ -118,7 +119,7 @@ Current manual-review notice checks:
 | `security`          | `security-iframe-referrerpolicy`           | Check Adyen iframe `referrerpolicy` usage.                                                                                                                       | `pass`, `info`                           |
 | `security`          | `security-api-key-exposed`                 | Detect Adyen API keys accidentally exposed in frontend code.                                                                                                     | `pass`, `fail`                           |
 | `security`          | `security-csp-present`                     | Require a CSP header when document response headers were captured.                                                                                               | `pass`, `warn`, `skip`                   |
-| `security`          | `security-csp-script-src`                  | Check each enforced CSP policy against observed Adyen script URLs and nonces, honouring `'strict-dynamic'`; skip without scripts or headers.                     | `pass`, `warn`, `skip`                   |
+| `security`          | `security-csp-script-src`                  | Check each enforced CSP policy against observed Adyen script URLs, nonces, and integrity hashes; under `'strict-dynamic'` without either, ask for manual review. | `pass`, `warn`, `notice`, `skip`         |
 | `security`          | `security-csp-frame-src`                   | Ensure each enforced CSP iframe policy, including an inherited `default-src`, allows HTTPS issuer 3DS iframes.                                                   | `pass`, `warn`, `skip`                   |
 | `security`          | `security-csp-connect-src`                 | Ensure CSP `connect-src` (or `default-src`) allows the Adyen Web API, analytics, and translation origins for the configured environment.                         | `pass`, `warn`, `skip`                   |
 | `security`          | `security-csp-img-src`                     | Ensure CSP `img-src` (or `default-src`) allows Adyen CDN payment method logos; blocked logos are a low-impact warning.                                           | `pass`, `warn`, `skip`                   |

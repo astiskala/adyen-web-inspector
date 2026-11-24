@@ -6,8 +6,14 @@ than absent. Every enforced policy applies, so a resource is allowed only
 when all of them allow it.
 */
 
-import type { ScanPayload } from '../../shared/types.js';
-import { isUrlAllowedByCsp, getEffectiveCspSources, parseCsp } from '../../shared/utilities.js';
+import type { ScanPayload, ScriptTag } from '../../shared/types.js';
+import {
+  isUrlAllowedByCsp,
+  getEffectiveCspSources,
+  parseCsp,
+  readScriptAllowance,
+  type ScriptAllowance,
+} from '../../shared/utilities.js';
 
 type CspDirective = Parameters<typeof getEffectiveCspSources>[1];
 type GoverningSources = NonNullable<ReturnType<typeof getEffectiveCspSources>>;
@@ -23,9 +29,14 @@ export type DocumentHeaderEvidence =
 interface EnforcedPagePolicy {
   readonly status: 'enforced';
   /**
-  Returns true when every enforced policy allows the URL for the directive; a script's nonce can allow it too.
+  Returns true when every enforced policy allows the URL for a directive other than script-src.
   */
-  allows: (directive: CspDirective, url: string, nonce?: string) => boolean;
+  allows: (directive: Exclude<CspDirective, 'script-src'>, url: string) => boolean;
+  /**
+  Whether an external script loads under every enforced policy: blocked when
+  any blocks it, else needing a trusted insertion when any requires one.
+  */
+  scriptAllowance: (script: ScriptTag) => ScriptAllowance;
   /**
   Governing sources per policy, following fallbacks; null where a policy leaves it unrestricted.
   */
@@ -72,6 +83,11 @@ function isAnySourceAllowed(governing: GoverningSources): boolean {
   return governing.sources.includes('*') || governing.sources.includes('https:');
 }
 
+function combineScriptAllowances(allowances: readonly ScriptAllowance[]): ScriptAllowance {
+  if (allowances.includes('blocked')) return 'blocked';
+  return allowances.includes('needs-trusted-insertion') ? 'needs-trusted-insertion' : 'allowed';
+}
+
 /**
 Reads the enforced Content-Security-Policy from the checkout document headers.
 */
@@ -91,8 +107,12 @@ export function readPagePolicy(payload: ScanPayload): PagePolicy {
 
   return {
     status: 'enforced',
-    allows: (directive, url, nonce) =>
-      policies.every((policy) => isUrlAllowedByCsp(policy, directive, url, payload.pageUrl, nonce)),
+    allows: (directive, url) =>
+      policies.every((policy) => isUrlAllowedByCsp(policy, directive, url, payload.pageUrl)),
+    scriptAllowance: (script) =>
+      combineScriptAllowances(
+        policies.map((policy) => readScriptAllowance(policy, script.src, payload.pageUrl, script))
+      ),
     governing,
     restrictive: (directive) =>
       governing(directive).find(

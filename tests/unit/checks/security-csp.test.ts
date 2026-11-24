@@ -140,7 +140,7 @@ describe('csp-script-src', () => {
     expect(cspScriptSource.run(payload).severity).toBe('warn');
   });
 
-  it('passes a strict CSP only when the Adyen script carries a listed nonce', () => {
+  it("passes a strict CSP with a listed nonce, and asks for review when 'strict-dynamic' decides", () => {
     const strictPolicy = makeDocumentHeaders([
       makeHeader(
         'content-security-policy',
@@ -155,7 +155,31 @@ describe('csp-script-src', () => {
     const hostListedOnly = makeScanPayload({ page, documentHeaders: strictPolicy });
 
     expect(cspScriptSource.run(nonced).severity).toBe('pass');
-    expect(cspScriptSource.run(hostListedOnly).severity).toBe('warn');
+    // Allowed only if a trusted script inserted it, which the page does not show.
+    expect(cspScriptSource.run(hostListedOnly)).toMatchObject({
+      severity: 'notice',
+      impact: 'manual',
+    });
+  });
+
+  it('passes an Adyen script allowed by its integrity hash, and blocks one any policy blocks', () => {
+    const sdk = 'https://checkoutshopper-test.adyen.com/checkoutshopper/sdk/6.31.0/adyen.js';
+    const hashed = makeCheckoutPage({ scripts: [{ src: sdk, integrity: 'sha384-H4sh' }] });
+    const withPolicies = (...policies: string[]): ReturnType<typeof makeScanPayload> =>
+      makeScanPayload({
+        page: hashed,
+        documentHeaders: makeDocumentHeaders(
+          policies.map((policy) => makeHeader('content-security-policy', policy))
+        ),
+      });
+
+    expect(cspScriptSource.run(withPolicies("script-src 'sha384-H4sh'")).severity).toBe('pass');
+    expect(
+      cspScriptSource.run(withPolicies("script-src 'strict-dynamic'", "script-src 'self'")).severity
+    ).toBe('warn');
+    expect(
+      cspScriptSource.run(withPolicies("script-src 'strict-dynamic'", 'script-src https:')).severity
+    ).toBe('notice');
   });
 
   it('requires all policies in a combined CSP header to allow the script', () => {
