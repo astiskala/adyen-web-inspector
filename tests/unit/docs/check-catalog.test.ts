@@ -53,7 +53,10 @@ function parseCatalogEntries(markdown: string): CatalogEntry[] {
 }
 
 function listIds(section: string): string[] {
-  return [...section.matchAll(/^- `([^`]+)`/gm)].map((match) => match[1] ?? '');
+  return section
+    .matchAll(/^- `([^`]+)`/gm)
+    .map((match) => match[1] ?? '')
+    .toArray();
 }
 
 describe('check catalog documentation', () => {
@@ -61,14 +64,13 @@ describe('check catalog documentation', () => {
     const markdown = readFileSync(CATALOG_PATH, 'utf8');
     const totals = markdown.split('## Totals\n')[1]?.split('\n## ')[0] ?? '';
     const categoryCounts = new Map(
-      [...totals.matchAll(/^\|\s*`([^`]+)`\s*\|\s*(\d+)\s*\|/gm)].map((match) => [
-        match[1] ?? '',
-        Number(match[2]),
-      ])
+      totals
+        .matchAll(/^\|\s*`([^`]+)`\s*\|\s*(\d+)\s*\|/gm)
+        .map((match) => [match[1] ?? '', Number(match[2])])
     );
     const categories = [...new Set(ALL_CHECKS.map((check) => check.category))];
 
-    expect([...categoryCounts.keys()].toSorted(byText)).toEqual(categories.toSorted(byText));
+    expect(categoryCounts.keys().toArray().toSorted(byText)).toEqual(categories.toSorted(byText));
     for (const category of categories) {
       expect(categoryCounts.get(category)).toBe(
         ALL_CHECKS.filter((check) => check.category === category).length
@@ -146,7 +148,10 @@ describe('check catalog documentation', () => {
     }
 
     const runtimeIds = new Set<string>(ALL_CHECKS.map((check) => check.id));
-    const extraDocumentedIds = [...documentedById.keys()].filter((id) => !runtimeIds.has(id));
+    const extraDocumentedIds = documentedById
+      .keys()
+      .filter((id) => !runtimeIds.has(id))
+      .toArray();
     expect(extraDocumentedIds).toEqual([]);
   });
 

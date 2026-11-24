@@ -4,7 +4,7 @@
  */
 
 import type { SdkVersionSource, VersionInfo } from '../../shared/types.js';
-import { compareVersions, parseVersion } from '../../shared/utils.js';
+import { compareVersions, parseVersion } from '../../shared/utilities.js';
 import { createRegistry } from './registry.js';
 
 const RELEASE_NOTES_URL = 'https://docs.adyen.com/online-payments/release-notes/';
@@ -85,7 +85,9 @@ interface ReleaseAge {
   readonly stale: boolean;
 }
 
-/** Classifies the detected release against the scan time; null when either date is unknown. */
+/**
+Classifies the detected release against the scan time; null when either date is unknown.
+ */
 function getReleaseAge(releasedAt: string | undefined, scannedAt: string): ReleaseAge | null {
   if (releasedAt === undefined) return null;
   const released = new Date(releasedAt);
@@ -108,7 +110,9 @@ interface ComparableVersions {
   readonly parsedLatest: ParsedVersion;
 }
 
-/** Reads the detected and latest versions for comparison, or why they cannot be compared. */
+/**
+Reads the detected and latest versions for comparison, or why they cannot be compared.
+ */
 function readComparableVersions({
   detected,
   latest,
@@ -121,10 +125,9 @@ function readComparableVersions({
   }
   const parsedDetected = parseVersion(detected);
   const parsedLatest = parseVersion(latest);
-  if (!parsedDetected || !parsedLatest) {
-    return { skipReason: STRINGS.VERSION_PARSE_FAIL_SKIP_REASON };
-  }
-  return { detected, latest, parsedDetected, parsedLatest };
+  return !parsedDetected || !parsedLatest
+    ? { skipReason: STRINGS.VERSION_PARSE_FAIL_SKIP_REASON }
+    : { detected, latest, parsedDetected, parsedLatest };
 }
 
 export const SDK_VERSION_CHECKS = createRegistry(CATEGORY)
@@ -187,21 +190,19 @@ export const SDK_VERSION_CHECKS = createRegistry(CATEGORY)
         );
       }
 
-      if (parsedLatest.major === parsedDetected.major) {
-        return warn(
-          `Version ${detected} is behind latest minor version (${latest}).`,
-          STRINGS.MINOR_BEHIND_WARN_DETAIL,
-          STRINGS.MINOR_BEHIND_WARN_REMEDIATION,
-          STRINGS.MINOR_BEHIND_WARN_URL
-        );
-      }
-
-      return warn(
-        `Version ${detected} is behind latest major version (${latest}).`,
-        STRINGS.MAJOR_BEHIND_WARN_DETAIL,
-        STRINGS.MAJOR_BEHIND_WARN_REMEDIATION,
-        STRINGS.MAJOR_BEHIND_WARN_URL
-      );
+      return parsedLatest.major === parsedDetected.major
+        ? warn(
+            `Version ${detected} is behind latest minor version (${latest}).`,
+            STRINGS.MINOR_BEHIND_WARN_DETAIL,
+            STRINGS.MINOR_BEHIND_WARN_REMEDIATION,
+            STRINGS.MINOR_BEHIND_WARN_URL
+          )
+        : warn(
+            `Version ${detected} is behind latest major version (${latest}).`,
+            STRINGS.MAJOR_BEHIND_WARN_DETAIL,
+            STRINGS.MAJOR_BEHIND_WARN_REMEDIATION,
+            STRINGS.MAJOR_BEHIND_WARN_URL
+          );
     },
     { noticeImpact: 'low' }
   )
@@ -221,15 +222,13 @@ export const SDK_VERSION_CHECKS = createRegistry(CATEGORY)
       return skip(STRINGS.UPLIFT_VERSION_SKIP_TITLE, STRINGS.UPLIFT_VERSION_SKIP_REASON);
     }
 
-    if (compareVersions(detected, minimum) < 0) {
-      return fail(
-        STRINGS.UPLIFT_VERSION_FAIL_TITLE,
-        STRINGS.UPLIFT_VERSION_FAIL_DETAIL,
-        STRINGS.UPLIFT_VERSION_FAIL_REMEDIATION,
-        UPLIFT_REQUIREMENTS_URL
-      );
-    }
-
-    return pass(STRINGS.UPLIFT_VERSION_PASS_TITLE);
+    return compareVersions(detected, minimum) < 0
+      ? fail(
+          STRINGS.UPLIFT_VERSION_FAIL_TITLE,
+          STRINGS.UPLIFT_VERSION_FAIL_DETAIL,
+          STRINGS.UPLIFT_VERSION_FAIL_REMEDIATION,
+          UPLIFT_REQUIREMENTS_URL
+        )
+      : pass(STRINGS.UPLIFT_VERSION_PASS_TITLE);
   })
   .getChecks();

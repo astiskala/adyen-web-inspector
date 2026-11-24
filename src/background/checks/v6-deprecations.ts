@@ -11,7 +11,7 @@ import {
   STRING_OPTION_KEYS,
 } from '../../shared/checkout-config-schema.js';
 import { readCheckoutField } from '../../shared/scan-evidence.js';
-import { parseVersion } from '../../shared/utils.js';
+import { parseVersion } from '../../shared/utilities.js';
 import { SKIP_REASONS } from './constants.js';
 import { createRegistry, type CheckContext, type CheckOutcome } from './registry.js';
 
@@ -95,7 +95,9 @@ const DEPRECATED_CALLBACKS: readonly DeprecatedItem[] = DEPRECATED_CALLBACK_KEYS
   ...DEPRECATED_CALLBACK_GUIDANCE[key],
 }));
 
-/** Non-deprecated fields used as evidence that checkout config was captured. */
+/**
+Non-deprecated fields used as evidence that checkout config was captured.
+ */
 const KNOWN_FIELDS: readonly ConfigKey[] = [
   ...STRING_OPTION_KEYS,
   'riskEnabled',

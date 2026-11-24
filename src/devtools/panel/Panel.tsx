@@ -6,7 +6,7 @@ import { buildJsonExport } from '../../shared/export-json.js';
 import { buildPrintableReportMetadata } from '../../shared/export-metadata.js';
 import { exportPdf } from '../../popup/components/pdf-export.js';
 import type { ScanResult } from '../../shared/types.js';
-import { describeError } from '../../shared/utils.js';
+import { describeError } from '../../shared/utilities.js';
 import {
   OverviewTab,
   BestPracticesTab,
@@ -79,8 +79,11 @@ function renderTab(activeTab: TabName, result: ScanResult): JSX.Element {
   if (activeTab === 'Best Practices') return <BestPracticesTab result={result} />;
   if (activeTab === 'Security') return <SecurityTab result={result} />;
   if (activeTab === 'Network') return <NetworkTab result={result} />;
-  if (activeTab === 'Extracted Config') return <RawConfigTab result={result} />;
-  return <SkippedChecksTab result={result} />;
+  return activeTab === 'Extracted Config' ? (
+    <RawConfigTab result={result} />
+  ) : (
+    <SkippedChecksTab result={result} />
+  );
 }
 
 /**
@@ -89,10 +92,10 @@ function renderTab(activeTab: TabName, result: ScanResult): JSX.Element {
 export function Panel(): JSX.Element {
   const [activeTab, setActiveTab] = useState<TabName>('Overview');
   const { result, scanning, error, scan } = useScanLifecycle(inspectedTab, chromeTabStateClient);
-  const errorMsg = getPanelErrorMessage(error);
+  const errorMessage = getPanelErrorMessage(error);
 
-  const sdkNotDetected = result !== null && !result.sdkPresence.detected;
-  const showScanButton = !sdkNotDetected;
+  const isSdkNotDetected = result !== null && !result.sdkPresence.detected;
+  const isShowScanButton = !isSdkNotDetected;
 
   const scanButtonText = scanButtonLabel({ scanning, result });
 
@@ -103,7 +106,7 @@ export function Panel(): JSX.Element {
         {scanning ? 'Scanning…' : 'Click "Run Scan" to inspect this page.'}
       </div>
     );
-  } else if (sdkNotDetected) {
+  } else if (isSdkNotDetected) {
     bodyContent = (
       <div class={s('tabContent')}>
         <div class={s('emptyState')}>{SDK_NOT_DETECTED_MESSAGE}</div>
@@ -116,12 +119,12 @@ export function Panel(): JSX.Element {
   return (
     <div class={s('panelRoot')}>
       <div class={s('toolbar')}>
-        {showScanButton && (
+        {isShowScanButton && (
           <button class={`btn ${scanning ? '' : 'btnPrimary'}`} onClick={scan} disabled={scanning}>
             {scanButtonText}
           </button>
         )}
-        {result && !sdkNotDetected && (
+        {result && !isSdkNotDetected && (
           <>
             <button
               class="btn"
@@ -134,7 +137,7 @@ export function Panel(): JSX.Element {
             <button
               class="btn"
               onClick={() => {
-                exportPdf(result).catch(() => {});
+                void exportPdf(result).catch(() => {});
               }}
             >
               Export PDF
@@ -142,14 +145,14 @@ export function Panel(): JSX.Element {
           </>
         )}
         <span class={s('toolbarSpacer')} />
-        {result && !sdkNotDetected && (
+        {result && !isSdkNotDetected && (
           <span class={s('toolbarScore')}>
             Score: {result.health.score} · {result.health.passing}/{result.health.total} passing
           </span>
         )}
       </div>
-      {errorMsg ? <div class={s('errorBanner')}>{errorMsg}</div> : null}
-      {!sdkNotDetected && (
+      {errorMessage ? <div class={s('errorBanner')}>{errorMessage}</div> : null}
+      {!isSdkNotDetected && (
         <div class={s('tabBar')}>
           {TABS.map((tab) => {
             const cls = tab === activeTab ? `${s('tab')} ${s('tabActive')}` : s('tab');

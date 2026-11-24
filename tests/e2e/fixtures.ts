@@ -22,6 +22,10 @@ const EXTENSION_PATH = resolve(import.meta.dirname, '../../dist');
 const FIXTURE_ORIGIN = 'http://localhost:4321/';
 const STUBBED_EXTERNAL_URL =
   /^https:\/\/(?:checkout-live\.adyen\.com|checkout-test\.adyen\.com|checkoutanalytics-test\.adyen\.com|checkoutshopper-test\.adyen\.com|checkoutshopper-test\.cdn\.adyen\.com|checkoutshopper-live-eu\.cdn\.adyen\.com|www\.googletagmanager\.com|script\.hotjar\.com|connect\.facebook\.net)\//;
+const STUB_CONTENT_TYPES: ReadonlyMap<string, string> = new Map([
+  ['script', 'text/javascript'],
+  ['stylesheet', 'text/css'],
+]);
 
 interface ExtensionFixtures {
   context: BrowserContext;
@@ -36,21 +40,16 @@ interface FixtureTab {
 async function routeFixtureNetwork(context: BrowserContext): Promise<void> {
   await context.route(/^https?:\/\//, (route) => {
     const url = new URL(route.request().url());
-    if (url.hostname === 'localhost' && url.port === '4321') {
-      return route.continue();
-    }
-    return route.abort();
+    return url.hostname === 'localhost' && url.port === '4321' ? route.continue() : route.abort();
   });
   await context.route(STUBBED_EXTERNAL_URL, async (route) => {
     const resourceType = route.request().resourceType();
-    let contentType = 'application/json';
-    if (resourceType === 'script') contentType = 'text/javascript';
-    if (resourceType === 'stylesheet') contentType = 'text/css';
+    const contentType = STUB_CONTENT_TYPES.get(resourceType) ?? 'application/json';
     // Client-side API calls are only made by the client-key-rejected scenario.
-    const rejectsClientKey =
+    const isClientKeyRejected =
       new URL(route.request().url()).hostname === 'checkoutshopper-test.adyen.com';
     await route.fulfill({
-      status: rejectsClientKey ? 401 : 200,
+      status: isClientKeyRejected ? 401 : 200,
       contentType,
       headers: { 'access-control-allow-origin': '*' },
       body: resourceType === 'fetch' ? '{}' : '',
@@ -124,14 +123,18 @@ export const test = base.extend<ExtensionFixtures>({
 
 export const expect = test.expect;
 
-/** Returns the result for a check ID, failing the test when it is missing. */
+/**
+Returns the result for a check ID, failing the test when it is missing.
+ */
 export function requireCheck(result: ScanResult, id: CheckId): CheckResult {
   const found = result.checks.find((entry) => entry.id === id);
   if (found === undefined) throw new Error(`Missing check ${id}`);
   return found;
 }
 
-/** Opens a fixture page and waits until its dummy checkout is ready. */
+/**
+Opens a fixture page and waits until its dummy checkout is ready.
+ */
 export async function openFixture(context: BrowserContext, fixturePath: string): Promise<Page> {
   const page = await context.newPage();
   const url = new URL(fixturePath, FIXTURE_ORIGIN);
@@ -148,7 +151,9 @@ export async function openFixture(context: BrowserContext, fixturePath: string):
   return page;
 }
 
-/** Reads the extension badge text for a fixture page's tab. */
+/**
+Reads the extension badge text for a fixture page's tab.
+ */
 export async function getBadgeText(
   context: BrowserContext,
   extensionId: string,
@@ -159,7 +164,9 @@ export async function getBadgeText(
   return worker.evaluate((tabId) => chrome.action.getBadgeText({ tabId }), id);
 }
 
-/** Reads the stored scan result for a fixture page's tab. */
+/**
+Reads the stored scan result for a fixture page's tab.
+ */
 export async function getStoredScanResult(
   context: BrowserContext,
   extensionId: string,
@@ -217,7 +224,9 @@ export async function openDevtoolsPanelFor(
   return panel;
 }
 
-/** Opens a fixture page, runs a scan through the extension, and returns the result. */
+/**
+Opens a fixture page, runs a scan through the extension, and returns the result.
+ */
 export async function scanFixture(
   context: BrowserContext,
   extensionId: string,
@@ -232,7 +241,7 @@ export async function scanFixture(
     const scanPromise = popup.evaluate(
       (targetTabId) =>
         new Promise<ScanResult>((resolveScan, rejectScan) => {
-          let started = false;
+          let isStarted = false;
           const listener = (message: {
             type: string;
             tabId?: number;
@@ -245,17 +254,17 @@ export async function scanFixture(
             const scan = message.snapshot?.scan;
             if (scan === undefined) return;
             if (scan.state === 'running') {
-              started = true;
+              isStarted = true;
               return;
             }
-            if (!started) return;
+            if (!isStarted) return;
             chrome.runtime.onMessage.removeListener(listener);
             const result = message.snapshot?.result ?? null;
-            if (scan.state === 'idle' && result !== null) resolveScan(result);
+            if (result !== null && scan.state === 'idle') resolveScan(result);
             else rejectScan(new Error(scan.error ?? 'Scan finished without a result.'));
           };
           chrome.runtime.onMessage.addListener(listener);
-          chrome.runtime
+          void chrome.runtime
             .sendMessage({ type: 'SCAN_REQUEST', tabId: targetTabId })
             .catch((error: unknown) => {
               chrome.runtime.onMessage.removeListener(listener);

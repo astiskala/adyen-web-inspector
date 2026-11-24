@@ -33,20 +33,18 @@ function resetGlobals(): void {
   Reflect.deleteProperty(g, 'AdyenCheckout');
   Reflect.deleteProperty(g, 'AdyenWeb');
   JSON.parse = NATIVE_JSON_PARSE;
-  // @ts-expect-error - testing environment cleanup
-  globalThis.fetch = undefined;
-  // @ts-expect-error - testing environment cleanup
-  globalThis.XMLHttpRequest = undefined;
+  vi.stubGlobal('fetch', undefined);
+  vi.stubGlobal('XMLHttpRequest', undefined);
 }
 
 async function loadInterceptor(): Promise<void> {
   vi.resetModules();
-  globalThis.fetch = vi.fn().mockResolvedValue({});
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({}));
 
   // Create a proper XHR mock
   const openMock = vi.fn();
-  globalThis.XMLHttpRequest = vi.fn() as unknown as typeof XMLHttpRequest;
-  globalThis.XMLHttpRequest.prototype.open = openMock;
+  vi.stubGlobal('XMLHttpRequest', vi.fn());
+  XMLHttpRequest.prototype.open = openMock;
 
   await import('../../../src/content/config-interceptor.js');
 }
@@ -63,7 +61,7 @@ function Dropin(_checkout: unknown, options: unknown): { options: unknown } {
 }
 
 function installAdyenCheckoutFactory(factory: CheckoutFactory): void {
-  (globalThis as unknown as Record<string, unknown>)['AdyenCheckout'] = factory;
+  Reflect.set(globalThis, 'AdyenCheckout', factory);
 }
 
 function callAdyenCheckout(config: unknown): Promise<unknown> {
@@ -190,7 +188,7 @@ describe('config-interceptor', () => {
 
     it('wraps create on the captured instance for component config', async () => {
       const fakeCheckout: Record<string, unknown> = {
-        create: (_type: unknown, _cfg?: unknown) => ({}),
+        create: (_type: unknown, _config?: unknown) => ({}),
         options: { clientKey: 'test_WRAP', environment: 'test' },
       };
 

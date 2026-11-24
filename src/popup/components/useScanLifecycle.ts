@@ -11,15 +11,23 @@ import type { ScanResult } from '../../shared/types.js';
  * messaging is the production adapter; tests connect the real tab state.
  */
 export interface TabStateClient {
-  /** Reads the tab's snapshot; rejects when the extension runtime is unreachable. */
+  /**
+  Reads the tab's snapshot; rejects when the extension runtime is unreachable.
+   */
   read: (tabId: number) => Promise<TabSnapshot>;
-  /** Asks the tab state to scan the tab; rejects when the request cannot be sent. */
+  /**
+  Asks the tab state to scan the tab; rejects when the request cannot be sent.
+   */
   requestScan: (tabId: number) => Promise<void>;
-  /** Delivers every snapshot the tab state publishes; returns an unsubscribe function. */
+  /**
+  Delivers every snapshot the tab state publishes; returns an unsubscribe function.
+   */
   subscribe: (listener: (tabId: number, snapshot: TabSnapshot) => void) => () => void;
 }
 
-/** Which tab a view inspects. */
+/**
+Which tab a view inspects.
+ */
 interface TabTarget {
   getTabId: () => number | undefined | Promise<number | undefined>;
 }
@@ -75,9 +83,11 @@ export function useScanLifecycle(
     if (mounted.current) setState(next);
   }
 
-  /** Resolves the inspected tab once per target; the resolution never throws synchronously. */
+  /**
+  Resolves the inspected tab once per target; the resolution never throws synchronously.
+   */
   function resolveTabId(): Promise<number | undefined> {
-    tabId.current ??= Promise.resolve().then(() => target.getTabId());
+    tabId.current ??= Promise.try(() => target.getTabId());
     return tabId.current;
   }
 
@@ -100,7 +110,7 @@ export function useScanLifecycle(
       update(fromSnapshot(await client.read(id)));
     }
 
-    follow().catch((error: unknown) => {
+    void follow().catch((error: unknown) => {
       update(failed({ kind: 'runtime', cause: error }));
     });
     return (): void => {
@@ -109,7 +119,9 @@ export function useScanLifecycle(
     };
   }, [target, client]);
 
-  /** Asks for a scan; rejects only when the request itself fails. */
+  /**
+  Asks for a scan; rejects only when the request itself fails.
+   */
   async function requestScan(): Promise<void> {
     let id: number | undefined;
     try {
@@ -127,7 +139,7 @@ export function useScanLifecycle(
 
   function scan(): void {
     update((previous) => ({ ...previous, scanning: true, loading: false, error: null }));
-    requestScan().catch((error: unknown) => {
+    void requestScan().catch((error: unknown) => {
       update(failed({ kind: 'request', cause: error }));
     });
   }
@@ -135,7 +147,9 @@ export function useScanLifecycle(
   return { ...state, scan };
 }
 
-/** The scan button label for a view's scan state. */
+/**
+The scan button label for a view's scan state.
+ */
 export function scanButtonLabel({
   scanning,
   result,

@@ -429,7 +429,7 @@ test('Checkout analytics POST during a scan supplies flavor and Sessions flow ev
           'https://checkoutanalytics-test.adyen.com/checkoutanalytics/v3/setup',
           {
             method: 'POST',
-            body: globalThis.JSON.stringify({
+            body: JSON.stringify({
               flavor: 'custom',
               version: '6.31.0',
               buildType: 'esm',

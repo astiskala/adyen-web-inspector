@@ -28,45 +28,67 @@ import {
   type TabSnapshot,
 } from '../shared/messages.js';
 import type { ScanResult } from '../shared/types.js';
-import { describeError, isScanResult } from '../shared/utils.js';
+import { describeError, isScanResult } from '../shared/utilities.js';
 
-/** A badge on the extension's action icon for one tab. */
+/**
+A badge on the extension's action icon for one tab.
+ */
 interface TabBadge {
   readonly text: string;
   readonly color: string;
 }
 
-/** Everything the tab state needs from the browser. */
+/**
+Everything the tab state needs from the browser.
+ */
 export interface TabStateBrowser {
-  /** Reads session-scoped values; missing keys are omitted. */
+  /**
+  Reads session-scoped values; missing keys are omitted.
+   */
   read: (keys: readonly string[]) => Promise<Readonly<Record<string, unknown>>>;
   write: (items: Readonly<Record<string, unknown>>) => Promise<void>;
   remove: (keys: readonly string[]) => Promise<void>;
-  /** Shows a badge on the tab's action icon, or clears it when null. */
+  /**
+  Shows a badge on the tab's action icon, or clears it when null.
+   */
   setBadge: (tabId: number, badge: TabBadge | null) => void;
-  /** Notifies open popups and DevTools panels. */
+  /**
+  Notifies open popups and DevTools panels.
+   */
   notify: (message: BswToUiMessage) => void;
 }
 
-/** Runs a Scan of the tab's current page. */
+/**
+Runs a Scan of the tab's current page.
+ */
 type RunScan = (tabId: number) => Promise<ScanResult>;
 
 interface TabState {
-  /** The passive detector saw a mounted Drop-in, Component, or Adyen iframe. */
+  /**
+  The passive detector saw a mounted Drop-in, Component, or Adyen iframe.
+   */
   checkoutActivityDetected: (tabId: number, version?: string) => Promise<void>;
   checkoutActivityCleared: (tabId: number) => Promise<void>;
-  /** Scans the tab unless a Scan of its current page is already running. */
+  /**
+  Scans the tab unless a Scan of its current page is already running.
+   */
   requestScan: (tabId: number) => Promise<void>;
-  /** The tab started loading a document: its state and any pending Scan are discarded. */
+  /**
+  The tab started loading a document: its state and any pending Scan are discarded.
+   */
   navigated: (tabId: number) => Promise<void>;
   removed: (tabId: number) => Promise<void>;
-  /** Reads the tab's snapshot after its pending transitions. */
+  /**
+  Reads the tab's snapshot after its pending transitions.
+   */
   read: (tabId: number) => Promise<TabSnapshot>;
 }
 
 interface TabRuntime {
   readonly tabId: number;
-  /** Incremented when the tab's page goes away, so a pending Scan can tell it is stale. */
+  /**
+  Incremented when the tab's page goes away, so a pending Scan can tell it is stale.
+   */
   generation: number;
   scan: TabScanStatus;
   queue: Promise<unknown>;
@@ -95,12 +117,15 @@ function tabKeys(tabId: number): string[] {
   return [resultKey(tabId), activityKey(tabId), versionKey(tabId)];
 }
 
-/** A running Scan decides the badge, then a stored result, then checkout activity. */
+/**
+A running Scan decides the badge, then a stored result, then checkout activity.
+ */
 function badgeFor({ result, checkoutActivity, scan }: TabSnapshot): TabBadge | null {
   if (scan.state === 'running') return SCANNING_BADGE;
   if (result !== null) {
-    if (!result.sdkPresence.detected) return null;
-    return { text: `${result.health.score}`, color: HEALTH_TIER_COLORS[result.health.tier] };
+    return result.sdkPresence.detected
+      ? { text: result.health.score.toString(), color: HEALTH_TIER_COLORS[result.health.tier] }
+      : null;
   }
   return checkoutActivity.detected ? ACTIVITY_BADGE : null;
 }
@@ -111,14 +136,34 @@ function readActivity(stored: Readonly<Record<string, unknown>>, tabId: number):
   return typeof version === 'string' ? { detected: true, version } : { detected: true };
 }
 
-/** Runs a transition after the tab's earlier ones; a failed transition does not block later ones. */
+/**
+Runs a transition after the tab's earlier ones; a failed transition does not block later ones.
+ */
 function enqueue<T>(tab: TabRuntime, transition: () => T | Promise<T>): Promise<T> {
-  const next = tab.queue.then(transition);
-  tab.queue = next.catch(() => {});
+  const next = runAfter(tab.queue, transition);
+  tab.queue = Promise.allSettled([next]);
   return next;
 }
 
-/** Creates the tab state over a browser port; `scan` performs the Scan itself. */
+async function runAfter<T>(
+  previous: Promise<unknown>,
+  transition: () => T | Promise<T>
+): Promise<T> {
+  await previous;
+  return transition();
+}
+
+async function settleScan(running: Promise<ScanResult>): Promise<ScanOutcome> {
+  try {
+    return { result: await running };
+  } catch (error: unknown) {
+    return { error };
+  }
+}
+
+/**
+Creates the tab state over a browser port; `scan` performs the Scan itself.
+ */
 export function createTabState(browser: TabStateBrowser, scan: RunScan): TabState {
   const tabs = new Map<number, TabRuntime>();
 
@@ -150,7 +195,9 @@ export function createTabState(browser: TabStateBrowser, scan: RunScan): TabStat
     show(tab.tabId, await snapshot(tab));
   }
 
-  /** Forgets the tab's page: stored state goes, and any pending Scan becomes stale. */
+  /**
+  Forgets the tab's page: stored state goes, and any pending Scan becomes stale.
+   */
   async function discardPage(tab: TabRuntime): Promise<void> {
     tab.generation += 1;
     tab.scan = IDLE;
@@ -162,7 +209,7 @@ export function createTabState(browser: TabStateBrowser, scan: RunScan): TabStat
       if (tab.scan.state === 'running') return null;
       tab.scan = RUNNING;
       // The Scan must start even if storage cannot be read; its outcome publishes again.
-      await publish(tab).catch(() => {});
+      await Promise.allSettled([publish(tab)]);
       return tab.generation;
     });
   }
@@ -187,7 +234,7 @@ export function createTabState(browser: TabStateBrowser, scan: RunScan): TabStat
       return enqueue(tab, async () => {
         await browser.write({
           [activityKey(tabId)]: true,
-          ...(version === undefined ? {} : { [versionKey(tabId)]: version }),
+          ...(version !== undefined && { [versionKey(tabId)]: version }),
         });
         await publish(tab);
       });
@@ -205,10 +252,7 @@ export function createTabState(browser: TabStateBrowser, scan: RunScan): TabStat
       const tab = runtime(tabId);
       const generation = await startScan(tab);
       if (generation === null) return;
-      const outcome = await scan(tabId).then(
-        (result): ScanOutcome => ({ result }),
-        (error: unknown): ScanOutcome => ({ error })
-      );
+      const outcome = await settleScan(scan(tabId));
       await finishScan(tab, generation, outcome);
     },
 

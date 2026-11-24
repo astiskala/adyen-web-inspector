@@ -1,7 +1,7 @@
 import type { JSX } from 'preact';
 import { EmptyState } from './EmptyState.js';
 
-interface NotDetectedProps {
+interface NotDetectedProperties {
   readonly onAttemptScan: () => void;
   readonly scanning: boolean;
 }
@@ -10,7 +10,7 @@ interface NotDetectedProps {
  * Empty-state view shown when no Adyen checkout is detected on the page.
  * Offers an "Attempt Scan" escape hatch for cases where detection fails.
  */
-export function NotDetected({ onAttemptScan, scanning }: NotDetectedProps): JSX.Element {
+export function NotDetected({ onAttemptScan, scanning }: NotDetectedProperties): JSX.Element {
   return (
     <EmptyState
       icon="🔍"
