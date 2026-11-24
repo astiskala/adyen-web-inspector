@@ -7,13 +7,20 @@ const root = import.meta.dirname;
 const OUT_DIR = resolve(root, 'dist');
 
 /**
-Fails the build if a content script would need ESM loading, which Chrome does not provide.
+ESM statements at the start of a line, dynamic imports, and import.meta.
+*/
+const CLASSIC_SCRIPT_VIOLATIONS = [/^(?:import|export)\b/m, /\bimport\s*\(/, /\bimport\.meta\b/];
+
+/**
+Fails the build if a content script would need ESM loading, which Chrome does
+not provide, or would load code at runtime: a dynamic import in the MAIN
+world resolves against the inspected page.
 */
 async function assertClassicScript(file: string): Promise<void> {
   const code = await readFile(file, 'utf8');
-  if (/^(?:import|export)\b/m.test(code)) {
+  if (CLASSIC_SCRIPT_VIOLATIONS.some((pattern) => pattern.test(code))) {
     throw new Error(
-      `${relative(root, file)} must be a self-contained classic script, but it contains ESM import/export statements.`
+      `${relative(root, file)} must be a self-contained classic script, but it contains ESM import/export statements, a dynamic import, or import.meta.`
     );
   }
 }
