@@ -77,7 +77,7 @@ describe('buildPrintableHtml', () => {
           id: '3p-no-sri',
           category: 'third-party',
           severity: 'skip',
-          title: 'Third-party SRI review — No third-party scripts detected.',
+          title: 'Third-party SRI review',
           detail: 'No third-party scripts detected.',
         }),
       ],
@@ -198,5 +198,23 @@ describe('buildPrintableHtml attributes', () => {
     expect(html).toContain('#f29900');
     expect(html).toMatch(/SDK Version<\/[^>]+>\s*<[^>]+>Unknown/);
     expect(html).not.toContain('>Region<');
+  });
+});
+
+describe('buildPrintableHtml skipped checks', () => {
+  it('shows a dash for a skipped check without a recorded reason', () => {
+    const html = buildPrintableHtml(
+      makeResult({
+        checks: [
+          { id: '3p-no-sri', category: 'third-party', severity: 'skip', title: 'SRI skipped' },
+        ],
+      }),
+      { extensionVersion: '1.2.3', browser: 'Test' }
+    );
+    const cells = new DOMParser().parseFromString(html, 'text/html').querySelectorAll('td');
+
+    expect([...cells].map((cell) => cell.textContent)).toEqual(
+      expect.arrayContaining(['SRI skipped', '—'])
+    );
   });
 });

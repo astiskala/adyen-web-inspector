@@ -1,6 +1,7 @@
 /**
-Issue impact — which check results are issues, the impact each carries, and
-the labels every view shows for impact groups.
+Severity policy — which check results are issues, which count toward the
+health score, the impact each issue carries, and the labels every view
+shows for impact groups.
 */
 
 import type { CheckImpact, CheckResult, Severity } from './types.js';
@@ -20,13 +21,28 @@ export const IMPACT_LABELS: Readonly<Record<CheckImpact, string>> = {
   manual: 'Manual verification',
 };
 
-const ISSUE_SEVERITIES: ReadonlySet<Severity> = new Set(['fail', 'warn', 'notice']);
+/**
+Issue severities in priority order, used to sort issues within an impact group.
+*/
+export const ISSUE_SEVERITIES: readonly Severity[] = ['fail', 'warn', 'notice'];
+
+/**
+Severities that state a verified outcome; info, notice, and skip do not score.
+*/
+const SCORED_SEVERITIES: ReadonlySet<Severity> = new Set(['pass', 'warn', 'fail']);
 
 /**
 Returns true when a check result is an issue (fail, warn, or notice).
 */
 export function isIssue(check: CheckResult): boolean {
-  return ISSUE_SEVERITIES.has(check.severity);
+  return ISSUE_SEVERITIES.includes(check.severity);
+}
+
+/**
+Returns true when a check result counts toward the health score.
+*/
+export function isScored(check: CheckResult): boolean {
+  return SCORED_SEVERITIES.has(check.severity);
 }
 
 /**

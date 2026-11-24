@@ -20,7 +20,14 @@ function makeResult(): ScanResult {
         id: '3p-no-sri',
         category: 'third-party',
         severity: 'skip',
-        title: 'Third-party SRI — No scripts detected.',
+        title: 'Third-party SRI check skipped.',
+        detail: 'No third-party scripts detected.',
+      },
+      {
+        id: 'env-cdn-mismatch',
+        category: 'environment',
+        severity: 'skip',
+        title: 'CDN mismatch check skipped.',
       },
       {
         id: 'security-sri-css',
@@ -46,11 +53,13 @@ function makeResult(): ScanResult {
 }
 
 describe('DevTools finding views', () => {
-  it('renders normalized skip reasons from the same projection as exports', () => {
+  it('renders skip reasons from the same projection as exports', () => {
     render(h(SkippedChecksTab, { result: makeResult() }), host);
-    expect(host.textContent).toContain('Third-party SRI');
-    expect(host.textContent).toContain('No scripts detected.');
-    expect(host.textContent).not.toContain('Third-party SRI —');
+    const reasons = [...host.querySelectorAll('[class*="skipReason"]')].map((r) => r.textContent);
+
+    expect(host.textContent).toContain('Third-party SRI check skipped.');
+    expect(host.textContent).toContain('CDN mismatch check skipped.');
+    expect(reasons).toEqual(['No third-party scripts detected.']);
   });
 
   it('filters captured requests and groups security findings with the shared rules', () => {

@@ -81,7 +81,7 @@ function buildSkippedRows(skippedChecks: FindingProjection['skippedChecks']): st
     .map(
       (check) => `<tr>
       <td>${escapeHtml(check.title)}</td>
-      <td style="color:#6b7280">${escapeHtml(check.reason)}</td>
+      <td style="color:#6b7280">${escapeHtml(check.reason ?? '—')}</td>
     </tr>`
     )
     .join('');

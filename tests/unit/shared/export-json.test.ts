@@ -93,7 +93,7 @@ describe('buildJsonExport', () => {
           id: '3p-no-sri',
           category: 'third-party',
           severity: 'skip',
-          title: 'Third-party SRI review — No third-party scripts detected.',
+          title: 'Third-party SRI review',
           detail: 'No third-party scripts detected.',
         }),
       ],

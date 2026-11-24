@@ -202,20 +202,14 @@ describe('buildFindingProjection', () => {
         id: '3p-no-sri',
         category: 'third-party',
         severity: 'skip',
-        title: 'Third-party SRI — No scripts found.',
-        detail: 'Review manually.',
-      }),
-      makeCheck({
-        id: 'env-cdn-mismatch',
-        category: 'environment',
-        severity: 'skip',
-        title: 'CDN mismatch — No assets loaded.',
+        title: 'Third-party SRI check skipped.',
+        detail: 'No third-party scripts found.',
       }),
       makeCheck({
         id: 'risk-df-iframe',
         category: 'risk',
         severity: 'skip',
-        title: 'No detail or separator',
+        title: 'Stored result without a skip detail',
       }),
     ]);
 
@@ -223,9 +217,8 @@ describe('buildFindingProjection', () => {
     const exported = buildReportExportData(result);
 
     expect(projection.skippedChecks.map((check) => [check.title, check.reason])).toEqual([
-      ['Third-party SRI', 'Review manually.'],
-      ['CDN mismatch', 'No assets loaded.'],
-      ['No detail or separator', '—'],
+      ['Third-party SRI check skipped.', 'No third-party scripts found.'],
+      ['Stored result without a skip detail', null],
     ]);
     expect(projection.skippedChecks).toEqual(exported.skippedChecks);
     expect(projection.network.capturedRequests.map((request) => request.url)).toEqual([

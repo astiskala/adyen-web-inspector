@@ -7,7 +7,13 @@ rows in projection order; none of them sorts or rewords issues itself.
 */
 
 import { readAdyenEndpoint } from './adyen-endpoint.js';
-import { getImpactLevel, IMPACT_LABELS, isIssue, ISSUE_IMPACT_ORDER } from './results.js';
+import {
+  getImpactLevel,
+  IMPACT_LABELS,
+  isIssue,
+  ISSUE_IMPACT_ORDER,
+  ISSUE_SEVERITIES,
+} from './results.js';
 import type {
   AdyenEnvironment,
   AdyenRegion,
@@ -26,7 +32,6 @@ import type {
 } from './types.js';
 
 const ADYEN_WEB_BEST_PRACTICES_DOC = 'https://docs.adyen.com/online-payments/web-best-practices/';
-const ISSUE_SEVERITY_ORDER: readonly Severity[] = ['fail', 'warn', 'notice'];
 
 const BEST_PRACTICE_CATEGORIES: ReadonlySet<CheckCategory> = new Set([
   'sdk-identity',
@@ -96,7 +101,10 @@ interface ExportSkippedCheck {
   readonly category: CheckCategory;
   readonly title: string;
   readonly detail: string | null;
-  readonly reason: string;
+  /**
+  Why the check was skipped: its detail, which every skip states.
+  */
+  readonly reason: string | null;
 }
 
 interface ExportNetworkData {
@@ -144,7 +152,7 @@ interface FindingProjection {
 
 function bySeverityThenTitle(a: CheckResult, b: CheckResult): number {
   return (
-    ISSUE_SEVERITY_ORDER.indexOf(a.severity) - ISSUE_SEVERITY_ORDER.indexOf(b.severity) ||
+    ISSUE_SEVERITIES.indexOf(a.severity) - ISSUE_SEVERITIES.indexOf(b.severity) ||
     a.title.localeCompare(b.title)
   );
 }
@@ -231,21 +239,13 @@ function buildExportSection(section: FindingSection): ExportCategorySection {
 function buildSkippedChecks(result: ScanResult): ExportSkippedCheck[] {
   return result.checks
     .filter((check) => check.severity === 'skip')
-    .map((check) => {
-      const dashIndex = check.title.indexOf(' — ');
-      const hasSeparator = dashIndex !== -1;
-      const title = hasSeparator ? check.title.slice(0, dashIndex).trim() : check.title;
-      const parsedReason = hasSeparator ? check.title.slice(dashIndex + 3).trim() : '';
-      const reason = (check.detail ?? parsedReason).trim();
-
-      return {
-        id: check.id,
-        category: check.category,
-        title,
-        detail: check.detail ?? null,
-        reason: reason === '' ? '—' : reason,
-      };
-    });
+    .map((check) => ({
+      id: check.id,
+      category: check.category,
+      title: check.title,
+      detail: check.detail ?? null,
+      reason: check.detail ?? null,
+    }));
 }
 
 function buildNetworkData(result: ScanResult): ExportNetworkData {

@@ -250,7 +250,7 @@ export function SkippedChecksTab({ result }: Properties): JSX.Element {
             <div key={check.id} class={s('checkCard')}>
               <div class={s('checkSummaryStatic')}>
                 <span class={s('checkSummaryTitle')}>{check.title}</span>
-                {check.reason !== '—' && <span class={s('skipReason')}>{check.reason}</span>}
+                {check.reason !== null && <span class={s('skipReason')}>{check.reason}</span>}
               </div>
             </div>
           ))}

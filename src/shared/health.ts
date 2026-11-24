@@ -7,15 +7,14 @@ Uses traffic-light (RAG) tiering.
   Green (excellent): no failures or warnings.
 */
 
+import { isScored } from './results.js';
 import type { CheckResult, HealthScore } from './types.js';
 
 /**
 Computes aggregate health metrics and RAG tier from check outcomes.
 */
-export function calculateHealthScore(checks: CheckResult[]): HealthScore {
-  const scoreable = checks.filter(
-    (c) => c.severity !== 'skip' && c.severity !== 'info' && c.severity !== 'notice'
-  );
+export function calculateHealthScore(checks: readonly CheckResult[]): HealthScore {
+  const scoreable = checks.filter(isScored);
   const passing = scoreable.filter((c) => c.severity === 'pass').length;
   const failing = scoreable.filter((c) => c.severity === 'fail').length;
   const warnings = scoreable.filter((c) => c.severity === 'warn').length;
