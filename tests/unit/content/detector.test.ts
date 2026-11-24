@@ -132,12 +132,6 @@ describe('passive detector', () => {
 
   it('checks again right away after single-page navigation', async () => {
     await detect(() => {
-      history.pushState({}, '', '#one');
-    });
-    await detect(() => {
-      history.replaceState({}, '', '#two');
-    });
-    await detect(() => {
       globalThis.dispatchEvent(new HashChangeEvent('hashchange'));
     });
     await detect(() => {
@@ -145,7 +139,7 @@ describe('passive detector', () => {
     });
 
     expect(sentTypes()).toEqual(
-      Array.from({ length: 4 }, () => [
+      Array.from({ length: 2 }, () => [
         MSG_CHECKOUT_ACTIVITY_DETECTED,
         MSG_CHECKOUT_ACTIVITY_CLEARED,
       ]).flat()

@@ -123,22 +123,6 @@ function handleMutations(records: MutationRecord[]): void {
   }
 }
 
-function installSpaRouteHooks(): void {
-  const historyApi = globalThis.history;
-  const originalPushState: History['pushState'] = historyApi.pushState.bind(historyApi);
-  const originalReplaceState: History['replaceState'] = historyApi.replaceState.bind(historyApi);
-
-  historyApi.pushState = (...arguments_: Parameters<History['pushState']>): void => {
-    originalPushState(...arguments_);
-    scheduleDetection(0);
-  };
-
-  historyApi.replaceState = (...arguments_: Parameters<History['replaceState']>): void => {
-    originalReplaceState(...arguments_);
-    scheduleDetection(0);
-  };
-}
-
 /**
 The tab state resets on every navigation, including same-document ones that
 keep this detector, then asks it to report again once the tab has loaded.
@@ -156,7 +140,9 @@ function initPassiveDetection(): void {
   const observer = new MutationObserver(handleMutations);
   observer.observe(document.documentElement, { childList: true, subtree: true });
 
-  installSpaRouteHooks();
+  // The detector runs in an isolated world, where replacing history.pushState
+  // would not see the page's calls; the tab state asks for a report after
+  // same-document navigations instead.
   globalThis.addEventListener('hashchange', () => {
     scheduleDetection(0);
   });
