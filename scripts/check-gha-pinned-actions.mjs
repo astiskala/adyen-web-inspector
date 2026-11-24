@@ -1,8 +1,14 @@
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const WORKFLOWS_DIR = resolve('.github/workflows');
+const ACTIONS_DIR = resolve('.github/actions');
 const SHA_PATTERN = /^[a-f0-9]{40}$/;
+const DOCKER_DIGEST_PATTERN = /@sha256:[a-f0-9]{64}$/;
+/**
+A `uses:` key, including the first key of a list item (`- uses:`).
+*/
+const USES_PATTERN = /^\s*(?:-\s+)?uses:\s*([^#]+?)(?:\s+#.*)?$/;
 
 function isWorkflowYamlPath(filePath) {
   return filePath.endsWith('.yml') || filePath.endsWith('.yaml');
@@ -10,7 +16,20 @@ function isWorkflowYamlPath(filePath) {
 
 function isWorkflowFilePath(filePath) {
   const normalized = filePath.replaceAll('\\', '/');
-  return normalized.startsWith('.github/workflows/') || normalized.includes('/.github/workflows/');
+  return ['.github/workflows/', '.github/actions/'].some(
+    (directory) => normalized.startsWith(directory) || normalized.includes(`/${directory}`)
+  );
+}
+
+/**
+Composite action metadata files under .github/actions, which can reference other actions.
+*/
+function collectActionFiles() {
+  if (!existsSync(ACTIONS_DIR)) return [];
+  return readdirSync(ACTIONS_DIR, { recursive: true })
+    .map(String)
+    .filter((path) => /(?:^|[/\\])action\.ya?ml$/.test(path))
+    .map((path) => resolve(ACTIONS_DIR, path));
 }
 
 function normalizeValue(value) {
@@ -35,16 +54,25 @@ function collectWorkflowFilesFromArgs() {
     return workflowArgFiles.map((filePath) => resolve(filePath));
   }
 
-  return readdirSync(WORKFLOWS_DIR)
-    .filter((fileName) => isWorkflowYamlPath(fileName))
-    .map((fileName) => resolve(WORKFLOWS_DIR, fileName));
+  return [
+    ...readdirSync(WORKFLOWS_DIR)
+      .filter((fileName) => isWorkflowYamlPath(fileName))
+      .map((fileName) => resolve(WORKFLOWS_DIR, fileName)),
+    ...collectActionFiles(),
+  ];
 }
 
-function isExternalAction(ref) {
-  return !ref.startsWith('./') && !ref.startsWith('docker://');
+function isLocalAction(ref) {
+  return ref.startsWith('./');
 }
 
 function validateActionReference(filePath, lineNumber, ref) {
+  if (ref.startsWith('docker://')) {
+    return DOCKER_DIGEST_PATTERN.test(ref)
+      ? null
+      : `${filePath}:${lineNumber} uses "${ref}" without a pinned sha256 image digest`;
+  }
+
   if (!ref.includes('@')) {
     return `${filePath}:${lineNumber} uses "${ref}" without a pinned commit SHA`;
   }
@@ -66,13 +94,13 @@ function main() {
     const lines = readFileSync(filePath, 'utf8').split('\n');
     for (let index = 0; index < lines.length; index += 1) {
       const line = lines[index] ?? '';
-      const match = /^\s*uses:\s*([^#]+?)(?:\s+#.*)?$/.exec(line);
+      const match = USES_PATTERN.exec(line);
       if (match === null) {
         continue;
       }
 
       const ref = normalizeValue(match[1] ?? '');
-      if (!isExternalAction(ref)) {
+      if (isLocalAction(ref)) {
         continue;
       }
 

@@ -80,7 +80,7 @@
     "*.{css,html,json,yaml,yml}": [
       "prettier --write"
     ],
-    ".github/workflows/*.{yml,yaml}": [
+    ".github/{workflows/*,actions/**/action}.{yml,yaml}": [
       "node ./scripts/check-gha-pinned-actions.mjs"
     ]
   }
