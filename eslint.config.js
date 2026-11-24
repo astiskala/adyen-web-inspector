@@ -367,7 +367,7 @@ export default defineConfig([
           paths: BASE_RESTRICTED_IMPORT_PATHS,
           patterns: [
             {
-              group: ['**/shared/utilities.js', '**/shared/csp-utilities.js'],
+              group: ['**/shared/csp-utilities.js'],
               importNames: [
                 'parseCsp',
                 'isUrlAllowedByCsp',

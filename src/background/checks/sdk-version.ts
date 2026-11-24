@@ -4,7 +4,11 @@ the Adyen Uplift co-badged card minimum.
 */
 
 import type { SdkVersionSource, VersionInfo } from '../../shared/types.js';
-import { compareVersions, meetsMinimumVersion, parseVersion } from '../../shared/utilities.js';
+import {
+  compareVersions,
+  meetsMinimumVersion,
+  parseVersion,
+} from '../../shared/version-utilities.js';
 import { createRegistry } from './registry.js';
 
 const RELEASE_NOTES_URL = 'https://docs.adyen.com/online-payments/release-notes/';

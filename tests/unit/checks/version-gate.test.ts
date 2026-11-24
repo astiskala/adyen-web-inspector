@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { meetsMinimumVersion } from '../../../src/shared/utilities';
+import { meetsMinimumVersion } from '../../../src/shared/version-utilities';
 import { MIN_SUPPORTED_VERSION } from '../../../src/shared/constants';
 
 describe('version gate — minimum supported version', () => {

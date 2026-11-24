@@ -1,5 +1,5 @@
 import type { CheckoutPage, ScanPayload, ScanResult } from '../shared/types.js';
-import { calculateHealthScore } from '../shared/utilities.js';
+import { calculateHealthScore } from '../shared/health.js';
 import { withRequestDerivedLocale } from '../shared/scan-evidence.js';
 import { resolveVersionInfo } from '../shared/sdk-version.js';
 import { computeStandardCompliance } from '../shared/standard-compliance.js';

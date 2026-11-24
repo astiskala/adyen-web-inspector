@@ -1,13 +1,9 @@
 /**
-Shared utility functions - Entry point for split utility modules.
+Small shared helpers: error descriptions, value guards, and hostnames.
+Severity policy, health, versions, and CSP have their own modules.
 */
 
 import type { ScanResult } from './types.js';
-
-export * from './results.js';
-export * from './health.js';
-export * from './version-utilities.js';
-export * from './csp-utilities.js';
 
 /**
 Describes a thrown value: an Error's message, a string as-is, otherwise its type tag.

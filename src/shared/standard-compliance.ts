@@ -6,7 +6,7 @@ not claim compliance with the complete Standard integration checklist.
 */
 
 import type { ImplementationAttributes, StandardCompliance } from './types.js';
-import { meetsMinimumVersion } from './utilities.js';
+import { meetsMinimumVersion } from './version-utilities.js';
 
 const MINIMUM_STANDARD_DROPIN_VERSION = '6.30.0';
 

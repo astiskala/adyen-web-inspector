@@ -13,7 +13,7 @@ import {
   parseCsp,
   readScriptAllowance,
   type ScriptAllowance,
-} from '../../shared/utilities.js';
+} from '../../shared/csp-utilities.js';
 
 type CspDirective = Parameters<typeof getEffectiveCspSources>[1];
 type GoverningSources = NonNullable<ReturnType<typeof getEffectiveCspSources>>;
