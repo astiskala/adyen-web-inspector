@@ -117,7 +117,13 @@ export function Panel(): JSX.Element {
     );
   } else {
     bodyContent = (
-      <div class={s('tabPanel')} role="tabpanel" id="tab-panel" aria-labelledby={tabId(activeTab)}>
+      <div
+        class={s('tabPanel')}
+        role="tabpanel"
+        id="tab-panel"
+        tabIndex={0}
+        aria-labelledby={tabId(activeTab)}
+      >
         {renderTab(activeTab, result)}
       </div>
     );

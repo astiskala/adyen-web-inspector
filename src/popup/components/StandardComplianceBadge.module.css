@@ -49,11 +49,8 @@
   line-height: 1.4;
 }
 
+/* Underlined, so the link is distinguishable from the caveat text without colour. */
 .caveat a {
   color: var(--color-blue, #2563eb);
-  text-decoration: none;
-}
-
-.caveat a:hover {
   text-decoration: underline;
 }

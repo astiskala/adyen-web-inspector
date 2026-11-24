@@ -59,11 +59,21 @@
 }
 
 /* ── Tab content ── */
+/* The tab panel scrolls and takes focus, so keyboard users can scroll content without controls. */
 .tabPanel {
-  display: flex;
   flex: 1;
-  flex-direction: column;
   min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.tabPanel:focus-visible {
+  outline: 2px solid var(--color-blue);
+  outline-offset: -2px;
+}
+
+.tabPanel > .tabContent {
+  overflow: visible;
 }
 
 .tabContent {

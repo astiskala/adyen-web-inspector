@@ -43,7 +43,8 @@
 
 .badgeTest {
   background: #fce8e6;
-  color: var(--color-red);
+  /* Darker than --color-red, which is below 4.5:1 on this background. */
+  color: #b3261e;
 }
 
 .badgeLive {
@@ -54,6 +55,7 @@
 @media (prefers-color-scheme: dark) {
   .badgeTest {
     background: rgb(242 139 130 / 16%);
+    color: var(--color-red);
   }
 
   .badgeLive {
