@@ -546,7 +546,7 @@ test('Sessions Drop-in with server-side country but missing outcome handlers rep
   });
   expect(result.payload.page.observedConfig.captured?.options.countryCode).toBeUndefined();
   expect(requireCheck(result, 'flow-type').title).toContain('Sessions');
-  expect(requireCheck(result, 'auth-country-code').severity).toBe('warn');
+  expect(requireCheck(result, 'auth-country-code').severity).toBe('notice');
   expect(requireCheck(result, 'callback-on-submit').severity).toBe('skip');
   expect(requireCheck(result, 'callback-on-payment-completed').severity).toBe('fail');
   expect(requireCheck(result, 'callback-on-payment-failed').severity).toBe('fail');

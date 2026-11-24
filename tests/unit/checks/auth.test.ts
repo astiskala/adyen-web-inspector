@@ -278,7 +278,7 @@ describe('auth-client-key-rejected', () => {
 });
 
 describe('auth-country-code edge cases', () => {
-  it('warns rather than fails when Sessions flow lacks countryCode', () => {
+  it('asks for manual review, not a warning, when a Sessions client config lacks countryCode', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
         observedConfig: {
@@ -287,7 +287,9 @@ describe('auth-country-code edge cases', () => {
       }),
     });
 
-    expect(authCountryCode.run(payload).severity).toBe('warn');
+    const result = authCountryCode.run(payload);
+    expect(result).toMatchObject({ severity: 'notice', impact: 'manual' });
+    expect(result.detail).toContain('/sessions request');
   });
 
   it('says a countryCode seen only in page JSON came from JSON the page parsed', () => {

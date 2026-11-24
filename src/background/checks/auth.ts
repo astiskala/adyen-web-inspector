@@ -31,9 +31,14 @@ const STRINGS = {
     "countryCode is required to ensure the correct payment methods are shown for the shopper's country.",
   COUNTRY_CODE_FAIL_REMEDIATION:
     "Set the countryCode property in your AdyenCheckout configuration to the ISO 3166-1 alpha-2 code for the shopper's country. This is required to display the correct payment methods for that market and to route the payment correctly.",
-  COUNTRY_CODE_FAIL_URL: 'https://docs.adyen.com/development-resources/testing/',
-  COUNTRY_CODE_SESSIONS_WARN_DETAIL:
-    'Sessions flow typically sets countryCode server-side in the /sessions request. Setting it in the client config is still recommended for optimal payment method filtering.',
+  COUNTRY_CODE_FAIL_URL:
+    'https://docs.adyen.com/online-payments/upgrade-your-integration/upgrade-to-web-v6/',
+  COUNTRY_CODE_SESSIONS_NOTICE_TITLE:
+    'countryCode is not set in the checkout configuration; confirm the session sets it.',
+  COUNTRY_CODE_SESSIONS_NOTICE_DETAIL:
+    'In the Sessions flow, countryCode can be set in the /sessions request instead of AdyenCheckout. The inspector cannot see that server-side request.',
+  COUNTRY_CODE_SESSIONS_NOTICE_REMEDIATION:
+    "Confirm that your /sessions request includes the shopper's countryCode, or set countryCode in your AdyenCheckout configuration.",
 
   LOCALE_SKIP_TITLE: 'Locale check skipped.',
   LOCALE_PARTIAL_NOTICE_TITLE: 'locale presence cannot be verified.',
@@ -132,7 +137,7 @@ export const AUTH_CHECKS = createRegistry(CATEGORY)
           STRINGS.KEY_REJECTED_FAIL_URL
         );
   })
-  .add('auth-country-code', (payload, { attributes, pass, fail, skip, warn, notice }) => {
+  .add('auth-country-code', (payload, { attributes, pass, fail, skip, notice }) => {
     const countryCode = readCheckoutField(payload, 'countryCode');
     if (countryCode.state === 'present') {
       return countryCode.source === 'inferred'
@@ -154,10 +159,10 @@ export const AUTH_CHECKS = createRegistry(CATEGORY)
     }
 
     return attributes.flow.value === 'sessions'
-      ? warn(
-          STRINGS.COUNTRY_CODE_FAIL_TITLE,
-          STRINGS.COUNTRY_CODE_SESSIONS_WARN_DETAIL,
-          STRINGS.COUNTRY_CODE_FAIL_REMEDIATION,
+      ? notice(
+          STRINGS.COUNTRY_CODE_SESSIONS_NOTICE_TITLE,
+          STRINGS.COUNTRY_CODE_SESSIONS_NOTICE_DETAIL,
+          STRINGS.COUNTRY_CODE_SESSIONS_NOTICE_REMEDIATION,
           STRINGS.COUNTRY_CODE_FAIL_URL
         )
       : fail(
