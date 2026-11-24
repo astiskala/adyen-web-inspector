@@ -40,6 +40,7 @@ function resetGlobals(): void {
   Reflect.deleteProperty(g, INSTALLED_KEY);
   Reflect.deleteProperty(g, 'AdyenCheckout');
   Reflect.deleteProperty(g, 'AdyenWeb');
+  Reflect.deleteProperty(g, 'define');
   JSON.parse = NATIVE_JSON_PARSE;
   Element.prototype.attachShadow = NATIVE_ATTACH_SHADOW;
   Reflect.deleteProperty(g, PAGE_GLOBALS.closedShadowRoots);
@@ -602,6 +603,67 @@ async function nullFactory(): Promise<unknown> {
   return null;
 }
 
+type AmdDefine = ((...parameters: unknown[]) => void) & {
+  amd: object;
+  modules: unknown[];
+  factories: unknown[];
+};
+
+/**
+A RequireJS-shaped define that runs each factory at once, giving 'exports' an exports object.
+*/
+function installAmdLoader(): AmdDefine {
+  const modules: unknown[] = [];
+  const factories: unknown[] = [];
+  function define(...parameters: unknown[]): void {
+    const factory = parameters.at(-1);
+    factories.push(factory);
+    if (typeof factory !== 'function') {
+      modules.push(factory);
+      return;
+    }
+    const dependencies = parameters.find((parameter) => Array.isArray(parameter)) as
+      string[] | undefined;
+    const exports: Record<string, unknown> = {};
+    const result: unknown = Reflect.apply(
+      factory,
+      undefined,
+      (dependencies ?? []).map((name) => (name === 'exports' ? exports : name))
+    );
+    modules.push(result ?? exports);
+  }
+  Reflect.set(
+    globalThis,
+    'define',
+    Object.assign(define, { amd: { jQuery: true }, modules, factories })
+  );
+  return Reflect.get(globalThis, 'define') as AmdDefine;
+}
+
+function cartModule(): string {
+  return 'cart';
+}
+
+async function AdyenCheckout(): Promise<unknown> {
+  return null;
+}
+
+function requireSugar(require: unknown): unknown {
+  return require;
+}
+
+function returnNullFactory(): typeof nullFactory {
+  return nullFactory;
+}
+
+function returnCartModule(): typeof cartModule {
+  return cartModule;
+}
+
+function returnNamedCheckout(): typeof AdyenCheckout {
+  return AdyenCheckout;
+}
+
 describe('config-interceptor installation and edge cases', () => {
   const g = globalThis as unknown as Record<string, unknown>;
 
@@ -733,6 +795,67 @@ describe('config-interceptor installation and edge cases', () => {
     expect(roots.has(openHost)).toBe(false);
     expect(openHost.shadowRoot).toBe(open);
     expect(() => closedHost.attachShadow({ mode: 'open' })).toThrow();
+  });
+
+  it('captures a v6 UMD build that RequireJS defines through an exports object', async () => {
+    const define = installAmdLoader();
+    expect(define.amd).toEqual({ jQuery: true });
+
+    define(['exports'], (exports: Record<string, unknown>) => {
+      exports['AdyenCheckout'] = nullFactory;
+      exports['Card'] = Card;
+    });
+    const namespace = define.modules[0] as Record<string, unknown>;
+
+    await (namespace['AdyenCheckout'] as CheckoutFactory)({ countryCode: 'NL' });
+    expect(namespace['Card']).not.toBe(Card);
+    expect(getCapturedConfig()).toEqual({ countryCode: 'NL' });
+  });
+
+  it('captures a v5 UMD build whose AMD factory returns AdyenCheckout', async () => {
+    const define = installAmdLoader();
+    const script = document.createElement('script');
+    script.src = 'https://shop.example/static/frontend/Magento/luma/Adyen_Payment/js/adyen.js';
+    Object.defineProperty(document, 'currentScript', { value: script, configurable: true });
+    try {
+      define(returnNullFactory);
+    } finally {
+      Reflect.deleteProperty(document, 'currentScript');
+    }
+    define(() => ({ AdyenCheckout: 'not a factory' }));
+
+    await (define.modules[0] as CheckoutFactory)({ locale: 'nl-NL' });
+    expect(getCapturedConfig()).toEqual({ locale: 'nl-NL' });
+  });
+
+  it('recognises an AdyenCheckout factory module by name, and leaves other modules alone', async () => {
+    const define = installAmdLoader();
+    define([], returnCartModule);
+    define([], returnNamedCheckout);
+    define(requireSugar);
+
+    expect(define.modules[0]).toBe(cartModule);
+    // RequireJS reads a sugar factory's source for require() calls, so it must reach define as is.
+    expect(define.factories[2]).toBe(requireSugar);
+    await (define.modules[1] as CheckoutFactory)({ locale: 'en-GB' });
+    expect(getCapturedConfig()).toEqual({ locale: 'en-GB' });
+  });
+
+  it('captures an AMD module that returns an Adyen Web namespace', async () => {
+    const define = installAmdLoader();
+    define(['jquery'], (jquery: unknown) => ({ AdyenCheckout: nullFactory, jquery }));
+    const namespace = define.modules[0] as Record<string, unknown>;
+
+    expect(namespace['jquery']).toBe('jquery');
+    await (namespace['AdyenCheckout'] as CheckoutFactory)({ countryCode: 'DE' });
+    expect(getCapturedConfig()).toEqual({ countryCode: 'DE' });
+  });
+
+  it('passes define calls without a factory function through', () => {
+    const define = installAmdLoader();
+    define('config', { mode: 'test' });
+
+    expect(define.modules).toEqual([{ mode: 'test' }]);
   });
 
   it('leaves page APIs alone when another copy is already installed', async () => {

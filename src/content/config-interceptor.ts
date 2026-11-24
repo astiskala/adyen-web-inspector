@@ -315,8 +315,85 @@ import type { CallbackSource, CheckoutCapture } from '../shared/types.js';
     });
   }
 
+  // ---------------------------------------------------------------------------
+  // AMD loaders (RequireJS on Magento)
+  // ---------------------------------------------------------------------------
+
+  /**
+  Self-hosted copies keep the SDK's file name, such as Adyen_Payment/js/adyen.js on Magento.
+  */
+  const ADYEN_SCRIPT_FILE = /\/adyen(?:\.min)?\.js(?:[?#]|$)/;
+
+  function isAdyenNamespace(value: unknown): boolean {
+    return (
+      typeof value === 'object' &&
+      value !== null &&
+      typeof (value as PlainRecord)['AdyenCheckout'] === 'function'
+    );
+  }
+
+  /**
+  An Adyen Web module, as the UMD build defines it under AMD: v6 fills an
+  exports namespace, v5 returns its AdyenCheckout factory.
+  */
+  function wrapAmdModule(value: unknown, isFromAdyenScript: boolean): unknown {
+    if (isAdyenNamespace(value)) return wrapNamespaceGlobal(value);
+    const isCheckoutFactory =
+      typeof value === 'function' && (isFromAdyenScript || value.name === 'AdyenCheckout');
+    return isCheckoutFactory ? wrapCheckoutGlobal(value) : value;
+  }
+
+  function wrapAmdFactory(factory: Callable, isFromAdyenScript: boolean): Callable {
+    return function (this: unknown, ...dependencies: unknown[]): unknown {
+      const result: unknown = Reflect.apply(factory, this, dependencies);
+      attempt(() => {
+        for (const dependency of dependencies) {
+          if (isAdyenNamespace(dependency)) wrapNamespace(dependency);
+        }
+      });
+      let module = result;
+      attempt(() => {
+        module = wrapAmdModule(result, isFromAdyenScript);
+      });
+      return module;
+    };
+  }
+
+  /**
+  Replaces a define() call's factory with one that wraps the Adyen module it
+  builds. A factory with parameters and no dependency list is left alone,
+  because RequireJS reads its source for require() calls.
+  */
+  function wrapDefineArguments(parameters: unknown[]): unknown[] {
+    const factory = parameters.at(-1);
+    if (typeof factory !== 'function') return parameters;
+    if (parameters.every((parameter) => !Array.isArray(parameter)) && factory.length > 0) {
+      return parameters;
+    }
+    const script = globalThis.document.currentScript;
+    const isFromAdyenScript =
+      script instanceof HTMLScriptElement && ADYEN_SCRIPT_FILE.test(script.src);
+    return [...parameters.slice(0, -1), wrapAmdFactory(factory as Callable, isFromAdyenScript)];
+  }
+
+  function wrapDefine(define: unknown): unknown {
+    if (!isUnwrappedFunction(define)) return define;
+    const proxy = new Proxy(define, {
+      apply(target, thisArgument, parameters: unknown[]): unknown {
+        let wrappedParameters = parameters;
+        attempt(() => {
+          wrappedParameters = wrapDefineArguments(parameters);
+        });
+        return Reflect.apply(target, thisArgument, wrappedParameters);
+      },
+    });
+    wrapped.add(proxy);
+    return proxy;
+  }
+
   trapGlobal('AdyenCheckout', wrapCheckoutGlobal);
   trapGlobal('AdyenWeb', wrapNamespaceGlobal);
+  trapGlobal('define', wrapDefine);
   // A script's load event fires right after it runs and, in the capture phase,
   // before its own onload handlers, so sync, async, deferred, and lazily
   // inserted SDK scripts are wrapped before merchant code can call them.
