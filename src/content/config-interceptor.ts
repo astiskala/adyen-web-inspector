@@ -249,6 +249,23 @@ import type { CallbackSource, CheckoutCapture } from '../shared/types.js';
   }
 
   // ---------------------------------------------------------------------------
+  // Closed shadow roots
+  // ---------------------------------------------------------------------------
+
+  // A closed root is unreachable from its host, so it is recorded as the page attaches it.
+  const closedShadowRoots = new WeakMap<Element, ShadowRoot>();
+  pageGlobals[PAGE_GLOBALS.closedShadowRoots] = closedShadowRoots;
+  attempt(() => {
+    Element.prototype.attachShadow = observeCalls(Element.prototype.attachShadow, {
+      after: (root) => {
+        if (root instanceof ShadowRoot && root.mode === 'closed') {
+          closedShadowRoots.set(root.host, root);
+        }
+      },
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // SDK globals (UMD/CDN builds)
   // ---------------------------------------------------------------------------
 

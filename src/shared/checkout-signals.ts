@@ -71,6 +71,15 @@ function isAdyenIframe({ name, src }: IframeIdentity): boolean {
 }
 
 /**
+Reads an element's shadow root; the default sees open roots only.
+*/
+export type ShadowRootLookup = (element: Element) => ShadowRoot | null;
+
+function openShadowRoot(element: Element): ShadowRoot | null {
+  return element.shadowRoot;
+}
+
+/**
 At most this many elements are inspected for shadow roots, so very large pages stay cheap.
 */
 const SHADOW_SCAN_LIMIT = 20_000;
@@ -79,7 +88,10 @@ const SHADOW_SCAN_LIMIT = 20_000;
 Returns the open shadow roots under a root, nested ones included, for
 checkout that web components or design systems mount inside Shadow DOM.
 */
-export function collectShadowRoots(root: ParentNode): ShadowRoot[] {
+export function collectShadowRoots(
+  root: ParentNode,
+  shadowRootOf: ShadowRootLookup = openShadowRoot
+): ShadowRoot[] {
   const shadowRoots: ShadowRoot[] = [];
   const pending: ParentNode[] = [root];
   let scanned = 0;
@@ -87,12 +99,13 @@ export function collectShadowRoots(root: ParentNode): ShadowRoot[] {
     for (const element of current.querySelectorAll('*')) {
       scanned += 1;
       if (scanned > SHADOW_SCAN_LIMIT) return shadowRoots;
-      if (element.shadowRoot === null) {
+      const shadowRoot = shadowRootOf(element);
+      if (shadowRoot === null) {
         continue;
       }
 
-      shadowRoots.push(element.shadowRoot);
-      pending.push(element.shadowRoot);
+      shadowRoots.push(shadowRoot);
+      pending.push(shadowRoot);
     }
   }
   return shadowRoots;
@@ -120,9 +133,14 @@ Reads what a document's DOM shows of mounted checkout. Open shadow roots are
 searched only when the light DOM shows no checkout, which keeps the common
 case to a few selector queries.
 */
-export function readCheckoutDom(root: ParentNode): CheckoutDom {
+export function readCheckoutDom(
+  root: ParentNode,
+  shadowRootOf: ShadowRootLookup = openShadowRoot
+): CheckoutDom {
   const light = readDom([root]);
-  return hasMountedCheckout(light) ? light : readDom([root, ...collectShadowRoots(root)]);
+  return hasMountedCheckout(light)
+    ? light
+    : readDom([root, ...collectShadowRoots(root, shadowRootOf)]);
 }
 
 /**

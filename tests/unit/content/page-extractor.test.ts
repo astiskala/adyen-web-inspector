@@ -324,6 +324,32 @@ describe('page extractor mounted component configuration', () => {
     await expect(extractPage()).resolves.toMatchObject({ componentMountCount: 1 });
   });
 
+  it('reads checkout in a closed shadow root the interceptor recorded, nested open roots included', async () => {
+    const host = document.createElement('payment-widget');
+    document.body.append(host);
+    const closed = host.attachShadow({ mode: 'closed' });
+    const innerHost = document.createElement('div');
+    closed.append(innerHost);
+    const open = innerHost.attachShadow({ mode: 'open' });
+    mountTree('<div class="adyen-checkout__dropin"></div>', coreOptions({ locale: 'pl-PL' }), open);
+    pageGlobals[PAGE_GLOBALS.closedShadowRoots] = new WeakMap([[host, closed]]);
+
+    await expect(extractPage()).resolves.toMatchObject({
+      observedConfig: { component: { locale: 'pl-PL' } },
+      hasDropinDOM: true,
+    });
+  });
+
+  it('ignores a closed-root record the page overwrote', async () => {
+    const host = document.createElement('payment-widget');
+    document.body.append(host);
+    host.attachShadow({ mode: 'closed' }).innerHTML = '<div class="adyen-checkout__dropin"></div>';
+    pageGlobals[PAGE_GLOBALS.closedShadowRoots] = { get: (): null => null };
+
+    const page = await extractPage();
+    expect(page).not.toHaveProperty('hasDropinDOM');
+  });
+
   it('reads a checkout mounted in a shadow root deep in the page', async () => {
     let parent: HTMLElement = document.body;
     for (let level = 0; level < 10; level += 1) {

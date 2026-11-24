@@ -40,10 +40,19 @@ function extractVersionFromScripts(): string | undefined {
 }
 
 /**
+Content scripts can open closed shadow roots too, so checkout mounted in one is seen.
+*/
+function openOrClosedShadowRoot(element: Element): ShadowRoot | null {
+  return element instanceof HTMLElement ? chrome.dom.openOrClosedShadowRoot(element) : null;
+}
+
+/**
 Reports mounted checkout as the checkout signals define it; SDK script tags alone do not count.
 */
 function detectCheckoutActivity(): CheckoutActivity {
-  if (!hasMountedCheckout(readCheckoutDom(document))) return { found: false };
+  if (!hasMountedCheckout(readCheckoutDom(document, openOrClosedShadowRoot))) {
+    return { found: false };
+  }
   const version = extractVersionFromScripts();
   return { found: true, ...(version !== undefined && { version }) };
 }
@@ -105,10 +114,12 @@ function isInterestingNode(node: Node): boolean {
   const source = element.getAttribute('src') ?? '';
   const href = element.getAttribute('href') ?? '';
   // Frameworks can render checkout off-DOM and append it inside a plain wrapper.
+  // A shadow host's checkout is invisible to selectors, so adding or removing one re-checks.
   return (
     source.includes('adyen') ||
     href.includes('adyen') ||
-    element.querySelector(INTERESTING_DESCENDANTS) !== null
+    element.querySelector(INTERESTING_DESCENDANTS) !== null ||
+    openOrClosedShadowRoot(element) !== null
   );
 }
 

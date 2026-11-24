@@ -7,6 +7,8 @@ import {
 
 const SDK_URL = 'https://checkoutshopper-live.cdn.adyen.com/checkoutshopper/sdk/6.31.0/adyen.js';
 
+const closedRoots = new WeakMap<Element, ShadowRoot>();
+
 const harness = {} as {
   sendMessage: ReturnType<typeof vi.fn>;
   onMessage: (message: unknown) => void;
@@ -48,6 +50,11 @@ beforeAll(async () => {
   vi.useFakeTimers();
   harness.sendMessage = vi.fn().mockResolvedValue(undefined);
   vi.stubGlobal('chrome', {
+    // Content scripts can open closed roots; the stub reads what the test registered.
+    dom: {
+      openOrClosedShadowRoot: (element: HTMLElement): ShadowRoot | null =>
+        element.shadowRoot ?? closedRoots.get(element) ?? null,
+    },
     runtime: {
       sendMessage: harness.sendMessage,
       onMessage: {
@@ -167,6 +174,20 @@ describe('passive detector', () => {
 
     harness.onMessage({ type: MSG_REPORT_CHECKOUT_ACTIVITY });
     expect(sentTypes()).toEqual([MSG_CHECKOUT_ACTIVITY_DETECTED, MSG_CHECKOUT_ACTIVITY_DETECTED]);
+  });
+
+  it('reports checkout mounted inside a closed shadow root', async () => {
+    const host = document.createElement('payment-widget');
+    const root = host.attachShadow({ mode: 'closed' });
+    closedRoots.set(host, root);
+    root.innerHTML = '<div class="adyen-checkout__dropin"></div>';
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    document.body.append(svg, host);
+    await advance(200);
+    host.remove();
+    await advance(200);
+
+    expect(sentTypes()).toEqual([MSG_CHECKOUT_ACTIVITY_DETECTED, MSG_CHECKOUT_ACTIVITY_CLEARED]);
   });
 
   it('reports the checkout gone when its frame unloads, and only once', async () => {

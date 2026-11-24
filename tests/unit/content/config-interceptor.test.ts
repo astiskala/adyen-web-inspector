@@ -5,6 +5,8 @@ import type { CheckoutCapture, InferenceSignal } from '../../../src/shared/types
 const CAPTURE_KEY = PAGE_GLOBALS.checkoutCapture;
 const INSTALLED_KEY = PAGE_GLOBALS.interceptorInstalled;
 const NATIVE_JSON_PARSE = JSON.parse;
+// eslint-disable-next-line @typescript-eslint/unbound-method -- Restored onto Element.prototype, its own receiver.
+const NATIVE_ATTACH_SHADOW = Element.prototype.attachShadow;
 
 type CapturedConfig = Record<string, unknown>;
 type CheckoutFactory = (config: unknown) => Promise<unknown>;
@@ -39,6 +41,8 @@ function resetGlobals(): void {
   Reflect.deleteProperty(g, 'AdyenCheckout');
   Reflect.deleteProperty(g, 'AdyenWeb');
   JSON.parse = NATIVE_JSON_PARSE;
+  Element.prototype.attachShadow = NATIVE_ATTACH_SHADOW;
+  Reflect.deleteProperty(g, PAGE_GLOBALS.closedShadowRoots);
   vi.stubGlobal('fetch', undefined);
   vi.stubGlobal('XMLHttpRequest', undefined);
 }
@@ -716,6 +720,19 @@ describe('config-interceptor installation and edge cases', () => {
 
     await callAdyenCheckout({ locale: 'de-DE' });
     expect(getCapturedConfig()).toEqual({ locale: 'de-DE' });
+  });
+
+  it('records closed shadow roots by host and leaves attachShadow working', () => {
+    const closedHost = document.createElement('div');
+    const openHost = document.createElement('div');
+    const closed = closedHost.attachShadow({ mode: 'closed' });
+    const open = openHost.attachShadow({ mode: 'open' });
+
+    const roots = g[PAGE_GLOBALS.closedShadowRoots] as WeakMap<Element, ShadowRoot>;
+    expect(roots.get(closedHost)).toBe(closed);
+    expect(roots.has(openHost)).toBe(false);
+    expect(openHost.shadowRoot).toBe(open);
+    expect(() => closedHost.attachShadow({ mode: 'open' })).toThrow();
   });
 
   it('leaves page APIs alone when another copy is already installed', async () => {

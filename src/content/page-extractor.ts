@@ -249,8 +249,9 @@ function findAllVnodeRoots(): ElementWithVnode[] {
       roots.push(element);
     }
 
-    if (element.shadowRoot !== null) {
-      for (const child of element.shadowRoot.children) {
+    const shadowRoot = shadowRootOf(element);
+    if (shadowRoot !== null) {
+      for (const child of shadowRoot.children) {
         walkNode(child);
       }
     }
@@ -267,8 +268,16 @@ function findAllVnodeRoots(): ElementWithVnode[] {
 /**
 Finds Adyen checkout elements including inside Shadow DOMs.
 */
+/**
+Open shadow roots, and closed ones the config interceptor saw the page attach.
+*/
+function shadowRootOf(element: Element): ShadowRoot | null {
+  const closed = (globalThis as GlobalWithAdyen)[PAGE_GLOBALS.closedShadowRoots];
+  return element.shadowRoot ?? (closed instanceof WeakMap ? (closed.get(element) ?? null) : null);
+}
+
 function findAdyenElements(): Element[] {
-  return [document, ...collectShadowRoots(document)].flatMap((root) => [
+  return [document, ...collectShadowRoots(document, shadowRootOf)].flatMap((root) => [
     ...root.querySelectorAll('[class*="adyen-checkout"]'),
   ]);
 }
@@ -458,7 +467,7 @@ function extract(): PageExtractResult {
   const { config: componentConfig, mountCount } = extractComponentConfig();
   const capture = readCheckoutCapture(g[PAGE_GLOBALS.checkoutCapture]);
   const isApiKeyDetected = isApiKeyExposed(capture);
-  const dom = readCheckoutDom(document);
+  const dom = readCheckoutDom(document, shadowRootOf);
   const analytics = reportedAnalytics(capture.analytics);
 
   return {

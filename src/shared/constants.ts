@@ -113,6 +113,7 @@ export const PAGE_GLOBALS = {
   checkoutCapture: '__adyenWebInspectorCheckoutCapture',
   interceptorInstalled: '__adyenWebInspectorCapturedConfig__installed',
   pageExtractResultJson: '__adyenWebInspectorPageExtractResultJson',
+  closedShadowRoots: '__adyenWebInspectorClosedShadowRoots',
 } as const;
 
 /**
@@ -131,6 +132,10 @@ export interface PageGlobalValues {
   The page extractor's serialized `PageExtractResult` for this frame.
   */
   [PAGE_GLOBALS.pageExtractResultJson]?: string;
+  /**
+  Closed shadow roots by host, recorded as the page attaches them, so the page extractor can read checkout mounted inside them.
+  */
+  [PAGE_GLOBALS.closedShadowRoots]?: WeakMap<Element, ShadowRoot>;
 }
 
 // ─── Version Gates ────────────────────────────────────────────────────────────
