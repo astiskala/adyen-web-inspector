@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Checkout in a blob: iframe</title>
+  </head>
+  <body>
+    <script>
+      const origin = location.origin;
+      const html = `<!doctype html><html><body><div id="checkout"></div>
+        <script src="${origin}/dummy-adyen-web.js"><\/script>
+        <script>AdyenCheckout({ environment: 'test', clientKey: 'test_blob', countryCode: 'SE', locale: 'sv-SE' })
+          .then((c) => c.create('dropin').mount('#checkout'));<\/script></body></html>`;
+      const frame = document.createElement('iframe');
+      frame.src = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
+      document.body.append(frame);
+    </script>
+  </body>
+</html>

@@ -706,3 +706,16 @@ test('Busy page keeps the checkout request the full Resource Timing buffer dropp
     )
   ).toBe(true);
 });
+
+test('Checkout in a blob: iframe is captured like any other frame', async ({
+  context,
+  extensionId,
+}) => {
+  const result = await scanFixture(context, extensionId, 'blob-frame-merchant.html');
+
+  expect(result.payload.page.observedConfig.captured?.options).toMatchObject({
+    clientKey: 'test_blob',
+    countryCode: 'SE',
+    locale: 'sv-SE',
+  });
+});
