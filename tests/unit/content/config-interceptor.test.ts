@@ -594,6 +594,10 @@ describe('config-interceptor with SDK-shaped classes', () => {
   });
 });
 
+async function nullFactory(): Promise<unknown> {
+  return null;
+}
+
 describe('config-interceptor installation and edge cases', () => {
   const g = globalThis as unknown as Record<string, unknown>;
 
@@ -633,7 +637,7 @@ describe('config-interceptor installation and edge cases', () => {
   });
 
   it('leaves an SDK global the page made read-only unwrapped and working', async () => {
-    const factory = async (): Promise<unknown> => null;
+    const factory = nullFactory;
     Object.defineProperty(globalThis, 'AdyenCheckout', {
       value: factory,
       writable: false,

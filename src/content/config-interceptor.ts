@@ -303,7 +303,7 @@ import type { CallbackSource, CheckoutCapture } from '../shared/types.js';
   // A script's load event fires right after it runs and, in the capture phase,
   // before its own onload handlers, so sync, async, deferred, and lazily
   // inserted SDK scripts are wrapped before merchant code can call them.
-  document.addEventListener('load', wrapSdkGlobals, true);
+  document.addEventListener('load', wrapSdkGlobals, { capture: true });
   // The parser runs microtasks before each script it inserts, so mutation
   // callbacks also wrap an SDK defined by an earlier inline script.
   const parserObserver = new MutationObserver(wrapSdkGlobals);
