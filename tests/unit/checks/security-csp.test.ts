@@ -261,7 +261,7 @@ describe('csp-frame-src', () => {
 function withCsp(policy: string, config: Partial<CheckoutConfig> = {}): ScanPayload {
   return makeScanPayload({
     page: makeCheckoutPage({
-      capturedConfig: makeCapturedCheckoutConfig(config, true),
+      observedConfig: { captured: makeCapturedCheckoutConfig(config, true) },
     }),
     documentHeaders: makeDocumentHeaders([makeHeader('content-security-policy', policy)]),
   });
@@ -327,7 +327,11 @@ describe('csp-connect-src', () => {
 
   it('uses the test environment from client key evidence when config has no environment', () => {
     const payload = makeScanPayload({
-      page: makeCheckoutPage({ inferredConfig: { clientKey: 'test_ABCDEFGHIJK' } }),
+      page: makeCheckoutPage({
+        observedConfig: {
+          inferred: { 'adyen-request': { clientKey: 'test_ABCDEFGHIJK' } },
+        },
+      }),
       documentHeaders: makeDocumentHeaders([
         makeHeader('content-security-policy', "connect-src 'self'"),
       ]),

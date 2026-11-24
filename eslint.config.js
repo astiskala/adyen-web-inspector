@@ -49,16 +49,16 @@ const BASE_RESTRICTED_IMPORT_PATHS = [
 
 // ─── Architecture seams (see AGENTS.md → Key Seams) ─────────────────────────
 
-const RAW_CONFIG_SLOT = '/^(capturedConfig|componentConfig|inferredConfig|pageJsonConfig)$/';
 const RAW_CONFIG_MESSAGE =
-  'Read checkout configuration through shared/scan-evidence.ts (readCheckoutField(), checkoutConfigSources()); it owns source precedence, the absence rule, and what page JSON may show.';
+  'Read checkout configuration through shared/scan-evidence.ts (readCheckoutField(), checkoutConfigSources(), mergeObservedConfigs()); it owns source precedence, the absence rule, and what page JSON may show.';
 const RAW_CONFIG_RULES = [
-  { selector: `MemberExpression[property.name=${RAW_CONFIG_SLOT}]`, message: RAW_CONFIG_MESSAGE },
-  {
-    selector: `ObjectPattern > Property[key.name=${RAW_CONFIG_SLOT}]`,
-    message: RAW_CONFIG_MESSAGE,
-  },
+  { selector: "MemberExpression[property.name='observedConfig']", message: RAW_CONFIG_MESSAGE },
+  { selector: "ObjectPattern > Property[key.name='observedConfig']", message: RAW_CONFIG_MESSAGE },
 ];
+/**
+Configuration evidence reads the configuration; the finding projection only shows it raw.
+*/
+const CONFIGURATION_READERS = ['src/shared/scan-evidence.ts', 'src/shared/export-report.ts'];
 const DOCUMENT_HEADERS_RULE = {
   selector: "MemberExpression[property.name='documentHeaders']",
   message:
@@ -288,6 +288,12 @@ export default defineConfig([
   {
     files: ['src/**/*.{ts,tsx}'],
     rules: {
+      'no-restricted-syntax': ['error', ...SOURCE_RESTRICTED_SYNTAX, ...RAW_CONFIG_RULES],
+    },
+  },
+  {
+    files: CONFIGURATION_READERS,
+    rules: {
       'no-restricted-syntax': ['error', ...SOURCE_RESTRICTED_SYNTAX],
     },
   },
@@ -314,12 +320,6 @@ export default defineConfig([
   },
   {
     files: ['src/background/checks/page-policy.ts'],
-    rules: {
-      'no-restricted-syntax': ['error', ...SOURCE_RESTRICTED_SYNTAX, ...RAW_CONFIG_RULES],
-    },
-  },
-  {
-    files: ['src/shared/implementation-attributes.ts'],
     rules: {
       'no-restricted-syntax': ['error', ...SOURCE_RESTRICTED_SYNTAX, ...RAW_CONFIG_RULES],
     },
@@ -395,6 +395,7 @@ export default defineConfig([
       'no-restricted-syntax': [
         'error',
         ...SOURCE_RESTRICTED_SYNTAX,
+        ...RAW_CONFIG_RULES,
         { selector: "Literal[value='sdk-detected']", message: SDK_PRESENCE_MESSAGE },
       ],
       'no-restricted-imports': [

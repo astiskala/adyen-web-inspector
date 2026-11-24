@@ -122,10 +122,13 @@ const SEAM_RULES = [
   {
     name: 'evidence-inline-safe',
     comment:
-      'Configuration evidence and SDK presence are inlined into the detector through the checkout signals, so they may depend on types and the Adyen endpoint reading only',
+      'Configuration evidence and SDK presence are inlined into the detector through the checkout signals, so they may depend on types, the Adyen endpoint reading, and the config field schema only',
     severity: 'error',
     from: { path: '^src/shared/(scan-evidence|sdk-presence)\\.ts$' },
-    to: { path: '^src/', pathNot: '^src/shared/(types|adyen-endpoint)\\.ts$' },
+    to: {
+      path: '^src/',
+      pathNot: '^src/shared/(types|adyen-endpoint|checkout-config-schema)\\.ts$',
+    },
   },
   {
     name: 'checkout-capture-inline-safe',

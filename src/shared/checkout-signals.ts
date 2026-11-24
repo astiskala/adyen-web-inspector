@@ -52,10 +52,7 @@ The parts of a frame's extraction that show checkout.
 */
 type FrameSignals = Pick<
   PageExtractResult,
-  | 'capturedConfig'
-  | 'componentConfig'
-  | 'inferredConfig'
-  | 'pageJsonConfig'
+  | 'observedConfig'
   | 'componentMountCount'
   | 'hasDropinDOM'
   | 'hasCardDOM'
@@ -119,9 +116,10 @@ mounted tree's options, a Drop-in, SDK metadata, an Adyen script, and an
 Adyen iframe, in falling weight.
 */
 export function checkoutStrength(frame: FrameSignals): number {
+  const configSources = checkoutConfigSources(frame);
   let strength = 0;
-  if (frame.capturedConfig !== null) strength += 100;
-  if (frame.componentConfig !== null) strength += 90;
+  if (configSources.has('captured')) strength += 100;
+  if (configSources.has('component')) strength += 90;
   if (frame.hasDropinDOM === true) strength += 60;
   if (frame.adyenMetadata !== null) strength += 40;
   if (hasAdyenScriptHint(frame)) strength += 20;

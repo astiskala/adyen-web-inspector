@@ -84,16 +84,22 @@ describe('frame signals', () => {
     const capturedConfig = makeCapturedConfig({});
     const adyenMetadata = makeAdyenMetadata();
     const everySignal = makePageExtract({
-      capturedConfig,
-      componentConfig: {},
+      observedConfig: { captured: capturedConfig, component: {} },
       hasDropinDOM: true,
       adyenMetadata,
       scripts: [{ src: 'https://merchant.example/adyen.js' }],
       iframes: [{ name: 'adyen-card' }],
     });
     expect(checkoutStrength(everySignal)).toBe(320);
-    expect(checkoutStrength(makePageExtract({ capturedConfig }))).toBe(
-      checkoutStrength(makePageExtract({ componentConfig: {}, iframes: [{ name: 'adyen-x' }] }))
+    expect(
+      checkoutStrength(makePageExtract({ observedConfig: { captured: capturedConfig } }))
+    ).toBe(
+      checkoutStrength(
+        makePageExtract({
+          observedConfig: { component: {} },
+          iframes: [{ name: 'adyen-x' }],
+        })
+      )
     );
   });
 
@@ -101,8 +107,12 @@ describe('frame signals', () => {
     const wholeConfig = makeCapturedConfig({}, true);
     const partialConfig = makeCapturedConfig({});
     const adyenMetadata = makeAdyenMetadata();
-    expect(isRenderingCheckout(makePageExtract({ capturedConfig: wholeConfig }))).toBe(true);
-    expect(isRenderingCheckout(makePageExtract({ capturedConfig: partialConfig }))).toBe(false);
+    expect(
+      isRenderingCheckout(makePageExtract({ observedConfig: { captured: wholeConfig } }))
+    ).toBe(true);
+    expect(
+      isRenderingCheckout(makePageExtract({ observedConfig: { captured: partialConfig } }))
+    ).toBe(false);
     expect(isRenderingCheckout(makePageExtract({ hasCardDOM: true }))).toBe(true);
     expect(isRenderingCheckout(makePageExtract({ componentMountCount: 1 }))).toBe(true);
     expect(isRenderingCheckout(makePageExtract({ adyenMetadata }))).toBe(false);
@@ -113,7 +123,9 @@ describe('hasCheckoutActivity', () => {
   it.each([
     [
       'captured configuration',
-      makeScanPayload({ page: makeCheckoutPage({ componentConfig: {} }) }),
+      makeScanPayload({
+        page: makeCheckoutPage({ observedConfig: { component: {} } }),
+      }),
     ],
     ['a mounted Drop-in', makeScanPayload({ page: makeCheckoutPage({ hasDropinDOM: true }) })],
     ['a mounted tree', makeScanPayload({ page: makeCheckoutPage({ componentMountCount: 2 }) })],
@@ -138,7 +150,7 @@ describe('hasCheckoutActivity', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
         adyenMetadata: makeAdyenMetadata(),
-        pageJsonConfig: { locale: 'en-GB' },
+        observedConfig: { inferred: { 'page-json': { locale: 'en-GB' } } },
         iframes: [{ src: 'https://ads.example/adyen-banner.html' }],
       }),
     });

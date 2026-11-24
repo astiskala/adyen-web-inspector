@@ -39,7 +39,7 @@ describe('risk-df-iframe', () => {
 describe('risk-module-not-disabled', () => {
   it('skips when checkout config is not detected', () => {
     const payload = makeScanPayload({
-      page: makeCheckoutPage({ capturedConfig: null }),
+      page: makeCheckoutPage({ observedConfig: {} }),
     });
     expect(riskNotDisabled.run(payload).severity).toBe('skip');
   });
@@ -47,7 +47,9 @@ describe('risk-module-not-disabled', () => {
   it('passes when riskEnabled is not explicitly false in verified checkout config', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
-        capturedConfig: makeCapturedConfig({ clientKey: 'test_X', environment: 'test' }, true),
+        observedConfig: {
+          captured: makeCapturedConfig({ clientKey: 'test_X', environment: 'test' }, true),
+        },
       }),
     });
     expect(riskNotDisabled.run(payload).severity).toBe('pass');
@@ -57,11 +59,13 @@ describe('risk-module-not-disabled', () => {
   it('warns when riskEnabled is false', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
-        capturedConfig: makeCapturedConfig({
-          clientKey: 'test_X',
-          environment: 'test',
-          riskEnabled: false,
-        }),
+        observedConfig: {
+          captured: makeCapturedConfig({
+            clientKey: 'test_X',
+            environment: 'test',
+            riskEnabled: false,
+          }),
+        },
       }),
     });
     expect(riskNotDisabled.run(payload).severity).toBe('warn');
@@ -69,7 +73,11 @@ describe('risk-module-not-disabled', () => {
 
   it('skips when the risk setting is absent from partial config', () => {
     const payload = makeScanPayload({
-      page: makeCheckoutPage({ capturedConfig: makeCapturedConfig({ clientKey: 'test_X' }) }),
+      page: makeCheckoutPage({
+        observedConfig: {
+          captured: makeCapturedConfig({ clientKey: 'test_X' }),
+        },
+      }),
     });
     expect(riskNotDisabled.run(payload).severity).toBe('skip');
   });
@@ -77,8 +85,10 @@ describe('risk-module-not-disabled', () => {
   it('detects a disabled setting in a component when captured config is partial', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
-        capturedConfig: makeCapturedConfig({ clientKey: 'test_X' }),
-        componentConfig: { riskEnabled: false },
+        observedConfig: {
+          captured: makeCapturedConfig({ clientKey: 'test_X' }),
+          component: { riskEnabled: false },
+        },
       }),
     });
     expect(riskNotDisabled.run(payload).severity).toBe('warn');
@@ -87,10 +97,13 @@ describe('risk-module-not-disabled', () => {
   it('skips when riskEnabled is undefined and no full config', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
-        capturedConfig: null,
-        inferredConfig: {
-          clientKey: 'test_X',
-          environment: 'test',
+        observedConfig: {
+          inferred: {
+            'adyen-request': {
+              clientKey: 'test_X',
+              environment: 'test',
+            },
+          },
         },
       }),
     });
@@ -98,20 +111,24 @@ describe('risk-module-not-disabled', () => {
   });
 });
 
-describe('componentConfig fallback', () => {
-  it('risk-module-not-disabled uses componentConfig when checkoutConfig is null', () => {
+describe('component configuration fallback', () => {
+  it('risk-module-not-disabled uses component configuration when checkoutConfig is null', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
-        componentConfig: makeCheckoutConfig({ riskEnabled: false }),
+        observedConfig: {
+          component: makeCheckoutConfig({ riskEnabled: false }),
+        },
       }),
     });
     expect(riskNotDisabled.run(payload).severity).toBe('warn');
   });
 
-  it('risk-module-not-disabled passes when riskEnabled is true via componentConfig', () => {
+  it('risk-module-not-disabled passes when riskEnabled is true via component configuration', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
-        componentConfig: makeCheckoutConfig({ riskEnabled: true }),
+        observedConfig: {
+          component: makeCheckoutConfig({ riskEnabled: true }),
+        },
       }),
     });
     expect(riskNotDisabled.run(payload).severity).toBe('pass');

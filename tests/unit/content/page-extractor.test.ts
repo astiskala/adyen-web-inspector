@@ -70,10 +70,7 @@ describe('page extractor', () => {
   it('reports an empty top-level page', async () => {
     await expect(extractPage()).resolves.toEqual({
       adyenMetadata: null,
-      capturedConfig: null,
-      inferredConfig: null,
-      pageJsonConfig: null,
-      componentConfig: null,
+      observedConfig: { captured: null, component: null, inferred: {} },
       scripts: [],
       links: [],
       iframes: [],
@@ -95,9 +92,10 @@ describe('page extractor', () => {
 
     await expect(extractPage()).resolves.toMatchObject({
       adyenMetadata: { version: '6.31.0', bundleType: 'esm' },
-      capturedConfig: { options: { clientKey: 'test_KEY', onSubmit: 'checkout' }, complete: true },
-      inferredConfig: { locale: 'nl-NL' },
-      pageJsonConfig: { countryCode: 'NL' },
+      observedConfig: {
+        captured: { options: { clientKey: 'test_KEY', onSubmit: 'checkout' }, complete: true },
+        inferred: { 'adyen-request': { locale: 'nl-NL' }, 'page-json': { countryCode: 'NL' } },
+      },
       checkoutInitCount: 2,
     });
   });
@@ -124,9 +122,7 @@ describe('page extractor', () => {
     const page = await extractPage();
 
     expect(page).toMatchObject({
-      capturedConfig: null,
-      inferredConfig: null,
-      pageJsonConfig: null,
+      observedConfig: { captured: null, inferred: {} },
     });
     expect(page).not.toHaveProperty('checkoutInitCount');
   });
@@ -242,7 +238,9 @@ describe('page extractor mounted component configuration', () => {
     );
 
     await expect(extractPage()).resolves.toMatchObject({
-      componentConfig: { clientKey: 'test_TREE', locale: 'nl-NL', analyticsEnabled: false },
+      observedConfig: {
+        component: { clientKey: 'test_TREE', locale: 'nl-NL', analyticsEnabled: false },
+      },
       componentMountCount: 1,
     });
   });
@@ -258,7 +256,7 @@ describe('page extractor mounted component configuration', () => {
     });
 
     await expect(extractPage()).resolves.toMatchObject({
-      componentConfig: { showPayButton: true, hiddenPayButtonMethods: ['paypal'] },
+      observedConfig: { component: { showPayButton: true, hiddenPayButtonMethods: ['paypal'] } },
     });
   });
 
@@ -274,7 +272,7 @@ describe('page extractor mounted component configuration', () => {
     );
 
     await expect(extractPage()).resolves.toMatchObject({
-      componentConfig: { locale: 'nl-NL', countryCode: 'FR' },
+      observedConfig: { component: { locale: 'nl-NL', countryCode: 'FR' } },
       componentMountCount: 2,
     });
   });
@@ -294,7 +292,9 @@ describe('page extractor mounted component configuration', () => {
   ])('walks the vnode tree to options %s', async (_label, tree) => {
     mountTree('<div class="adyen-checkout__dropin"></div>', tree);
 
-    await expect(extractPage()).resolves.toMatchObject({ componentConfig: { locale: 'a' } });
+    await expect(extractPage()).resolves.toMatchObject({
+      observedConfig: { component: { locale: 'a' } },
+    });
   });
 
   it.each([
@@ -305,14 +305,14 @@ describe('page extractor mounted component configuration', () => {
 
     const page = await extractPage();
 
-    expect(page.componentConfig).toBeNull();
+    expect(page.observedConfig.component).toBeNull();
     expect(page).not.toHaveProperty('componentMountCount');
   });
 
   it('ignores Preact roots on pages without Adyen elements', async () => {
     mountTree('<div class="app"></div>', coreOptions({ clientKey: 'test_OTHER' }));
 
-    await expect(extractPage()).resolves.toMatchObject({ componentConfig: null });
+    await expect(extractPage()).resolves.toMatchObject({ observedConfig: { component: null } });
   });
 });
 
@@ -427,7 +427,7 @@ describe('page extractor tree walk limits', () => {
     mountTree(deep, coreOptions({ locale: 'nl-NL' }));
 
     await expect(extractPage()).resolves.toMatchObject({
-      componentConfig: { locale: 'nl-NL' },
+      observedConfig: { component: { locale: 'nl-NL' } },
       componentMountCount: 1,
     });
   });
@@ -447,7 +447,9 @@ describe('page extractor tree walk limits', () => {
     (root as VnodeElement).__k = coreOptions({ countryCode: 'NL' });
     host.attachShadow({ mode: 'open' }).append(root);
 
-    await expect(extractPage()).resolves.toMatchObject({ componentConfig: { countryCode: 'NL' } });
+    await expect(extractPage()).resolves.toMatchObject({
+      observedConfig: { component: { countryCode: 'NL' } },
+    });
   });
 
   it('does not look for shadow hosts nested deeper than seven levels', async () => {
@@ -460,7 +462,7 @@ describe('page extractor tree walk limits', () => {
     const shadow = parent.attachShadow({ mode: 'open' });
     mountTree('<div class="adyen-checkout__dropin"></div>', coreOptions({ locale: 'a' }), shadow);
 
-    await expect(extractPage()).resolves.toMatchObject({ componentConfig: null });
+    await expect(extractPage()).resolves.toMatchObject({ observedConfig: { component: null } });
   });
 
   it('does not count trees whose core options are not an object', async () => {
@@ -468,7 +470,7 @@ describe('page extractor tree walk limits', () => {
 
     const page = await extractPage();
 
-    expect(page.componentConfig).toBeNull();
+    expect(page.observedConfig.component).toBeNull();
     expect(page).not.toHaveProperty('componentMountCount');
   });
 

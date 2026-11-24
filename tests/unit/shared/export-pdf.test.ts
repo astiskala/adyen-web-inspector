@@ -131,8 +131,10 @@ describe('buildPrintableHtml', () => {
           },
         ],
         page: makeCheckoutPage({
-          capturedConfig,
-          componentConfig: { countryCode: 'NL' },
+          observedConfig: {
+            captured: capturedConfig,
+            component: { countryCode: 'NL' },
+          },
         }),
       }),
     });

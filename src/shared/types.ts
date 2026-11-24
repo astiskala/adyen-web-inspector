@@ -296,26 +296,32 @@ export interface CheckoutCapture {
 }
 
 /**
+Checkout configuration as observed, by source. Only configuration evidence
+(shared/scan-evidence.ts) reads it; everything else asks that module.
+*/
+export interface ObservedCheckoutConfig {
+  /**
+  Options captured from AdyenCheckout and component calls; null when none were.
+  */
+  readonly captured: CapturedCheckoutOptions | null;
+  /**
+  Config found in mounted Adyen Preact trees (including bundled integrations).
+  */
+  readonly component: CheckoutConfig | null;
+  /**
+  Values inferred from partial signals: Adyen request URLs (such as environment,
+  clientKey, and locale) and option-shaped JSON the page parsed, which any page
+  data can carry.
+  */
+  readonly inferred: Readonly<Partial<Record<InferenceSignal, CheckoutConfig>>>;
+}
+
+/**
 One frame's page extraction, produced by the page extractor in each accessible frame.
 */
 export interface PageExtractResult {
   readonly adyenMetadata: AdyenWebMetadata | null;
-  /**
-  Options captured from AdyenCheckout and component calls; null when none were.
-  */
-  readonly capturedConfig: CapturedCheckoutOptions | null;
-  /**
-  Values inferred from Adyen request URLs, such as environment, clientKey, and locale.
-  */
-  readonly inferredConfig: CheckoutConfig | null;
-  /**
-  Option-shaped values found in JSON the page parsed; any page data can carry them.
-  */
-  readonly pageJsonConfig: CheckoutConfig | null;
-  /**
-  Config found in mounted Adyen Preact trees (including bundled integrations).
-  */
-  readonly componentConfig: CheckoutConfig | null;
+  readonly observedConfig: ObservedCheckoutConfig;
   /**
   Number of vnode mount points whose trees exposed Adyen core options.
   */
@@ -372,10 +378,7 @@ Fields of the Checkout page that the frame merge reads from more than the select
 */
 type MergedFrameField =
   | 'adyenMetadata'
-  | 'capturedConfig'
-  | 'inferredConfig'
-  | 'pageJsonConfig'
-  | 'componentConfig'
+  | 'observedConfig'
   | 'analyticsEvents'
   | 'hasDropinDOM'
   | 'hasCardDOM'
@@ -395,21 +398,9 @@ export interface CheckoutPage extends Omit<PageExtractResult, MergedFrameField> 
   */
   readonly adyenMetadata: AdyenWebMetadata | null;
   /**
-  All frames; earlier frames win per option, and the capture is complete when any frame's is.
+  All frames; earlier frames win per field, and captured options are complete when any frame's are.
   */
-  readonly capturedConfig: CapturedCheckoutOptions | null;
-  /**
-  All frames; earlier frames win per field.
-  */
-  readonly inferredConfig: CheckoutConfig | null;
-  /**
-  All frames; earlier frames win per field.
-  */
-  readonly pageJsonConfig: CheckoutConfig | null;
-  /**
-  All frames; earlier frames win per field.
-  */
-  readonly componentConfig: CheckoutConfig | null;
+  readonly observedConfig: ObservedCheckoutConfig;
   /**
   All frames; earlier frames win per rendered component type, and payment methods are combined.
   */

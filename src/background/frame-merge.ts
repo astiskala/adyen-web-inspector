@@ -4,18 +4,13 @@ Checkout page. It owns frame selection and the scope each Checkout page
 field is read from: the selected frame, merchant frames, or all frames.
 */
 
-import { mergeCheckoutConfigs } from '../shared/checkout-config-schema.js';
 import {
   checkoutStrength,
   isMerchantDocument,
   isRenderingCheckout,
 } from '../shared/checkout-signals.js';
-import type {
-  CapturedCheckoutOptions,
-  CheckoutConfig,
-  CheckoutPage,
-  PageExtractResult,
-} from '../shared/types.js';
+import { mergeObservedConfigs } from '../shared/scan-evidence.js';
+import type { CheckoutPage, PageExtractResult } from '../shared/types.js';
 import type { FrameExtraction } from './scan-browser.js';
 
 const TOP_FRAME_ID = 0;
@@ -29,10 +24,7 @@ served from an Adyen host, so hosted card fields do not count as checkout.
 */
 const FIELD_SCOPE = {
   adyenMetadata: 'selected-or-first',
-  capturedConfig: 'all-frames',
-  inferredConfig: 'all-frames',
-  pageJsonConfig: 'all-frames',
-  componentConfig: 'all-frames',
+  observedConfig: 'all-frames',
   analyticsEvents: 'all-frames',
   componentMountCount: 'selected',
   hasDropinDOM: 'selected-or-merchant',
@@ -54,8 +46,6 @@ const FIELD_SCOPE = {
 type ScopedField<S extends FieldScope> = {
   [K in keyof typeof FIELD_SCOPE]: (typeof FIELD_SCOPE)[K] extends S ? K : never;
 }[keyof typeof FIELD_SCOPE];
-
-type ConfigSlot = 'componentConfig' | 'inferredConfig' | 'pageJsonConfig';
 
 interface ExtractedFrame {
   readonly frameId: number;
@@ -100,23 +90,6 @@ function readSelectedFields(
     (field) => [field, result[field]] as const
   );
   return Object.fromEntries(entries) as Pick<CheckoutPage, ScopedField<'selected'>>;
-}
-
-function mergeSlot(frames: readonly PageExtractResult[], slot: ConfigSlot): CheckoutConfig | null {
-  return mergeCheckoutConfigs(
-    frames.map((frame) => frame[slot]).filter((config) => config !== null)
-  );
-}
-
-/**
-Merges captured options across frames; the capture is complete when any frame's is.
-*/
-function mergeCaptured(frames: readonly PageExtractResult[]): CapturedCheckoutOptions | null {
-  const captures = frames.map((frame) => frame.capturedConfig).filter((c) => c !== null);
-  const options = mergeCheckoutConfigs(captures.map((capture) => capture.options));
-  return options === null
-    ? null
-    : { options, complete: captures.some((capture) => capture.complete) };
 }
 
 /**
@@ -175,10 +148,7 @@ export function mergeFrames(frames: readonly FrameExtraction[]): CheckoutPage | 
       selected.result.adyenMetadata ??
       results.find((result) => result.adyenMetadata !== null)?.adyenMetadata ??
       null,
-    capturedConfig: mergeCaptured(results),
-    componentConfig: mergeSlot(results, 'componentConfig'),
-    inferredConfig: mergeSlot(results, 'inferredConfig'),
-    pageJsonConfig: mergeSlot(results, 'pageJsonConfig'),
+    observedConfig: mergeObservedConfigs(results),
     ...mergeAnalyticsEvents(results),
     ...mergeMerchantFlags(
       selected.result,

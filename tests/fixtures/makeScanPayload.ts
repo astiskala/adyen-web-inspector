@@ -5,6 +5,7 @@ import type {
   CapturedCheckoutOptions,
   DocumentHeaders,
   CheckoutConfig,
+  ObservedCheckoutConfig,
   CheckoutPage,
   AdyenWebMetadata,
   AnalyticsData,
@@ -15,12 +16,17 @@ import type {
 
 type VersionInfo = ScanPayload['versionInfo'];
 
+/**
+Checkout configuration by source; sources not overridden were not observed.
+*/
+function makeObservedConfig(
+  overrides: Partial<ObservedCheckoutConfig> = {}
+): ObservedCheckoutConfig {
+  return { captured: null, component: null, inferred: {}, ...overrides };
+}
+
 const EMPTY_PAGE = {
   adyenMetadata: null,
-  capturedConfig: null,
-  inferredConfig: null,
-  pageJsonConfig: null,
-  componentConfig: null,
   scripts: [],
   links: [],
   iframes: [],
@@ -30,17 +36,40 @@ const EMPTY_PAGE = {
 } as const satisfies Partial<CheckoutPage>;
 
 /**
+Page overrides; observed configuration names only the sources that were observed.
+*/
+type PageOverrides<P> = Partial<Omit<P, 'observedConfig'>> & {
+  readonly observedConfig?: Partial<ObservedCheckoutConfig>;
+};
+
+/**
 Default minimal Checkout page with all Adyen-related fields set as safe defaults.
 */
-export function makeCheckoutPage(overrides: Partial<CheckoutPage> = {}): CheckoutPage {
-  return { ...EMPTY_PAGE, checkoutInIframe: false, ...overrides };
+export function makeCheckoutPage({
+  observedConfig,
+  ...overrides
+}: PageOverrides<CheckoutPage> = {}): CheckoutPage {
+  return {
+    ...EMPTY_PAGE,
+    checkoutInIframe: false,
+    ...overrides,
+    observedConfig: makeObservedConfig(observedConfig),
+  };
 }
 
 /**
 Default minimal single-frame page extraction, as the page extractor produces it.
 */
-export function makePageExtract(overrides: Partial<PageExtractResult> = {}): PageExtractResult {
-  return { ...EMPTY_PAGE, isInsideIframe: false, ...overrides };
+export function makePageExtract({
+  observedConfig,
+  ...overrides
+}: PageOverrides<PageExtractResult> = {}): PageExtractResult {
+  return {
+    ...EMPTY_PAGE,
+    isInsideIframe: false,
+    ...overrides,
+    observedConfig: makeObservedConfig(observedConfig),
+  };
 }
 
 /**
@@ -185,7 +214,7 @@ export function makeAdyenPayload(
   return makeScanPayload({
     page: makeCheckoutPage({
       adyenMetadata: makeAdyenMetadata(metaOverrides),
-      capturedConfig: makeCapturedCheckoutConfig(configOverrides, true),
+      observedConfig: { captured: makeCapturedCheckoutConfig(configOverrides, true) },
     }),
     ...payloadOverrides,
   });

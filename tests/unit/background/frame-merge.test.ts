@@ -30,7 +30,7 @@ describe('mergeFrames frame selection', () => {
         pageUrl: 'https://merchant.example/',
       }),
       makePageExtract({
-        capturedConfig: makeCapturedCheckoutConfig(),
+        observedConfig: { captured: makeCapturedCheckoutConfig() },
         pageUrl: 'https://merchant.example/embedded-checkout',
         isInsideIframe: true,
       })
@@ -54,7 +54,7 @@ describe('mergeFrames frame selection', () => {
       {
         frameId: 0,
         result: makePageExtract({
-          capturedConfig: makeCapturedCheckoutConfig(),
+          observedConfig: { captured: makeCapturedCheckoutConfig() },
           pageUrl: 'https://merchant.example/checkout',
         }),
       },
@@ -88,7 +88,9 @@ describe('mergeFrames frame selection', () => {
   });
 
   it('ignores frames that return null and returns null when none produced a result', () => {
-    const configured = makePageExtract({ capturedConfig: makeCapturedCheckoutConfig() });
+    const configured = makePageExtract({
+      observedConfig: { captured: makeCapturedCheckoutConfig() },
+    });
     expect(merge(null, configured)).toMatchObject({
       checkoutInIframe: true,
     });
@@ -100,7 +102,9 @@ describe('mergeFrames frame selection', () => {
 describe('mergeFrames field scope', () => {
   it('reports an embedded checkout even when the top frame scores higher', () => {
     const page = merge(
-      makePageExtract({ capturedConfig: makeCapturedCheckoutConfig() }),
+      makePageExtract({
+        observedConfig: { captured: makeCapturedCheckoutConfig() },
+      }),
       makePageExtract({ hasDropinDOM: true, pageUrl: 'https://merchant.example/embedded' })
     );
 
@@ -111,7 +115,9 @@ describe('mergeFrames field scope', () => {
 
   it('does not confuse hosted card fields with a merchant checkout iframe', () => {
     const page = merge(
-      makePageExtract({ capturedConfig: makeCapturedCheckoutConfig() }),
+      makePageExtract({
+        observedConfig: { captured: makeCapturedCheckoutConfig() },
+      }),
       makePageExtract({
         hasCardDOM: true,
         hasNewCardFormDOM: true,
@@ -128,7 +134,9 @@ describe('mergeFrames field scope', () => {
 
   it('merges card form DOM flags from merchant frames', () => {
     const page = merge(
-      makePageExtract({ capturedConfig: makeCapturedCheckoutConfig() }),
+      makePageExtract({
+        observedConfig: { captured: makeCapturedCheckoutConfig() },
+      }),
       makePageExtract({
         hasCardDOM: true,
         hasNewCardFormDOM: true,
@@ -165,34 +173,42 @@ describe('mergeFrames field scope', () => {
 
   it('merges each configuration slot across frames with earlier frames winning', () => {
     const page = merge(
-      makePageExtract({ capturedConfig: makeCapturedConfig({ locale: 'nl-NL' }) }),
       makePageExtract({
-        capturedConfig: makeCapturedConfig({ locale: 'fr-FR', countryCode: 'FR' }),
-        componentConfig: { onSubmit: 'checkout' },
-        inferredConfig: { environment: 'test' },
-        pageJsonConfig: { locale: 'de-DE' },
+        observedConfig: { captured: makeCapturedConfig({ locale: 'nl-NL' }) },
+      }),
+      makePageExtract({
+        observedConfig: {
+          captured: makeCapturedConfig({ locale: 'fr-FR', countryCode: 'FR' }),
+          component: { onSubmit: 'checkout' },
+          inferred: { 'adyen-request': { environment: 'test' }, 'page-json': { locale: 'de-DE' } },
+        },
         pageUrl: 'https://merchant.example/embedded',
       })
     );
 
     expect(page).toMatchObject({
-      capturedConfig: makeCapturedConfig({ locale: 'nl-NL', countryCode: 'FR' }),
-      componentConfig: { onSubmit: 'checkout' },
-      inferredConfig: { environment: 'test' },
-      pageJsonConfig: { locale: 'de-DE' },
+      observedConfig: {
+        captured: makeCapturedConfig({ locale: 'nl-NL', countryCode: 'FR' }),
+        component: { onSubmit: 'checkout' },
+        inferred: { 'adyen-request': { environment: 'test' }, 'page-json': { locale: 'de-DE' } },
+      },
     });
   });
 
   it('proves absence when any frame captured AdyenCheckout options whole', () => {
     const page = merge(
-      makePageExtract({ capturedConfig: makeCapturedConfig({ locale: 'nl-NL' }) }),
       makePageExtract({
-        capturedConfig: makeCapturedConfig({ clientKey: 'test_K' }, true),
+        observedConfig: { captured: makeCapturedConfig({ locale: 'nl-NL' }) },
+      }),
+      makePageExtract({
+        observedConfig: {
+          captured: makeCapturedConfig({ clientKey: 'test_K' }, true),
+        },
         pageUrl: 'https://merchant.example/embedded',
       })
     );
 
-    expect(page.capturedConfig).toEqual(
+    expect(page.observedConfig.captured).toEqual(
       makeCapturedConfig({ locale: 'nl-NL', clientKey: 'test_K' }, true)
     );
     expect(readCheckoutField(makeScanPayload({ page }), 'countryCode')).toEqual({
@@ -234,12 +250,18 @@ describe('mergeFrames field scope', () => {
 
   it('leaves absence unproven when no frame captured options whole', () => {
     const partial = merge(
-      makePageExtract({ capturedConfig: makeCapturedConfig({ clientKey: 'test_K' }) }),
-      makePageExtract({ componentConfig: { locale: 'nl-NL' } })
+      makePageExtract({
+        observedConfig: {
+          captured: makeCapturedConfig({ clientKey: 'test_K' }),
+        },
+      }),
+      makePageExtract({ observedConfig: { component: { locale: 'nl-NL' } } })
     );
-    const uncaptured = merge(makePageExtract({ componentConfig: { locale: 'nl-NL' } }));
+    const uncaptured = merge(
+      makePageExtract({ observedConfig: { component: { locale: 'nl-NL' } } })
+    );
 
-    expect(partial.capturedConfig?.complete).toBe(false);
-    expect(uncaptured.capturedConfig).toBeNull();
+    expect(partial.observedConfig.captured?.complete).toBe(false);
+    expect(uncaptured.observedConfig.captured).toBeNull();
   });
 });

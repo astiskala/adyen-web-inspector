@@ -154,12 +154,12 @@ describe('buildJsonExport', () => {
       'https://checkoutshopper-live-us.adyen.com/checkoutshopper/v71/sessions',
     ]);
     expect(exported.rawConfig).toEqual({
-      checkoutConfig: result.payload.page.capturedConfig?.options ?? null,
-      checkoutConfigComplete: result.payload.page.capturedConfig?.complete ?? false,
-      componentConfig: result.payload.page.componentConfig,
-      inferredCheckoutConfig: result.payload.page.inferredConfig,
-      pageJsonCheckoutConfig: result.payload.page.pageJsonConfig,
-      sdkMetadata: result.payload.page.adyenMetadata,
+      checkoutConfig: null,
+      checkoutConfigComplete: false,
+      componentConfig: null,
+      inferredCheckoutConfig: null,
+      pageJsonCheckoutConfig: null,
+      sdkMetadata: null,
     });
     expect(exported.implementationAttributes.sdkVersion).toBe(
       result.payload.versionInfo.detected ?? 'Unknown'

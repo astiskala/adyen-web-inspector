@@ -14,7 +14,10 @@ const TAB_ID = 1;
 function configuredExtract(
   overrides: Parameters<typeof makePageExtract>[0] = {}
 ): ReturnType<typeof makePageExtract> {
-  return makePageExtract({ capturedConfig: makeCapturedCheckoutConfig(), ...overrides });
+  return makePageExtract({
+    observedConfig: { captured: makeCapturedCheckoutConfig() },
+    ...overrides,
+  });
 }
 
 describe('runScan sequencing', () => {
@@ -42,7 +45,7 @@ describe('runScan sequencing', () => {
     const loading = makePageExtract({ adyenMetadata: makeAdyenMetadata() });
     const ready = makePageExtract({
       adyenMetadata: makeAdyenMetadata(),
-      capturedConfig: makeCapturedCheckoutConfig(),
+      observedConfig: { captured: makeCapturedCheckoutConfig() },
     });
     const browser = createFakeScanBrowser({
       extractions: [framesOf(loading), framesOf(loading), framesOf(ready)],
@@ -52,7 +55,7 @@ describe('runScan sequencing', () => {
 
     expect(browser.calls.filter((call) => call === 'extractFrames')).toHaveLength(3);
     expect(browser.sleeps).toEqual([2000, 500, 500]);
-    expect(result.payload.page.capturedConfig).not.toBeNull();
+    expect(result.payload.page.observedConfig.captured).not.toBeNull();
   });
 
   it('gives up retrying after the extraction deadline', async () => {

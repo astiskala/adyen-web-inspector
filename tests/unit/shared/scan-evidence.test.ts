@@ -7,7 +7,6 @@ import {
   readCheckoutField,
   withRequestDerivedLocale,
 } from '../../../src/shared/scan-evidence';
-import type { CheckoutPage } from '../../../src/shared/types';
 import {
   makeCheckoutPage,
   makeRequest,
@@ -15,17 +14,20 @@ import {
   makeCapturedConfig,
 } from '../../fixtures/makeScanPayload';
 
-function payloadWith(page: Partial<CheckoutPage>): ReturnType<typeof makeScanPayload> {
+function payloadWith(
+  page: Parameters<typeof makeCheckoutPage>[0]
+): ReturnType<typeof makeScanPayload> {
   return makeScanPayload({ page: makeCheckoutPage(page) });
 }
 
 describe('readCheckoutField', () => {
   it('prefers captured over component over request-inferred over page JSON values', () => {
     const payload = payloadWith({
-      capturedConfig: makeCapturedConfig({ locale: 'nl-NL' }),
-      componentConfig: { locale: 'fr-FR' },
-      inferredConfig: { locale: 'en-US' },
-      pageJsonConfig: { locale: 'de-DE' },
+      observedConfig: {
+        captured: makeCapturedConfig({ locale: 'nl-NL' }),
+        component: { locale: 'fr-FR' },
+        inferred: { 'adyen-request': { locale: 'en-US' }, 'page-json': { locale: 'de-DE' } },
+      },
     });
 
     expect(readCheckoutField(payload, 'locale')).toEqual({
@@ -43,7 +45,12 @@ describe('readCheckoutField', () => {
 
   it('reports the signal of an inferred value', () => {
     expect(
-      readCheckoutField(payloadWith({ pageJsonConfig: { locale: 'de-DE' } }), 'locale')
+      readCheckoutField(
+        payloadWith({
+          observedConfig: { inferred: { 'page-json': { locale: 'de-DE' } } },
+        }),
+        'locale'
+      )
     ).toEqual({
       state: 'present',
       value: 'de-DE',
@@ -54,8 +61,10 @@ describe('readCheckoutField', () => {
 
   it('skips empty captured values in favour of the next source', () => {
     const payload = payloadWith({
-      capturedConfig: makeCapturedConfig({ locale: '' }),
-      componentConfig: { locale: 'fr-FR', riskEnabled: false },
+      observedConfig: {
+        captured: makeCapturedConfig({ locale: '' }),
+        component: { locale: 'fr-FR', riskEnabled: false },
+      },
     });
 
     expect(readCheckoutField(payload, 'locale')).toMatchObject({
@@ -71,22 +80,26 @@ describe('readCheckoutField', () => {
   it.each([
     {
       name: 'absent when AdyenCheckout options were captured whole',
-      page: { capturedConfig: makeCapturedConfig({}, true) },
+      page: { observedConfig: { captured: makeCapturedConfig({}, true) } },
       expected: { state: 'absent' },
     },
     {
       name: 'unobserved with partial config when capture was not whole',
-      page: { capturedConfig: makeCapturedConfig({ locale: 'en-US' }) },
+      page: {
+        observedConfig: { captured: makeCapturedConfig({ locale: 'en-US' }) },
+      },
       expected: { state: 'unobserved', reason: 'partial-config' },
     },
     {
       name: 'unobserved with partial config when only a mounted tree was read',
-      page: { componentConfig: { locale: 'en-US' } },
+      page: { observedConfig: { component: { locale: 'en-US' } } },
       expected: { state: 'unobserved', reason: 'partial-config' },
     },
     {
       name: 'unobserved without config when only inferred values exist',
-      page: { inferredConfig: { locale: 'en-US' } },
+      page: {
+        observedConfig: { inferred: { 'adyen-request': { locale: 'en-US' } } },
+      },
       expected: { state: 'unobserved', reason: 'no-config' },
     },
     {
@@ -100,9 +113,10 @@ describe('readCheckoutField', () => {
 
   it('can ignore inferred values while still proving absence', () => {
     const payload = payloadWith({
-      capturedConfig: makeCapturedConfig({}, true),
-      inferredConfig: { countryCode: 'NL' },
-      pageJsonConfig: { onSubmit: 'checkout' },
+      observedConfig: {
+        captured: makeCapturedConfig({}, true),
+        inferred: { 'adyen-request': { countryCode: 'NL' }, 'page-json': { onSubmit: 'checkout' } },
+      },
     });
 
     expect(readCheckoutField(payload, 'onSubmit', { includeInferred: false })).toEqual({
@@ -114,8 +128,10 @@ describe('readCheckoutField', () => {
 
 describe('checkout config sources', () => {
   it('distinguishes captured configuration from inferred-only configuration', () => {
-    const inferredOnly = payloadWith({ inferredConfig: { countryCode: 'NL' } });
-    const componentOnly = payloadWith({ componentConfig: {} });
+    const inferredOnly = payloadWith({
+      observedConfig: { inferred: { 'adyen-request': { countryCode: 'NL' } } },
+    });
+    const componentOnly = payloadWith({ observedConfig: { component: {} } });
 
     expect([...checkoutConfigSources(inferredOnly.page)]).toEqual(['inferred']);
     expect(hasCapturedCheckoutConfig(inferredOnly.page)).toBe(false);
@@ -123,7 +139,11 @@ describe('checkout config sources', () => {
   });
 
   it('does not treat option-shaped page JSON alone as configuration', () => {
-    const pageJsonOnly = payloadWith({ pageJsonConfig: { locale: 'en-GB', hasSession: true } });
+    const pageJsonOnly = payloadWith({
+      observedConfig: {
+        inferred: { 'page-json': { locale: 'en-GB', hasSession: true } },
+      },
+    });
 
     expect(checkoutConfigSources(pageJsonOnly.page).size).toBe(0);
     expect(hasCapturedCheckoutConfig(pageJsonOnly.page)).toBe(false);
@@ -131,8 +151,12 @@ describe('checkout config sources', () => {
 
   it('knows whether AdyenCheckout options were captured whole', () => {
     expect(hasCompleteCheckoutConfig(makeCheckoutPage())).toBe(false);
-    const partial = makeCheckoutPage({ capturedConfig: makeCapturedConfig({}) });
-    const whole = makeCheckoutPage({ capturedConfig: makeCapturedConfig({}, true) });
+    const partial = makeCheckoutPage({
+      observedConfig: { captured: makeCapturedConfig({}) },
+    });
+    const whole = makeCheckoutPage({
+      observedConfig: { captured: makeCapturedConfig({}, true) },
+    });
     expect(hasCompleteCheckoutConfig(partial)).toBe(false);
     expect(hasCompleteCheckoutConfig(whole)).toBe(true);
   });
@@ -145,14 +169,23 @@ describe('withRequestDerivedLocale', () => {
 
   it('infers a locale from translation requests when no configuration shows one', () => {
     const page = withRequestDerivedLocale(
-      makeCheckoutPage({ inferredConfig: { countryCode: 'FR' } }),
+      makeCheckoutPage({
+        observedConfig: {
+          inferred: { 'adyen-request': { countryCode: 'FR' } },
+        },
+      }),
       [makeRequest('https://example.com/app.js'), translation]
     );
-    expect(page.inferredConfig).toEqual({ countryCode: 'FR', locale: 'fr-FR' });
+    expect(page.observedConfig.inferred['adyen-request']).toEqual({
+      countryCode: 'FR',
+      locale: 'fr-FR',
+    });
   });
 
   it('keeps observed locales and pages without translation requests unchanged', () => {
-    const configured = makeCheckoutPage({ componentConfig: { locale: 'nl-NL' } });
+    const configured = makeCheckoutPage({
+      observedConfig: { component: { locale: 'nl-NL' } },
+    });
     const untranslated = makeCheckoutPage();
 
     expect(withRequestDerivedLocale(configured, [translation])).toBe(configured);
@@ -161,9 +194,11 @@ describe('withRequestDerivedLocale', () => {
 
   it('prefers a translation request over a locale that only page JSON shows', () => {
     const page = withRequestDerivedLocale(
-      makeCheckoutPage({ pageJsonConfig: { locale: 'en-GB' } }),
+      makeCheckoutPage({
+        observedConfig: { inferred: { 'page-json': { locale: 'en-GB' } } },
+      }),
       [translation]
     );
-    expect(page.inferredConfig).toEqual({ locale: 'fr-FR' });
+    expect(page.observedConfig.inferred['adyen-request']).toEqual({ locale: 'fr-FR' });
   });
 });

@@ -291,14 +291,15 @@ export function buildRawConfigSections(rawConfig: ExportRawConfigData): RawConfi
 }
 
 function buildRawConfigData(result: ScanResult): ExportRawConfigData {
-  const { page } = result.payload;
+  const { observedConfig, adyenMetadata } = result.payload.page;
+  const { captured, component, inferred } = observedConfig;
   return {
-    checkoutConfig: page.capturedConfig?.options ?? null,
-    checkoutConfigComplete: page.capturedConfig?.complete ?? false,
-    componentConfig: page.componentConfig,
-    inferredCheckoutConfig: page.inferredConfig,
-    pageJsonCheckoutConfig: page.pageJsonConfig,
-    sdkMetadata: page.adyenMetadata,
+    checkoutConfig: captured?.options ?? null,
+    checkoutConfigComplete: captured?.complete ?? false,
+    componentConfig: component,
+    inferredCheckoutConfig: inferred['adyen-request'] ?? null,
+    pageJsonCheckoutConfig: inferred['page-json'] ?? null,
+    sdkMetadata: adyenMetadata,
   };
 }
 

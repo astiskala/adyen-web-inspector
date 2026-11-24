@@ -115,7 +115,7 @@ Run `pnpm depcruise` to verify.
 
 ESLint enforces the seams that dependency-cruiser cannot see:
 
-- Checks and the implementation-attribute rules read checkout configuration through `shared/scan-evidence.ts`, never through the raw `capturedConfig`, `componentConfig`, `inferredConfig`, or `pageJsonConfig` slots.
+- Checks and the implementation-attribute rules read checkout configuration through `shared/scan-evidence.ts`, never through a page's raw `observedConfig`.
 - Checks read response headers through `readDocumentHeader()` and CSP through `readPagePolicy()` (`background/checks/page-policy.ts`), never `payload.documentHeaders`.
 - Checks, the Scan, and the tab state do not use `chrome`, `fetch`, `setTimeout`, or `Date.now`; the scan lifecycle hook does not use `chrome`.
 - Popup, DevTools, and the worker read `ScanResult.sdkPresence` and do not reference the `sdk-detected` check.
@@ -180,7 +180,7 @@ it('fails for live checkout over HTTP', () => {
   const payload = makeScanPayload({
     page: makeCheckoutPage({
       pageProtocol: 'http:',
-      capturedConfig: makeCapturedConfig(makeCheckoutConfig({ environment: 'live' })),
+      observedConfig: { captured: makeCapturedConfig(makeCheckoutConfig({ environment: 'live' })) },
     }),
   });
   expect(httpsCheck.run(payload).severity).toBe('fail');

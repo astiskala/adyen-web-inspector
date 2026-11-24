@@ -162,7 +162,11 @@ describe('check catalog documentation', () => {
       makeScanPayload(),
       makeAdyenPayload(),
       makeScanPayload({
-        page: makeCheckoutPage({ inferredConfig: { countryCode: 'NL', locale: 'nl-NL' } }),
+        page: makeCheckoutPage({
+          observedConfig: {
+            inferred: { 'adyen-request': { countryCode: 'NL', locale: 'nl-NL' } },
+          },
+        }),
         documentHeaders: UNAVAILABLE_DOCUMENT_HEADERS,
       }),
     ];

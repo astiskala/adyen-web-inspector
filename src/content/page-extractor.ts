@@ -436,10 +436,11 @@ function extract(): PageExtractResult {
 
   return {
     adyenMetadata: metadata,
-    capturedConfig: capture.captured,
-    inferredConfig: capture.inferred['adyen-request'] ?? null,
-    pageJsonConfig: capture.inferred['page-json'] ?? null,
-    componentConfig,
+    observedConfig: {
+      captured: capture.captured,
+      component: componentConfig,
+      inferred: capture.inferred,
+    },
     scripts: extractScripts(),
     links: extractLinks(),
     iframes: extractIframes(),

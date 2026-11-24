@@ -24,7 +24,7 @@ describe('Styling Checks', () => {
       const payload = makeScanPayload({
         page: makeCheckoutPage({
           adyenMetadata: makeAdyenMetadata(),
-          capturedConfig: makeCapturedCheckoutConfig(),
+          observedConfig: { captured: makeCapturedCheckoutConfig() },
           adyenStyles: {
             classOverrideCount: 0,
             classOverrideSelectors: [],
@@ -57,7 +57,7 @@ describe('Styling Checks', () => {
       const payload = makeScanPayload({
         page: makeCheckoutPage({
           adyenMetadata: makeAdyenMetadata(),
-          capturedConfig: makeCapturedCheckoutConfig(),
+          observedConfig: { captured: makeCapturedCheckoutConfig() },
           adyenStyles: {
             classOverrideCount: 2,
             classOverrideSelectors: ['.adyen-checkout__button', '.adyen-checkout__input'],

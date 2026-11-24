@@ -23,7 +23,9 @@ describe('readOnSubmitSource availability', () => {
   it('needs captured checkout or component configuration', () => {
     const inferredOnly = makeScanPayload({
       page: makeCheckoutPage({
-        inferredConfig: { onSubmitSources: ['(state) => pay(state.data)'] },
+        observedConfig: {
+          inferred: { 'adyen-request': { onSubmitSources: ['(state) => pay(state.data)'] } },
+        },
       }),
     });
 

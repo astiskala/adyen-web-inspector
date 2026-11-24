@@ -217,7 +217,7 @@ describe('sdk-flavor', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
         adyenMetadata: makeAdyenMetadata(),
-        capturedConfig: makeCapturedCheckoutConfig(),
+        observedConfig: { captured: makeCapturedCheckoutConfig() },
         hasDropinDOM: true,
       }),
     });
@@ -287,7 +287,9 @@ describe('sdk-flavor', () => {
   it('prefers analytics data over heuristic fallback', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
-        capturedConfig: makeCapturedConfig({ clientKey: 'test_ABC', environment: 'test' }),
+        observedConfig: {
+          captured: makeCapturedConfig({ clientKey: 'test_ABC', environment: 'test' }),
+        },
       }),
       analyticsData: makeAnalyticsData({ flavor: 'dropin' }),
     });
@@ -381,7 +383,9 @@ describe('sdk-analytics', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
         adyenMetadata: makeAdyenMetadata(),
-        capturedConfig: makeCapturedConfig({ clientKey: 'test_X' }),
+        observedConfig: {
+          captured: makeCapturedConfig({ clientKey: 'test_X' }),
+        },
       }),
     });
     expect(sdkAnalytics.run(payload).severity).toBe('skip');
@@ -445,12 +449,14 @@ describe('sdk-multi-init', () => {
   });
 });
 
-describe('componentConfig fallback', () => {
-  it('sdk-analytics detects disabled analytics from componentConfig', () => {
+describe('component configuration fallback', () => {
+  it('sdk-analytics detects disabled analytics from component configuration', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
         adyenMetadata: makeAdyenMetadata(),
-        componentConfig: makeCheckoutConfig({ analyticsEnabled: false }),
+        observedConfig: {
+          component: makeCheckoutConfig({ analyticsEnabled: false }),
+        },
       }),
     });
     expect(sdkAnalytics.run(payload).severity).toBe('warn');
@@ -484,7 +490,9 @@ describe('sdk-analytics inferred values', () => {
       page: makeCheckoutPage({
         adyenMetadata: makeAdyenMetadata(),
         hasDropinDOM: true,
-        pageJsonConfig: { analyticsEnabled: false },
+        observedConfig: {
+          inferred: { 'page-json': { analyticsEnabled: false } },
+        },
       }),
     });
 

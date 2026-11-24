@@ -86,7 +86,9 @@ describe('assessScan', () => {
     const evidence = makeEvidence({
       page: makeCheckoutPage({
         adyenMetadata: makeAdyenMetadata({ version: '6.30.0' }),
-        capturedConfig: makeCapturedCheckoutConfig({ locale: undefined, hasSession: true }),
+        observedConfig: {
+          captured: makeCapturedCheckoutConfig({ locale: undefined, hasSession: true }),
+        },
         hasDropinDOM: true,
         scripts: [{ src: script }],
       }),
@@ -102,7 +104,7 @@ describe('assessScan', () => {
     expect(result).toMatchObject({ tabId: 7, pageUrl: url, scannedAt: evidence.scannedAt });
     expect(result.payload.capturedRequests).toBe(evidence.traffic.capturedRequests);
     expect(result.payload.documentHeaders).toBe(documentHeaders);
-    expect(result.payload.page.inferredConfig?.locale).toBe('fr-FR');
+    expect(result.payload.page.observedConfig.inferred['adyen-request']?.locale).toBe('fr-FR');
     expect(result.checks).toHaveLength(ALL_CHECKS.length);
     expect(result.checks.find((check) => check.id === 'security-csp-present')?.severity).toBe(
       'pass'

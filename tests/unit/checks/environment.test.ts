@@ -53,7 +53,7 @@ describe('env-cdn-mismatch', () => {
 
   it('skips when CDN env is detected but no configured environment', () => {
     const payload = makeScanPayload({
-      page: makeCheckoutPage({ capturedConfig: null }),
+      page: makeCheckoutPage({ observedConfig: {} }),
       capturedRequests: [
         makeRequest('https://checkoutshopper-live.cdn.adyen.com/checkoutshopper/sdk.js'),
       ],
@@ -201,7 +201,9 @@ describe('env-not-iframe', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
         checkoutInIframe: true,
-        capturedConfig: makeCapturedCheckoutConfig({ redirectFromTopWhenInIframe: true }),
+        observedConfig: {
+          captured: makeCapturedCheckoutConfig({ redirectFromTopWhenInIframe: true }),
+        },
       }),
     });
     const result = environmentNotIframe.run(payload);
@@ -213,7 +215,9 @@ describe('env-not-iframe', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
         checkoutInIframe: true,
-        capturedConfig: makeCapturedCheckoutConfig({ redirectFromTopWhenInIframe: false }),
+        observedConfig: {
+          captured: makeCapturedCheckoutConfig({ redirectFromTopWhenInIframe: false }),
+        },
       }),
     });
     expect(environmentNotIframe.run(payload).severity).toBe('warn');
@@ -262,11 +266,13 @@ describe('env-region-mismatch', () => {
   });
 });
 
-describe('componentConfig fallback', () => {
-  it('env-key-mismatch resolves clientKey from componentConfig', () => {
+describe('component configuration fallback', () => {
+  it('env-key-mismatch resolves clientKey from component configuration', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
-        componentConfig: makeCheckoutConfig({ clientKey: 'test_COMPONENT' }),
+        observedConfig: {
+          component: makeCheckoutConfig({ clientKey: 'test_COMPONENT' }),
+        },
       }),
       capturedRequests: [makeRequest('https://checkout-test.adyen.com/v71/sessions')],
     });

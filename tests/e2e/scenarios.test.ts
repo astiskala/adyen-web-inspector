@@ -10,14 +10,14 @@ test('Sessions Drop-in exposes configuration and meets frontend criteria', async
     'dummy-merchant.html?scenario=sessions-dropin'
   );
 
-  expect(result.payload.page.capturedConfig?.options).toMatchObject({
+  expect(result.payload.page.observedConfig.captured?.options).toMatchObject({
     environment: 'test',
     clientKey: 'test_dummy',
     countryCode: 'NL',
     locale: 'en-US',
     hasSession: true,
   });
-  expect(result.payload.page.capturedConfig?.complete).toBe(true);
+  expect(result.payload.page.observedConfig.captured?.complete).toBe(true);
   expect(result.payload.versionInfo.detected).toBe('6.31.0');
   expect(requireCheck(result, 'sdk-detected').severity).toBe('info');
   expect(requireCheck(result, 'sdk-flavor').title).toContain('Drop-in');
@@ -57,7 +57,7 @@ test('Advanced Components reports missing callbacks, locale, country and disable
     'dummy-merchant.html?scenario=advanced-components'
   );
 
-  expect(result.payload.page.capturedConfig?.complete).toBe(true);
+  expect(result.payload.page.observedConfig.captured?.complete).toBe(true);
   expect(requireCheck(result, 'sdk-flavor').title).toContain('Components');
   expect(requireCheck(result, 'flow-type').title).toContain('Advanced');
   expect(requireCheck(result, 'callback-on-submit').severity).toBe('fail');
@@ -80,7 +80,7 @@ test('Live config with test key and test CDN flags independent environment and s
     'dummy-merchant.html?scenario=environment-mismatch'
   );
 
-  expect(result.payload.page.capturedConfig?.options.environment).toBe('live');
+  expect(result.payload.page.observedConfig.captured?.options.environment).toBe('live');
   expect(
     result.payload.capturedRequests.some((request) =>
       request.url.startsWith('https://checkout-live.adyen.com/v71/paymentMethods')
@@ -105,7 +105,7 @@ test('India live checkout on HTTP is subject to HTTPS and HSTS checks', async ({
     'dummy-merchant.html?scenario=india-live-http'
   );
 
-  expect(result.payload.page.capturedConfig?.options.environment).toBe('live-in');
+  expect(result.payload.page.observedConfig.captured?.options.environment).toBe('live-in');
   expect(requireCheck(result, 'security-https').severity).toBe('fail');
   expect(requireCheck(result, 'security-hsts').severity).toBe('notice');
 });
@@ -117,7 +117,7 @@ test('Loaded SDK without a mounted checkout does not imply checkout activity', a
   const result = await scanFixture(context, extensionId, 'dummy-merchant.html?scenario=sdk-only');
 
   expect(result.payload.page.adyenMetadata?.version).toBe('6.31.0');
-  expect(result.payload.page.capturedConfig).toBeNull();
+  expect(result.payload.page.observedConfig.captured).toBeNull();
   expect(result.payload.page.hasDropinDOM).toBeUndefined();
   expect(requireCheck(result, 'sdk-detected').severity).toBe('info');
   expect(requireCheck(result, 'sdk-flavor').title).toContain('No active');
@@ -133,7 +133,7 @@ test('Unrelated merchant page has no Adyen SDK or checkout evidence', async ({
   const result = await scanFixture(context, extensionId, 'no-adyen.html');
 
   expect(result.payload.page.adyenMetadata).toBeNull();
-  expect(result.payload.page.capturedConfig).toBeNull();
+  expect(result.payload.page.observedConfig.captured).toBeNull();
   expect(requireCheck(result, 'sdk-detected').severity).toBe('fail');
   expect(requireCheck(result, 'flow-type').title).toContain('Unknown');
   expect(requireCheck(result, 'risk-df-iframe').severity).toBe('skip');
@@ -146,7 +146,7 @@ test('Checkout inside a merchant iframe keeps frame config and warns about embed
   const result = await scanFixture(context, extensionId, 'dummy-iframe-merchant.html');
 
   expect(result.payload.page.checkoutInIframe).toBe(true);
-  expect(result.payload.page.capturedConfig?.options.hasSession).toBe(true);
+  expect(result.payload.page.observedConfig.captured?.options.hasSession).toBe(true);
   expect(result.payload.page.pageUrl).toContain('scenario=sessions-dropin');
   expect(requireCheck(result, 'env-not-iframe').severity).toBe('warn');
   expect(requireCheck(result, 'env-not-iframe').remediation).toContain(
@@ -267,8 +267,8 @@ test('Inferred-only checkout fields never count as verified checkout options', a
     'dummy-merchant.html?scenario=inferred-only'
   );
 
-  expect(result.payload.page.capturedConfig).toBeNull();
-  expect(result.payload.page.pageJsonConfig).toMatchObject({
+  expect(result.payload.page.observedConfig.captured).toBeNull();
+  expect(result.payload.page.observedConfig.inferred['page-json']).toMatchObject({
     countryCode: 'NL',
     environment: 'test',
   });
@@ -327,7 +327,7 @@ test('Live CDN region mismatch is independent of CDN environment and configured 
     'dummy-merchant.html?scenario=regional-cdn'
   );
 
-  expect(result.payload.page.capturedConfig?.options.environment).toBe('live-us');
+  expect(result.payload.page.observedConfig.captured?.options.environment).toBe('live-us');
   expect(requireCheck(result, 'env-region').title).toBe('Region: US.');
   expect(requireCheck(result, 'env-cdn-mismatch').severity).toBe('pass');
   expect(requireCheck(result, 'env-region-mismatch').severity).toBe('warn');
@@ -345,7 +345,7 @@ test('Custom pay button that hides PayPal fails from its rendered analytics even
     'dummy-merchant.html?scenario=custom-pay-button'
   );
 
-  expect(result.payload.page.capturedConfig?.options).toMatchObject({
+  expect(result.payload.page.observedConfig.captured?.options).toMatchObject({
     beforeSubmit: 'checkout',
     showPayButton: false,
   });
@@ -514,7 +514,7 @@ test('Server-created session mounts v6 Drop-in with checkout-level outcome handl
   // Drop-in reads inherited statics from the wrapped components it is given, so it only mounts
   // when the interceptor keeps them.
   expect(result.payload.page.hasDropinDOM).toBe(true);
-  expect(result.payload.page.capturedConfig?.options).toMatchObject({
+  expect(result.payload.page.observedConfig.captured?.options).toMatchObject({
     hasSession: true,
     countryCode: 'NL',
     locale: 'en-US',
@@ -540,11 +540,11 @@ test('Sessions Drop-in with server-side country but missing outcome handlers rep
     'dummy-merchant.html?scenario=sessions-server-incomplete'
   );
 
-  expect(result.payload.page.capturedConfig?.options).toMatchObject({
+  expect(result.payload.page.observedConfig.captured?.options).toMatchObject({
     hasSession: true,
     locale: 'en-US',
   });
-  expect(result.payload.page.capturedConfig?.options.countryCode).toBeUndefined();
+  expect(result.payload.page.observedConfig.captured?.options.countryCode).toBeUndefined();
   expect(requireCheck(result, 'flow-type').title).toContain('Sessions');
   expect(requireCheck(result, 'auth-country-code').severity).toBe('warn');
   expect(requireCheck(result, 'callback-on-submit').severity).toBe('skip');
@@ -568,7 +568,7 @@ test('Advanced Card uses merchant payment methods and checkout-level v6 callback
   expect(
     result.payload.capturedRequests.some((request) => request.url.endsWith('/api/paymentMethods'))
   ).toBe(true);
-  expect(result.payload.page.capturedConfig?.options).toMatchObject({
+  expect(result.payload.page.observedConfig.captured?.options).toMatchObject({
     environment: 'test',
     clientKey: 'test_dummy',
     countryCode: 'NL',
@@ -600,8 +600,8 @@ test('Card-only callback registration warns instead of treating handlers as chec
     'dummy-merchant.html?scenario=component-callbacks'
   );
 
-  expect(result.payload.page.capturedConfig?.complete).toBe(true);
-  expect(result.payload.page.capturedConfig?.options).toMatchObject({
+  expect(result.payload.page.observedConfig.captured?.complete).toBe(true);
+  expect(result.payload.page.observedConfig.captured?.options).toMatchObject({
     onSubmit: 'component',
     onAdditionalDetails: 'component',
     onError: 'component',

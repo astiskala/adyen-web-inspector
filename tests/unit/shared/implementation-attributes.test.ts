@@ -49,8 +49,10 @@ describe('environment and region', () => {
     const { environment } = readImplementationAttributes(
       makeScanPayload({
         page: makeCheckoutPage({
-          capturedConfig,
-          inferredConfig: { clientKey: 'test_INFERRED' },
+          observedConfig: {
+            captured: capturedConfig,
+            inferred: { 'adyen-request': { clientKey: 'test_INFERRED' } },
+          },
         }),
       })
     );
@@ -137,7 +139,9 @@ describe('integration flow', () => {
   it('derives Sessions flow from a captured session object', () => {
     const { flow } = readImplementationAttributes(
       makeScanPayload({
-        page: makeCheckoutPage({ componentConfig: { hasSession: true } }),
+        page: makeCheckoutPage({
+          observedConfig: { component: { hasSession: true } },
+        }),
       })
     );
 
@@ -151,7 +155,7 @@ describe('option-shaped page JSON', () => {
       makeScanPayload({
         page: makeCheckoutPage({
           adyenMetadata: { version: '6.31.0' },
-          pageJsonConfig: { locale: 'en-GB' },
+          observedConfig: { inferred: { 'page-json': { locale: 'en-GB' } } },
         }),
       })
     );
@@ -168,8 +172,10 @@ describe('option-shaped page JSON', () => {
     const { flow } = readImplementationAttributes(
       makeScanPayload({
         page: makeCheckoutPage({
-          capturedConfig,
-          pageJsonConfig: { hasSession: true },
+          observedConfig: {
+            captured: capturedConfig,
+            inferred: { 'page-json': { hasSession: true } },
+          },
         }),
       })
     );
@@ -182,7 +188,9 @@ describe('integration flavor, import method, and checkout activity', () => {
   it('uses analytics as the primary flavor signal, over the Drop-in DOM', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
-        capturedConfig: makeCapturedConfig({ clientKey: 'test_ABC' }),
+        observedConfig: {
+          captured: makeCapturedConfig({ clientKey: 'test_ABC' }),
+        },
         hasDropinDOM: true,
       }),
       analyticsData: makeAnalyticsData({ flavor: 'components' }),
@@ -215,7 +223,13 @@ describe('integration flavor, import method, and checkout activity', () => {
     ],
     [
       'inferred configuration',
-      makeScanPayload({ page: makeCheckoutPage({ inferredConfig: { locale: 'nl-NL' } }) }),
+      makeScanPayload({
+        page: makeCheckoutPage({
+          observedConfig: {
+            inferred: { 'adyen-request': { locale: 'nl-NL' } },
+          },
+        }),
+      }),
       { value: 'Components', source: 'checkout-config' },
     ],
     ['no signal', makeScanPayload(), { value: 'Unknown', source: 'unknown' }],
@@ -279,7 +293,7 @@ describe('region from an unrecognised live environment option', () => {
     const { region } = readImplementationAttributes(
       makeScanPayload({
         page: makeCheckoutPage({
-          capturedConfig,
+          observedConfig: { captured: capturedConfig },
         }),
       })
     );
