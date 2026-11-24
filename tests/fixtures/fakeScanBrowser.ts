@@ -9,16 +9,16 @@ import type { CapturedHeader, PageExtractResult } from '../../src/shared/types';
 export interface FakeScanBrowserOptions {
   /**
   Successive extractFrames results; the last one repeats once exhausted.
-   */
+  */
   readonly extractions?: readonly (readonly FrameExtraction[])[];
   /**
   Raw network traffic the capture reports when stopped.
-   */
+  */
   readonly network?: Partial<ObservedNetwork>;
   readonly documentHeaders?: CapturedHeader[];
   /**
   Script text served by URL; other scripts are unavailable.
-   */
+  */
   readonly scriptTexts?: Readonly<Record<string, string>>;
   readonly release?: AdyenWebReleaseInfo | null;
   readonly tabLoadError?: Error;
@@ -28,7 +28,7 @@ export interface FakeScanBrowserOptions {
 export interface FakeScanBrowser extends ScanBrowser {
   /**
   Port calls in order, for sequencing assertions.
-   */
+  */
   readonly calls: string[];
   readonly sleeps: number[];
   networkStops: number;
@@ -36,14 +36,14 @@ export interface FakeScanBrowser extends ScanBrowser {
 
 /**
 Wraps page extractions as frames; the first is the top frame.
- */
+*/
 export function framesOf(...pages: readonly (PageExtractResult | null)[]): FrameExtraction[] {
   return pages.map((result, frameId) => ({ frameId, result }));
 }
 
 /**
 In-memory adapter for the Scan browser port with a virtual clock.
- */
+*/
 export function createFakeScanBrowser(options: FakeScanBrowserOptions = {}): FakeScanBrowser {
   const extractions = options.extractions ?? [[]];
   let extractionIndex = 0;

@@ -1,6 +1,6 @@
 /**
- * Shared constants used across all extension components.
- */
+Shared constants used across all extension components.
+*/
 
 import type { CheckoutCapture, HealthScore, IntegrationFlow, Severity } from './types.js';
 
@@ -10,15 +10,15 @@ export const CLIENT_KEY_TEST_PREFIX = 'test_';
 export const CLIENT_KEY_LIVE_PREFIX = 'live_';
 /**
 Legacy origin key prefix — should be migrated to client key.
- */
+*/
 export const ORIGIN_KEY_PREFIX = 'pub.v2.';
 
 // ─── Adyen Translation Locales ───────────────────────────────────────────────
 
 /**
- * Locales available in Adyen Web translations.
- * @see https://github.com/Adyen/adyen-web/tree/522975889a4287fe9c81cc138fcf3457e6bd5a6e/packages/server/translations
- */
+Locales available in Adyen Web translations.
+@see https://github.com/Adyen/adyen-web/tree/522975889a4287fe9c81cc138fcf3457e6bd5a6e/packages/server/translations
+*/
 export const ADYEN_WEB_TRANSLATION_LOCALES = [
   'ar',
   'bg-BG',
@@ -105,10 +105,10 @@ export const STORAGE_VERSION_PREFIX = 'adyen_version_';
 // ─── Page Globals ─────────────────────────────────────────────────────────────
 
 /**
- * Page globals the MAIN-world config interceptor publishes its capture record
- * on, the page extractor reads, and the Chrome adapter collects the
- * extraction from.
- */
+Page globals the MAIN-world config interceptor publishes its capture record
+on, the page extractor reads, and the Chrome adapter collects the
+extraction from.
+*/
 export const PAGE_GLOBALS = {
   checkoutCapture: '__adyenWebInspectorCheckoutCapture',
   interceptorInstalled: '__adyenWebInspectorCapturedConfig__installed',
@@ -116,20 +116,20 @@ export const PAGE_GLOBALS = {
 } as const;
 
 /**
- * The page-global contract: what each page global holds. The config
- * interceptor writes the capture record, the page extractor reads it and
- * writes its serialized result. Page scripts can overwrite any of them, so
- * readers still check their shape.
- */
+The page-global contract: what each page global holds. The config
+interceptor writes the capture record, the page extractor reads it and
+writes its serialized result. Page scripts can overwrite any of them, so
+readers still check their shape.
+*/
 export interface PageGlobalValues {
   /**
   The config interceptor's capture record for this frame.
-   */
+  */
   [PAGE_GLOBALS.checkoutCapture]?: CheckoutCapture;
   [PAGE_GLOBALS.interceptorInstalled]?: boolean;
   /**
   The page extractor's serialized `PageExtractResult` for this frame.
-   */
+  */
   [PAGE_GLOBALS.pageExtractResultJson]?: string;
 }
 
@@ -137,14 +137,14 @@ export interface PageGlobalValues {
 
 /**
 Minimum major version required for full inspection. Versions below this are blocked.
- */
+*/
 export const MIN_SUPPORTED_MAJOR_VERSION = 6;
 
 // ─── UI Constants ─────────────────────────────────────────────────────────────
 
 /**
 Status colours for the badge and printed report, matching the light palette in base.css.
- */
+*/
 export const STATUS_COLORS = {
   pass: '#188038',
   warn: '#f29900',
@@ -154,7 +154,7 @@ export const STATUS_COLORS = {
 
 /**
 Colour of each check severity in reports.
- */
+*/
 export const SEVERITY_COLORS: Readonly<Record<Severity, string>> = {
   pass: STATUS_COLORS.pass,
   warn: STATUS_COLORS.warn,
@@ -166,7 +166,7 @@ export const SEVERITY_COLORS: Readonly<Record<Severity, string>> = {
 
 /**
 Colour of each health tier, shared by the badge and reports.
- */
+*/
 export const HEALTH_TIER_COLORS: Readonly<Record<HealthScore['tier'], string>> = {
   excellent: STATUS_COLORS.pass,
   issues: STATUS_COLORS.warn,
@@ -175,7 +175,7 @@ export const HEALTH_TIER_COLORS: Readonly<Record<HealthScore['tier'], string>> =
 
 /**
 Display labels for integration flows, shared by every view.
- */
+*/
 export const INTEGRATION_FLOW_LABELS: Readonly<Record<IntegrationFlow, string>> = {
   sessions: 'Sessions',
   advanced: 'Advanced',

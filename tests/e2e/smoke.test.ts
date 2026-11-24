@@ -1,6 +1,6 @@
 /**
- * Smoke tests — verify the extension loads and scans an embedded checkout.
- */
+Smoke tests — verify the extension loads and scans an embedded checkout.
+*/
 
 import { test, expect, scanFixture } from './fixtures';
 

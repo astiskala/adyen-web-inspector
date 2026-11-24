@@ -1,4 +1,5 @@
 import { h, render } from 'preact';
+import { act } from 'preact/test-utils';
 import { afterEach, describe, expect, it } from 'vitest';
 import { NetworkTab, SkippedChecksTab, SecurityTab } from '../../../src/devtools/panel/tabs';
 import type { ScanResult } from '../../../src/shared/types';
@@ -6,8 +7,10 @@ import { makeScanPayload, makeScanResult } from '../../fixtures/makeScanPayload'
 
 const host = document.createElement('div');
 
-afterEach(() => {
-  render(null, host);
+afterEach(async () => {
+  await act(() => {
+    render(null, host);
+  });
 });
 
 function makeResult(): ScanResult {

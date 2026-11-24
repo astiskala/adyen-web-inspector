@@ -1,6 +1,6 @@
 /**
- * UI tests — the built popup and DevTools panel must target the inspected tab and render its scan.
- */
+UI tests — the built popup and DevTools panel must target the inspected tab and render its scan.
+*/
 
 import type { BrowserContext, Page } from '@playwright/test';
 import {

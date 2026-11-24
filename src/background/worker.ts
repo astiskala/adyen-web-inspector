@@ -1,8 +1,8 @@
 /**
- * Background Service Worker — extension entry point.
- * Routes runtime messages and tab events to the tab state, which owns the
- * badge, stored state, and Scan lifecycle for each tab.
- */
+Background Service Worker — extension entry point.
+Routes runtime messages and tab events to the tab state, which owns the
+badge, stored state, and Scan lifecycle for each tab.
+*/
 
 import {
   MSG_CHECKOUT_ACTIVITY_CLEARED,

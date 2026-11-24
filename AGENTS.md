@@ -77,6 +77,7 @@ Keep pnpm settings such as `overrides` and `allowBuilds` in `pnpm-workspace.yaml
 - `knip` enforces no unused exports; remove dead code instead of suppressing. `pnpm knip` also runs `knip --production`, which ignores tests, so an export used only by tests is reported as unused.
 - Architecture seams are lint-enforced (see **Key Seams**): checks and the implementation-attribute rules may not read raw checkout config slots; checks may not read `documentHeaders` or import CSP parsing primitives (outside `page-policy.ts`), or use `chrome`, `fetch`, `setTimeout`, or `Date.now`; the Scan (`scan-orchestrator.ts`, `scan-assessment.ts`, `frame-merge.ts`, `captured-traffic.ts`) and the tab state (`tab-state.ts`) may not use `chrome`, `fetch`, `setTimeout`, or `Date.now`; the scan lifecycle hook may not use `chrome`; popup, DevTools, and the worker may not reference the `'sdk-detected'` check ID, or import the implementation-attribute rules, `shared/results.ts`, or the `STORAGE_*` key prefixes.
 - Markdown files are linted with `markdownlint-cli2`; JSDoc descriptions must be complete sentences (`jsdoc/require-description-complete-sentence`).
+- JSDoc comment lines have no leading `*` (`unicorn/no-asterisk-prefix-in-documentation-comments`), so `jsdoc/check-alignment` is off.
 
 ### CSS Modules
 

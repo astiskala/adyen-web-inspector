@@ -7,33 +7,33 @@ type NotifyListener = (message: BswToUiMessage) => void;
 export interface FakeTabStateBrowser extends TabStateBrowser {
   /**
   Session storage contents.
-   */
+  */
   readonly storage: Map<string, unknown>;
   /**
   Current badge per tab; absent when cleared.
-   */
+  */
   readonly badges: Map<number, TabBadge>;
   /**
   UI notifications in order.
-   */
+  */
   readonly messages: BswToUiMessage[];
   /**
   Makes the next writes reject, to exercise storage failures.
-   */
+  */
   failWrites: boolean;
   /**
   Makes the next reads reject, to exercise storage failures.
-   */
+  */
   failReads: boolean;
   /**
   Delivers later notifications to a listener, as open views receive them; returns an unsubscribe function.
-   */
+  */
   onNotify: (listener: NotifyListener) => () => void;
 }
 
 /**
 In-memory adapter for the tab state port.
- */
+*/
 export function createFakeTabStateBrowser(): FakeTabStateBrowser {
   const listeners = new Set<NotifyListener>();
   const browser: FakeTabStateBrowser = {

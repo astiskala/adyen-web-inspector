@@ -1,7 +1,7 @@
 /**
- * Printable report — the self-contained HTML the report page prints, and the
- * storage key and URL parameter of the scan result handed to that page.
- */
+Printable report — the self-contained HTML the report page prints, and the
+storage key and URL parameter of the scan result handed to that page.
+*/
 
 import {
   HEALTH_TIER_COLORS,
@@ -24,7 +24,7 @@ type FindingSection = FindingProjection['bestPractices'];
 const PDF_REPORT_STORAGE_PREFIX = 'pdf-report:' as const;
 /**
 Extension page that renders and prints the report.
- */
+*/
 export const PDF_REPORT_PAGE_PATH = 'report/report.html' as const;
 export const PDF_REPORT_TOKEN_PARAM = 'token' as const;
 
@@ -35,7 +35,7 @@ export interface PrintableReportMetadata {
 
 /**
 Returns the session-storage key used for a pending PDF export handoff.
- */
+*/
 export function getPdfReportStorageKey(token: string): string {
   return `${PDF_REPORT_STORAGE_PREFIX}${token}`;
 }
@@ -271,7 +271,7 @@ function buildComplianceHtml(compliance: StandardCompliance): string {
 
 /**
 Builds the self-contained HTML document used by the printable export tab.
- */
+*/
 export function buildPrintableHtml(result: ScanResult, metadata: PrintableReportMetadata): string {
   const date = new Date(result.scannedAt).toLocaleString();
   const { score, passing, total, tier } = result.health;

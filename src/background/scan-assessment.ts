@@ -15,15 +15,15 @@ interface ScanEvidence {
   readonly latestVersion: string | null;
   /**
   Publish timestamps from npm, keyed by version.
-   */
+  */
   readonly releaseDates?: Readonly<Record<string, string>>;
   readonly scannedAt: string;
 }
 
 /**
- * Builds the scan payload from collected evidence and runs every check against
- * it. Same-origin bundles are fetched only when no stronger version signal exists.
- */
+Builds the scan payload from collected evidence and runs every check against
+it. Same-origin bundles are fetched only when no stronger version signal exists.
+*/
 export async function assessScan(
   evidence: ScanEvidence,
   fetchScriptText: (url: string) => Promise<string | null>

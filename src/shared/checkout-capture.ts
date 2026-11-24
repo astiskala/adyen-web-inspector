@@ -1,14 +1,14 @@
 /**
- * Capture record — how the config interceptor accumulates what it observes in
- * one frame: options captured from AdyenCheckout and component calls with
- * their completeness, values inferred from partial signals tagged by signal,
- * the AdyenCheckout initialisation count, and the component events of Adyen
- * checkout analytics requests. The page extractor reads the published record
- * back through `readCheckoutCapture()`.
- *
- * Content scripts bundle this module inline, so it may depend only on types,
- * the config field schema, and the Adyen endpoint reading.
- */
+Capture record — how the config interceptor accumulates what it observes in
+one frame: options captured from AdyenCheckout and component calls with
+their completeness, values inferred from partial signals tagged by signal,
+the AdyenCheckout initialisation count, and the component events of Adyen
+checkout analytics requests. The page extractor reads the published record
+back through `readCheckoutCapture()`.
+
+Content scripts bundle this module inline, so it may depend only on types,
+the config field schema, and the Adyen endpoint reading.
+*/
 
 import { environmentOption, readAdyenEndpoint, readTranslationLocale } from './adyen-endpoint.js';
 import { applyCapturedOptions, readCheckoutOptions } from './checkout-config-schema.js';
@@ -26,7 +26,7 @@ const EMPTY_EVENTS: AnalyticsComponentEvents = { rendered: [], paymentMethods: [
 
 /**
 The record of a frame where nothing was captured yet.
- */
+*/
 export const EMPTY_CHECKOUT_CAPTURE: CheckoutCapture = {
   captured: null,
   inferred: {},
@@ -68,7 +68,7 @@ function renderedComponent(
 
 /**
 Reads a `rendered` event that reported showPayButton; stored payment methods are left out.
- */
+*/
 function readRenderedEvent(event: PlainRecord): RenderedComponent | null {
   const { component, configData } = event;
   if (
@@ -87,7 +87,7 @@ function readRenderedEvent(event: PlainRecord): RenderedComponent | null {
 
 /**
 Payment method types an info event names: its component and the methods Drop-in listed.
- */
+*/
 function namedPaymentMethods(event: PlainRecord): string[] {
   const listed: unknown[] = Array.isArray(event['availablePaymentMethods'])
     ? event['availablePaymentMethods']
@@ -116,11 +116,11 @@ function applyInfoEvent(
 }
 
 /**
- * Records raw options passed to AdyenCheckout (`checkout`) or a component
- * (`component`). Options passed straight to AdyenCheckout are its whole
- * configuration, so options missing from them are known to be absent.
- * Returns the same record when the call carried no options.
- */
+Records raw options passed to AdyenCheckout (`checkout`) or a component
+(`component`). Options passed straight to AdyenCheckout are its whole
+configuration, so options missing from them are known to be absent.
+Returns the same record when the call carried no options.
+*/
 export function recordCheckoutOptions(
   capture: CheckoutCapture,
   raw: unknown,
@@ -140,9 +140,9 @@ export function recordCheckoutOptions(
 }
 
 /**
- * Records values inferred from a partial signal; newer values win within the
- * signal. Returns the same record when there is nothing to record.
- */
+Records values inferred from a partial signal; newer values win within the
+signal. Returns the same record when there is nothing to record.
+*/
 export function recordInference(
   capture: CheckoutCapture,
   signal: InferenceSignal,
@@ -156,11 +156,11 @@ export function recordInference(
 }
 
 /**
- * Records the info events of an Adyen checkout analytics request body: each
- * component's latest rendered showPayButton and the payment methods the events
- * name. Nothing else in the body is kept. Returns the same record when the
- * body adds nothing.
- */
+Records the info events of an Adyen checkout analytics request body: each
+component's latest rendered showPayButton and the payment methods the events
+name. Nothing else in the body is kept. Returns the same record when the
+body adds nothing.
+*/
 export function recordAnalyticsEvents(capture: CheckoutCapture, body: unknown): CheckoutCapture {
   const info: unknown[] = isPlainRecord(body) && Array.isArray(body['info']) ? body['info'] : [];
   let events = capture.events;
@@ -170,16 +170,16 @@ export function recordAnalyticsEvents(capture: CheckoutCapture, body: unknown): 
 
 /**
 Records one AdyenCheckout initialisation.
- */
+*/
 export function recordCheckoutInit(capture: CheckoutCapture): CheckoutCapture {
   return { ...capture, initCount: capture.initCount + 1 };
 }
 
 /**
- * Reads option values from an Adyen request URL: the environment its host
- * names, clientKey, locale, and countryCode parameters, and the locale of a
- * translation file. Returns null for URLs that are not Adyen requests.
- */
+Reads option values from an Adyen request URL: the environment its host
+names, clientKey, locale, and countryCode parameters, and the locale of a
+translation file. Returns null for URLs that are not Adyen requests.
+*/
 export function readRequestInference(url: string, base: string): CheckoutConfig | null {
   let parsed: URL;
   try {
@@ -204,7 +204,7 @@ export function readRequestInference(url: string, base: string): CheckoutConfig 
 
 /**
 The page extractor re-serialises the record, so a plain object is read as options as-is.
- */
+*/
 function readConfig(value: unknown): CheckoutConfig | undefined {
   return isPlainRecord(value) ? value : undefined;
 }
@@ -235,7 +235,7 @@ function readEvents(value: unknown): AnalyticsComponentEvents {
 
 /**
 Reads a published capture record, tolerating page scripts that overwrote the global.
- */
+*/
 export function readCheckoutCapture(value: unknown): CheckoutCapture {
   if (!isPlainRecord(value)) return EMPTY_CHECKOUT_CAPTURE;
   const inferredValue = value['inferred'];

@@ -36,9 +36,13 @@ beforeEach(() => {
   });
 });
 
-afterEach(() => {
+afterEach(async () => {
   const root = document.querySelector('#root');
-  if (root !== null) render(null, root);
+  if (root !== null) {
+    await act(() => {
+      render(null, root);
+    });
+  }
   vi.unstubAllGlobals();
 });
 

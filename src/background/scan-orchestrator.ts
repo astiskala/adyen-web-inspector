@@ -1,6 +1,6 @@
 /**
- * Scan orchestrator — drives the full scan pipeline through a browser port.
- */
+Scan orchestrator — drives the full scan pipeline through a browser port.
+*/
 
 import type { CheckoutPage, ScanResult } from '../shared/types.js';
 import { hasCapturedCheckoutConfig } from '../shared/scan-evidence.js';
@@ -16,9 +16,9 @@ const PAGE_EXTRACT_RETRY_INTERVAL_MS = 500;
 const PAGE_EXTRACT_RETRY_TIMEOUT_MS = 4000;
 
 /**
- * Runs the full scan pipeline for a tab. Whether the result is kept is the
- * tab state's decision, because the page may have navigated meanwhile.
- */
+Runs the full scan pipeline for a tab. Whether the result is kept is the
+tab state's decision, because the page may have navigated meanwhile.
+*/
 export async function runScan(tabId: number, browser: ScanBrowser): Promise<ScanResult> {
   const capture = browser.captureNetwork(tabId);
 
@@ -52,7 +52,7 @@ export async function runScan(tabId: number, browser: ScanBrowser): Promise<Scan
 
 /**
 Extracts the Checkout page, retrying while the SDK loads until configuration is captured.
- */
+*/
 async function extractPageData(browser: ScanBrowser, tabId: number): Promise<CheckoutPage> {
   const first = await extractTab(browser, tabId);
   if (hasCapturedCheckoutConfig(first)) return first;

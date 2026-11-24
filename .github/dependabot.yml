@@ -5,14 +5,25 @@ updates:
     schedule:
       interval: weekly
       day: monday
+    cooldown:
+      default-days: 21
     groups:
-      dev-dependencies:
-        dependency-type: development
+      npm-minor-patch:
+        patterns: ['*']
         update-types:
           - minor
           - patch
-      production-dependencies:
+      npm-dev-major:
+        dependency-type: development
+        update-types:
+          - major
+      npm-production-major:
         dependency-type: production
+        update-types:
+          - major
+      npm-security:
+        applies-to: security-updates
+        patterns: ['*']
     open-pull-requests-limit: 10
     commit-message:
       prefix: 'chore'
@@ -24,6 +35,11 @@ updates:
     schedule:
       interval: weekly
       day: monday
+    cooldown:
+      default-days: 21
+    groups:
+      github-actions:
+        patterns: ['*']
     commit-message:
       prefix: 'ci'
     labels:

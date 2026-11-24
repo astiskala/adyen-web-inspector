@@ -11,7 +11,7 @@ const harness = {} as {
 
 /**
 Opens the report page for a token (or none) and waits for it to finish loading.
- */
+*/
 async function openReport(token: string | null): Promise<void> {
   const query = token === null ? '' : `?${PDF_REPORT_TOKEN_PARAM}=${token}`;
   history.replaceState(null, '', `/report/report.html${query}`);

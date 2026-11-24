@@ -1,11 +1,11 @@
 /**
- * SDK version — the version believed to be running on the inspected page. It
- * owns every version signal and its precedence, the Adyen URL and bundle-text
- * patterns, and the npm release-date lookup. Fetching bundle text is the
- * caller's I/O, so the Scan passes it in through its browser port.
- *
- * The passive detector bundles this module inline, so it must stay light.
- */
+SDK version — the version believed to be running on the inspected page. It
+owns every version signal and its precedence, the Adyen URL and bundle-text
+patterns, and the npm release-date lookup. Fetching bundle text is the
+caller's I/O, so the Scan passes it in through its browser port.
+
+The passive detector bundles this module inline, so it must stay light.
+*/
 
 import type {
   AnalyticsData,
@@ -19,7 +19,7 @@ import { parseVersion } from './version-utilities.js';
 
 /**
 Patterns that read a version from Adyen CDN script and asset URLs.
- */
+*/
 const SDK_URL_VERSION_PATTERNS = [
   /checkoutshopper-sdk[./](\d+\.\d+\.\d+)/,
   /\/sdk\/(\d+\.\d+\.\d+)\//,
@@ -27,7 +27,7 @@ const SDK_URL_VERSION_PATTERNS = [
 
 /**
 Patterns that read a version from bundled Adyen Web source, most specific first.
- */
+*/
 const BUNDLE_VERSION_PATTERNS = [
   /@adyen\/adyen-web\D{0,80}["'`]?(\d+\.\d+\.\d+)["'`]?/i,
   /adyen-web\D{0,80}["'`]?(\d+\.\d+\.\d+)["'`]?/i,
@@ -36,16 +36,16 @@ const BUNDLE_VERSION_PATTERNS = [
 
 /**
 At most this many same-origin bundles are fetched per scan.
- */
+*/
 const BUNDLE_FETCH_LIMIT = 4;
 /**
 Only the start of each bundle is searched.
- */
+*/
 const BUNDLE_TEXT_SCAN_LIMIT = 1_500_000;
 
 /**
 Fetches a script's text; resolves null when it is unavailable.
- */
+*/
 type FetchScriptText = (url: string) => Promise<string | null>;
 
 interface VersionEvidence {
@@ -54,11 +54,11 @@ interface VersionEvidence {
   readonly capturedRequests: readonly CapturedRequest[];
   /**
   Latest published version on npm, the comparison point.
-   */
+  */
   readonly latest: string | null;
   /**
   Publish timestamps from npm, keyed by version.
-   */
+  */
   readonly releaseDates?: Readonly<Record<string, string>>;
 }
 
@@ -69,7 +69,7 @@ interface DetectedVersion {
 
 /**
 Returns the first SDK version found in Adyen CDN script or asset URLs.
- */
+*/
 export function findSdkVersionInUrls(urls: Iterable<string>): string | null {
   for (const url of urls) {
     for (const pattern of SDK_URL_VERSION_PATTERNS) {
@@ -99,7 +99,7 @@ function bundlePriority(url: string): number {
 
 /**
 Same-origin scripts most likely to bundle Adyen Web, in fetch order.
- */
+*/
 function selectBundleCandidates(pageUrl: string, scriptUrls: readonly string[]): string[] {
   const pageHost = extractHostname(pageUrl);
   if (pageHost === null || pageHost === '') return [];
@@ -149,10 +149,10 @@ async function detectVersion(
 }
 
 /**
- * Resolves the running SDK version from the strongest browser signal:
- * metadata, analytics, script URLs, request URLs, then same-origin bundle
- * text, which is fetched only when no stronger signal exists.
- */
+Resolves the running SDK version from the strongest browser signal:
+metadata, analytics, script URLs, request URLs, then same-origin bundle
+text, which is fetched only when no stronger signal exists.
+*/
 export async function resolveVersionInfo(
   evidence: VersionEvidence,
   fetchScriptText: FetchScriptText

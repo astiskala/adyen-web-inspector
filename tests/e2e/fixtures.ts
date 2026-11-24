@@ -1,7 +1,7 @@
 /**
- * Shared Playwright fixtures for Chrome extension E2E tests.
- * Launches a persistent Chromium context with the built extension loaded.
- */
+Shared Playwright fixtures for Chrome extension E2E tests.
+Launches a persistent Chromium context with the built extension loaded.
+*/
 
 import {
   test as base,
@@ -125,7 +125,7 @@ export const expect = test.expect;
 
 /**
 Returns the result for a check ID, failing the test when it is missing.
- */
+*/
 export function requireCheck(result: ScanResult, id: CheckId): CheckResult {
   const found = result.checks.find((entry) => entry.id === id);
   if (found === undefined) throw new Error(`Missing check ${id}`);
@@ -134,7 +134,7 @@ export function requireCheck(result: ScanResult, id: CheckId): CheckResult {
 
 /**
 Opens a fixture page and waits until its dummy checkout is ready.
- */
+*/
 export async function openFixture(context: BrowserContext, fixturePath: string): Promise<Page> {
   const page = await context.newPage();
   const url = new URL(fixturePath, FIXTURE_ORIGIN);
@@ -153,7 +153,7 @@ export async function openFixture(context: BrowserContext, fixturePath: string):
 
 /**
 Reads the extension badge text for a fixture page's tab.
- */
+*/
 export async function getBadgeText(
   context: BrowserContext,
   extensionId: string,
@@ -166,7 +166,7 @@ export async function getBadgeText(
 
 /**
 Reads the stored scan result for a fixture page's tab.
- */
+*/
 export async function getStoredScanResult(
   context: BrowserContext,
   extensionId: string,
@@ -181,9 +181,9 @@ export async function getStoredScanResult(
 }
 
 /**
- * Opens the popup as a background tab beside the fixture page. The popup inspects the active tab
- * of its own window, so opening it in the foreground would make it inspect itself.
- */
+Opens the popup as a background tab beside the fixture page. The popup inspects the active tab
+of its own window, so opening it in the foreground would make it inspect itself.
+*/
 export async function openPopupFor(
   context: BrowserContext,
   extensionId: string,
@@ -206,9 +206,9 @@ export async function openPopupFor(
 }
 
 /**
- * Loads the built DevTools panel in a tab. Only the inspected tab ID is stubbed, because Chrome
- * provides `chrome.devtools` solely inside DevTools, which Playwright cannot open.
- */
+Loads the built DevTools panel in a tab. Only the inspected tab ID is stubbed, because Chrome
+provides `chrome.devtools` solely inside DevTools, which Playwright cannot open.
+*/
 export async function openDevtoolsPanelFor(
   context: BrowserContext,
   extensionId: string,
@@ -226,7 +226,7 @@ export async function openDevtoolsPanelFor(
 
 /**
 Opens a fixture page, runs a scan through the extension, and returns the result.
- */
+*/
 export async function scanFixture(
   context: BrowserContext,
   extensionId: string,

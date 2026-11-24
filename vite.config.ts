@@ -8,7 +8,7 @@ const OUT_DIR = resolve(root, 'dist');
 
 /**
 Fails the build if a content script would need ESM loading, which Chrome does not provide.
- */
+*/
 async function assertClassicScript(file: string): Promise<void> {
   const code = await readFile(file, 'utf8');
   if (/^(?:import|export)\b/m.test(code)) {
@@ -20,7 +20,7 @@ async function assertClassicScript(file: string): Promise<void> {
 
 /**
 Scripts Chrome runs as classic scripts: manifest content scripts and executeScript files.
- */
+*/
 const CONTENT_SCRIPTS = {
   'config-interceptor': 'src/content/config-interceptor.ts',
   detector: 'src/content/detector.ts',
@@ -28,11 +28,11 @@ const CONTENT_SCRIPTS = {
 } as const;
 
 /**
- * Builds each content script as its own self-contained IIFE after the main
- * build. A multi-entry build would move shared modules into chunks and emit
- * ESM imports, which classic scripts cannot load. The IIFE scope also keeps
- * repeated executeScript injections free of redeclared top-level bindings.
- */
+Builds each content script as its own self-contained IIFE after the main
+build. A multi-entry build would move shared modules into chunks and emit
+ESM imports, which classic scripts cannot load. The IIFE scope also keeps
+repeated executeScript injections free of redeclared top-level bindings.
+*/
 function buildContentScripts(): Plugin {
   return {
     name: 'build-content-scripts',
@@ -57,7 +57,7 @@ function buildContentScripts(): Plugin {
             sourcemap: false,
             minify: false,
             modulePreload: false,
-            rollupOptions: {
+            rolldownOptions: {
               input: resolve(root, entry),
               output: { format: 'iife', entryFileNames: `${name}.js` },
             },
@@ -70,9 +70,9 @@ function buildContentScripts(): Plugin {
 }
 
 /**
- * Moves HTML outputs from dist/src/… to dist/… to match manifest paths such as
- * popup/index.html, and adjusts relative asset references for the new depth.
- */
+Moves HTML outputs from dist/src/… to dist/… to match manifest paths such as
+popup/index.html, and adjusts relative asset references for the new depth.
+*/
 function chromeExtensionHtmlFlatten(): Plugin {
   return {
     name: 'chrome-extension-html-flatten',
@@ -144,7 +144,7 @@ export default defineConfig({
     emptyOutDir: true,
     sourcemap: false,
     minify: false,
-    rollupOptions: {
+    rolldownOptions: {
       input: {
         worker: resolve(root, 'src/background/worker.ts'),
         popup: resolve(root, 'src/popup/index.html'),

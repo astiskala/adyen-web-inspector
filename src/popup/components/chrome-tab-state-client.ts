@@ -1,7 +1,7 @@
 /**
- * Chrome adapter for the tab state client: runtime messages to and from the
- * service worker, which owns the tab state.
- */
+Chrome adapter for the tab state client: runtime messages to and from the
+service worker, which owns the tab state.
+*/
 
 import {
   EMPTY_TAB_SNAPSHOT,
@@ -32,7 +32,7 @@ function readScanStatus(value: unknown): TabScanStatus {
 
 /**
 Reads a snapshot from a runtime message, tolerating a missing or malformed value.
- */
+*/
 function readSnapshot(value: unknown): TabSnapshot {
   if (!isRecord(value)) return EMPTY_TAB_SNAPSHOT;
   return {
@@ -44,7 +44,7 @@ function readSnapshot(value: unknown): TabSnapshot {
 
 /**
 Chrome adapter: the worker answers reads and publishes every tab state transition.
- */
+*/
 export const chromeTabStateClient: TabStateClient = {
   async read(tabId) {
     return readSnapshot(await chrome.runtime.sendMessage({ type: MSG_GET_TAB_STATE, tabId }));

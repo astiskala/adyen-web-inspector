@@ -1,14 +1,14 @@
 /**
- * Content Security Policy (CSP) parsing and analysis utilities.
- */
+Content Security Policy (CSP) parsing and analysis utilities.
+*/
 
 interface ParsedCsp {
   directives: Record<string, string[]>;
 }
 
 /**
- * Parses a CSP header value into lowercased directive names and tokenized values.
- */
+Parses a CSP header value into lowercased directive names and tokenized values.
+*/
 export function parseCsp(headerValue: string): ParsedCsp {
   const directives: Record<string, string[]> = {};
   const parts = headerValue.split(';').map((p) => p.trim());
@@ -36,7 +36,7 @@ function isSourceMatchingUrl(source: string, resource: URL, page: URL): boolean 
 
 /**
 Matches a host source such as `https://*.adyen.com:443/path` against a resource URL.
- */
+*/
 function isHostSourceMatchingUrl(source: string, resource: URL): boolean {
   const match = /^(?:(https?):\/\/)?(\*\.)?([^/:]+)(?::(\d+))?(\/.*)?$/.exec(source.toLowerCase());
   const host = match?.[3];
@@ -73,9 +73,9 @@ interface EffectiveCspSources {
 }
 
 /**
- * Returns the directive that governs a resource type, following CSP fallback
- * rules, or null when the policy leaves that resource type unrestricted.
- */
+Returns the directive that governs a resource type, following CSP fallback
+rules, or null when the policy leaves that resource type unrestricted.
+*/
 export function getEffectiveCspSources(
   csp: ParsedCsp,
   directive: CspFetchDirective
@@ -90,7 +90,7 @@ export function getEffectiveCspSources(
 
 /**
 Returns true when the policy allows loading the URL for the resource type.
- */
+*/
 export function isUrlAllowedByCsp(
   csp: ParsedCsp,
   directive: CspFetchDirective,

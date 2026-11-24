@@ -5,7 +5,7 @@ import type { PageExtractResult } from '../../../src/shared/types';
 const pageGlobals = globalThis as unknown as Record<string, unknown>;
 /**
 Shaped like an Adyen API key (`AQ…==-…=-…`) without being one.
- */
+*/
 const FAKE_API_KEY = `AQE${'x'.repeat(40)}==-${'y'.repeat(12)}=-${'z'.repeat(6)}`;
 
 interface VnodeElement extends Element {
@@ -14,7 +14,7 @@ interface VnodeElement extends Element {
 
 /**
 Runs the page extractor in the current document and reads back the result it publishes.
- */
+*/
 async function extractPage(): Promise<PageExtractResult> {
   vi.resetModules();
   await import('../../../src/content/page-extractor');
@@ -25,7 +25,7 @@ async function extractPage(): Promise<PageExtractResult> {
 
 /**
 Wraps a vnode in `depth` parent vnodes.
- */
+*/
 function nestVnode(depth: number, vnode: unknown): unknown {
   let tree = vnode;
   for (let level = 0; level < depth; level += 1) tree = { __k: tree };
@@ -38,7 +38,7 @@ function coreOptions(options: unknown): unknown {
 
 /**
 Mounts markup whose outer element carries a Preact vnode tree, like a mounted Adyen Web root.
- */
+*/
 function mountTree(markup: string, tree: unknown, parent: ParentNode = document.body): Element {
   const mount = document.createElement('div');
   mount.innerHTML = markup;

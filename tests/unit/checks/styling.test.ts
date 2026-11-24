@@ -194,14 +194,11 @@ describe('Styling Checks', () => {
   });
 });
 
-function overridePayload(
-  classOverrideCount: number,
-  classOverrideSelectors: string[]
-): ReturnType<typeof makeScanPayload> {
+function overridePayload(classOverrideSelectors: string[]): ReturnType<typeof makeScanPayload> {
   return makeScanPayload({
     page: makeCheckoutPage({
       adyenMetadata: makeAdyenMetadata(),
-      adyenStyles: { classOverrideCount, classOverrideSelectors, customPropertyCount: 0 },
+      adyenStyles: { classOverrideCount: 2, classOverrideSelectors, customPropertyCount: 0 },
     }),
   });
 }
@@ -209,7 +206,7 @@ function overridePayload(
 describe('styling override examples', () => {
   it('lists only the selectors in a group that target Adyen classes', () => {
     const result = cssCustomProperties.run(
-      overridePayload(2, ['body .page, .adyen-checkout__button:hover'])
+      overridePayload(['body .page, .adyen-checkout__button:hover'])
     );
 
     expect(result.detail).toContain('Examples: .adyen-checkout__button:hover.');
@@ -218,7 +215,7 @@ describe('styling override examples', () => {
   });
 
   it('omits the examples sentence when no selector could be sampled', () => {
-    const result = cssCustomProperties.run(overridePayload(2, []));
+    const result = cssCustomProperties.run(overridePayload([]));
 
     expect(result.detail).not.toContain('Examples:');
     expect(result.detail).toContain('2 more selectors omitted.');

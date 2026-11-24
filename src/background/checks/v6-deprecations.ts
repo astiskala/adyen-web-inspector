@@ -1,8 +1,8 @@
 /**
- * Adyen Web v6 deprecation checks (`version-lifecycle`) — configuration properties and event
- * handlers that were removed or renamed in Adyen Web v6 and may remain after an upgrade.
- * @see https://docs.adyen.com/online-payments/upgrade-your-integration/upgrade-to-web-v6
- */
+Adyen Web v6 deprecation checks (`version-lifecycle`) — configuration properties and event
+handlers that were removed or renamed in Adyen Web v6 and may remain after an upgrade.
+@see https://docs.adyen.com/online-payments/upgrade-your-integration/upgrade-to-web-v6
+*/
 
 import type { CheckoutConfig, ScanPayload } from '../../shared/types.js';
 import {
@@ -97,7 +97,7 @@ const DEPRECATED_CALLBACKS: readonly DeprecatedItem[] = DEPRECATED_CALLBACK_KEYS
 
 /**
 Non-deprecated fields used as evidence that checkout config was captured.
- */
+*/
 const KNOWN_FIELDS: readonly ConfigKey[] = [
   ...STRING_OPTION_KEYS,
   'riskEnabled',

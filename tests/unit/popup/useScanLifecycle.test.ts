@@ -46,7 +46,7 @@ function TestView({
 
 /**
 Lets queued tab state transitions and view updates finish.
- */
+*/
 async function settle(): Promise<void> {
   await act(async () => {
     for (let index = 0; index < 12; index += 1) await Promise.resolve();
@@ -84,8 +84,10 @@ beforeEach(() => {
   harness.client = connectTabStateClient(harness.tabState, harness.browser);
 });
 
-afterEach(() => {
-  render(null, harness.host);
+afterEach(async () => {
+  await act(() => {
+    render(null, harness.host);
+  });
   harness.host.remove();
 });
 

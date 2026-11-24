@@ -76,7 +76,7 @@ function stubChrome(): void {
 
 /**
 Sends a runtime message to the worker; `respond` records its answer, if any.
- */
+*/
 function send(
   message: unknown,
   senderTabId?: number

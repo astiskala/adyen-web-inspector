@@ -12,7 +12,7 @@ interface Properties {
 
 /**
 Displays the browser-visible Standard Drop-in assessment.
- */
+*/
 export function StandardComplianceBadge({ compliance }: Properties): JSX.Element {
   const { compliant, reasons } = compliance;
 

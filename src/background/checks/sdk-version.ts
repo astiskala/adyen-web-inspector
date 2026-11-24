@@ -1,7 +1,7 @@
 /**
- * Version lifecycle checks (`version-lifecycle`) — detected SDK version, release freshness, and
- * the Adyen Uplift co-badged card minimum.
- */
+Version lifecycle checks (`version-lifecycle`) — detected SDK version, release freshness, and
+the Adyen Uplift co-badged card minimum.
+*/
 
 import type { SdkVersionSource, VersionInfo } from '../../shared/types.js';
 import { compareVersions, parseVersion } from '../../shared/utilities.js';
@@ -87,7 +87,7 @@ interface ReleaseAge {
 
 /**
 Classifies the detected release against the scan time; null when either date is unknown.
- */
+*/
 function getReleaseAge(releasedAt: string | undefined, scannedAt: string): ReleaseAge | null {
   if (releasedAt === undefined) return null;
   const released = new Date(releasedAt);
@@ -112,7 +112,7 @@ interface ComparableVersions {
 
 /**
 Reads the detected and latest versions for comparison, or why they cannot be compared.
- */
+*/
 function readComparableVersions({
   detected,
   latest,
@@ -125,9 +125,9 @@ function readComparableVersions({
   }
   const parsedDetected = parseVersion(detected);
   const parsedLatest = parseVersion(latest);
-  return !parsedDetected || !parsedLatest
-    ? { skipReason: STRINGS.VERSION_PARSE_FAIL_SKIP_REASON }
-    : { detected, latest, parsedDetected, parsedLatest };
+  return parsedDetected && parsedLatest
+    ? { detected, latest, parsedDetected, parsedLatest }
+    : { skipReason: STRINGS.VERSION_PARSE_FAIL_SKIP_REASON };
 }
 
 export const SDK_VERSION_CHECKS = createRegistry(CATEGORY)

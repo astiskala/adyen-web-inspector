@@ -1,11 +1,11 @@
 /**
- * Captured traffic — what the Scan's network observations tell about the
- * checkout page: the checkout document's response headers, the main-document
- * and Adyen requests checks read, and the SDK fields in Adyen checkout
- * analytics bodies. Requests the page reports itself (script and link tags,
- * Resource Timing) fill in what the capture missed. Part of the Scan: the
- * browser port only reports raw observations.
- */
+Captured traffic — what the Scan's network observations tell about the
+checkout page: the checkout document's response headers, the main-document
+and Adyen requests checks read, and the SDK fields in Adyen checkout
+analytics bodies. Requests the page reports itself (script and link tags,
+Resource Timing) fill in what the capture missed. Part of the Scan: the
+browser port only reports raw observations.
+*/
 
 import { readAdyenEndpoint } from '../shared/adyen-endpoint.js';
 import type {
@@ -19,7 +19,7 @@ import type { ObservedNetwork, ObservedPost, ObservedResponse } from './scan-bro
 
 /**
 Analytics fields the Scan keeps; the rest of each body is discarded.
- */
+*/
 const ANALYTICS_KEYS = [
   'flavor',
   'version',
@@ -32,7 +32,7 @@ const ANALYTICS_KEYS = [
 
 /**
 The network evidence of one Scan.
- */
+*/
 export interface CapturedTraffic {
   readonly documentHeaders: DocumentHeaders;
   readonly capturedRequests: CapturedRequest[];
@@ -58,7 +58,7 @@ function toCapturedRequest(response: ObservedResponse): CapturedRequest {
 
 /**
 Main-document and Adyen responses are the ones checks read.
- */
+*/
 function isCheckedResponse(response: ObservedResponse): boolean {
   return response.type === 'main_frame' || readAdyenEndpoint(response.url) !== null;
 }
@@ -69,7 +69,7 @@ function reported(url: string, type: CapturedRequest['type'], statusCode = 0): C
 
 /**
 Requests the page itself reports, for traffic the capture did not observe.
- */
+*/
 function pageRequests(page: CheckoutPage): CapturedRequest[] {
   return [
     reported(page.pageUrl, 'main_frame'),
@@ -85,7 +85,7 @@ function pageRequests(page: CheckoutPage): CapturedRequest[] {
 
 /**
 Keeps the first request per type and URL, so observed responses win over page reports.
- */
+*/
 function dedupe(requests: readonly CapturedRequest[]): CapturedRequest[] {
   const seen = new Set<string>();
   return requests.filter((request) => {
@@ -107,7 +107,7 @@ function parseBody(post: ObservedPost): Record<string, unknown> | null {
 
 /**
 Merges the SDK fields of analytics bodies; later calls win per field.
- */
+*/
 function readAnalytics(posts: readonly ObservedPost[]): AnalyticsData | null {
   const merged: { -readonly [K in keyof AnalyticsData]: AnalyticsData[K] } = {};
   for (const post of posts) {
@@ -122,11 +122,11 @@ function readAnalytics(posts: readonly ObservedPost[]): AnalyticsData | null {
 }
 
 /**
- * The checkout document's headers: the tab's own response when checkout runs
- * in the top document, else a separate request for the checkout document's
- * URL. Only one document's headers are ever used, so availability and
- * content cannot describe different documents.
- */
+The checkout document's headers: the tab's own response when checkout runs
+in the top document, else a separate request for the checkout document's
+URL. Only one document's headers are ever used, so availability and
+content cannot describe different documents.
+*/
 async function readDocumentHeaders(
   page: CheckoutPage,
   responses: readonly ObservedResponse[],
@@ -149,7 +149,7 @@ async function readDocumentHeaders(
 
 /**
 Reads the Scan's network observations for the Checkout page.
- */
+*/
 export async function readCapturedTraffic(
   observed: ObservedNetwork,
   page: CheckoutPage,

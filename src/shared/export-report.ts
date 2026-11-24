@@ -1,10 +1,10 @@
 /**
- * Finding projection — how every view presents a scan result: issue rows
- * grouped by impact with remediation and documentation resolved, successful
- * and skipped checks, captured network, raw configuration, and implementation
- * attributes. The popup, DevTools panel, PDF, and JSON reports render these
- * rows in projection order; none of them sorts or rewords issues itself.
- */
+Finding projection — how every view presents a scan result: issue rows
+grouped by impact with remediation and documentation resolved, successful
+and skipped checks, captured network, raw configuration, and implementation
+attributes. The popup, DevTools panel, PDF, and JSON reports render these
+rows in projection order; none of them sorts or rewords issues itself.
+*/
 
 import { readAdyenEndpoint } from './adyen-endpoint.js';
 import { getImpactLevel, IMPACT_LABELS, isIssue, ISSUE_IMPACT_ORDER } from './results.js';
@@ -40,13 +40,13 @@ const SECURITY_CATEGORIES: ReadonlySet<CheckCategory> = new Set(['security', 'th
 
 /**
 Display values of the implementation attributes, shared by the popup, panel, and reports.
- */
+*/
 interface ImplementationSummary {
   readonly sdkVersion: string;
   readonly environment: AdyenEnvironment | 'unknown';
   /**
   Null for test, which uses a global endpoint rather than a live region.
-   */
+  */
   readonly region: AdyenRegion | null;
   readonly flow: IntegrationFlow;
   readonly flavor: IntegrationFlavor;
@@ -55,7 +55,7 @@ interface ImplementationSummary {
 
 /**
 One issue as every view renders it.
- */
+*/
 export interface IssueRow {
   readonly id: CheckId;
   readonly category: CheckCategory;
@@ -63,23 +63,23 @@ export interface IssueRow {
   readonly title: string;
   /**
   Label of the issue's impact group.
-   */
+  */
   readonly impact: string;
   readonly impactLevel: CheckImpact;
   readonly detail: string | null;
   /**
   Reader-friendly remediation; a severity-based default when the check has none.
-   */
+  */
   readonly remediation: string;
   /**
   The check's documentation, else the Adyen Web best practices.
-   */
+  */
   readonly docsUrl: string;
 }
 
 /**
 Issues of one impact, sorted by severity then title.
- */
+*/
 export interface IssueGroup {
   readonly impact: CheckImpact;
   readonly label: string;
@@ -106,11 +106,11 @@ interface ExportNetworkData {
 interface ExportRawConfigData {
   /**
   Options captured from AdyenCheckout and component calls.
-   */
+  */
   readonly checkoutConfig: CheckoutConfig | null;
   /**
   True when AdyenCheckout's options were captured whole.
-   */
+  */
   readonly checkoutConfigComplete: boolean;
   readonly componentConfig: CheckoutConfig | null;
   readonly inferredCheckoutConfig: CheckoutConfig | null;
@@ -189,9 +189,9 @@ function toIssueRow(check: CheckResult, impact: CheckImpact): IssueRow {
 }
 
 /**
- * Groups issues by impact in priority order, sorted by severity then title
- * within each group. Empty groups are omitted and non-issues are ignored.
- */
+Groups issues by impact in priority order, sorted by severity then title
+within each group. Empty groups are omitted and non-issues are ignored.
+*/
 export function groupIssuesByImpact(checks: readonly CheckResult[]): IssueGroup[] {
   const issues = checks.filter(isIssue);
   return ISSUE_IMPACT_ORDER.map((impact) => ({
@@ -267,7 +267,7 @@ function formatConfig(config: object | null, emptyMessage: string): string {
 
 /**
 Titles and pretty-printed contents of each extracted config source, shared by every view.
- */
+*/
 export function buildRawConfigSections(rawConfig: ExportRawConfigData): RawConfigSection[] {
   return [
     {
@@ -304,7 +304,7 @@ function buildRawConfigData(result: ScanResult): ExportRawConfigData {
 
 /**
 Reads the scan's implementation attributes as the values every view displays.
- */
+*/
 export function summarizeImplementation(result: ScanResult): ImplementationSummary {
   const { attributes } = result;
   const environment = attributes.environment.value ?? 'unknown';
@@ -320,7 +320,7 @@ export function summarizeImplementation(result: ScanResult): ImplementationSumma
 
 /**
 Projects a scan result into the sections shared by the DevTools panel and reports.
- */
+*/
 export function buildFindingProjection(result: ScanResult): FindingProjection {
   return {
     bestPractices: buildFindingSection(result.checks, BEST_PRACTICE_CATEGORIES),
@@ -332,9 +332,9 @@ export function buildFindingProjection(result: ScanResult): FindingProjection {
 }
 
 /**
- * Builds the JSON report data from the finding projection, with each issue
- * list flattened in impact, severity, then title order.
- */
+Builds the JSON report data from the finding projection, with each issue
+list flattened in impact, severity, then title order.
+*/
 export function buildReportExportData(result: ScanResult): ReportExportData {
   const projection = buildFindingProjection(result);
 

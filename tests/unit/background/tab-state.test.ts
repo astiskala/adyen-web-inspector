@@ -31,7 +31,7 @@ function scoredResult(score: number, tier: ScanResult['health']['tier']): ScanRe
 
 /**
 Scan states of the snapshots published so far, in order.
- */
+*/
 function publishedScans(): string[] {
   return harness.browser.messages.map((message) => message.snapshot.scan.state);
 }
@@ -42,7 +42,7 @@ function lastPublished(): TabSnapshot | undefined {
 
 /**
 Lets queued transitions and the settled Scan finish.
- */
+*/
 async function settle(): Promise<void> {
   for (let index = 0; index < 10; index += 1) await Promise.resolve();
 }

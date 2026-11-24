@@ -1,8 +1,8 @@
 /**
- * Frame merge — turns every accessible frame's page extraction into the
- * Checkout page. It owns frame selection and the scope each Checkout page
- * field is read from: the selected frame, merchant frames, or all frames.
- */
+Frame merge — turns every accessible frame's page extraction into the
+Checkout page. It owns frame selection and the scope each Checkout page
+field is read from: the selected frame, merchant frames, or all frames.
+*/
 
 import { mergeCheckoutConfigs } from '../shared/checkout-config-schema.js';
 import {
@@ -24,9 +24,9 @@ type FieldScope =
   'selected' | 'selected-or-first' | 'selected-or-merchant' | 'merchant-frames' | 'all-frames';
 
 /**
- * Where each Checkout page field is read from. Merchant frames are frames not
- * served from an Adyen host, so hosted card fields do not count as checkout.
- */
+Where each Checkout page field is read from. Merchant frames are frames not
+served from an Adyen host, so hosted card fields do not count as checkout.
+*/
 const FIELD_SCOPE = {
   adyenMetadata: 'selected-or-first',
   capturedConfig: 'all-frames',
@@ -73,7 +73,7 @@ const MERCHANT_FLAGS = fieldsWithScope('selected-or-merchant');
 
 /**
 Picks the frame with the strongest checkout signals; the top frame wins ties.
- */
+*/
 function selectFrame(first: ExtractedFrame, rest: readonly ExtractedFrame[]): ExtractedFrame {
   let selected = first;
   for (const frame of rest) {
@@ -110,7 +110,7 @@ function mergeSlot(frames: readonly PageExtractResult[], slot: ConfigSlot): Chec
 
 /**
 Merges captured options across frames; the capture is complete when any frame's is.
- */
+*/
 function mergeCaptured(frames: readonly PageExtractResult[]): CapturedCheckoutOptions | null {
   const captures = frames.map((frame) => frame.capturedConfig).filter((c) => c !== null);
   const options = mergeCheckoutConfigs(captures.map((capture) => capture.options));
@@ -121,7 +121,7 @@ function mergeCaptured(frames: readonly PageExtractResult[]): CapturedCheckoutOp
 
 /**
 Combines analytics component events; earlier frames win per rendered component type.
- */
+*/
 function mergeAnalyticsEvents(
   frames: readonly PageExtractResult[]
 ): Pick<CheckoutPage, 'analyticsEvents'> {
@@ -152,11 +152,11 @@ function mergeMerchantFlags(
 }
 
 /**
- * Merges frame extractions into the Checkout page, or returns null when no
- * frame produced a result. Configuration merges across all frames with earlier
- * frames winning per field; absence is provable when any frame captured
- * AdyenCheckout options whole.
- */
+Merges frame extractions into the Checkout page, or returns null when no
+frame produced a result. Configuration merges across all frames with earlier
+frames winning per field; absence is provable when any frame captured
+AdyenCheckout options whole.
+*/
 export function mergeFrames(frames: readonly FrameExtraction[]): CheckoutPage | null {
   const extracted = frames.filter((frame): frame is ExtractedFrame => frame.result !== null);
   const [first, ...rest] = extracted;

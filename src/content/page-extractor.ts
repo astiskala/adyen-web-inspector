@@ -1,8 +1,8 @@
 /**
- * Page-world extractor — executed via chrome.scripting.executeScript with world: "MAIN".
- * Reads page globals, DOM state, and config in each accessible frame, then
- * serialises a plain result onto a page global for the background scan to read.
- */
+Page-world extractor — executed via chrome.scripting.executeScript with world: "MAIN".
+Reads page globals, DOM state, and config in each accessible frame, then
+serialises a plain result onto a page global for the background scan to read.
+*/
 
 import { readAdyenEndpoint } from '../shared/adyen-endpoint.js';
 import { readCheckoutCapture } from '../shared/checkout-capture.js';
@@ -23,7 +23,7 @@ import type {
 
 /**
 Page globals from config-interceptor.ts (MAIN world, document_start) and the SDK.
- */
+*/
 type GlobalWithAdyen = typeof globalThis &
   PageGlobalValues & {
     AdyenWebMetadata?: AdyenWebMetadata;
@@ -41,7 +41,7 @@ interface PreactVNode {
       };
       /**
       Drop-in passes its own props, including per-method configuration, beside the core.
-       */
+      */
       paymentMethodsConfiguration?: unknown;
     };
   };
@@ -50,7 +50,7 @@ interface PreactVNode {
 
 /**
 A mounted checkout: AdyenCheckout options and the per-method configuration beside them.
- */
+*/
 interface MountedCheckout {
   readonly options: unknown;
   readonly paymentMethodsConfiguration: unknown;
@@ -59,9 +59,9 @@ interface MountedCheckout {
 const MAX_TREE_DEPTH = 15;
 
 /**
- * Recursively walks a Preact VNode tree to find the props that carry
- * `core.options`. Returns the mounted checkout if found, or null.
- */
+Recursively walks a Preact VNode tree to find the props that carry
+`core.options`. Returns the mounted checkout if found, or null.
+*/
 function findMountedCheckout(root: unknown, rootDepth: number): MountedCheckout | null {
   let node = root;
   let depth = rootDepth;
@@ -177,9 +177,9 @@ interface ComponentExtraction {
 }
 
 /**
- * Finds the nearest ancestor element (including the element itself) with `__k`.
- * Walks up to `maxLevels` parent levels.
- */
+Finds the nearest ancestor element (including the element itself) with `__k`.
+Walks up to `maxLevels` parent levels.
+*/
 function findVnodeAncestor(element: Element, maxLevels: number): ElementWithVnode | null {
   let current: Element | null = element;
   for (let index = 0; index <= maxLevels; index++) {
@@ -192,10 +192,10 @@ function findVnodeAncestor(element: Element, maxLevels: number): ElementWithVnod
 }
 
 /**
- * Finds ALL Preact vnode root mount points on the page, including inside
- * Shadow DOMs. A root is a DOM element with `__k` whose parent does NOT
- * have `__k`.
- */
+Finds ALL Preact vnode root mount points on the page, including inside
+Shadow DOMs. A root is a DOM element with `__k` whose parent does NOT
+have `__k`.
+*/
 function findAllVnodeRoots(): ElementWithVnode[] {
   const roots: ElementWithVnode[] = [];
   let scanned = 0;
@@ -233,8 +233,8 @@ function findAllVnodeRoots(): ElementWithVnode[] {
 }
 
 /**
- * Finds Adyen checkout elements including inside Shadow DOMs.
- */
+Finds Adyen checkout elements including inside Shadow DOMs.
+*/
 function findAdyenElements(): Element[] {
   const results = [...document.querySelectorAll('[class*="adyen-checkout"]')];
 
@@ -312,13 +312,13 @@ function extractComponentConfig(): ComponentExtraction {
 }
 
 /**
- * Matches an Adyen API key: starts with "AQ", ~159 chars, contains "==-" and "=-" delimiters.
- */
+Matches an Adyen API key: starts with "AQ", ~159 chars, contains "==-" and "=-" delimiters.
+*/
 const ADYEN_API_KEY_PATTERN = /AQ[A-Za-z0-9+/]+==-[A-Za-z0-9+/]+=-[A-Za-z0-9+/]+/;
 
 /**
 Looks for an Adyen API key in inline scripts and in everything the capture record holds.
- */
+*/
 function isApiKeyExposed(capture: CheckoutCapture): boolean {
   const scripts = document.querySelectorAll<HTMLScriptElement>('script:not([src])');
   for (const script of scripts) {
@@ -330,17 +330,17 @@ function isApiKeyExposed(capture: CheckoutCapture): boolean {
 }
 
 /**
- * When Adyen Web is loaded via npm, the SDK's own CSS is bundled into a
- * `<style>` tag or a merchant-hosted CSS file. These sheets contain hundreds
- * of `.adyen-checkout__*` selectors (the SDK's base styles), which should not
- * be counted as merchant overrides. If a single stylesheet exceeds this
- * threshold of Adyen-class selectors, we treat it as the SDK's own CSS bundle.
- */
+When Adyen Web is loaded via npm, the SDK's own CSS is bundled into a
+`<style>` tag or a merchant-hosted CSS file. These sheets contain hundreds
+of `.adyen-checkout__*` selectors (the SDK's base styles), which should not
+be counted as merchant overrides. If a single stylesheet exceeds this
+threshold of Adyen-class selectors, we treat it as the SDK's own CSS bundle.
+*/
 const SDK_BUNDLE_SELECTOR_THRESHOLD = 50;
 
 /**
 Safely reads CSS rules from a stylesheet, returning null for cross-origin sheets.
- */
+*/
 function safeGetCssRules(sheet: CSSStyleSheet): CSSRuleList | null {
   try {
     return sheet.cssRules;
@@ -351,7 +351,7 @@ function safeGetCssRules(sheet: CSSStyleSheet): CSSRuleList | null {
 
 /**
 Counts --adyen-sdk-* custom properties declared in a single style rule.
- */
+*/
 function countAdyenCustomProperties(style: CSSStyleDeclaration): number {
   let count = 0;
   for (const property of style) {
@@ -368,7 +368,7 @@ interface StyleAccumulator {
 
 /**
 Recursively walks CSS rules including nested @media/@supports/@layer blocks.
- */
+*/
 function walkCssRules(rules: CSSRuleList, accumulator: StyleAccumulator): void {
   for (const rule of rules) {
     if (rule instanceof CSSStyleRule) {
@@ -387,7 +387,7 @@ function walkCssRules(rules: CSSRuleList, accumulator: StyleAccumulator): void {
 
 /**
 Returns true when the stylesheet is likely Adyen's own CSS (Adyen-hosted or npm bundle).
- */
+*/
 function isAdyenOwnStylesheet(sheet: CSSStyleSheet, rules: CSSRuleList): boolean {
   if (sheet.href !== null && readAdyenEndpoint(sheet.href) !== null) return true;
 
@@ -402,7 +402,7 @@ function isAdyenOwnStylesheet(sheet: CSSStyleSheet, rules: CSSRuleList): boolean
 
 /**
 Scans document stylesheets for Adyen class overrides and custom property usage.
- */
+*/
 function extractAdyenStyles(): AdyenStyleInfo {
   const accumulator: StyleAccumulator = {
     overrideCount: 0,

@@ -1,6 +1,6 @@
 /**
- * Check registry — exports all check modules.
- */
+Check registry — exports all check modules.
+*/
 
 import type { Check } from '../../shared/types.js';
 import { SDK_IDENTITY_CHECKS } from './sdk-identity.js';
