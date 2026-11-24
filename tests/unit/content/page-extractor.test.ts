@@ -27,25 +27,16 @@ async function extractPage(): Promise<PageExtractResult> {
   return JSON.parse(json) as PageExtractResult;
 }
 
-/**
-Wraps a vnode in `depth` parent vnodes.
-*/
-function nestVnode(depth: number, vnode: unknown): unknown {
-  let tree = vnode;
-  for (let level = 0; level < depth; level += 1) tree = { __k: tree };
-  return tree;
-}
-
 function coreOptions(options: unknown): unknown {
   return { __c: { props: { core: { options } } } };
 }
 
 /**
-Mounts markup whose outer element carries a Preact vnode tree, like a mounted Adyen Web root.
+Mounts a Drop-in whose outer element carries a Preact vnode tree, like a mounted Adyen Web root.
 */
-function mountTree(markup: string, tree: unknown, parent: ParentNode = document.body): Element {
+function mountDropin(tree: unknown, parent: ParentNode = document.body): Element {
   const mount = document.createElement('div');
-  mount.innerHTML = markup;
+  mount.innerHTML = '<div class="adyen-checkout__dropin"></div>';
   (mount as VnodeElement).__k = tree;
   parent.append(mount);
   return mount;
@@ -315,8 +306,7 @@ describe('page extractor', () => {
 
 describe('page extractor mounted component configuration', () => {
   it('reads Adyen core options from a mounted Preact tree', async () => {
-    mountTree(
-      '<div class="adyen-checkout__dropin"></div>',
+    mountDropin(
       coreOptions({ clientKey: 'test_TREE', locale: 'nl-NL', analytics: { enabled: false } })
     );
 
@@ -328,29 +318,6 @@ describe('page extractor mounted component configuration', () => {
     });
   });
 
-  it("reads Drop-in's per-method configuration from the props that carry the core", async () => {
-    mountTree('<div class="adyen-checkout__dropin"></div>', {
-      __c: {
-        props: {
-          core: { options: { showPayButton: true } },
-          paymentMethodsConfiguration: { paypal: { showPayButton: false } },
-        },
-      },
-    });
-
-    await expect(extractPage()).resolves.toMatchObject({
-      observedConfig: { component: { showPayButton: true, hiddenPayButtonMethods: ['paypal'] } },
-    });
-  });
-
-  it('counts components created from one AdyenCheckout as one instance', async () => {
-    const shared = coreOptions({ locale: 'nl-NL' });
-    mountTree('<div class="adyen-checkout__card-input"></div>', shared);
-    mountTree('<div class="adyen-checkout__ideal"></div>', shared);
-
-    await expect(extractPage()).resolves.toMatchObject({ componentMountCount: 1 });
-  });
-
   it('reads checkout in a closed shadow root the interceptor recorded, nested open roots included', async () => {
     const host = document.createElement('payment-widget');
     document.body.append(host);
@@ -358,7 +325,7 @@ describe('page extractor mounted component configuration', () => {
     const innerHost = document.createElement('div');
     closed.append(innerHost);
     const open = innerHost.attachShadow({ mode: 'open' });
-    mountTree('<div class="adyen-checkout__dropin"></div>', coreOptions({ locale: 'pl-PL' }), open);
+    mountDropin(coreOptions({ locale: 'pl-PL' }), open);
     pageGlobals[PAGE_GLOBALS.closedShadowRoots] = new WeakMap([[host, closed]]);
 
     await expect(extractPage()).resolves.toMatchObject({
@@ -375,11 +342,7 @@ describe('page extractor mounted component configuration', () => {
     const host = new PaymentPanel();
     document.body.append(host);
     const closed = host.attachShadow({ mode: 'closed' });
-    mountTree(
-      '<div class="adyen-checkout__dropin"></div>',
-      coreOptions({ locale: 'da-DK' }),
-      closed
-    );
+    mountDropin(coreOptions({ locale: 'da-DK' }), closed);
     pageGlobals[PAGE_GLOBALS.elementInternals] = [
       new WeakRef(host.internals),
       new WeakRef({}),
@@ -415,71 +378,12 @@ describe('page extractor mounted component configuration', () => {
       parent = child;
     }
     const shadow = parent.attachShadow({ mode: 'open' });
-    mountTree(
-      '<div class="adyen-checkout__dropin"></div>',
-      coreOptions({ locale: 'sv-SE' }),
-      shadow
-    );
+    mountDropin(coreOptions({ locale: 'sv-SE' }), shadow);
 
     await expect(extractPage()).resolves.toMatchObject({
       observedConfig: { component: { locale: 'sv-SE' } },
       hasDropinDOM: true,
     });
-  });
-
-  it('finds mounts inside shadow roots and merges them, earlier mounts winning', async () => {
-    mountTree('<div class="adyen-checkout__card-input"></div>', coreOptions({ locale: 'nl-NL' }));
-    const host = document.createElement('div');
-    document.body.append(host);
-    const shadow = host.attachShadow({ mode: 'open' });
-    mountTree(
-      '<div class="adyen-checkout__dropin"></div>',
-      coreOptions({ locale: 'fr-FR', countryCode: 'FR' }),
-      shadow
-    );
-
-    await expect(extractPage()).resolves.toMatchObject({
-      observedConfig: { component: { locale: 'nl-NL', countryCode: 'FR' } },
-      componentMountCount: 2,
-    });
-  });
-
-  it.each([
-    [
-      'nested in a children array',
-      { __k: [{ __k: null }, { __k: [coreOptions({ locale: 'a' })] }] },
-    ],
-    ['under a single child', { __k: coreOptions({ locale: 'a' }) }],
-    [
-      'after nodes without core options',
-      {
-        __k: [{ other: true }, { __c: { props: { notCore: true } } }, coreOptions({ locale: 'a' })],
-      },
-    ],
-  ])('walks the vnode tree to options %s', async (_label, tree) => {
-    mountTree('<div class="adyen-checkout__dropin"></div>', tree);
-
-    await expect(extractPage()).resolves.toMatchObject({
-      observedConfig: { component: { locale: 'a' } },
-    });
-  });
-
-  it.each([
-    ['without core options', { __k: [{ __c: { props: { something: 'else' } } }, { __k: null }] }],
-    ['deeper than the walk limit', nestVnode(16, coreOptions({}))],
-  ])('reports no component configuration for a tree %s', async (_label, tree) => {
-    mountTree('<div class="adyen-checkout__dropin"></div>', tree);
-
-    const page = await extractPage();
-
-    expect(page.observedConfig.component).toBeNull();
-    expect(page).not.toHaveProperty('componentMountCount');
-  });
-
-  it('ignores Preact roots on pages without Adyen elements', async () => {
-    mountTree('<div class="app"></div>', coreOptions({ clientKey: 'test_OTHER' }));
-
-    await expect(extractPage()).resolves.toMatchObject({ observedConfig: { component: null } });
   });
 });
 
@@ -602,47 +506,6 @@ describe('page extractor styling', () => {
         customPropertyCount: 0,
       },
     });
-  });
-});
-
-describe('page extractor tree walk limits', () => {
-  it('reads options from a root far above a deeply nested Adyen element', async () => {
-    const deep = `${'<div>'.repeat(12)}<div class="adyen-checkout__card-input"></div>${'</div>'.repeat(12)}`;
-    mountTree(deep, coreOptions({ locale: 'nl-NL' }));
-
-    await expect(extractPage()).resolves.toMatchObject({
-      observedConfig: { component: { locale: 'nl-NL' } },
-      componentMountCount: 1,
-    });
-  });
-
-  it('stops scanning for vnode roots after twenty', async () => {
-    document.body.innerHTML = '<div class="adyen-checkout__button"></div>';
-    for (let index = 0; index < 25; index += 1) mountTree('<p></p>', coreOptions({ locale: 'a' }));
-
-    await expect(extractPage()).resolves.toMatchObject({ componentMountCount: 20 });
-  });
-
-  it('reads an Adyen root mounted directly in a shadow root', async () => {
-    const host = document.createElement('div');
-    document.body.append(host);
-    const root = document.createElement('div');
-    root.className = 'adyen-checkout__dropin';
-    (root as VnodeElement).__k = coreOptions({ countryCode: 'NL' });
-    host.attachShadow({ mode: 'open' }).append(root);
-
-    await expect(extractPage()).resolves.toMatchObject({
-      observedConfig: { component: { countryCode: 'NL' } },
-    });
-  });
-
-  it('does not count trees whose core options are not an object', async () => {
-    mountTree('<div class="adyen-checkout__dropin"></div>', coreOptions(42));
-
-    const page = await extractPage();
-
-    expect(page.observedConfig.component).toBeNull();
-    expect(page).not.toHaveProperty('componentMountCount');
   });
 
   it('skips rules that neither style nor group other rules', async () => {

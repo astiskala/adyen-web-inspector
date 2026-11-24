@@ -88,7 +88,7 @@ const SHADOW_SCAN_LIMIT = 20_000;
 Returns the open shadow roots under a root, nested ones included, for
 checkout that web components or design systems mount inside Shadow DOM.
 */
-export function collectShadowRoots(
+function collectShadowRoots(
   root: ParentNode,
   shadowRootOf: ShadowRootLookup = openShadowRoot
 ): ShadowRoot[] {
@@ -109,6 +109,15 @@ export function collectShadowRoots(
     }
   }
   return shadowRoots;
+}
+
+/**
+Returns every adyen-checkout element under a root and its shadow roots.
+*/
+export function findCheckoutElements(root: ParentNode, shadowRootOf: ShadowRootLookup): Element[] {
+  return [root, ...collectShadowRoots(root, shadowRootOf)].flatMap((parent) => [
+    ...parent.querySelectorAll(SELECTORS.anyElement),
+  ]);
 }
 
 function readDom(roots: readonly ParentNode[]): CheckoutDom {

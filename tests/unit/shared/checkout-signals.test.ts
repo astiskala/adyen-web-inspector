@@ -6,7 +6,7 @@ import {
   readCheckoutDom,
   isRenderingCheckout,
   hasMountedCheckout,
-  collectShadowRoots,
+  findCheckoutElements,
 } from '../../../src/shared/checkout-signals';
 import {
   makeAdyenMetadata,
@@ -45,7 +45,10 @@ describe('readCheckoutDom', () => {
       '<div class="adyen-checkout__dropin"><div class="adyen-checkout__card-input"></div></div>';
 
     expect(readCheckoutDom(document)).toMatchObject({ dropin: true, card: true, anyElement: true });
-    expect(collectShadowRoots(document)).toEqual([outer, inner]);
+    expect(findCheckoutElements(document, (element) => element.shadowRoot)).toEqual([
+      ...inner.children,
+      ...(inner.firstElementChild?.children ?? []),
+    ]);
   });
 
   it('stops looking for shadow roots on very large pages', () => {
@@ -54,7 +57,7 @@ describe('readCheckoutDom', () => {
     document.body.append(filler);
     deepShadowRoot(1).innerHTML = '<div class="adyen-checkout__dropin"></div>';
 
-    expect(collectShadowRoots(document)).toEqual([]);
+    expect(findCheckoutElements(document, (element) => element.shadowRoot)).toEqual([]);
     expect(readCheckoutDom(document).dropin).toBe(false);
   });
 
