@@ -22,13 +22,41 @@ jobs:
         id: metadata
         uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
 
+      # Company policy blocks packages published less than 21 days ago. Dependabot's
+      # cooldown does not apply to security updates, so check every new version here.
+      - name: Check release age
+        id: age
+        shell: bash
+        env:
+          ECOSYSTEM: ${{ steps.metadata.outputs.package-ecosystem }}
+          DEPENDENCIES: ${{ steps.metadata.outputs.updated-dependencies-json }}
+          GH_TOKEN: ${{ github.token }}
+          MIN_AGE_DAYS: '21'
+        run: |
+          cutoff=$(( $(date +%s) - MIN_AGE_DAYS * 86400 ))
+          mature=true
+          while IFS=$'\t' read -r name version; do
+            if [ "$ECOSYSTEM" = npm_and_yarn ]; then
+              published=$(curl -fsS "https://registry.npmjs.org/${name/\//%2F}" | jq -r --arg v "$version" '.time[$v] // empty' || true)
+            else
+              published=$(gh api "repos/$name/releases/tags/v$version" --jq .published_at 2>/dev/null ||
+                gh api "repos/$name/releases/tags/$version" --jq .published_at 2>/dev/null || true)
+            fi
+            if [ -z "$published" ] || [ "$(date -d "$published" +%s)" -gt "$cutoff" ]; then
+              echo "::notice::$name $version was published ${published:-at an unknown time}, less than $MIN_AGE_DAYS days ago"
+              mature=false
+            fi
+          done < <(jq -r '.[] | [.dependencyName, .newVersion] | @tsv' <<< "$DEPENDENCIES")
+          echo "mature=$mature" >> "$GITHUB_OUTPUT"
+
       - name: Enable auto-merge
         if: >-
-          steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
+          steps.age.outputs.mature == 'true' &&
+          (steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
           steps.metadata.outputs.update-type == 'version-update:semver-minor' ||
           (steps.metadata.outputs.update-type == 'version-update:semver-major' &&
           (steps.metadata.outputs.dependency-type == 'direct:development' ||
-          steps.metadata.outputs.package-ecosystem == 'github_actions'))
+          steps.metadata.outputs.package-ecosystem == 'github_actions')))
         run: gh pr merge --auto --squash "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}

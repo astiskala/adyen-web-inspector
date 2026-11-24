@@ -31,6 +31,8 @@ Adyen Web Inspector is a Chrome Manifest V3 extension that analyses adyen-web (D
 
 Keep pnpm settings such as `overrides` and `allowBuilds` in `pnpm-workspace.yaml`. pnpm 10 ignores the `pnpm` field in `package.json`, so a lockfile regenerated with settings there silently drops the security overrides.
 
+`minimumReleaseAge: 30240` in `pnpm-workspace.yaml` follows company policy: packages published less than 21 days ago are blocked. Dependabot uses the same 21-day cooldown, and the auto-merge workflow skips any update younger than that.
+
 ---
 
 ## Key Conventions
