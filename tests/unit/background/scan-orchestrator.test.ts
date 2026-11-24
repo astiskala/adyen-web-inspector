@@ -80,6 +80,22 @@ describe('runScan sequencing', () => {
     expect(browser.sleeps).toEqual([2000]);
   });
 
+  it('waits for configuration when a bundled SDK shows only its card iframes', async () => {
+    const iframesOnly = makePageExtract({ iframes: [{ name: 'adyen-card', src: 'about:blank' }] });
+    const configured = makePageExtract({
+      iframes: [{ name: 'adyen-card', src: 'about:blank' }],
+      observedConfig: { component: { locale: 'nl-NL' } },
+    });
+    const browser = createFakeScanBrowser({
+      extractions: [framesOf(iframesOnly), framesOf(configured)],
+    });
+
+    const result = await runScan(TAB_ID, browser);
+
+    expect(browser.calls.filter((call) => call === 'extractFrames')).toHaveLength(2);
+    expect(result.payload.page.observedConfig.component).toEqual({ locale: 'nl-NL' });
+  });
+
   it('stops network capture when the tab never loads', async () => {
     const browser = createFakeScanBrowser({ tabLoadError: new Error('Tab 1 did not load') });
 

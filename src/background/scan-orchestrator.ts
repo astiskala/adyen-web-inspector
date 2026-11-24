@@ -4,7 +4,7 @@ Scan orchestrator — drives the full scan pipeline through a browser port.
 
 import type { CheckoutPage, ScanResult } from '../shared/types.js';
 import { hasCapturedCheckoutConfig } from '../shared/scan-evidence.js';
-import { detectSdkPresence, hasAdyenScriptHint } from '../shared/sdk-presence.js';
+import { checkoutStrength } from '../shared/checkout-signals.js';
 import { readCapturedTraffic } from './captured-traffic.js';
 import { mergeFrames } from './frame-merge.js';
 import { assessScan } from './scan-assessment.js';
@@ -51,12 +51,14 @@ export async function runScan(tabId: number, browser: ScanBrowser): Promise<Scan
 }
 
 /**
-Extracts the Checkout page, retrying while the SDK loads until configuration is captured.
+Extracts the Checkout page, retrying while the SDK loads until configuration
+is captured. Any checkout signal is worth waiting for: SDK metadata or an
+Adyen script, a mounted Drop-in, an Adyen iframe, or inferred configuration,
+as a bundled SDK can show some of these before its configuration is readable.
 */
 async function extractPageData(browser: ScanBrowser, tabId: number): Promise<CheckoutPage> {
   const first = await extractTab(browser, tabId);
-  if (hasCapturedCheckoutConfig(first)) return first;
-  if (!detectSdkPresence(first).detected && !hasAdyenScriptHint(first)) return first;
+  if (hasCapturedCheckoutConfig(first) || checkoutStrength(first) === 0) return first;
 
   const deadline = browser.now() + PAGE_EXTRACT_RETRY_TIMEOUT_MS;
   let latest = first;
