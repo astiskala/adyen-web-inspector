@@ -109,7 +109,7 @@ describe('resolveVersionInfo signal precedence', () => {
 });
 
 describe('resolveVersionInfo bundle text', () => {
-  it('fetches prioritised same-origin bundles once each and reads a valid version', async () => {
+  it('fetches prioritised same-site bundles once each and reads a valid version', async () => {
     const fetchScriptText = serveScripts({
       'https://merchant.example/main.js': '/* @adyen/adyen-web 6.10.2 */',
       'https://merchant.example/chunk.js': 'adyen-web 6.9.1',
@@ -128,6 +128,40 @@ describe('resolveVersionInfo bundle text', () => {
       source: 'bundle',
     });
     expect(fetchScriptText.mock.calls).toEqual([['https://merchant.example/main.js']]);
+  });
+
+  it.each([
+    ['https://www.shop.example.com/checkout', 'https://static.shop.example.com/js/main.js'],
+    ['https://checkout.shop.co.uk/pay', 'https://assets.shop.co.uk/main.js'],
+    ['https://10.0.0.5:8443/checkout', 'https://10.0.0.5:8443/main.js'],
+    ['http://localhost:3000/checkout', 'http://localhost:3000/main.js'],
+  ])(
+    'reads bundles the merchant serves from its own site: %s loading %s',
+    async (pageUrl, bundle) => {
+      const fetchScriptText = serveScripts({ [bundle]: 'adyen-web 6.12.0' });
+      const evidence = evidenceWith({ pageUrl, scripts: [{ src: bundle }] });
+
+      await expect(resolveVersionInfo(evidence, fetchScriptText)).resolves.toMatchObject({
+        detected: '6.12.0',
+        source: 'bundle',
+      });
+    }
+  );
+
+  it('does not fetch scripts from other sites or without a host', async () => {
+    const fetchScriptText = serveScripts({});
+    const evidence = evidenceWith({
+      pageUrl: 'https://checkout.shop.co.uk/pay',
+      scripts: [
+        { src: 'https://other.co.uk/main.js' },
+        { src: 'https://cdn.thirdparty.com/vendor.js' },
+        { src: 'data:text/javascript,1' },
+        { src: 'not a url' },
+      ],
+    });
+
+    await resolveVersionInfo(evidence, fetchScriptText);
+    expect(fetchScriptText).not.toHaveBeenCalled();
   });
 
   it('continues past unusable bundles and accepts a later pattern', async () => {

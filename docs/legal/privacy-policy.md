@@ -23,7 +23,7 @@ Processed data is used locally to generate scan findings, health scores, and rep
 
 The extension can make network requests to:
 
-- The currently scanned page URL (`HEAD`, falling back to `GET` for response-header probing, with page credentials; only a successful, non-redirected response is used) and same-host script URLs (SDK version fallback, without credentials)
+- The currently scanned page URL (`HEAD`, falling back to `GET` for response-header probing, with page credentials; only a successful, non-redirected response is used) and script URLs the page loads from the merchant's own site, including subdomains such as a static-asset host (SDK version fallback, at most four per scan, without credentials)
 - `https://registry.npmjs.org/@adyen/adyen-web` to check the latest SDK version and SDK release dates
 
 During a scan, the inspected tab's response headers and its Adyen checkout analytics POST bodies are passively observed in memory via `chrome.webRequest`. The scan keeps only the response headers of the inspected page and Adyen-related requests, and the selected analytics fields listed above; the extension does not replay those page requests.

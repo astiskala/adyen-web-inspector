@@ -41,7 +41,7 @@ const BUNDLE_VERSION_PATTERNS = [
 ] as const;
 
 /**
-At most this many same-origin bundles are fetched per scan.
+At most this many same-site bundles are fetched per scan.
 */
 const BUNDLE_FETCH_LIMIT = 4;
 /**
@@ -106,13 +106,35 @@ function bundlePriority(url: string): number {
 }
 
 /**
-Same-origin scripts most likely to bundle Adyen Web, in fetch order.
+Public suffixes such as co.uk: a common second-level label under a two-letter country code.
+*/
+const COUNTRY_SECOND_LEVEL_SUFFIX = /^(?:ac|co|com|edu|gov|net|or|org)\.[a-z]{2}$/;
+const IPV4_HOST = /^\d{1,3}(?:\.\d{1,3}){3}$/;
+
+/**
+The site a host belongs to, approximating its registrable domain without a
+public suffix list: shop.example.com and static.example.com share example.com.
+*/
+function siteOf(host: string): string {
+  const labels = host.split('.');
+  if (IPV4_HOST.test(host) || labels.length <= 2) return host;
+  const isCountrySecondLevel = COUNTRY_SECOND_LEVEL_SUFFIX.test(labels.slice(-2).join('.'));
+  return labels.slice(isCountrySecondLevel ? -3 : -2).join('.');
+}
+
+/**
+Scripts the merchant serves from its own site, such as a static or CDN
+subdomain, most likely to bundle Adyen Web, in fetch order.
 */
 function selectBundleCandidates(pageUrl: string, scriptUrls: readonly string[]): string[] {
   const pageHost = extractHostname(pageUrl);
   if (pageHost === null || pageHost === '') return [];
+  const site = siteOf(pageHost);
   const ranked = scriptUrls
-    .filter((url) => extractHostname(url) === pageHost)
+    .filter((url) => {
+      const host = extractHostname(url);
+      return host !== null && host !== '' && siteOf(host) === site;
+    })
     .toSorted((a, b) => bundlePriority(b) - bundlePriority(a));
   return [...new Set(ranked)].slice(0, BUNDLE_FETCH_LIMIT);
 }
