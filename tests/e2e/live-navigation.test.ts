@@ -31,3 +31,13 @@ test('clears detection after navigating to a page without checkout', async ({
   await page.waitForTimeout(500);
   await expect.poll(() => getBadgeText(context, extensionId, page)).toBe('');
 });
+
+test('detects checkout embedded in a merchant iframe before any scan', async ({
+  context,
+  extensionId,
+}) => {
+  const page = await openFixture(context, 'dummy-iframe-merchant.html');
+  await expect.poll(() => getBadgeText(context, extensionId, page)).toBe('✓');
+  const popup = await openPopupFor(context, extensionId, page);
+  await expect(popup.getByText('Adyen Web SDK detected')).toBeVisible();
+});

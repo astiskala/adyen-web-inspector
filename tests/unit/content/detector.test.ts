@@ -169,6 +169,16 @@ describe('passive detector', () => {
     expect(sentTypes()).toEqual([MSG_CHECKOUT_ACTIVITY_DETECTED, MSG_CHECKOUT_ACTIVITY_DETECTED]);
   });
 
+  it('reports the checkout gone when its frame unloads, and only once', async () => {
+    append('<div class="adyen-checkout__dropin"></div>');
+    await advance(200);
+    harness.sendMessage.mockRejectedValue(new Error('Extension context invalidated'));
+    globalThis.dispatchEvent(new Event('pagehide'));
+    globalThis.dispatchEvent(new Event('pagehide'));
+
+    expect(sentTypes()).toEqual([MSG_CHECKOUT_ACTIVITY_DETECTED, MSG_CHECKOUT_ACTIVITY_CLEARED]);
+  });
+
   it('keeps detecting when the service worker is not listening', async () => {
     harness.sendMessage.mockRejectedValue(new Error('Receiving end does not exist.'));
 

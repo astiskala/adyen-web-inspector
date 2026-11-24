@@ -71,15 +71,11 @@ describe('chromeTabStateBrowser', () => {
     expect(sendMessage).toHaveBeenCalledWith(message);
   });
 
-  it("asks the tab's top-frame detector to report, tolerating pages without one", () => {
+  it("asks every frame's detector to report, tolerating pages without one", () => {
     const { tabsSendMessage } = stubChrome();
 
     chromeTabStateBrowser.requestCheckoutActivity(3);
 
-    expect(tabsSendMessage).toHaveBeenCalledWith(
-      3,
-      { type: 'REPORT_CHECKOUT_ACTIVITY' },
-      { frameId: 0 }
-    );
+    expect(tabsSendMessage).toHaveBeenCalledWith(3, { type: 'REPORT_CHECKOUT_ACTIVITY' });
   });
 });

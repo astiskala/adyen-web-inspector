@@ -50,12 +50,14 @@ chrome.runtime.onMessage.addListener(
     const senderTabId = isShownDocument ? sender.tab?.id : undefined;
 
     if (senderTabId !== undefined && message.type === MSG_CHECKOUT_ACTIVITY_DETECTED) {
-      void tabState.checkoutActivityDetected(senderTabId, message.version).catch(() => {});
+      void tabState
+        .checkoutActivityDetected(senderTabId, message.version, sender.frameId)
+        .catch(() => {});
       return false;
     }
 
     if (senderTabId !== undefined && message.type === MSG_CHECKOUT_ACTIVITY_CLEARED) {
-      void tabState.checkoutActivityCleared(senderTabId).catch(() => {});
+      void tabState.checkoutActivityCleared(senderTabId, sender.frameId).catch(() => {});
       return false;
     }
 

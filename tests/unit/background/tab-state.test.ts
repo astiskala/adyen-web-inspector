@@ -80,6 +80,28 @@ describe('tab state checkout activity', () => {
     });
   });
 
+  it('keeps activity while any frame reports checkout, such as a merchant checkout iframe', async () => {
+    await harness.tabState.checkoutActivityDetected(TAB, undefined, 3);
+    await harness.tabState.checkoutActivityDetected(TAB, '6.31.0');
+    await harness.tabState.checkoutActivityCleared(TAB);
+    await expect(harness.tabState.read(TAB)).resolves.toMatchObject({
+      checkoutActivity: { detected: true, version: '6.31.0' },
+    });
+
+    await harness.tabState.checkoutActivityCleared(TAB, 3);
+    await expect(harness.tabState.read(TAB)).resolves.toMatchObject({
+      checkoutActivity: { detected: false },
+    });
+    expect(harness.browser.badges.has(TAB)).toBe(false);
+  });
+
+  it('ignores stored activity that is not a frame list', async () => {
+    harness.browser.storage.set(`checkout_activity_${TAB}`, [true, 'x']);
+    await expect(harness.tabState.read(TAB)).resolves.toMatchObject({
+      checkoutActivity: { detected: false },
+    });
+  });
+
   it('clears activity and its badge when the detector no longer sees checkout', async () => {
     await harness.tabState.checkoutActivityDetected(TAB, '6.31.0');
     await harness.tabState.checkoutActivityCleared(TAB);

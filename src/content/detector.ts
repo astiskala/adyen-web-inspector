@@ -5,7 +5,11 @@ Reports checkout activity (a mounted Drop-in, Component, or Adyen iframe) to
 the background service worker. SDK presence is established by a scan.
 */
 import { readAdyenEndpoint } from '../shared/adyen-endpoint.js';
-import { readCheckoutDom, hasMountedCheckout } from '../shared/checkout-signals.js';
+import {
+  hasMountedCheckout,
+  isMerchantDocument,
+  readCheckoutDom,
+} from '../shared/checkout-signals.js';
 import {
   MSG_CHECKOUT_ACTIVITY_CLEARED,
   MSG_CHECKOUT_ACTIVITY_DETECTED,
@@ -139,8 +143,21 @@ function handleReportRequest(message: unknown): void {
   }
 }
 
+/**
+A frame that unloads, such as a removed or navigated checkout iframe, takes its checkout with it.
+*/
+function clearOnUnload(): void {
+  if (detection.lastSentState?.startsWith('1') !== true) return;
+  detection.lastSentState = null;
+  const message: ContentToBswMessage = { type: MSG_CHECKOUT_ACTIVITY_CLEARED, tabId: 0 };
+  void chrome.runtime.sendMessage(message).catch(() => {});
+}
+
 function initPassiveDetection(): void {
+  // Adyen-hosted frames, such as secured card fields, belong to the merchant frame that embeds them.
+  if (!isMerchantDocument(globalThis.location.href)) return;
   sendDetectionResult(true);
+  globalThis.addEventListener('pagehide', clearOnUnload);
   chrome.runtime.onMessage.addListener(handleReportRequest);
 
   const observer = new MutationObserver(handleMutations);

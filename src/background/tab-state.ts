@@ -57,7 +57,7 @@ export interface TabStateBrowser {
   */
   notify: (message: BswToUiMessage) => void;
   /**
-  Asks the passive detector in the tab's top document, if any, to report its checkout activity.
+  Asks the passive detectors in the tab's frames, if any, to report their checkout activity.
   */
   requestCheckoutActivity: (tabId: number) => void;
 }
@@ -71,8 +71,11 @@ interface TabState {
   /**
   The passive detector saw a mounted Drop-in, Component, or Adyen iframe.
   */
-  checkoutActivityDetected: (tabId: number, version?: string) => Promise<void>;
-  checkoutActivityCleared: (tabId: number) => Promise<void>;
+  checkoutActivityDetected: (tabId: number, version?: string, frameId?: number) => Promise<void>;
+  /**
+  The frame's detector no longer sees checkout; the tab keeps it while another frame does.
+  */
+  checkoutActivityCleared: (tabId: number, frameId?: number) => Promise<void>;
   /**
   Scans the tab unless a Scan of its current page is already running.
   */
@@ -105,6 +108,7 @@ interface TabRuntime {
 
 type ScanOutcome = { readonly result: ScanResult } | { readonly error: unknown };
 
+const TOP_FRAME_ID = 0;
 const IDLE: TabScanStatus = { state: 'idle' };
 const RUNNING: TabScanStatus = { state: 'running' };
 const SCANNING_BADGE: TabBadge = { text: '…', color: STATUS_COLORS.warn };
@@ -139,8 +143,16 @@ function badgeFor({ result, checkoutActivity, scan }: TabSnapshot): TabBadge | n
   return checkoutActivity.detected ? ACTIVITY_BADGE : null;
 }
 
+/**
+The frames whose detector reports checkout, such as a merchant iframe that renders it.
+*/
+function readActiveFrames(stored: Readonly<Record<string, unknown>>, tabId: number): number[] {
+  const frames = stored[activityKey(tabId)];
+  return Array.isArray(frames) ? frames.filter((frame) => typeof frame === 'number') : [];
+}
+
 function readActivity(stored: Readonly<Record<string, unknown>>, tabId: number): CheckoutActivity {
-  if (stored[activityKey(tabId)] !== true) return { detected: false };
+  if (readActiveFrames(stored, tabId).length === 0) return { detected: false };
   const version = stored[versionKey(tabId)];
   return typeof version === 'string' ? { detected: true, version } : { detected: true };
 }
@@ -238,21 +250,27 @@ export function createTabState(browser: TabStateBrowser, scan: RunScan): TabStat
   }
 
   return {
-    checkoutActivityDetected(tabId, version): Promise<void> {
+    checkoutActivityDetected(tabId, version, frameId = TOP_FRAME_ID): Promise<void> {
       const tab = runtime(tabId);
       return enqueue(tab, async () => {
+        const frames = readActiveFrames(await browser.read([activityKey(tabId)]), tabId);
         await browser.write({
-          [activityKey(tabId)]: true,
+          [activityKey(tabId)]: [...new Set([...frames, frameId])],
           ...(version !== undefined && { [versionKey(tabId)]: version }),
         });
         await publish(tab);
       });
     },
 
-    checkoutActivityCleared(tabId): Promise<void> {
+    checkoutActivityCleared(tabId, frameId = TOP_FRAME_ID): Promise<void> {
       const tab = runtime(tabId);
       return enqueue(tab, async () => {
-        await browser.remove([activityKey(tabId), versionKey(tabId)]);
+        const frames = readActiveFrames(await browser.read([activityKey(tabId)]), tabId).filter(
+          (frame) => frame !== frameId
+        );
+        await (frames.length === 0
+          ? browser.remove([activityKey(tabId), versionKey(tabId)])
+          : browser.write({ [activityKey(tabId)]: frames }));
         await publish(tab);
       });
     },

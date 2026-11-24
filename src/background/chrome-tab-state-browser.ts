@@ -24,7 +24,7 @@ export const chromeTabStateBrowser: TabStateBrowser = {
   },
   requestCheckoutActivity(tabId) {
     const message: BswToContentMessage = { type: MSG_REPORT_CHECKOUT_ACTIVITY };
-    // Pages without the detector, such as chrome:// pages, have no receiver.
-    void chrome.tabs.sendMessage(tabId, message, { frameId: 0 }).catch(() => {});
+    // Every frame's detector reports; pages without one, such as chrome:// pages, have no receiver.
+    void chrome.tabs.sendMessage(tabId, message).catch(() => {});
   },
 };

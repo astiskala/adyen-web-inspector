@@ -197,11 +197,7 @@ describe('service worker routing', () => {
 
     harness.onUpdated(TAB, { status: 'complete' });
     await expect(readTab()).resolves.toMatchObject({ checkoutActivity: { detected: true } });
-    expect(harness.sendToTab).toHaveBeenCalledWith(
-      TAB,
-      { type: MSG_REPORT_CHECKOUT_ACTIVITY },
-      { frameId: 0 }
-    );
+    expect(harness.sendToTab).toHaveBeenCalledWith(TAB, { type: MSG_REPORT_CHECKOUT_ACTIVITY });
 
     harness.onUpdated(TAB, { status: 'loading' });
     await expect(readTab()).resolves.toMatchObject({ checkoutActivity: { detected: false } });
