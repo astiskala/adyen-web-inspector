@@ -508,9 +508,10 @@ test('Server-created session mounts v6 Drop-in with checkout-level outcome handl
     'dummy-merchant.html?scenario=sessions-server'
   );
 
+  // The merchant's own backend call matches no Checkout API path, so the scan does not record it.
   expect(
     result.payload.capturedRequests.some((request) => request.url.endsWith('/api/sessions'))
-  ).toBe(true);
+  ).toBe(false);
   // Drop-in reads inherited statics from the wrapped components it is given, so it only mounts
   // when the interceptor keeps them.
   expect(result.payload.page.hasDropinDOM).toBe(true);
@@ -567,7 +568,7 @@ test('Advanced Card uses merchant payment methods and checkout-level v6 callback
 
   expect(
     result.payload.capturedRequests.some((request) => request.url.endsWith('/api/paymentMethods'))
-  ).toBe(true);
+  ).toBe(false);
   expect(result.payload.page.observedConfig.captured?.options).toMatchObject({
     environment: 'test',
     clientKey: 'test_dummy',

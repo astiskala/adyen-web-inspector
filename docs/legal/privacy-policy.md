@@ -10,7 +10,7 @@ When you run a scan, the extension may process:
 
 - The inspected page URL, protocol, and observed request URLs (which may include query parameters)
 - Checkout settings relevant to checks (including `clientKey`, `environment`, `locale`, `countryCode`, `showPayButton`, the payment method types whose configuration hides the pay button, callback registration, and short excerpts of `onSubmit`/`beforeSubmit` function source)
-- SDK metadata, script, stylesheet, iframe, resource-timing, and CSS-rule information
+- SDK metadata, script, stylesheet, iframe, and CSS-rule information, and Resource Timing entries for checkout-related requests only (Adyen hosts, Checkout API paths, SDK assets, translation files, and the device fingerprint page); other resources the page loads are not recorded
 - Response headers and HTTP status codes for the inspected page and captured Adyen-related requests
 - Selected Adyen checkout analytics POST fields used for SDK identification (for example `flavor`, `version`, `buildType`, `locale`, `sessionId`), read in the page as requests are sent and from requests observed during a scan; the rest of the request body is not stored
 - Component events from Adyen checkout analytics requests the page sends, read in the page as they are sent: the component type, the `showPayButton` value it rendered with, whether Click to Pay was disabled on Card, and the payment method types Drop-in listed; the rest of each request body is not stored

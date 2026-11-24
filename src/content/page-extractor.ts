@@ -4,12 +4,17 @@ Reads page globals, DOM state, and config in each accessible frame, then
 serialises a plain result onto a page global for the background scan to read.
 */
 
-import { readAdyenEndpoint } from '../shared/adyen-endpoint.js';
+import {
+  isCheckoutApiRequest,
+  readAdyenEndpoint,
+  readTranslationLocale,
+} from '../shared/adyen-endpoint.js';
 import { reportedAnalytics } from '../shared/checkout-analytics.js';
 import { readCheckoutCapture } from '../shared/checkout-capture.js';
 import { readCheckoutDom } from '../shared/checkout-signals.js';
 import { mergeCheckoutConfigs, readCheckoutOptions } from '../shared/checkout-config-schema.js';
-import { PAGE_GLOBALS, type PageGlobalValues } from '../shared/constants.js';
+import { DF_IFRAME_URL_PATTERN, PAGE_GLOBALS, type PageGlobalValues } from '../shared/constants.js';
+import { findSdkVersionInUrls } from '../shared/sdk-version.js';
 import type {
   AdyenStyleInfo,
   AdyenWebMetadata,
@@ -152,12 +157,28 @@ function extractIframes(): IframeInfo[] {
   });
 }
 
+/**
+Requests a scan reads: Adyen hosts, Checkout API paths a merchant server may
+proxy, self-hosted SDK assets, translation files, and the device fingerprint
+page. Other resources, such as third-party pixels whose URLs can carry
+shopper identifiers, are not recorded.
+*/
+function isCheckoutRequest(url: string): boolean {
+  return (
+    readAdyenEndpoint(url) !== null ||
+    isCheckoutApiRequest(url) ||
+    findSdkVersionInUrls([url]) !== null ||
+    readTranslationLocale(url) !== null ||
+    DF_IFRAME_URL_PATTERN.test(url)
+  );
+}
+
 function extractObservedRequests(): ObservedRequest[] {
   const entries = globalThis.performance.getEntriesByType('resource');
   const requests: ObservedRequest[] = [];
 
   for (const entry of entries) {
-    if (typeof entry.name !== 'string' || entry.name.length === 0) {
+    if (typeof entry.name !== 'string' || !isCheckoutRequest(entry.name)) {
       continue;
     }
 

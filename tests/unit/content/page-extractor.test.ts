@@ -233,16 +233,34 @@ describe('page extractor', () => {
       { name: '' },
     ] as unknown as PerformanceEntryList);
 
-    await expect(extractPage()).resolves.toMatchObject({
-      observedRequests: [
-        {
-          url: 'https://checkoutshopper-test.adyen.com/sdk.js',
-          initiatorType: 'script',
-          responseStatus: 200,
-        },
-        { url: 'https://checkoutshopper-test.adyen.com/v1/sessions' },
-      ],
-    });
+    const page = await extractPage();
+    expect(page.observedRequests).toEqual([
+      {
+        url: 'https://checkoutshopper-test.adyen.com/sdk.js',
+        initiatorType: 'script',
+        responseStatus: 200,
+      },
+      { url: 'https://checkoutshopper-test.adyen.com/v1/sessions' },
+    ]);
+  });
+
+  it('records only the requests a scan reads, not other third-party resources', async () => {
+    const kept = [
+      'https://shop.example/api/v71/sessions',
+      'https://shop.example/vendor/checkoutshopper/sdk/6.31.0/adyen.js',
+      'https://shop.example/static/translations/nl-NL.json',
+      'https://shop.example/assets/html/K/dfp.1.0.0.html',
+    ];
+    const dropped = [
+      'https://www.facebook.com/tr?id=1&ud[em]=hashed-email',
+      'https://shop.example/img/logo.png?session=abc',
+    ];
+    vi.spyOn(globalThis.performance, 'getEntriesByType').mockReturnValue(
+      [...dropped, ...kept].map((name) => ({ name })) as unknown as PerformanceEntryList
+    );
+
+    const page = await extractPage();
+    expect(page.observedRequests?.map(({ url }) => url)).toEqual(kept);
   });
 });
 
