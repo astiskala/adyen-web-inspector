@@ -33,7 +33,7 @@ import type { CallbackSource, CheckoutCapture } from '../shared/types.js';
   const WRAPPED = '__awInspectorWrapped';
 
   type PlainRecord = Record<string, unknown>;
-  type SdkCallable = (this: unknown, ...args: unknown[]) => unknown;
+  type SdkCallable = (this: unknown, ...arguments_: unknown[]) => unknown;
 
   const ADYEN_INSTANCE_MARKER = '__adyenInstance';
   const pageGlobals = globalThis as typeof globalThis & PageGlobalValues;
@@ -49,14 +49,18 @@ import type { CallbackSource, CheckoutCapture } from '../shared/types.js';
 
   let capture: CheckoutCapture = EMPTY_CHECKOUT_CAPTURE;
 
-  /** Keeps and publishes a changed record; recording functions return the same record when nothing changed. */
+  /**
+  Keeps and publishes a changed record; recording functions return the same record when nothing changed.
+   */
   function commit(next: CheckoutCapture): void {
     if (next === capture) return;
     capture = next;
     try {
       pageGlobals[PAGE_GLOBALS.checkoutCapture] = structuredClone(capture);
     } catch {
-      /* ignore */
+      /*
+      ignore
+      */
     }
   }
 
@@ -64,7 +68,9 @@ import type { CallbackSource, CheckoutCapture } from '../shared/types.js';
     try {
       commit(recordCheckoutOptions(capture, raw, source));
     } catch {
-      /* ignore */
+      /*
+      ignore
+      */
     }
   }
 
@@ -77,7 +83,9 @@ import type { CallbackSource, CheckoutCapture } from '../shared/types.js';
       const inferred = readRequestInference(url, globalThis.location.href);
       commit(recordInference(capture, 'adyen-request', inferred));
     } catch {
-      /* ignore */
+      /*
+      ignore
+      */
     }
   }
 
@@ -97,13 +105,17 @@ import type { CallbackSource, CheckoutCapture } from '../shared/types.js';
     return result;
   };
 
-  /** Request bodies stream, so only string bodies passed in `init` are read. */
+  /**
+  Request bodies stream, so only string bodies passed in `init` are read.
+   */
   function tryCaptureAnalytics(url: string, body: unknown): void {
     if (typeof body !== 'string' || readAdyenEndpoint(url)?.role !== 'analytics') return;
     try {
       commit(recordAnalyticsEvents(capture, originalParse.call(JSON, body) as unknown));
     } catch {
-      /* ignore */
+      /*
+      ignore
+      */
     }
   }
 
@@ -129,17 +141,25 @@ import type { CallbackSource, CheckoutCapture } from '../shared/types.js';
     this: XMLHttpRequest,
     method: string,
     url: string | URL,
-    ...args: unknown[]
+    ...arguments_: unknown[]
   ): void {
     const u = typeof url === 'string' ? url : url.toString();
     tryCaptureFromUrl(u);
 
     try {
-      const openArgs = [method, url, ...args] as [string, string | URL, boolean, string?, string?];
-      originalOpen.apply(this, openArgs);
+      const openArguments = [method, url, ...arguments_] as [
+        string,
+        string | URL,
+        boolean,
+        string?,
+        string?,
+      ];
+      originalOpen.apply(this, openArguments);
       return;
     } catch {
-      /* ignore */
+      /*
+      ignore
+      */
     }
   };
 
@@ -147,15 +167,19 @@ import type { CallbackSource, CheckoutCapture } from '../shared/types.js';
   // Global Property Traps (UMD/ESM)
   // ---------------------------------------------------------------------------
 
-  function isWrapped(fn: unknown): boolean {
-    return typeof fn === 'function' && (fn as unknown as PlainRecord)[WRAPPED] === true;
+  function isWrapped(function_: unknown): boolean {
+    return (
+      typeof function_ === 'function' && (function_ as unknown as PlainRecord)[WRAPPED] === true
+    );
   }
 
-  function markWrapped(fn: SdkCallable): void {
+  function markWrapped(function_: SdkCallable): void {
     try {
-      (fn as unknown as PlainRecord)[WRAPPED] = true;
+      (function_ as unknown as PlainRecord)[WRAPPED] = true;
     } catch {
-      /* ignore */
+      /*
+      ignore
+      */
     }
   }
 
@@ -167,21 +191,25 @@ import type { CallbackSource, CheckoutCapture } from '../shared/types.js';
       try {
         Object.defineProperty(wrapped, key, descriptor);
       } catch {
-        /* ignore */
+        /*
+        ignore
+        */
       }
     }
   }
 
-  /** Wraps a checkout instance's create; the instance marker keeps it from being wrapped twice. */
-  function wrapInstanceCreate(i: PlainRecord, create: SdkCallable): void {
-    const wrappedCreate = function (this: unknown, ...cArgs: unknown[]): unknown {
-      if (cArgs.length > 1) {
-        captureConfig(cArgs[1], 'component');
+  /**
+  Wraps a checkout instance's create; the instance marker keeps it from being wrapped twice.
+   */
+  function wrapInstanceCreate(index: PlainRecord, create: SdkCallable): void {
+    const wrappedCreate = function (this: unknown, ...cArguments: unknown[]): unknown {
+      if (cArguments.length > 1) {
+        captureConfig(cArguments[1], 'component');
       }
-      return create.apply(this, cArgs);
+      return create.apply(this, cArguments);
     };
     markWrapped(wrappedCreate);
-    i['create'] = wrappedCreate;
+    index['create'] = wrappedCreate;
   }
 
   function tryCaptureFromInstance(inst: unknown): boolean {
@@ -189,24 +217,26 @@ import type { CallbackSource, CheckoutCapture } from '../shared/types.js';
       return false;
     }
 
-    const i = inst as PlainRecord;
+    const index = inst as PlainRecord;
     // Heuristic: looks like an Adyen Checkout instance
-    const create = i['create'];
-    const opts = i['options'] ?? i['_options'];
-    const hasOptions = opts !== undefined && opts !== null && typeof opts === 'object';
+    const create = index['create'];
+    const options = index['options'] ?? index['_options'];
+    const hasOptions = options !== undefined && options !== null && typeof options === 'object';
 
     if (typeof create === 'function' && hasOptions) {
-      if (i[ADYEN_INSTANCE_MARKER] === true) {
+      if (index[ADYEN_INSTANCE_MARKER] === true) {
         return true;
       }
       try {
-        i[ADYEN_INSTANCE_MARKER] = true;
+        index[ADYEN_INSTANCE_MARKER] = true;
       } catch {
-        /* ignore */
+        /*
+        ignore
+        */
       }
 
-      captureConfig(opts, 'checkout');
-      wrapInstanceCreate(i, create as SdkCallable);
+      captureConfig(options, 'checkout');
+      wrapInstanceCreate(index, create as SdkCallable);
       return true;
     }
 
@@ -225,12 +255,14 @@ import type { CallbackSource, CheckoutCapture } from '../shared/types.js';
       .catch(() => {});
   }
 
-  /** Wraps an AdyenCheckout factory; callers skip factories that are already wrapped. */
+  /**
+  Wraps an AdyenCheckout factory; callers skip factories that are already wrapped.
+   */
   function wrapCheckoutFactory(original: SdkCallable): SdkCallable {
-    const wrapped: SdkCallable = function (this: unknown, ...args: unknown[]): unknown {
+    const wrapped: SdkCallable = function (this: unknown, ...arguments_: unknown[]): unknown {
       incrementInitCount();
-      captureConfig(args[0], 'checkout');
-      const result = original.apply(this, args);
+      captureConfig(arguments_[0], 'checkout');
+      const result = original.apply(this, arguments_);
       if (result instanceof Promise) {
         observeCheckoutFactoryResult(result);
       }
@@ -241,17 +273,18 @@ import type { CallbackSource, CheckoutCapture } from '../shared/types.js';
     return wrapped;
   }
 
-  /** Wraps a component constructor; callers skip constructors that are already wrapped. */
+  /**
+  Wraps a component constructor; callers skip constructors that are already wrapped.
+   */
   function wrapComponentConstructor(original: SdkCallable): SdkCallable {
-    const wrapped: SdkCallable = function (this: unknown, ...args: unknown[]): unknown {
-      if (args.length > 1) {
-        captureConfig(args[1], 'component');
+    const wrapped: SdkCallable = function (this: unknown, ...arguments_: unknown[]): unknown {
+      if (arguments_.length > 1) {
+        captureConfig(arguments_[1], 'component');
       }
       const target = new.target as unknown;
-      if (target !== undefined) {
-        return Reflect.construct(original, args, original) as unknown;
-      }
-      return original.apply(this, args);
+      return target === undefined
+        ? original.apply(this, arguments_)
+        : (Reflect.construct(original, arguments_, original) as unknown);
     };
     markWrapped(wrapped);
     try {
@@ -259,7 +292,9 @@ import type { CallbackSource, CheckoutCapture } from '../shared/types.js';
       const wrap = wrapped as unknown as { prototype: unknown };
       wrap.prototype = orig.prototype;
     } catch {
-      /* ignore */
+      /*
+      ignore
+      */
     }
     copyStatics(original, wrapped);
     return wrapped;
@@ -279,7 +314,9 @@ import type { CallbackSource, CheckoutCapture } from '../shared/types.js';
       enumerable: true,
     });
   } catch {
-    /* ignore */
+    /*
+    ignore
+    */
   }
 
   let storedAdyenWeb: unknown;
@@ -292,12 +329,12 @@ import type { CallbackSource, CheckoutCapture } from '../shared/types.js';
         if (v !== null && typeof v === 'object') {
           const ns = v as PlainRecord;
           for (const key of Object.keys(ns)) {
-            const val = ns[key];
-            if (typeof val === 'function' && !isWrapped(val)) {
+            const value = ns[key];
+            if (typeof value === 'function' && !isWrapped(value)) {
               ns[key] =
                 key === 'AdyenCheckout'
-                  ? wrapCheckoutFactory(val as SdkCallable)
-                  : wrapComponentConstructor(val as SdkCallable);
+                  ? wrapCheckoutFactory(value as SdkCallable)
+                  : wrapComponentConstructor(value as SdkCallable);
             }
           }
         }
@@ -307,6 +344,8 @@ import type { CallbackSource, CheckoutCapture } from '../shared/types.js';
       enumerable: true,
     });
   } catch {
-    /* ignore */
+    /*
+    ignore
+    */
   }
 })();

@@ -21,7 +21,9 @@ const PAYMENT_METHOD_SELECTOR_PATTERN =
   /\bpaymentMethod(?:\?\.)?\.type\b|\bpaymentMethod\s*\[\s*['"]type['"]\s*\]/;
 const ACTION_CODE_SELECTOR_PATTERN =
   /\bresultCode\b|\baction(?:\?\.)?\.type\b|\baction\s*\[\s*['"]type['"]\s*\]/;
-/** Code that resolves the submission itself or hands `actions` to code that does. */
+/**
+Code that resolves the submission itself or hands `actions` to code that does.
+ */
 const RESOLUTION_HANDOFF_PATTERN = /\bactions\b|\bcomponent\.handleAction\(/;
 const EXIT_PATTERN = /\b(?:return|throw)\b/;
 
@@ -52,11 +54,13 @@ function findMatchingDelimiter(
       depth += 1;
       continue;
     }
-    if (char === closeDelimiter) {
-      depth -= 1;
-      if (depth === 0) {
-        return index;
-      }
+    if (char !== closeDelimiter) {
+      continue;
+    }
+
+    depth -= 1;
+    if (depth === 0) {
+      return index;
     }
   }
   return -1;
@@ -74,11 +78,7 @@ function findStatementEnd(source: string, start: number): number {
   }
 
   const newlineIndex = source.indexOf('\n', start);
-  if (newlineIndex !== -1) {
-    return newlineIndex;
-  }
-
-  return source.length - 1;
+  return newlineIndex === -1 ? source.length - 1 : newlineIndex;
 }
 
 interface ParsedSwitchStatement {
@@ -120,8 +120,9 @@ function parseSwitchStatement(source: string, switchStart: number): ParsedSwitch
  * only adjusts data falls through to the resolution after it.
  */
 function leavesSubmissionsUnhandled(branch: string, codeAfter: string): boolean {
-  if (!RESOLUTION_HANDOFF_PATTERN.test(codeAfter)) return true;
-  return EXIT_PATTERN.test(branch) && !RESOLUTION_HANDOFF_PATTERN.test(branch);
+  return RESOLUTION_HANDOFF_PATTERN.test(codeAfter)
+    ? EXIT_PATTERN.test(branch) && !RESOLUTION_HANDOFF_PATTERN.test(branch)
+    : true;
 }
 
 function hasStringCasesWithoutDefault(switchBlock: string): boolean {
@@ -208,7 +209,9 @@ function detectUnhandledOnSubmitFilters(source: string): UnhandledOnSubmitFilter
 }
 
 interface StateDataForwarding {
-  /** `complete`: state.data is used as a whole; `partial`: only selected fields are read. */
+  /**
+  `complete`: state.data is used as a whole; `partial`: only selected fields are read.
+   */
   readonly kind: 'complete' | 'partial' | 'unknown';
   readonly fields: readonly string[];
 }
@@ -229,18 +232,19 @@ function findCallbackBody(source: string): { param: string; body: string } | nul
     return { param: bareArrow[1], body: trimmed.slice(bareArrow[0].length) };
   }
 
-  const paramsStart = trimmed.indexOf('(');
-  if (paramsStart === -1) return null;
-  const paramsEnd = findMatchingDelimiter(trimmed, paramsStart, '(', ')');
-  if (paramsEnd === -1) return null;
+  const parametersStart = trimmed.indexOf('(');
+  if (parametersStart === -1) return null;
+  const parametersEnd = findMatchingDelimiter(trimmed, parametersStart, '(', ')');
+  if (parametersEnd === -1) return null;
 
-  const param = trimmed
-    .slice(paramsStart + 1, paramsEnd)
+  const parameter = trimmed
+    .slice(parametersStart + 1, parametersEnd)
     .split(',')[0]
     ?.split('=')[0]
     ?.trim();
-  if (param === undefined || !IDENTIFIER_PATTERN.test(param)) return null;
-  return { param, body: trimmed.slice(paramsEnd + 1) };
+  return parameter === undefined || !IDENTIFIER_PATTERN.test(parameter)
+    ? null
+    : { param: parameter, body: trimmed.slice(parametersEnd + 1) };
 }
 
 /**
@@ -277,7 +281,9 @@ function detectStateDataForwarding(source: string): StateDataForwarding {
     : { kind: 'unknown', fields: [] };
 }
 
-/** Returns true when callback source appears to guard against duplicate submissions. */
+/**
+Returns true when callback source appears to guard against duplicate submissions.
+ */
 function detectsMultipleSubmissions(source: string): boolean {
   // Looks for common patterns like .disabled = true, setLoading(true), .setAttribute('disabled', ...), etc.
   const patterns = [
@@ -290,33 +296,49 @@ function detectsMultipleSubmissions(source: string): boolean {
   return patterns.some((p) => p.test(source));
 }
 
-/** Why captured onSubmit source cannot be read. */
+/**
+Why captured onSubmit source cannot be read.
+ */
 type SourceUnavailable = 'no-config' | 'sessions-flow' | 'no-source';
 
-/** What static inspection of captured onSubmit source found. */
+/**
+What static inspection of captured onSubmit source found.
+ */
 export type OnSubmitSource =
   | { readonly status: 'unavailable'; readonly reason: SourceUnavailable }
   | {
       readonly status: 'read';
-      /** The source reached the capture limit, so code after the cut-off was not seen. */
+      /**
+      The source reached the capture limit, so code after the cut-off was not seen.
+       */
       readonly truncated: boolean;
-      /** Branches that select payment methods or action codes without a fallback. */
+      /**
+      Branches that select payment methods or action codes without a fallback.
+       */
       readonly unhandledFilters: UnhandledOnSubmitFilters;
       readonly stateData: StateDataForwarding;
-      /** Calls `actions.resolve()` or `actions.reject()`, the v6 pattern. */
+      /**
+      Calls `actions.resolve()` or `actions.reject()`, the v6 pattern.
+       */
       readonly resolvesActions: boolean;
-      /** Calls `component.setStatus()` or `component.handleAction()`, the v5 pattern. */
+      /**
+      Calls `component.setStatus()` or `component.handleAction()`, the v5 pattern.
+       */
       readonly usesComponentCallbacks: boolean;
     };
 
-/** Whether callback source shows a duplicate-submission guard. */
+/**
+Whether callback source shows a duplicate-submission guard.
+ */
 type SubmissionGuard =
   | { readonly status: 'unavailable'; readonly reason: 'no-config' | 'no-source' }
   | { readonly status: 'read'; readonly guarded: boolean };
 
 type CallbackSourceKey = 'onSubmitSource' | 'beforeSubmitSource';
 
-/** Callback source only ever comes from captured options, never from inferred values. */
+/**
+Callback source only ever comes from captured options, never from inferred values.
+ */
 function readSource(payload: ScanPayload, key: CallbackSourceKey): string {
   const evidence = readCheckoutField(payload, key, { includeInferred: false });
   return evidence.state === 'present' ? evidence.value : '';
@@ -345,12 +367,15 @@ export function readOnSubmitSource(payload: ScanPayload, flow: IntegrationFlow):
   };
 }
 
-/** Looks for a duplicate-submission guard in captured onSubmit and beforeSubmit source. */
+/**
+Looks for a duplicate-submission guard in captured onSubmit and beforeSubmit source.
+ */
 export function readSubmissionGuard(payload: ScanPayload): SubmissionGuard {
   if (!hasCapturedCheckoutConfig(payload.page)) {
     return { status: 'unavailable', reason: 'no-config' };
   }
   const combined = `${readSource(payload, 'onSubmitSource')}\n${readSource(payload, 'beforeSubmitSource')}`;
-  if (combined.trim() === '') return { status: 'unavailable', reason: 'no-source' };
-  return { status: 'read', guarded: detectsMultipleSubmissions(combined) };
+  return combined.trim() === ''
+    ? { status: 'unavailable', reason: 'no-source' }
+    : { status: 'read', guarded: detectsMultipleSubmissions(combined) };
 }

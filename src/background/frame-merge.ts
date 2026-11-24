@@ -71,7 +71,9 @@ function fieldsWithScope<S extends FieldScope>(scope: S): ScopedField<S>[] {
 const SELECTED_FIELDS = fieldsWithScope('selected');
 const MERCHANT_FLAGS = fieldsWithScope('selected-or-merchant');
 
-/** Picks the frame with the strongest checkout signals; the top frame wins ties. */
+/**
+Picks the frame with the strongest checkout signals; the top frame wins ties.
+ */
 function selectFrame(first: ExtractedFrame, rest: readonly ExtractedFrame[]): ExtractedFrame {
   let selected = first;
   for (const frame of rest) {
@@ -106,7 +108,9 @@ function mergeSlot(frames: readonly PageExtractResult[], slot: ConfigSlot): Chec
   );
 }
 
-/** Merges captured options across frames; the capture is complete when any frame's is. */
+/**
+Merges captured options across frames; the capture is complete when any frame's is.
+ */
 function mergeCaptured(frames: readonly PageExtractResult[]): CapturedCheckoutOptions | null {
   const captures = frames.map((frame) => frame.capturedConfig).filter((c) => c !== null);
   const options = mergeCheckoutConfigs(captures.map((capture) => capture.options));
@@ -115,7 +119,9 @@ function mergeCaptured(frames: readonly PageExtractResult[]): CapturedCheckoutOp
     : { options, complete: captures.some((capture) => capture.complete) };
 }
 
-/** Combines analytics component events; earlier frames win per rendered component type. */
+/**
+Combines analytics component events; earlier frames win per rendered component type.
+ */
 function mergeAnalyticsEvents(
   frames: readonly PageExtractResult[]
 ): Pick<CheckoutPage, 'analyticsEvents'> {
@@ -159,7 +165,7 @@ export function mergeFrames(frames: readonly FrameExtraction[]): CheckoutPage | 
   const selected = selectFrame(first, rest);
   const results = extracted.map((frame) => frame.result);
   const merchantFrames = extracted.filter(isMerchantFrame);
-  const checkoutInChildFrame = merchantFrames.some(
+  const isCheckoutInChildFrame = merchantFrames.some(
     (frame) => frame.frameId !== TOP_FRAME_ID && rendersCheckout(frame.result)
   );
 
@@ -178,9 +184,9 @@ export function mergeFrames(frames: readonly FrameExtraction[]): CheckoutPage | 
       selected.result,
       merchantFrames.map((frame) => frame.result)
     ),
-    ...(results.some((result) => result.apiKeyDetected === true) ? { apiKeyDetected: true } : {}),
+    ...(results.some((result) => result.apiKeyDetected === true) && { apiKeyDetected: true }),
     checkoutInIframe:
       (selected.frameId !== TOP_FRAME_ID && merchantFrames.includes(selected)) ||
-      checkoutInChildFrame,
+      isCheckoutInChildFrame,
   };
 }

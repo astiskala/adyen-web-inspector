@@ -21,11 +21,11 @@ let onMessage: MessageListener;
 let onRemoved: (tabId: number) => void;
 let onUpdated: TabListener;
 let stored: Map<string, unknown>;
-let storageFails: boolean;
+let isStorageFails: boolean;
 let notify: ReturnType<typeof vi.fn>;
 
 function failIfAsked(): void {
-  if (storageFails) throw new Error('storage unavailable');
+  if (isStorageFails) throw new Error('storage unavailable');
 }
 
 function stubChrome(): void {
@@ -49,13 +49,13 @@ function stubChrome(): void {
   notify = vi.fn().mockResolvedValue(undefined);
   vi.stubGlobal('chrome', {
     runtime: {
-      onMessage: { addListener: (fn: MessageListener) => (onMessage = fn) },
+      onMessage: { addListener: (function_: MessageListener) => (onMessage = function_) },
       sendMessage: notify,
     },
     tabs: {
       get: vi.fn().mockRejectedValue(new Error('No tab with id: 5')),
-      onRemoved: { addListener: (fn: (tabId: number) => void) => (onRemoved = fn) },
-      onUpdated: { addListener: (fn: TabListener) => (onUpdated = fn) },
+      onRemoved: { addListener: (function_: (tabId: number) => void) => (onRemoved = function_) },
+      onUpdated: { addListener: (function_: TabListener) => (onUpdated = function_) },
     },
     action: {
       setBadgeText: vi.fn().mockResolvedValue(undefined),
@@ -70,7 +70,9 @@ function stubChrome(): void {
   vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
 }
 
-/** Sends a runtime message to the worker; `respond` records its answer, if any. */
+/**
+Sends a runtime message to the worker; `respond` records its answer, if any.
+ */
 function send(
   message: unknown,
   senderTabId?: number
@@ -98,7 +100,7 @@ function lastSnapshot(): TabSnapshot | undefined {
 
 beforeEach(async () => {
   stored = new Map();
-  storageFails = false;
+  isStorageFails = false;
   stubChrome();
   vi.resetModules();
   await import('../../../src/background/worker');
@@ -157,7 +159,7 @@ describe('service worker routing', () => {
   });
 
   it('answers null and swallows failures when the tab state cannot reach storage', async () => {
-    storageFails = true;
+    isStorageFails = true;
 
     send({ type: MSG_CHECKOUT_ACTIVITY_DETECTED }, TAB);
     send({ type: MSG_CHECKOUT_ACTIVITY_CLEARED }, TAB);
@@ -168,7 +170,7 @@ describe('service worker routing', () => {
   });
 
   it('swallows a scan whose outcome cannot be stored', async () => {
-    storageFails = true;
+    isStorageFails = true;
 
     send({ type: MSG_SCAN_REQUEST, tabId: TAB });
 

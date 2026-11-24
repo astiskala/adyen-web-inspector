@@ -13,10 +13,10 @@ import {
 import { requireCheck } from './requireCheck';
 
 const cspPresent = requireCheck(CSP_CHECKS, 'security-csp-present');
-const cspScriptSrc = requireCheck(CSP_CHECKS, 'security-csp-script-src');
-const cspFrameSrc = requireCheck(CSP_CHECKS, 'security-csp-frame-src');
-const cspConnectSrc = requireCheck(CSP_CHECKS, 'security-csp-connect-src');
-const cspImgSrc = requireCheck(CSP_CHECKS, 'security-csp-img-src');
+const cspScriptSource = requireCheck(CSP_CHECKS, 'security-csp-script-src');
+const cspFrameSource = requireCheck(CSP_CHECKS, 'security-csp-frame-src');
+const cspConnectSource = requireCheck(CSP_CHECKS, 'security-csp-connect-src');
+const cspImgSource = requireCheck(CSP_CHECKS, 'security-csp-img-src');
 const cspFormAction = requireCheck(CSP_CHECKS, 'security-csp-form-action');
 const cspFrameAncestors = requireCheck(CSP_CHECKS, 'security-csp-frame-ancestors');
 const cspReporting = requireCheck(CSP_CHECKS, 'security-csp-reporting');
@@ -46,7 +46,7 @@ describe('csp-present', () => {
       documentHeaders: UNAVAILABLE_DOCUMENT_HEADERS,
     });
     expect(cspPresent.run(payload).severity).toBe('skip');
-    expect(cspScriptSrc.run(payload).severity).toBe('skip');
+    expect(cspScriptSource.run(payload).severity).toBe('skip');
     expect(cspFrameAncestors.run(payload).severity).toBe('skip');
     expect(cspReporting.run(payload).severity).toBe('skip');
   });
@@ -67,7 +67,7 @@ describe('csp-script-src', () => {
         ),
       ]),
     });
-    expect(cspScriptSrc.run(payload).severity).toBe('pass');
+    expect(cspScriptSource.run(payload).severity).toBe('pass');
   });
 
   it('passes when Adyen CDN is in default-src', () => {
@@ -80,7 +80,7 @@ describe('csp-script-src', () => {
         ),
       ]),
     });
-    expect(cspScriptSrc.run(payload).severity).toBe('pass');
+    expect(cspScriptSource.run(payload).severity).toBe('pass');
   });
 
   it('warns when Adyen CDN is missing from script-src', () => {
@@ -90,7 +90,7 @@ describe('csp-script-src', () => {
         makeHeader('content-security-policy', "default-src 'self'"),
       ]),
     });
-    const result = cspScriptSrc.run(payload);
+    const result = cspScriptSource.run(payload);
     expect(result.severity).toBe('warn');
     expect(result.detail).toContain('PCI compliance');
   });
@@ -102,12 +102,12 @@ describe('csp-script-src', () => {
         makeHeader('content-security-policy', "script-src 'self' https://notadyen.com"),
       ]),
     });
-    expect(cspScriptSrc.run(payload).severity).toBe('warn');
+    expect(cspScriptSource.run(payload).severity).toBe('warn');
   });
 
   it('returns skip when no CSP present', () => {
     const payload = makeScanPayload({ documentHeaders: makeDocumentHeaders([]) });
-    expect(cspScriptSrc.run(payload).severity).toBe('skip');
+    expect(cspScriptSource.run(payload).severity).toBe('skip');
   });
 
   it('honors explicit script-src over an allowing default-src', () => {
@@ -119,7 +119,7 @@ describe('csp-script-src', () => {
         makeHeader('content-security-policy', "default-src https:; script-src 'self'"),
       ]),
     });
-    expect(cspScriptSrc.run(payload).severity).toBe('warn');
+    expect(cspScriptSource.run(payload).severity).toBe('warn');
   });
 
   it('requires each enforced CSP header to allow the observed Adyen script', () => {
@@ -132,7 +132,7 @@ describe('csp-script-src', () => {
         makeHeader('content-security-policy', "script-src 'self'"),
       ]),
     });
-    expect(cspScriptSrc.run(payload).severity).toBe('warn');
+    expect(cspScriptSource.run(payload).severity).toBe('warn');
   });
 
   it('requires all policies in a combined CSP header to allow the script', () => {
@@ -142,7 +142,7 @@ describe('csp-script-src', () => {
         makeHeader('content-security-policy', "script-src https://*.adyen.com, script-src 'self'"),
       ]),
     });
-    expect(cspScriptSrc.run(payload).severity).toBe('warn');
+    expect(cspScriptSource.run(payload).severity).toBe('warn');
   });
 
   it('skips the Adyen CDN script requirement for npm-only pages', () => {
@@ -155,7 +155,7 @@ describe('csp-script-src', () => {
         makeHeader('content-security-policy', "script-src 'self'"),
       ]),
     });
-    expect(cspScriptSrc.run(payload).severity).toBe('skip');
+    expect(cspScriptSource.run(payload).severity).toBe('skip');
   });
 });
 
@@ -164,7 +164,7 @@ describe('csp-frame-src', () => {
     const payload = makeScanPayload({
       documentHeaders: makeDocumentHeaders([makeHeader('content-security-policy', 'frame-src *')]),
     });
-    expect(cspFrameSrc.run(payload).severity).toBe('pass');
+    expect(cspFrameSource.run(payload).severity).toBe('pass');
   });
 
   it('passes when frame-src allows all HTTPS origins', () => {
@@ -173,7 +173,7 @@ describe('csp-frame-src', () => {
         makeHeader('content-security-policy', 'frame-src https:'),
       ]),
     });
-    expect(cspFrameSrc.run(payload).severity).toBe('pass');
+    expect(cspFrameSource.run(payload).severity).toBe('pass');
   });
 
   it('warns when frame-src is restrictive', () => {
@@ -182,7 +182,7 @@ describe('csp-frame-src', () => {
         makeHeader('content-security-policy', "frame-src 'self' https://*.adyen.com"),
       ]),
     });
-    const result = cspFrameSrc.run(payload);
+    const result = cspFrameSource.run(payload);
     expect(result.severity).toBe('warn');
     expect(result.detail).toContain('PCI compliance');
   });
@@ -193,7 +193,7 @@ describe('csp-frame-src', () => {
         makeHeader('content-security-policy', "default-src 'self' https://*.adyen.com"),
       ]),
     });
-    const result = cspFrameSrc.run(payload);
+    const result = cspFrameSource.run(payload);
     expect(result.severity).toBe('warn');
     expect(result.title).toBe('CSP frame-src may be too restrictive for 3DS issuer iframes.');
     expect(result.detail).toContain('inherit a default-src');
@@ -205,7 +205,7 @@ describe('csp-frame-src', () => {
         makeHeader('content-security-policy', 'default-src https:'),
       ]),
     });
-    const result = cspFrameSrc.run(payload);
+    const result = cspFrameSource.run(payload);
     expect(result.severity).toBe('warn');
     expect(result.title).toBe('CSP frame-src/child-src is not explicitly set.');
   });
@@ -216,7 +216,9 @@ describe('csp-frame-src', () => {
         makeHeader('content-security-policy', "script-src 'self'"),
       ]),
     });
-    expect(cspFrameSrc.run(payload).title).toBe('CSP frame-src/child-src is not explicitly set.');
+    expect(cspFrameSource.run(payload).title).toBe(
+      'CSP frame-src/child-src is not explicitly set.'
+    );
   });
 
   it('passes when child-src allows HTTPS iframes', () => {
@@ -225,17 +227,17 @@ describe('csp-frame-src', () => {
         makeHeader('content-security-policy', "default-src 'self'; child-src https:"),
       ]),
     });
-    expect(cspFrameSrc.run(payload).severity).toBe('pass');
+    expect(cspFrameSource.run(payload).severity).toBe('pass');
   });
 
   it('returns skip when no CSP present', () => {
     const payload = makeScanPayload({ documentHeaders: makeDocumentHeaders([]) });
-    expect(cspFrameSrc.run(payload).severity).toBe('skip');
+    expect(cspFrameSource.run(payload).severity).toBe('skip');
   });
 
   it('returns skip when response headers could not be captured', () => {
     const payload = makeScanPayload({ documentHeaders: UNAVAILABLE_DOCUMENT_HEADERS });
-    expect(cspFrameSrc.run(payload).severity).toBe('skip');
+    expect(cspFrameSource.run(payload).severity).toBe('skip');
   });
 });
 
@@ -250,7 +252,7 @@ function withCsp(policy: string, config: Partial<CheckoutConfig> = {}): ScanPayl
 
 describe('csp-connect-src', () => {
   it('passes when connect-src allows the Adyen origins for the environment', () => {
-    const result = cspConnectSrc.run(
+    const result = cspConnectSource.run(
       withCsp(
         "connect-src 'self' https://checkoutshopper-test.adyen.com https://checkoutanalytics-test.adyen.com"
       )
@@ -259,11 +261,13 @@ describe('csp-connect-src', () => {
   });
 
   it('passes with the Adyen recommended connect-src wildcard', () => {
-    expect(cspConnectSrc.run(withCsp("default-src 'self'; connect-src *")).severity).toBe('pass');
+    expect(cspConnectSource.run(withCsp("default-src 'self'; connect-src *")).severity).toBe(
+      'pass'
+    );
   });
 
   it('warns and lists blocked origins when default-src is restrictive', () => {
-    const result = cspConnectSrc.run(withCsp("default-src 'self'"));
+    const result = cspConnectSource.run(withCsp("default-src 'self'"));
     expect(result.severity).toBe('warn');
     expect(result.detail).toContain('https://checkoutshopper-test.adyen.com (checkout API)');
     expect(result.detail).toContain(
@@ -273,7 +277,7 @@ describe('csp-connect-src', () => {
   });
 
   it('requires the regional analytics origin for regional live environments', () => {
-    const result = cspConnectSrc.run(
+    const result = cspConnectSource.run(
       withCsp('connect-src https://checkoutshopper-live-us.adyen.com', { environment: 'live-us' })
     );
     expect(result.severity).toBe('warn');
@@ -282,17 +286,19 @@ describe('csp-connect-src', () => {
   });
 
   it('resolves environment names case-insensitively', () => {
-    const result = cspConnectSrc.run(withCsp("connect-src 'self'", { environment: 'LIVE-AU' }));
+    const result = cspConnectSource.run(withCsp("connect-src 'self'", { environment: 'LIVE-AU' }));
     expect(result.detail).toContain('https://checkoutshopper-live-au.adyen.com');
   });
 
   it('falls back to the default live endpoints for unknown environment names', () => {
-    const result = cspConnectSrc.run(withCsp("connect-src 'self'", { environment: 'production' }));
+    const result = cspConnectSource.run(
+      withCsp("connect-src 'self'", { environment: 'production' })
+    );
     expect(result.detail).toContain('https://checkoutshopper-live.adyen.com');
   });
 
   it('requires the CDN origin when a non-English locale loads CDN translations', () => {
-    const result = cspConnectSrc.run(
+    const result = cspConnectSource.run(
       withCsp(
         'connect-src https://checkoutshopper-test.adyen.com https://checkoutanalytics-test.adyen.com',
         { locale: 'nl-NL' }
@@ -309,7 +315,7 @@ describe('csp-connect-src', () => {
         makeHeader('content-security-policy', "connect-src 'self'"),
       ]),
     });
-    const result = cspConnectSrc.run(payload);
+    const result = cspConnectSource.run(payload);
     expect(result.severity).toBe('warn');
     expect(result.detail).toContain('https://checkoutshopper-test.adyen.com');
   });
@@ -320,16 +326,17 @@ describe('csp-connect-src', () => {
         makeHeader('content-security-policy', "connect-src 'self'"),
       ]),
     });
-    expect(cspConnectSrc.run(payload)).toMatchObject({
+    expect(cspConnectSource.run(payload)).toMatchObject({
       severity: 'skip',
       detail: 'The Adyen Web environment could not be determined.',
     });
   });
 
   it('skips without a CSP or captured headers', () => {
-    expect(cspConnectSrc.run(makeScanPayload()).severity).toBe('skip');
+    expect(cspConnectSource.run(makeScanPayload()).severity).toBe('skip');
     expect(
-      cspConnectSrc.run(makeScanPayload({ documentHeaders: UNAVAILABLE_DOCUMENT_HEADERS })).severity
+      cspConnectSource.run(makeScanPayload({ documentHeaders: UNAVAILABLE_DOCUMENT_HEADERS }))
+        .severity
     ).toBe('skip');
   });
 });
@@ -337,16 +344,17 @@ describe('csp-connect-src', () => {
 describe('csp-img-src', () => {
   it('passes when img-src allows the Adyen CDN', () => {
     expect(
-      cspImgSrc.run(withCsp("img-src 'self' https://checkoutshopper-test.cdn.adyen.com")).severity
+      cspImgSource.run(withCsp("img-src 'self' https://checkoutshopper-test.cdn.adyen.com"))
+        .severity
     ).toBe('pass');
   });
 
   it('passes when img-src is not restricted by the policy', () => {
-    expect(cspImgSrc.run(withCsp("script-src 'self'")).severity).toBe('pass');
+    expect(cspImgSource.run(withCsp("script-src 'self'")).severity).toBe('pass');
   });
 
   it('warns with low impact when default-src blocks Adyen logos', () => {
-    const result = cspImgSrc.run(withCsp("default-src 'self'", { environment: 'live-apse' }));
+    const result = cspImgSource.run(withCsp("default-src 'self'", { environment: 'live-apse' }));
     expect(result).toMatchObject({ severity: 'warn', impact: 'low' });
     expect(result.detail).toContain('https://checkoutshopper-live-apse.cdn.adyen.com (logos)');
   });
@@ -357,10 +365,10 @@ describe('csp-img-src', () => {
         makeHeader('content-security-policy', "img-src 'self'"),
       ]),
     });
-    expect(cspImgSrc.run(noEnvironment).severity).toBe('skip');
-    expect(cspImgSrc.run(makeScanPayload()).severity).toBe('skip');
+    expect(cspImgSource.run(noEnvironment).severity).toBe('skip');
+    expect(cspImgSource.run(makeScanPayload()).severity).toBe('skip');
     expect(
-      cspImgSrc.run(makeScanPayload({ documentHeaders: UNAVAILABLE_DOCUMENT_HEADERS })).severity
+      cspImgSource.run(makeScanPayload({ documentHeaders: UNAVAILABLE_DOCUMENT_HEADERS })).severity
     ).toBe('skip');
   });
 });

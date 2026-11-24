@@ -29,7 +29,7 @@ function collectDocsUrls(): Set<string> {
   return allUrls;
 }
 
-const allowedDocHosts = [
+const allowedDocumentHosts = [
   'docs.adyen.com',
   'owasp.org',
   'github.com',
@@ -40,7 +40,7 @@ const allowedDocHosts = [
 function isAllowedHost(url: string): boolean {
   try {
     const { hostname } = new URL(url);
-    return allowedDocHosts.some(
+    return allowedDocumentHosts.some(
       (allowedHost) => hostname === allowedHost || hostname.endsWith(`.${allowedHost}`)
     );
   } catch {
@@ -60,7 +60,7 @@ describe.skipIf(process.env['RUN_LINK_CHECKS'] === undefined)('Link Validation',
           const response = await fetch(url, { method: 'HEAD' });
           // Some sites might return 405 for HEAD, so we retry with GET if needed
           if (response.status === 405) {
-            const getResponse = await fetch(url, { method: 'GET' });
+            const getResponse = await fetch(url);
             expect(getResponse.status).toBeLessThan(400);
           } else {
             expect(response.status).toBeLessThan(400);

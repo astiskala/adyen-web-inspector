@@ -29,11 +29,14 @@ export function parseCsp(headerValue: string): ParsedCsp {
 function sourceMatchesUrl(source: string, resource: URL, page: URL): boolean {
   if (source === "'self'") return resource.origin === page.origin;
   if (source === '*') return resource.protocol === 'https:' || resource.protocol === 'http:';
-  if (source === 'https:' || source === 'http:') return resource.protocol === source;
-  return hostSourceMatchesUrl(source, resource);
+  return source === 'https:' || source === 'http:'
+    ? resource.protocol === source
+    : hostSourceMatchesUrl(source, resource);
 }
 
-/** Matches a host source such as `https://*.adyen.com:443/path` against a resource URL. */
+/**
+Matches a host source such as `https://*.adyen.com:443/path` against a resource URL.
+ */
 function hostSourceMatchesUrl(source: string, resource: URL): boolean {
   const match = /^(?:(https?):\/\/)?(\*\.)?([^/:]+)(?::(\d+))?(\/.*)?$/.exec(source.toLowerCase());
   const host = match?.[3];
@@ -41,9 +44,9 @@ function hostSourceMatchesUrl(source: string, resource: URL): boolean {
 
   const [, scheme, wildcard, , port, path] = match;
   if (scheme !== undefined && resource.protocol !== `${scheme}:`) return false;
-  const hostMatches =
+  const isHostMatches =
     wildcard === '*.' ? resource.hostname.endsWith(`.${host}`) : resource.hostname === host;
-  if (!hostMatches) return false;
+  if (!isHostMatches) return false;
   if (
     port !== undefined &&
     (resource.port || (resource.protocol === 'https:' ? '443' : '80')) !== port
@@ -84,7 +87,9 @@ export function getEffectiveCspSources(
   return null;
 }
 
-/** Returns true when the policy allows loading the URL for the resource type. */
+/**
+Returns true when the policy allows loading the URL for the resource type.
+ */
 export function cspAllowsUrl(
   csp: ParsedCsp,
   directive: CspFetchDirective,

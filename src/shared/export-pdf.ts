@@ -22,7 +22,9 @@ type FindingProjection = ReturnType<typeof buildFindingProjection>;
 type FindingSection = FindingProjection['bestPractices'];
 
 const PDF_REPORT_STORAGE_PREFIX = 'pdf-report:' as const;
-/** Extension page that renders and prints the report. */
+/**
+Extension page that renders and prints the report.
+ */
 export const PDF_REPORT_PAGE_PATH = 'report/report.html' as const;
 export const PDF_REPORT_TOKEN_PARAM = 'token' as const;
 
@@ -31,13 +33,15 @@ export interface PrintableReportMetadata {
   readonly browser: string;
 }
 
-/** Returns the session-storage key used for a pending PDF export handoff. */
+/**
+Returns the session-storage key used for a pending PDF export handoff.
+ */
 export function getPdfReportStorageKey(token: string): string {
   return `${PDF_REPORT_STORAGE_PREFIX}${token}`;
 }
 
-function escapeHtml(str: string): string {
-  return str
+function escapeHtml(string_: string): string {
+  return string_
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')
@@ -73,8 +77,8 @@ function buildAttributes(
 function buildAttributesHtml(
   implementationAttributes: ReturnType<typeof summarizeImplementation>
 ): string {
-  const attrs = buildAttributes(implementationAttributes);
-  const rows = attrs
+  const attributes = buildAttributes(implementationAttributes);
+  const rows = attributes
     .map(
       (a) =>
         `<tr><td class="attr-label">${escapeHtml(a.label)}</td><td>${escapeHtml(a.value)}</td></tr>`
@@ -208,10 +212,10 @@ function buildNetworkHtml(network: FindingProjection['network']): string {
   } else {
     const rows = reqs
       .map(
-        (req) =>
-          `<tr><td>${escapeHtml(req.type)}</td><td style="font-family:monospace;font-size:11px">${escapeHtml(
-            req.url
-          )}</td><td>${req.statusCode === 0 ? '&mdash;' : req.statusCode}</td></tr>`
+        (request) =>
+          `<tr><td>${escapeHtml(request.type)}</td><td style="font-family:monospace;font-size:11px">${escapeHtml(
+            request.url
+          )}</td><td>${request.statusCode === 0 ? '&mdash;' : request.statusCode}</td></tr>`
       )
       .join('');
     parts.push(
@@ -236,7 +240,7 @@ function buildRawConfigHtml(rawConfig: FindingProjection['rawConfig']): string {
 }
 
 function buildComplianceHtml(compliance: StandardCompliance): string {
-  const icon = compliance.compliant ? '\u2713' : '\u2717';
+  const icon = compliance.compliant ? '\u{2713}' : '\u{2717}';
   const iconColor = compliance.compliant ? STATUS_COLORS.pass : STATUS_COLORS.fail;
   const label = compliance.compliant
     ? STANDARD_COMPLIANCE_COPY.metLabel
@@ -265,7 +269,9 @@ function buildComplianceHtml(compliance: StandardCompliance): string {
   </div>`;
 }
 
-/** Builds the self-contained HTML document used by the printable export tab. */
+/**
+Builds the self-contained HTML document used by the printable export tab.
+ */
 export function buildPrintableHtml(result: ScanResult, metadata: PrintableReportMetadata): string {
   const date = new Date(result.scannedAt).toLocaleString();
   const { score, passing, total, tier } = result.health;

@@ -9,19 +9,24 @@ export * from './health.js';
 export * from './version-utils.js';
 export * from './csp-utils.js';
 
-/** Describes a thrown value: an Error's message, a string as-is, otherwise its type tag. */
+/**
+Describes a thrown value: an Error's message, a string as-is, otherwise its type tag.
+ */
 export function describeError(error: unknown): string {
   if (error instanceof Error) return error.message;
-  if (typeof error === 'string') return error;
-  return Object.prototype.toString.call(error);
+  return typeof error === 'string' ? error : Object.prototype.toString.call(error);
 }
 
-/** Returns true for any non-null object. */
+/**
+Returns true for any non-null object.
+ */
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
-/** Checks the top-level shape of a scan result read from storage or a runtime message. */
+/**
+Checks the top-level shape of a scan result read from storage or a runtime message.
+ */
 export function isScanResult(value: unknown): value is ScanResult {
   return (
     isRecord(value) &&
@@ -35,7 +40,9 @@ export function isScanResult(value: unknown): value is ScanResult {
   );
 }
 
-/** Extracts the hostname from a URL string. */
+/**
+Extracts the hostname from a URL string.
+ */
 export function extractHostname(url: string): string | null {
   try {
     return new URL(url).hostname;

@@ -6,7 +6,9 @@ import { dirname, relative, resolve } from 'node:path';
 const root = import.meta.dirname;
 const OUT_DIR = resolve(root, 'dist');
 
-/** Fails the build if a content script would need ESM loading, which Chrome does not provide. */
+/**
+Fails the build if a content script would need ESM loading, which Chrome does not provide.
+ */
 async function assertClassicScript(file: string): Promise<void> {
   const code = await readFile(file, 'utf8');
   if (/^(?:import|export)\b/m.test(code)) {
@@ -16,7 +18,9 @@ async function assertClassicScript(file: string): Promise<void> {
   }
 }
 
-/** Scripts Chrome runs as classic scripts: manifest content scripts and executeScript files. */
+/**
+Scripts Chrome runs as classic scripts: manifest content scripts and executeScript files.
+ */
 const CONTENT_SCRIPTS = {
   'config-interceptor': 'src/content/config-interceptor.ts',
   detector: 'src/content/detector.ts',

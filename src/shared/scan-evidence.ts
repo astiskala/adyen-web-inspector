@@ -15,7 +15,9 @@ import type {
   ScanPayload,
 } from './types.js';
 
-/** Where a Checkout configuration value was observed, in precedence order. */
+/**
+Where a Checkout configuration value was observed, in precedence order.
+ */
 export type ConfigSource = 'captured' | 'component' | 'inferred';
 
 type ConfigKey = keyof CheckoutConfig;
@@ -23,7 +25,9 @@ type ConfigKey = keyof CheckoutConfig;
 interface ConfigObservation<K extends ConfigKey> {
   readonly value: NonNullable<CheckoutConfig[K]>;
   readonly source: ConfigSource;
-  /** For inferred values: the partial signal the value was read from. */
+  /**
+  For inferred values: the partial signal the value was read from.
+   */
   readonly signal?: InferenceSignal;
 }
 
@@ -38,11 +42,15 @@ export type CheckoutFieldEvidence<K extends ConfigKey> =
   | { readonly state: 'unobserved'; readonly reason: 'no-config' | 'partial-config' };
 
 interface ReadCheckoutFieldOptions {
-  /** When false, values that were only inferred from requests or parsed JSON are ignored. */
+  /**
+  When false, values that were only inferred from requests or parsed JSON are ignored.
+   */
   readonly includeInferred?: boolean;
 }
 
-/** The configuration slots of a frame's page extraction or of the Checkout page. */
+/**
+The configuration slots of a frame's page extraction or of the Checkout page.
+ */
 type ConfigSlots = Pick<
   CheckoutPage,
   'capturedConfig' | 'componentConfig' | 'inferredConfig' | 'pageJsonConfig'
@@ -54,7 +62,9 @@ interface ConfigSlot {
   readonly read: (page: ConfigSlots) => CheckoutConfig | null;
 }
 
-/** Slots in precedence order: captured, component, then inferred from Adyen requests, then page JSON. */
+/**
+Slots in precedence order: captured, component, then inferred from Adyen requests, then page JSON.
+ */
 const SLOTS: readonly ConfigSlot[] = [
   { source: 'captured', read: (page) => page.capturedConfig?.options ?? null },
   { source: 'component', read: (page) => page.componentConfig },
@@ -62,14 +72,18 @@ const SLOTS: readonly ConfigSlot[] = [
   { source: 'inferred', signal: 'page-json', read: (page) => page.pageJsonConfig },
 ];
 
-/** Slots that show checkout is configured; page JSON alone does not. */
+/**
+Slots that show checkout is configured; page JSON alone does not.
+ */
 const CONFIGURING_SLOTS = SLOTS.filter(({ signal }) => signal !== 'page-json');
 
 function isObserved<V>(value: V | '' | undefined): value is V {
   return value !== undefined && value !== '';
 }
 
-/** Returns every observation of a field, strongest source first. */
+/**
+Returns every observation of a field, strongest source first.
+ */
 export function listCheckoutFieldObservations<K extends ConfigKey>(
   payload: ScanPayload,
   key: K
@@ -95,25 +109,31 @@ export function checkoutConfigSources(page: ConfigSlots): ReadonlySet<ConfigSour
   );
 }
 
-/** Returns true when checkout or component configuration was captured, not merely inferred. */
+/**
+Returns true when checkout or component configuration was captured, not merely inferred.
+ */
 export function hasCapturedCheckoutConfig(page: ConfigSlots): boolean {
   return page.capturedConfig !== null || page.componentConfig !== null;
 }
 
-/** Returns true when AdyenCheckout options were captured whole, so options missing from them are absent. */
+/**
+Returns true when AdyenCheckout options were captured whole, so options missing from them are absent.
+ */
 export function hasCompleteCheckoutConfig(page: ConfigSlots): boolean {
   return page.capturedConfig?.complete === true;
 }
 
-/** Reads the strongest observation of a field and whether its absence is proven. */
+/**
+Reads the strongest observation of a field and whether its absence is proven.
+ */
 export function readCheckoutField<K extends ConfigKey>(
   payload: ScanPayload,
   key: K,
   options: ReadCheckoutFieldOptions = {}
 ): CheckoutFieldEvidence<K> {
-  const includeInferred = options.includeInferred ?? true;
+  const isIncludeInferred = options.includeInferred ?? true;
   const observation = listCheckoutFieldObservations(payload, key).find(
-    (candidate) => includeInferred || candidate.source !== 'inferred'
+    (candidate) => isIncludeInferred || candidate.source !== 'inferred'
   );
   if (observation !== undefined) return { state: 'present', ...observation };
   if (hasCompleteCheckoutConfig(payload.page)) return { state: 'absent' };
@@ -123,7 +143,9 @@ export function readCheckoutField<K extends ConfigKey>(
   };
 }
 
-/** Infers a locale from Adyen translation requests when no stronger source shows one. */
+/**
+Infers a locale from Adyen translation requests when no stronger source shows one.
+ */
 export function withRequestDerivedLocale(
   page: CheckoutPage,
   requests: readonly CapturedRequest[]

@@ -1,4 +1,6 @@
-/** Minimal, credential-free reproductions from live browser testing on 2026-09-29. */
+/**
+Minimal, credential-free reproductions from live browser testing on 2026-09-29.
+ */
 import { describe, expect, it } from 'vitest';
 import { assessScan } from '../../src/background/scan-assessment';
 import type { ScanResult } from '../../src/shared/types';
@@ -15,7 +17,9 @@ const RISK_SCRIPT =
   'https://checkoutshopper-live.adyen.com/checkoutshopper/assets/js/datacollection/datacollection.js';
 const SDK_SCRIPT = 'https://checkoutshopper-test.adyen.com/checkoutshopper/sdk/6.33.0/adyen.js';
 
-/** Models MyStore's merchant bundles and dynamically inserted risk script. */
+/**
+Models MyStore's merchant bundles and dynamically inserted risk script.
+ */
 async function scanMyStore(): Promise<ScanResult> {
   return assessScan(
     {

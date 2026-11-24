@@ -46,7 +46,7 @@ async function loadInterceptor(): Promise<void> {
   // Create a proper XHR mock
   const openMock = vi.fn();
   globalThis.XMLHttpRequest = vi.fn() as unknown as typeof XMLHttpRequest;
-  globalThis.XMLHttpRequest.prototype.open = openMock;
+  XMLHttpRequest.prototype.open = openMock;
 
   await import('../../../src/content/config-interceptor.js');
 }
@@ -190,7 +190,7 @@ describe('config-interceptor', () => {
 
     it('wraps create on the captured instance for component config', async () => {
       const fakeCheckout: Record<string, unknown> = {
-        create: (_type: unknown, _cfg?: unknown) => ({}),
+        create: (_type: unknown, _config?: unknown) => ({}),
         options: { clientKey: 'test_WRAP', environment: 'test' },
       };
 

@@ -84,15 +84,15 @@ function getScriptSources(payload: ScanPayload): string[] {
 function findMatchingScripts(srcs: string[], patterns: readonly ThirdPartyPattern[]): string[] {
   const matches: string[] = [];
   for (const { name, pattern } of patterns) {
-    if (srcs.some((src) => pattern.test(src))) {
+    if (srcs.some((source) => pattern.test(source))) {
       matches.push(name);
     }
   }
   return matches;
 }
 
-function scriptMatchesAnyPattern(src: string, patterns: readonly ThirdPartyPattern[]): boolean {
-  return patterns.some(({ pattern }) => pattern.test(src));
+function scriptMatchesAnyPattern(source: string, patterns: readonly ThirdPartyPattern[]): boolean {
+  return patterns.some(({ pattern }) => pattern.test(source));
 }
 
 function runPatternCheck(
@@ -106,10 +106,9 @@ function runPatternCheck(
   }
 
   const title = `${options.detectedTitlePrefix}: ${found.join(', ')}.`;
-  if (options.detectionSeverity === 'warn') {
-    return context.warn(title, options.detail, options.remediation, options.docsUrl);
-  }
-  return context.notice(title, options.detail, options.remediation, options.docsUrl);
+  return options.detectionSeverity === 'warn'
+    ? context.warn(title, options.detail, options.remediation, options.docsUrl)
+    : context.notice(title, options.detail, options.remediation, options.docsUrl);
 }
 
 export const THIRD_PARTY_CHECKS = createRegistry(CATEGORY)
@@ -170,16 +169,14 @@ export const THIRD_PARTY_CHECKS = createRegistry(CATEGORY)
     const withoutSri = knownThirdPartyScripts.filter(
       (s) => s.integrity === undefined || s.integrity === ''
     );
-    if (withoutSri.length === 0) {
-      return pass(STRINGS.NO_SRI_PASS_TITLE);
-    }
-
-    return notice(
-      `${withoutSri.length} third-party script(s) loaded without SRI.`,
-      STRINGS.NO_SRI_NOTICE_DETAIL,
-      STRINGS.NO_SRI_NOTICE_REMEDIATION,
-      ADYEN_PCI_SCRIPT_SECURITY_DOC
-    );
+    return withoutSri.length === 0
+      ? pass(STRINGS.NO_SRI_PASS_TITLE)
+      : notice(
+          `${withoutSri.length} third-party script(s) loaded without SRI.`,
+          STRINGS.NO_SRI_NOTICE_DETAIL,
+          STRINGS.NO_SRI_NOTICE_REMEDIATION,
+          ADYEN_PCI_SCRIPT_SECURITY_DOC
+        );
   })
   .add('3p-cookiebot-auto-blocking', (payload, { skip, pass, warn }) => {
     const { page } = payload;
@@ -192,13 +189,13 @@ export const THIRD_PARTY_CHECKS = createRegistry(CATEGORY)
         script.blockingMode?.trim().toLowerCase() === 'auto' &&
         extractHostname(script.src) === 'consent.cookiebot.com'
     );
-    if (!isAutoBlocking) return pass(STRINGS.COOKIEBOT_PASS_TITLE);
-
-    return warn(
-      STRINGS.COOKIEBOT_WARN_TITLE,
-      STRINGS.COOKIEBOT_WARN_DETAIL,
-      STRINGS.COOKIEBOT_WARN_REMEDIATION,
-      STRINGS.COOKIEBOT_WARN_URL
-    );
+    return isAutoBlocking
+      ? warn(
+          STRINGS.COOKIEBOT_WARN_TITLE,
+          STRINGS.COOKIEBOT_WARN_DETAIL,
+          STRINGS.COOKIEBOT_WARN_REMEDIATION,
+          STRINGS.COOKIEBOT_WARN_URL
+        )
+      : pass(STRINGS.COOKIEBOT_PASS_TITLE);
   })
   .getChecks();

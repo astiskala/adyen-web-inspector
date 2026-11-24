@@ -28,7 +28,9 @@ function pluralRules(count: number): string {
   return `${count} rule${count === 1 ? '' : 's'}`;
 }
 
-/** The selector from its first Adyen class on; empty for selectors in the group that do not target Adyen. */
+/**
+The selector from its first Adyen class on; empty for selectors in the group that do not target Adyen.
+ */
 function focusAdyenSelector(selector: string): string {
   const normalized = selector.replaceAll(/\s+/g, ' ').trim();
   const firstAdyenClass = ADYEN_SELECTOR_START_PATTERN.exec(normalized);
@@ -88,24 +90,22 @@ export const STYLING_CHECKS = createRegistry(CATEGORY)
       const styles = payload.page.adyenStyles;
 
       const hasOverrides = styles.classOverrideCount > 0;
-      const hasCustomProps = styles.customPropertyCount > 0;
+      const hasCustomProperties = styles.customPropertyCount > 0;
 
-      if (!hasOverrides && !hasCustomProps) {
+      if (!hasOverrides && !hasCustomProperties) {
         return skip(STRINGS.SKIP_TITLE, STRINGS.SKIP_REASON);
       }
 
-      if (!hasOverrides && hasCustomProps) {
-        return pass(
-          `Adyen components styled using CSS custom properties (${pluralRules(styles.customPropertyCount)} found).`
-        );
-      }
-
-      return notice(
-        STRINGS.NOTICE_TITLE,
-        buildOverrideDetail(styles),
-        STRINGS.NOTICE_REMEDIATION,
-        STRINGS.NOTICE_URL
-      );
+      return !hasOverrides && hasCustomProperties
+        ? pass(
+            `Adyen components styled using CSS custom properties (${pluralRules(styles.customPropertyCount)} found).`
+          )
+        : notice(
+            STRINGS.NOTICE_TITLE,
+            buildOverrideDetail(styles),
+            STRINGS.NOTICE_REMEDIATION,
+            STRINGS.NOTICE_URL
+          );
     },
     { noticeImpact: 'low' }
   )

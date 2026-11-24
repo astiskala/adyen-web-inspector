@@ -72,8 +72,8 @@ beforeEach(() => {
     runtime: {
       sendMessage,
       onMessage: {
-        addListener: vi.fn((fn: (message: Message) => void) => {
-          listener = fn;
+        addListener: vi.fn((function_: (message: Message) => void) => {
+          listener = function_;
         }),
         removeListener: vi.fn(),
       },
@@ -282,7 +282,9 @@ interface ReportTabStubs {
   readonly remove: ReturnType<typeof vi.fn>;
 }
 
-/** Adds what the PDF export needs to the stubbed chrome global. */
+/**
+Adds what the PDF export needs to the stubbed chrome global.
+ */
 function stubReportTab(): ReportTabStubs {
   const stubbed = globalThis.chrome as unknown as {
     runtime: Record<string, unknown>;
@@ -477,7 +479,7 @@ describe('popup compliance and export failures', () => {
     );
     await mount(Popup);
     await vi.waitFor(() => {
-      expect(host.querySelector('[class*="iconCompliant"]')?.textContent).toBe('\u2713');
+      expect(host.querySelector('[class*="iconCompliant"]')?.textContent).toBe('\u{2713}');
     });
 
     await clickButton('Export PDF');

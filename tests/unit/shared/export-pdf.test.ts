@@ -84,9 +84,11 @@ describe('buildPrintableHtml', () => {
     });
 
     const html = buildPrintableHtml(result, metadata);
-    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const document = new DOMParser().parseFromString(html, 'text/html');
 
-    const headings = [...doc.querySelectorAll('h2')].map((heading) => heading.textContent.trim());
+    const headings = [...document.querySelectorAll('h2')].map((heading) =>
+      heading.textContent.trim()
+    );
     expect(headings).toEqual([
       'Implementation Attributes',
       'Best Practices',
@@ -97,12 +99,12 @@ describe('buildPrintableHtml', () => {
       'Extracted Config',
     ]);
 
-    const successfulChecksHeading = doc.querySelector('h2:nth-of-type(4)');
+    const successfulChecksHeading = document.querySelector('h2:nth-of-type(4)');
     expect(successfulChecksHeading?.textContent).toBe('Successful Checks');
-    expect(doc.body.textContent).toContain('onSubmit callback detected.');
-    expect(doc.body.textContent).toContain('Adyen script tags use SRI.');
-    expect(doc.body.textContent).toContain('Client key format could not be verified.');
-    expect(doc.body.textContent).toContain('Checkout page is not served over HTTPS.');
+    expect(document.body.textContent).toContain('onSubmit callback detected.');
+    expect(document.body.textContent).toContain('Adyen script tags use SRI.');
+    expect(document.body.textContent).toContain('Client key format could not be verified.');
+    expect(document.body.textContent).toContain('Checkout page is not served over HTTPS.');
   });
 
   it('renders unmet criteria, captured traffic, extracted config and empty sections', () => {
@@ -134,8 +136,11 @@ describe('buildPrintableHtml', () => {
       }),
     });
 
-    const doc = new DOMParser().parseFromString(buildPrintableHtml(result, metadata), 'text/html');
-    const text = doc.body.textContent;
+    const document = new DOMParser().parseFromString(
+      buildPrintableHtml(result, metadata),
+      'text/html'
+    );
+    const text = document.body.textContent;
 
     expect(text).toContain('Standard Drop-in criteria not met');
     expect(text).toContain('Not using Drop-in.');
@@ -148,7 +153,7 @@ describe('buildPrintableHtml', () => {
     expect(text).toContain('live_CLIENTKEY');
     expect(text).toContain('No inferred config captured.');
     expect(
-      [...doc.querySelectorAll('.docs-link')].map((link) => link.getAttribute('href'))
+      [...document.querySelectorAll('.docs-link')].map((link) => link.getAttribute('href'))
     ).toEqual([
       'https://docs.adyen.com/standard',
       'https://docs.adyen.com/online-payments/web-best-practices/',
@@ -158,9 +163,9 @@ describe('buildPrintableHtml', () => {
   it('includes inspected URL, extension version, and browser details', () => {
     const result = makeResult();
     const html = buildPrintableHtml(result, metadata);
-    const doc = new DOMParser().parseFromString(html, 'text/html');
-    const bodyText = doc.body.textContent;
-    const bodyChildren = [...doc.body.children];
+    const document = new DOMParser().parseFromString(html, 'text/html');
+    const bodyText = document.body.textContent;
+    const bodyChildren = [...document.body.children];
 
     expect(bodyText).toContain('Inspected URL');
     expect(bodyText).toContain('https://example.com/checkout');

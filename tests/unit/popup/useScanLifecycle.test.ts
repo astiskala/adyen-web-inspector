@@ -42,10 +42,12 @@ function TestView({
   return null;
 }
 
-/** Lets queued tab state transitions and view updates finish. */
+/**
+Lets queued tab state transitions and view updates finish.
+ */
 async function settle(): Promise<void> {
   await act(async () => {
-    for (let i = 0; i < 12; i += 1) await Promise.resolve();
+    for (let index = 0; index < 12; index += 1) await Promise.resolve();
   });
 }
 

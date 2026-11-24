@@ -95,7 +95,9 @@ const DEPRECATED_CALLBACKS: readonly DeprecatedItem[] = DEPRECATED_CALLBACK_KEYS
   ...DEPRECATED_CALLBACK_GUIDANCE[key],
 }));
 
-/** Non-deprecated fields used as evidence that checkout config was captured. */
+/**
+Non-deprecated fields used as evidence that checkout config was captured.
+ */
 const KNOWN_FIELDS: readonly ConfigKey[] = [
   ...STRING_OPTION_KEYS,
   'riskEnabled',

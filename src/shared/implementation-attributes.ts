@@ -40,8 +40,7 @@ type Attribute<K extends keyof ImplementationAttributes> = ImplementationAttribu
 function detectEnvironmentFromClientKey(clientKey: string | undefined): AdyenEnvironment | null {
   if (clientKey === undefined || clientKey === '') return null;
   if (clientKey.startsWith(CLIENT_KEY_TEST_PREFIX)) return 'test';
-  if (clientKey.startsWith(CLIENT_KEY_LIVE_PREFIX)) return 'live';
-  return null;
+  return clientKey.startsWith(CLIENT_KEY_LIVE_PREFIX) ? 'live' : null;
 }
 
 function detectEnvironmentFromConfig(environment: string): AdyenEnvironment | null {
@@ -53,7 +52,9 @@ function detectRegionFromConfig(environment: string): AdyenRegion | null {
   return region === 'unknown' ? null : region;
 }
 
-/** Resolves the first observation that yields a value, strongest source first. */
+/**
+Resolves the first observation that yields a value, strongest source first.
+ */
 function firstResolved<V, R>(
   observations: readonly { readonly value: V }[],
   resolve: (value: V) => R | null
@@ -65,11 +66,17 @@ function firstResolved<V, R>(
   return null;
 }
 
-/** Captured traffic read as Adyen endpoints, split by what it can tell about the integration. */
+/**
+Captured traffic read as Adyen endpoints, split by what it can tell about the integration.
+ */
 interface EndpointTraffic {
-  /** CDN and checkoutshopper hosts, which reflect asset delivery. */
+  /**
+  CDN and checkoutshopper hosts, which reflect asset delivery.
+   */
   readonly assets: readonly AdyenEndpoint[];
-  /** Checkout API calls and analytics, which reflect the configured environment. */
+  /**
+  Checkout API calls and analytics, which reflect the configured environment.
+   */
   readonly config: readonly AdyenEndpoint[];
 }
 
@@ -96,7 +103,9 @@ function firstOf<T>(
   return null;
 }
 
-/** Priority: checkout config, then client key, then network traffic. */
+/**
+Priority: checkout config, then client key, then network traffic.
+ */
 function resolveEnvironment(
   payload: ScanPayload,
   traffic: EndpointTraffic
@@ -118,11 +127,14 @@ function resolveEnvironment(
   const fromKey = firstResolved(clientKeys, detectEnvironmentFromClientKey);
   if (fromKey !== null) return { value: fromKey, source: 'client-key', ...signals };
 
-  if (network !== null) return { value: network, source: 'network', ...signals };
-  return { value: null, source: 'unknown', ...signals };
+  return network === null
+    ? { value: null, source: 'unknown', ...signals }
+    : { value: network, source: 'network', ...signals };
 }
 
-/** Checkout config first, then the region Checkout API and analytics hosts serve. */
+/**
+Checkout config first, then the region Checkout API and analytics hosts serve.
+ */
 function resolveRegion(payload: ScanPayload, traffic: EndpointTraffic): Attribute<'region'> {
   const cdn = firstOf(traffic.assets, (endpoint) => endpoint.namedRegion) ?? 'unknown';
   const fromConfig = firstResolved(
@@ -132,18 +144,23 @@ function resolveRegion(payload: ScanPayload, traffic: EndpointTraffic): Attribut
   if (fromConfig !== null) return { value: fromConfig, source: 'config', cdn };
 
   const fromRequests = firstOf(traffic.config, servedRegion);
-  if (fromRequests !== null) return { value: fromRequests, source: 'network', cdn };
-  return { value: 'unknown', source: 'unknown', cdn };
+  return fromRequests === null
+    ? { value: 'unknown', source: 'unknown', cdn }
+    : { value: fromRequests, source: 'network', cdn };
 }
 
-/** Classifies visible Adyen-hosted script origins; other import methods remain unknown. */
+/**
+Classifies visible Adyen-hosted script origins; other import methods remain unknown.
+ */
 function detectImportMethod(scripts: ScanPayload['page']['scripts']): Attribute<'importMethod'> {
   const endpoints = scripts.map((script) => readAdyenEndpoint(script.src));
   if (endpoints.some((endpoint) => endpoint?.role === 'cdn')) return 'CDN';
   return endpoints.some((endpoint) => endpoint !== null) ? 'Adyen' : 'Unknown';
 }
 
-/** A session object, analytics session ID, or Sessions request indicates Sessions; config alone indicates Advanced. */
+/**
+A session object, analytics session ID, or Sessions request indicates Sessions; config alone indicates Advanced.
+ */
 function resolveIntegrationFlow(payload: ScanPayload): Attribute<'flow'> {
   // A session object only counts in captured or mounted options: any page JSON can carry one.
   const session = readCheckoutField(payload, 'hasSession', { includeInferred: false });
@@ -160,7 +177,9 @@ function resolveIntegrationFlow(payload: ScanPayload): Attribute<'flow'> {
   return { value: signals.hasCheckoutConfig ? 'advanced' : 'unknown', signals };
 }
 
-/** Flavor from analytics, then Drop-in URL patterns and DOM, then captured or request-inferred config. */
+/**
+Flavor from analytics, then Drop-in URL patterns and DOM, then captured or request-inferred config.
+ */
 function resolveIntegrationFlavor(
   payload: ScanPayload,
   checkoutActivity: boolean
@@ -188,23 +207,25 @@ function resolveIntegrationFlavor(
     return { value: 'Components', source: 'checkout-config' };
   }
 
-  if (detectSdkPresence(payload.page).detected && !checkoutActivity) {
-    return { value: 'Unknown', source: 'sdk-loaded-no-checkout' };
-  }
-
-  return { value: 'Unknown', source: 'unknown' };
+  return {
+    value: 'Unknown',
+    source:
+      detectSdkPresence(payload.page).detected && !checkoutActivity
+        ? 'sdk-loaded-no-checkout'
+        : 'unknown',
+  };
 }
 
 function deriveImplementationAttributes(payload: ScanPayload): ImplementationAttributes {
-  const checkoutActivity = hasCheckoutActivity(payload);
+  const isCheckoutActivity = hasCheckoutActivity(payload);
   const traffic = readEndpointTraffic(payload);
   return {
-    flavor: resolveIntegrationFlavor(payload, checkoutActivity),
+    flavor: resolveIntegrationFlavor(payload, isCheckoutActivity),
     flow: resolveIntegrationFlow(payload),
     environment: resolveEnvironment(payload, traffic),
     region: resolveRegion(payload, traffic),
     importMethod: detectImportMethod(payload.page.scripts),
-    checkoutActivity,
+    checkoutActivity: isCheckoutActivity,
   };
 }
 

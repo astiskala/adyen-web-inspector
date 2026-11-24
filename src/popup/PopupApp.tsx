@@ -30,17 +30,20 @@ type PopupView =
   | { readonly state: 'version-outdated'; readonly version: string }
   | { readonly state: 'result'; readonly result: ScanResult };
 
-/** Resolves the view for a tab without a scan result from the detector's checkout activity. */
+/**
+Resolves the view for a tab without a scan result from the detector's checkout activity.
+ */
 function getIdleView({ detected, version }: CheckoutActivity): PopupView {
   if (!detected) return { state: 'not-detected' };
   const major = parseVersion(version ?? '')?.major;
-  if (version !== undefined && major !== undefined && major < MIN_SUPPORTED_MAJOR_VERSION) {
-    return { state: 'version-outdated', version };
-  }
-  return { state: 'ready' };
+  return version !== undefined && major !== undefined && major < MIN_SUPPORTED_MAJOR_VERSION
+    ? { state: 'version-outdated', version }
+    : { state: 'ready' };
 }
 
-/** A scan that found no SDK offers another attempt, like a page where none was detected. */
+/**
+A scan that found no SDK offers another attempt, like a page where none was detected.
+ */
 function getPopupView(session: ReturnType<typeof useScanLifecycle>): PopupView {
   const { loading, error, result, checkoutActivity } = session;
   if (loading && result === null) return { state: 'loading' };

@@ -27,7 +27,9 @@ function scoredResult(score: number, tier: ScanResult['health']['tier']): ScanRe
   });
 }
 
-/** Scan states of the snapshots published so far, in order. */
+/**
+Scan states of the snapshots published so far, in order.
+ */
 function publishedScans(): string[] {
   return browser.messages.map((message) => message.snapshot.scan.state);
 }
@@ -36,9 +38,11 @@ function lastPublished(): TabSnapshot | undefined {
   return browser.messages.at(-1)?.snapshot;
 }
 
-/** Lets queued transitions and the settled Scan finish. */
+/**
+Lets queued transitions and the settled Scan finish.
+ */
 async function settle(): Promise<void> {
-  for (let i = 0; i < 10; i += 1) await Promise.resolve();
+  for (let index = 0; index < 10; index += 1) await Promise.resolve();
 }
 
 beforeEach(() => {

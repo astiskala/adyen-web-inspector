@@ -8,7 +8,9 @@ const SDK_URL = 'https://checkoutshopper-live.cdn.adyen.com/checkoutshopper/sdk/
 
 let sendMessage: ReturnType<typeof vi.fn>;
 
-/** Lets mutation callbacks run, then advances the virtual clock. */
+/**
+Lets mutation callbacks run, then advances the virtual clock.
+ */
 async function advance(ms: number): Promise<void> {
   await Promise.resolve();
   await vi.advanceTimersByTimeAsync(ms);
@@ -24,7 +26,9 @@ function append(markup: string): void {
   document.body.append(template.content);
 }
 
-/** Mounts and then removes a checkout, navigating after each change instead of waiting out the debounce. */
+/**
+Mounts and then removes a checkout, navigating after each change instead of waiting out the debounce.
+ */
 async function detect(navigate: () => void): Promise<void> {
   append('<div class="adyen-checkout__dropin"></div>');
   await Promise.resolve();

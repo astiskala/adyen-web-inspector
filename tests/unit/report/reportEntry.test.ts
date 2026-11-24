@@ -7,7 +7,9 @@ const TOKEN = 'report-token';
 let session: { get: ReturnType<typeof vi.fn>; remove: ReturnType<typeof vi.fn> };
 let print: ReturnType<typeof vi.fn>;
 
-/** Opens the report page for a token (or none) and waits for it to finish loading. */
+/**
+Opens the report page for a token (or none) and waits for it to finish loading.
+ */
 async function openReport(token: string | null): Promise<void> {
   const query = token === null ? '' : `?${PDF_REPORT_TOKEN_PARAM}=${token}`;
   history.replaceState(null, '', `/report/report.html${query}`);

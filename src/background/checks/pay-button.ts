@@ -13,10 +13,14 @@
 import { readCheckoutField } from '../../shared/scan-evidence.js';
 import type { ScanPayload } from '../../shared/types.js';
 
-/** Payment methods that need the pay button their component renders. */
+/**
+Payment methods that need the pay button their component renders.
+ */
 type ButtonRequiredMethod = 'paypal' | 'klarna' | 'clicktopay';
 
-/** What hides a method's pay button. */
+/**
+What hides a method's pay button.
+ */
 export type HiddenBy = 'rendered' | 'method-config' | 'checkout-config';
 
 interface HiddenPayButton {
@@ -25,9 +29,13 @@ interface HiddenPayButton {
 }
 
 interface PayButtonVisibility {
-  /** Methods that would render without their own pay button, one entry per method. */
+  /**
+  Methods that would render without their own pay button, one entry per method.
+   */
   readonly hidden: readonly HiddenPayButton[];
-  /** True when components reported the showPayButton they rendered with. */
+  /**
+  True when components reported the showPayButton they rendered with.
+   */
   readonly reported: boolean;
 }
 
@@ -39,19 +47,23 @@ function buttonRequiredMethod(type: string): ButtonRequiredMethod | null {
   return type.startsWith('klarna') ? 'klarna' : null;
 }
 
-/** Drop-in configures the Card component under `card`; it renders as `scheme`. */
+/**
+Drop-in configures the Card component under `card`; it renders as `scheme`.
+ */
 function configKeys(type: string): readonly string[] {
   return type === 'scheme' ? ['scheme', 'card'] : [type];
 }
 
-/** Reads which button-required payment methods would render without their own pay button. */
+/**
+Reads which button-required payment methods would render without their own pay button.
+ */
 export function readPayButtonVisibility(payload: ScanPayload): PayButtonVisibility {
   const events = payload.page.analyticsEvents ?? NO_EVENTS;
   const rendered = new Map(events.rendered.map((component) => [component.type, component]));
   const methodConfig = readCheckoutField(payload, 'hiddenPayButtonMethods', CAPTURED_ONLY);
   const configuredHidden = methodConfig.state === 'present' ? methodConfig.value : [];
   const checkoutConfig = readCheckoutField(payload, 'showPayButton', CAPTURED_ONLY);
-  const hiddenEverywhere = checkoutConfig.state === 'present' && !checkoutConfig.value;
+  const isHiddenEverywhere = checkoutConfig.state === 'present' && !checkoutConfig.value;
 
   function hiddenBy(type: string): HiddenBy | null {
     const component = rendered.get(type);
@@ -60,7 +72,7 @@ export function readPayButtonVisibility(payload: ScanPayload): PayButtonVisibili
     if (type === 'clicktopay') {
       return rendered.get('scheme')?.clickToPayDisabled === true ? null : hiddenBy('scheme');
     }
-    return hiddenEverywhere && events.paymentMethods.includes(type) ? 'checkout-config' : null;
+    return isHiddenEverywhere && events.paymentMethods.includes(type) ? 'checkout-config' : null;
   }
 
   const hidden = new Map<ButtonRequiredMethod, HiddenBy>();

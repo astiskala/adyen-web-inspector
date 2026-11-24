@@ -793,7 +793,7 @@ describe('callback-custom-pay-button-compatibility', () => {
     return makeScanPayload({
       page: makeCheckoutPage({
         capturedConfig: makeCapturedConfig(makeCheckoutConfig(config), true),
-        ...(events === null ? {} : { analyticsEvents: { ...NO_EVENTS, ...events } }),
+        ...(events !== null && { analyticsEvents: { ...NO_EVENTS, ...events } }),
       }),
     });
   }

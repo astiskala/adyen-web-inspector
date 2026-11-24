@@ -23,9 +23,10 @@ export function parseVersion(version: string): ParsedVersion | null {
   };
 }
 
-/** Returns positive if a > b, negative if a < b, 0 if equal. */
+/**
+Returns positive if a > b, negative if a < b, 0 if equal.
+ */
 export function compareVersions(a: ParsedVersion, b: ParsedVersion): number {
   if (a.major !== b.major) return a.major - b.major;
-  if (a.minor !== b.minor) return a.minor - b.minor;
-  return a.patch - b.patch;
+  return a.minor === b.minor ? a.patch - b.patch : a.minor - b.minor;
 }

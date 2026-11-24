@@ -88,17 +88,16 @@ const BUNDLE_AUTO_DOCS = {
 const CATEGORY = 'sdk-identity' as const;
 
 export const SDK_IDENTITY_CHECKS = createRegistry(CATEGORY)
-  .add('sdk-detected', (payload, { info, fail }) => {
-    if (detectSdkPresence(payload.page).detected) {
-      return info(STRINGS.DETECTED_INFO_TITLE);
-    }
-    return fail(
-      STRINGS.DETECTED_FAIL_TITLE,
-      STRINGS.DETECTED_FAIL_DETAIL,
-      STRINGS.DETECTED_FAIL_REMEDIATION,
-      STRINGS.DETECTED_FAIL_URL
-    );
-  })
+  .add('sdk-detected', (payload, { info, fail }) =>
+    detectSdkPresence(payload.page).detected
+      ? info(STRINGS.DETECTED_INFO_TITLE)
+      : fail(
+          STRINGS.DETECTED_FAIL_TITLE,
+          STRINGS.DETECTED_FAIL_DETAIL,
+          STRINGS.DETECTED_FAIL_REMEDIATION,
+          STRINGS.DETECTED_FAIL_URL
+        )
+  )
   .add('sdk-flavor', (_payload, { attributes, info }) => {
     const { value: flavor, source } = attributes.flavor;
 
@@ -118,11 +117,9 @@ export const SDK_IDENTITY_CHECKS = createRegistry(CATEGORY)
       return info(`Integration flavor: ${flavor}.`, STRINGS.FLAVOR_CONFIG_DETAIL);
     }
 
-    if (source === 'sdk-loaded-no-checkout') {
-      return info(STRINGS.FLAVOR_NO_CHECKOUT_TITLE, STRINGS.FLAVOR_NO_CHECKOUT_DETAIL);
-    }
-
-    return info(`Integration flavor: ${flavor}.`, STRINGS.FLAVOR_UNKNOWN_DETAIL);
+    return source === 'sdk-loaded-no-checkout'
+      ? info(STRINGS.FLAVOR_NO_CHECKOUT_TITLE, STRINGS.FLAVOR_NO_CHECKOUT_DETAIL)
+      : info(`Integration flavor: ${flavor}.`, STRINGS.FLAVOR_UNKNOWN_DETAIL);
   })
   .add('sdk-import-method', (_payload, { attributes, info }) => {
     const method = attributes.importMethod;
@@ -181,16 +178,14 @@ export const SDK_IDENTITY_CHECKS = createRegistry(CATEGORY)
     if (analytics.state === 'present' && analytics.source === 'inferred') {
       return skip(STRINGS.ANALYTICS_SKIP_TITLE, STRINGS.ANALYTICS_INFERRED_SKIP_REASON);
     }
-    if (analytics.state === 'present' && !analytics.value) {
-      return warn(
-        STRINGS.ANALYTICS_WARN_TITLE,
-        STRINGS.ANALYTICS_WARN_DETAIL,
-        STRINGS.ANALYTICS_WARN_REMEDIATION,
-        STRINGS.ANALYTICS_WARN_URL
-      );
-    }
-
-    return pass(STRINGS.ANALYTICS_PASS_TITLE, STRINGS.ANALYTICS_PASS_DETAIL);
+    return analytics.state === 'present' && !analytics.value
+      ? warn(
+          STRINGS.ANALYTICS_WARN_TITLE,
+          STRINGS.ANALYTICS_WARN_DETAIL,
+          STRINGS.ANALYTICS_WARN_REMEDIATION,
+          STRINGS.ANALYTICS_WARN_URL
+        )
+      : pass(STRINGS.ANALYTICS_PASS_TITLE, STRINGS.ANALYTICS_PASS_DETAIL);
   })
   .add('sdk-multi-init', (payload, { pass, warn, skip }) => {
     const initCount = payload.page.checkoutInitCount ?? payload.page.componentMountCount;
@@ -198,16 +193,14 @@ export const SDK_IDENTITY_CHECKS = createRegistry(CATEGORY)
       return skip(STRINGS.MULTI_INIT_SKIP_TITLE, STRINGS.MULTI_INIT_SKIP_REASON);
     }
 
-    if (initCount > 1) {
-      return warn(
-        `${STRINGS.MULTI_INIT_WARN_TITLE} (count: ${initCount})`,
-        STRINGS.MULTI_INIT_WARN_DETAIL,
-        STRINGS.MULTI_INIT_WARN_REMEDIATION,
-        STRINGS.MULTI_INIT_WARN_URL
-      );
-    }
-
-    return pass(STRINGS.MULTI_INIT_PASS_TITLE);
+    return initCount > 1
+      ? warn(
+          `${STRINGS.MULTI_INIT_WARN_TITLE} (count: ${initCount})`,
+          STRINGS.MULTI_INIT_WARN_DETAIL,
+          STRINGS.MULTI_INIT_WARN_REMEDIATION,
+          STRINGS.MULTI_INIT_WARN_URL
+        )
+      : pass(STRINGS.MULTI_INIT_PASS_TITLE);
   })
   .getChecks();
 

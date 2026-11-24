@@ -5,7 +5,9 @@
 
 import type { TabStateBrowser } from './tab-state.js';
 
-/** Chrome adapter: badge and notification failures are ignored, because no UI may be listening. */
+/**
+Chrome adapter: badge and notification failures are ignored, because no UI may be listening.
+ */
 export const chromeTabStateBrowser: TabStateBrowser = {
   read: (keys) => chrome.storage.session.get([...keys]),
   write: (items) => chrome.storage.session.set({ ...items }),

@@ -36,7 +36,9 @@ type IssueOutcome = (
  * Context provided to check runners.
  */
 export interface CheckContext {
-  /** Implementation attributes of the scan, derived once and shared by every check. */
+  /**
+  Implementation attributes of the scan, derived once and shared by every check.
+   */
   readonly attributes: ImplementationAttributes;
   readonly pass: (title: string, detail?: string) => CheckOutcome;
   readonly fail: IssueOutcome;
@@ -55,8 +57,9 @@ interface CheckImpactPolicy {
 
 function outcomeImpact(severity: Severity, policy: CheckImpactPolicy): CheckImpact | undefined {
   if (severity === 'warn' && policy.warnImpact !== undefined) return policy.warnImpact;
-  if (severity === 'notice' && policy.noticeImpact !== undefined) return policy.noticeImpact;
-  return getDefaultImpact(severity);
+  return severity === 'notice' && policy.noticeImpact !== undefined
+    ? policy.noticeImpact
+    : getDefaultImpact(severity);
 }
 
 function buildOutcome(
@@ -69,9 +72,9 @@ function buildOutcome(
   return {
     severity,
     title,
-    ...(detail === undefined ? {} : { detail }),
-    ...(remediation === undefined ? {} : { remediation }),
-    ...(docsUrl === undefined ? {} : { docsUrl }),
+    ...(detail !== undefined && { detail }),
+    ...(remediation !== undefined && { remediation }),
+    ...(docsUrl !== undefined && { docsUrl }),
   };
 }
 
@@ -111,7 +114,7 @@ class CheckRegistry {
           ...outcome,
           id,
           category,
-          ...(impact === undefined ? {} : { impact }),
+          ...(impact !== undefined && { impact }),
         };
       },
     });
@@ -123,7 +126,9 @@ class CheckRegistry {
   }
 }
 
-/** Utility to create a category-scoped registry. */
+/**
+Utility to create a category-scoped registry.
+ */
 export function createRegistry(category: CheckCategory): CheckRegistry {
   return new CheckRegistry(category);
 }

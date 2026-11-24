@@ -30,7 +30,9 @@ function readScanStatus(value: unknown): TabScanStatus {
     : { state: 'idle' };
 }
 
-/** Reads a snapshot from a runtime message, tolerating a missing or malformed value. */
+/**
+Reads a snapshot from a runtime message, tolerating a missing or malformed value.
+ */
 function readSnapshot(value: unknown): TabSnapshot {
   if (!isRecord(value)) return EMPTY_TAB_SNAPSHOT;
   return {
@@ -40,7 +42,9 @@ function readSnapshot(value: unknown): TabSnapshot {
   };
 }
 
-/** Chrome adapter: the worker answers reads and publishes every tab state transition. */
+/**
+Chrome adapter: the worker answers reads and publishes every tab state transition.
+ */
 export const chromeTabStateClient: TabStateClient = {
   async read(tabId) {
     return readSnapshot(await chrome.runtime.sendMessage({ type: MSG_GET_TAB_STATE, tabId }));

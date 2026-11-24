@@ -1,7 +1,7 @@
 import type { JSX } from 'preact';
 import { EmptyState } from './EmptyState.js';
 
-interface ScanErrorProps {
+interface ScanErrorProperties {
   readonly onRetry: () => void;
   readonly scanning: boolean;
 }
@@ -9,7 +9,7 @@ interface ScanErrorProps {
 /**
  * Friendly error state shown when a scan fails, such as after a timeout.
  */
-export function ScanError({ onRetry, scanning }: ScanErrorProps): JSX.Element {
+export function ScanError({ onRetry, scanning }: ScanErrorProperties): JSX.Element {
   return (
     <EmptyState
       icon="⚠️"

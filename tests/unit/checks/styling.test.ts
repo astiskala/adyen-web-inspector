@@ -10,13 +10,13 @@ import {
 } from '../../fixtures/makeScanPayload';
 import { requireCheck } from './requireCheck';
 
-const cssCustomProps = requireCheck(STYLING_CHECKS, 'styling-css-custom-props');
+const cssCustomProperties = requireCheck(STYLING_CHECKS, 'styling-css-custom-props');
 
 describe('Styling Checks', () => {
   describe('styling-css-custom-props', () => {
     it('skips when no custom styling is detected', () => {
       const payload = makeAdyenPayload();
-      const result = cssCustomProps.run(payload);
+      const result = cssCustomProperties.run(payload);
       expect(result.severity).toBe('skip');
       expect(result.id).toBe('styling-css-custom-props');
     });
@@ -33,7 +33,7 @@ describe('Styling Checks', () => {
           },
         }),
       });
-      const result = cssCustomProps.run(payload);
+      const result = cssCustomProperties.run(payload);
       expect(result.severity).toBe('pass');
       expect(result.title).toContain('CSS custom properties');
       expect(result.title).toContain('3 rules');
@@ -49,7 +49,7 @@ describe('Styling Checks', () => {
           },
         }),
       });
-      const result = cssCustomProps.run(payload);
+      const result = cssCustomProperties.run(payload);
       expect(result.severity).toBe('pass');
       expect(result.title).toContain('1 rule found');
     });
@@ -66,7 +66,7 @@ describe('Styling Checks', () => {
           },
         }),
       });
-      const result = cssCustomProps.run(payload);
+      const result = cssCustomProperties.run(payload);
       expect(result.severity).toBe('notice');
       expect(result.detail).toContain('Examples:');
       expect(result.detail).toContain('.adyen-checkout__button');
@@ -84,7 +84,7 @@ describe('Styling Checks', () => {
           },
         }),
       });
-      const result = cssCustomProps.run(payload);
+      const result = cssCustomProperties.run(payload);
       expect(result.severity).toBe('notice');
       expect(result.detail).toContain('5 rules');
     });
@@ -99,7 +99,7 @@ describe('Styling Checks', () => {
           },
         }),
       });
-      const result = cssCustomProps.run(payload);
+      const result = cssCustomProperties.run(payload);
       expect(result.remediation).toContain('--adyen-sdk-*');
     });
 
@@ -113,7 +113,7 @@ describe('Styling Checks', () => {
           },
         }),
       });
-      const result = cssCustomProps.run(payload);
+      const result = cssCustomProperties.run(payload);
       expect(result.detail).toContain('1 rule overriding');
     });
 
@@ -133,7 +133,7 @@ describe('Styling Checks', () => {
           },
         }),
       });
-      const result = cssCustomProps.run(payload);
+      const result = cssCustomProperties.run(payload);
       expect(result.detail).toContain('12 rules overriding');
       expect(result.detail).toContain('.adyen-checkout__button');
       expect(result.detail).toContain('.adyen-checkout__input');
@@ -158,7 +158,7 @@ describe('Styling Checks', () => {
         }),
       });
 
-      const result = cssCustomProps.run(payload);
+      const result = cssCustomProperties.run(payload);
       expect(result.detail).toContain('.adyen-checkout__status--success');
       expect(result.detail).toContain('.adyen-checkout__status__icon');
       expect(result.detail).toContain('.adyen-checkout__status__text');
@@ -185,7 +185,7 @@ describe('Styling Checks', () => {
         }),
       });
 
-      const result = cssCustomProps.run(payload);
+      const result = cssCustomProperties.run(payload);
       expect(result.detail).toContain(
         'Examples: .adyen-checkout__status--success, .adyen-checkout__status--success .adyen-checkout__status__icon, .adyen-checkout__status--success .adyen-checkout__status__text.'
       );
@@ -209,7 +209,7 @@ function overridePayload(
 
 describe('styling override examples', () => {
   it('lists only the selectors in a group that target Adyen classes', () => {
-    const result = cssCustomProps.run(
+    const result = cssCustomProperties.run(
       overridePayload(2, ['body .page, .adyen-checkout__button:hover'])
     );
 
@@ -219,7 +219,7 @@ describe('styling override examples', () => {
   });
 
   it('omits the examples sentence when no selector could be sampled', () => {
-    const result = cssCustomProps.run(overridePayload(2, []));
+    const result = cssCustomProperties.run(overridePayload(2, []));
 
     expect(result.detail).not.toContain('Examples:');
     expect(result.detail).toContain('2 more selectors omitted.');

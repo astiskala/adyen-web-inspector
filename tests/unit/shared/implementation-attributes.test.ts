@@ -27,12 +27,12 @@ describe('environment and region', () => {
     ['live', { value: 'live', source: 'config' }, { value: 'EU', source: 'config' }],
     ['live-in', { value: 'live-in', source: 'config' }, { value: 'IN', source: 'config' }],
     ['staging', { value: null, source: 'unknown' }, { value: 'unknown', source: 'unknown' }],
-  ])('reads the configured environment %s', (environment, expectedEnv, expectedRegion) => {
-    const { environment: env, region } = readImplementationAttributes(
+  ])('reads the configured environment %s', (environment, expectedEnvironment, expectedRegion) => {
+    const { environment: environment_, region } = readImplementationAttributes(
       makeAdyenPayload({}, { environment, clientKey: 'pub.v2.ORIGIN' })
     );
 
-    expect(env).toMatchObject(expectedEnv);
+    expect(environment_).toMatchObject(expectedEnvironment);
     expect(region).toMatchObject(expectedRegion);
   });
 
@@ -85,12 +85,16 @@ describe('environment and region', () => {
     ['https://checkout-live-nea.adyenpayments.com/v71/sessions', 'live', 'NEA'],
     ['https://checkout-live-in-x.adyenpayments.com/v71/paymentMethods', 'live-in', 'IN'],
     ['https://pal-live.adyen.com/v71/payments/details', 'live', 'unknown'],
-  ])('reads the network environment from %s', (url, env, region) => {
+  ])('reads the network environment from %s', (url, environment, region) => {
     const attributes = readImplementationAttributes(
       makeScanPayload({ capturedRequests: [makeRequest(url)] })
     );
 
-    expect(attributes.environment).toMatchObject({ value: env, source: 'network', network: env });
+    expect(attributes.environment).toMatchObject({
+      value: environment,
+      source: 'network',
+      network: environment,
+    });
     expect(attributes.region.value).toBe(region);
   });
 
