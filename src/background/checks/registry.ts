@@ -7,11 +7,10 @@ import type {
   CheckCategory,
   CheckId,
   CheckImpact,
-  ImplementationAttributes,
+  ScanConclusions,
   ScanPayload,
   Severity,
 } from '../../shared/types.js';
-import { readImplementationAttributes } from '../../shared/implementation-attributes.js';
 import { getDefaultImpact } from '../../shared/results.js';
 
 /**
@@ -33,13 +32,9 @@ type IssueOutcome = (
 ) => CheckOutcome;
 
 /**
-Context provided to check runners.
+Context provided to check runners: the scan's conclusions and outcome helpers.
 */
-export interface CheckContext {
-  /**
-  Implementation attributes of the scan, derived once and shared by every check.
-  */
-  readonly attributes: ImplementationAttributes;
+export interface CheckContext extends ScanConclusions {
   readonly pass: (title: string, detail?: string) => CheckOutcome;
   readonly fail: IssueOutcome;
   readonly warn: IssueOutcome;
@@ -89,7 +84,7 @@ class CheckRegistry {
   add(id: CheckId, run: CheckRunner, policy: CheckImpactPolicy = {}): this {
     const category = this.category;
 
-    const helpers: Omit<CheckContext, 'attributes'> = {
+    const helpers: Omit<CheckContext, keyof ScanConclusions> = {
       pass: (title, detail) => buildOutcome('pass', title, detail),
       fail: (title, detail, remediation, documentationUrl) =>
         buildOutcome('fail', title, detail, remediation, documentationUrl),
@@ -104,11 +99,8 @@ class CheckRegistry {
     this.checks.push({
       id,
       category,
-      run: (payload) => {
-        const outcome = run(payload, {
-          ...helpers,
-          attributes: readImplementationAttributes(payload),
-        });
+      run: (payload, conclusions) => {
+        const outcome = run(payload, { ...helpers, ...conclusions });
         const impact = outcomeImpact(outcome.severity, policy);
         return {
           ...outcome,

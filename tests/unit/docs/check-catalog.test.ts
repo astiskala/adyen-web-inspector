@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ALL_CHECKS } from '../../../src/background/checks/index';
 import type { Severity } from '../../../src/shared/types';
+import { runCheck } from '../checks/requireCheck';
 import {
   makeAdyenPayload,
   makeCheckoutPage,
@@ -117,7 +118,7 @@ describe('check catalog documentation', () => {
     const lowIds = new Set(listIds(lowSection));
     for (const payload of [makeScanPayload(), makeAdyenPayload()]) {
       for (const check of ALL_CHECKS) {
-        const outcome = check.run(payload);
+        const outcome = runCheck(check, payload);
         if (outcome.severity === 'notice') {
           expect(lowIds.has(check.id), check.id).toBe(outcome.impact === 'low');
         }
@@ -173,7 +174,9 @@ describe('check catalog documentation', () => {
 
     for (const payload of payloads) {
       for (const check of ALL_CHECKS) {
-        expect(entries.get(check.id)?.possibleSeverities).toContain(check.run(payload).severity);
+        expect(entries.get(check.id)?.possibleSeverities).toContain(
+          runCheck(check, payload).severity
+        );
       }
     }
   });

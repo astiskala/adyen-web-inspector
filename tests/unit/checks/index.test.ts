@@ -6,7 +6,7 @@ import {
   makeCheckoutPage,
   makeScanPayload,
 } from '../../fixtures/makeScanPayload';
-import { requireCheck } from './requireCheck';
+import { requireCheck, runCheck } from './requireCheck';
 
 describe('ALL_CHECKS registry', () => {
   it('exports a non-empty array of checks', () => {
@@ -59,7 +59,7 @@ describe('ALL_CHECKS registry', () => {
     const payloads = [makeScanPayload(), makeAdyenPayload()];
     for (const payload of payloads) {
       for (const check of ALL_CHECKS) {
-        const result = check.run(payload);
+        const result = runCheck(check, payload);
         if (['fail', 'warn', 'notice'].includes(result.severity)) {
           expect(result.impact).toBe(getImpactLevel(result));
         } else {

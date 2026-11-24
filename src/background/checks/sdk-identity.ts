@@ -6,7 +6,6 @@ type, analytics, and initialisation count.
 import type { ImplementationAttributes } from '../../shared/types.js';
 import { isAdyenCheckoutResource } from '../../shared/adyen-endpoint.js';
 import { readCheckoutField } from '../../shared/scan-evidence.js';
-import { detectSdkPresence } from '../../shared/sdk-presence.js';
 import { documentationIntegration } from './constants.js';
 import { createRegistry } from './registry.js';
 
@@ -88,8 +87,8 @@ const BUNDLE_AUTO_DOCS = {
 const CATEGORY = 'sdk-identity' as const;
 
 export const SDK_IDENTITY_CHECKS = createRegistry(CATEGORY)
-  .add('sdk-detected', (payload, { info, fail }) =>
-    detectSdkPresence(payload.page).detected
+  .add('sdk-detected', (_payload, { sdkPresence, info, fail }) =>
+    sdkPresence.detected
       ? info(STRINGS.DETECTED_INFO_TITLE)
       : fail(
           STRINGS.DETECTED_FAIL_TITLE,
@@ -166,8 +165,8 @@ export const SDK_IDENTITY_CHECKS = createRegistry(CATEGORY)
     },
     { noticeImpact: 'low' }
   )
-  .add('sdk-analytics', (payload, { attributes, skip, warn, pass }) => {
-    if (!detectSdkPresence(payload.page).detected || !attributes.checkoutActivity) {
+  .add('sdk-analytics', (payload, { sdkPresence, attributes, skip, warn, pass }) => {
+    if (!sdkPresence.detected || !attributes.checkoutActivity) {
       return skip(STRINGS.ANALYTICS_SKIP_TITLE, STRINGS.ANALYTICS_SKIP_REASON);
     }
 

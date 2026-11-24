@@ -1,8 +1,11 @@
 /**
-Check registry — exports all check modules.
+Check registry — every registered check, and the one way to run checks:
+the Scan's conclusions are drawn once from the payload and shared by all.
 */
 
-import type { Check } from '../../shared/types.js';
+import { readImplementationAttributes } from '../../shared/implementation-attributes.js';
+import { detectSdkPresence } from '../../shared/sdk-presence.js';
+import type { Check, CheckResult, ScanConclusions, ScanPayload } from '../../shared/types.js';
 import { SDK_IDENTITY_CHECKS } from './sdk-identity.js';
 import { SDK_VERSION_CHECKS } from './sdk-version.js';
 import { ENVIRONMENT_CHECKS } from './environment.js';
@@ -28,3 +31,20 @@ export const ALL_CHECKS: Check[] = [
   ...STYLING_CHECKS,
   ...V6_DEPRECATION_CHECKS,
 ];
+
+interface CheckRun {
+  readonly conclusions: ScanConclusions;
+  readonly results: CheckResult[];
+}
+
+/**
+Concludes SDK presence and the implementation attributes from the payload
+once, then runs each check with that same record.
+*/
+export function runChecks(payload: ScanPayload, checks: readonly Check[]): CheckRun {
+  const conclusions: ScanConclusions = {
+    sdkPresence: detectSdkPresence(payload.page),
+    attributes: readImplementationAttributes(payload),
+  };
+  return { conclusions, results: checks.map((check) => check.run(payload, conclusions)) };
+}

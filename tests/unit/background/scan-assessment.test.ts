@@ -114,4 +114,17 @@ describe('assessScan', () => {
     expect(result.health.total).toBeGreaterThan(0);
     expect(result.standardCompliance).toEqual({ compliant: true, reasons: [] });
   });
+
+  it('runs every check with the conclusions it stores on the result', async () => {
+    const runs = ALL_CHECKS.map((check) => vi.spyOn(check, 'run'));
+
+    const result = await assessScan(makeEvidence(), vi.fn());
+
+    for (const run of runs) {
+      const [, conclusions] = run.mock.calls[0] ?? [];
+      expect(conclusions?.attributes).toBe(result.attributes);
+      expect(conclusions?.sdkPresence).toBe(result.sdkPresence);
+    }
+    vi.restoreAllMocks();
+  });
 });

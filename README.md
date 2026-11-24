@@ -88,7 +88,7 @@ Contributor workflow and coding conventions: [CONTRIBUTING.md](CONTRIBUTING.md)
 - `src/shared/checkout-config-schema.ts`: the single mapping from raw Adyen Web options to checkout configuration fields.
 - `src/shared/scan-evidence.ts`: checkout configuration evidence (present, absent, or unobserved per field).
 - `src/shared/sdk-version.ts`: SDK version signals, their precedence, and the release-date lookup.
-- `src/shared/implementation-attributes.ts`: integration flavor, flow, environment, region, and import method, derived once per scan.
+- `src/shared/implementation-attributes.ts`: integration flavor, flow, environment, region, and import method; the scan assessment derives them once per scan.
 - `src/shared/export-report.ts`: the finding projection every view and report renders.
 - `src/popup/*`: compact summary UI.
 - `src/devtools/*`: full analysis panel UI.

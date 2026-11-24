@@ -1,12 +1,10 @@
 import type { CheckoutPage, ScanPayload, ScanResult } from '../shared/types.js';
 import { calculateHealthScore } from '../shared/utilities.js';
-import { readImplementationAttributes } from '../shared/implementation-attributes.js';
 import { withRequestDerivedLocale } from '../shared/scan-evidence.js';
-import { detectSdkPresence } from '../shared/sdk-presence.js';
 import { resolveVersionInfo } from '../shared/sdk-version.js';
 import { computeStandardCompliance } from '../shared/standard-compliance.js';
 import type { CapturedTraffic } from './captured-traffic.js';
-import { ALL_CHECKS } from './checks/index.js';
+import { ALL_CHECKS, runChecks } from './checks/index.js';
 
 interface ScanEvidence {
   readonly tabId: number;
@@ -51,18 +49,16 @@ export async function assessScan(
     analyticsData,
     scannedAt,
   };
-  const attributes = readImplementationAttributes(payload);
-  const checks = ALL_CHECKS.map((check) => check.run(payload));
+  const { conclusions, results: checks } = runChecks(payload, ALL_CHECKS);
 
   return {
     tabId,
     pageUrl: payload.pageUrl,
     scannedAt: payload.scannedAt,
-    sdkPresence: detectSdkPresence(payload.page),
-    attributes,
+    ...conclusions,
     checks,
     health: calculateHealthScore(checks),
-    standardCompliance: computeStandardCompliance(versionInfo.detected, attributes),
+    standardCompliance: computeStandardCompliance(versionInfo.detected, conclusions.attributes),
     payload,
   };
 }

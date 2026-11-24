@@ -1,8 +1,9 @@
 /**
 Implementation attributes — how the inspected integration is built: its
 integration flavor and flow, environment and region, import method, and
-checkout activity, each with the signal it came from. The rules live here
-and run once per scan payload; everything else reads the resulting record.
+checkout activity, each with the signal it came from. The rules live here;
+the scan assessment runs them once per scan payload, and everything else
+reads the resulting record.
 */
 
 import {
@@ -215,7 +216,10 @@ function resolveIntegrationFlavor(
   };
 }
 
-function deriveImplementationAttributes(payload: ScanPayload): ImplementationAttributes {
+/**
+Derives the implementation attributes of a scan payload.
+*/
+export function readImplementationAttributes(payload: ScanPayload): ImplementationAttributes {
   const isCheckoutActivity = hasCheckoutActivity(payload);
   const traffic = readEndpointTraffic(payload);
   return {
@@ -226,20 +230,4 @@ function deriveImplementationAttributes(payload: ScanPayload): ImplementationAtt
     importMethod: detectImportMethod(payload.page.scripts),
     checkoutActivity: isCheckoutActivity,
   };
-}
-
-const derived = new WeakMap<ScanPayload, ImplementationAttributes>();
-
-/**
-Returns the implementation attributes of a scan payload. They are derived
-on first read and shared by every later reader of the same payload, so the
-checks, the assessment, and the stored scan result see one record.
-*/
-export function readImplementationAttributes(payload: ScanPayload): ImplementationAttributes {
-  let attributes = derived.get(payload);
-  if (attributes === undefined) {
-    attributes = deriveImplementationAttributes(payload);
-    derived.set(payload, attributes);
-  }
-  return attributes;
 }

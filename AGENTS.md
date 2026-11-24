@@ -102,38 +102,39 @@ Allowed types: `feat`, `fix`, `chore`, `docs`, `style`, `refactor`, `test`, `ci`
 
 ### Key Runtime Components
 
-| Component                 | Entry                                             | Role                                                      |
-| ------------------------- | ------------------------------------------------- | --------------------------------------------------------- |
-| Background service worker | `src/background/worker.ts`                        | Routes messages and tab events to the tab state           |
-| Tab state                 | `src/background/tab-state.ts`                     | Per-tab storage keys, badge, Scan lifecycle, snapshots    |
-| Chrome tab state adapter  | `src/background/chrome-tab-state-browser.ts`      | Chrome adapter for the tab state port                     |
-| Scan orchestrator         | `src/background/scan-orchestrator.ts`             | Scan sequencing and retries through the browser port      |
-| Frame merge               | `src/background/frame-merge.ts`                   | Frame extractions → Checkout page, per-field scope        |
-| Captured traffic          | `src/background/captured-traffic.ts`              | Raw network → document headers, requests, analytics       |
-| Scan browser port         | `src/background/scan-browser.ts`                  | Port types the Scan needs from the browser                |
-| Chrome scan adapter       | `src/background/chrome-scan-browser.ts`           | Chrome adapter for the port; document and script fetches  |
-| Network recorder          | `src/background/network-recorder.ts`              | Records raw responses and analytics bodies during scans   |
-| Check modules             | `src/background/checks/`                          | Pure `Check` implementations                              |
-| Page policy               | `src/background/checks/page-policy.ts`            | Document header evidence and the enforced CSP for checks  |
-| Callback source           | `src/background/checks/callback-source.ts`        | Reads captured onSubmit/beforeSubmit source for checks    |
-| Pay button visibility     | `src/background/checks/pay-button.ts`             | Which button-required methods render without their button |
-| Config interceptor        | `src/content/config-interceptor.ts`               | MAIN-world SDK config capture (CDN + NPM)                 |
-| Content script            | `src/content/detector.ts`                         | Lightweight always-on checkout activity signal            |
-| Page extractor            | `src/content/page-extractor.ts`                   | MAIN-world extraction of page globals/config              |
-| Popup                     | `src/popup/Popup.tsx` → `PopupApp.tsx`            | Quick health summary + scan trigger                       |
-| Scan lifecycle hook       | `src/popup/components/useScanLifecycle.ts`        | Renders a tab snapshot through the tab state client       |
-| Chrome tab state client   | `src/popup/components/chrome-tab-state-client.ts` | Chrome adapter for the client: runtime messages           |
-| DevTools panel            | `src/devtools/panel/`                             | Full inspection UI                                        |
-| Shared contracts          | `src/shared/types.ts`                             | Core interfaces and types used across layers              |
-| Adyen endpoint            | `src/shared/adyen-endpoint.ts`                    | What an Adyen URL means: role, environment, region        |
-| Capture record            | `src/shared/checkout-capture.ts`                  | How the interceptor accumulates captures in a frame       |
-| Config field schema       | `src/shared/checkout-config-schema.ts`            | Raw options → `CheckoutConfig` for all captures           |
-| Configuration evidence    | `src/shared/scan-evidence.ts`                     | Present / absent / unobserved per config field            |
-| Checkout signals          | `src/shared/checkout-signals.ts`                  | Checkout DOM, frame strength, checkout activity           |
-| SDK presence              | `src/shared/sdk-presence.ts`                      | SDK presence verdict stored on `ScanResult`               |
-| SDK version               | `src/shared/sdk-version.ts`                       | Version signals, URL/bundle patterns, release dates       |
-| Implementation attributes | `src/shared/implementation-attributes.ts`         | Flavor, flow, environment, region; once per scan          |
-| Finding projection        | `src/shared/export-report.ts`                     | Issue rows for popup, panel, and reports                  |
+| Component                 | Entry                                             | Role                                                             |
+| ------------------------- | ------------------------------------------------- | ---------------------------------------------------------------- |
+| Background service worker | `src/background/worker.ts`                        | Routes messages and tab events to the tab state                  |
+| Tab state                 | `src/background/tab-state.ts`                     | Per-tab storage keys, badge, Scan lifecycle, snapshots           |
+| Chrome tab state adapter  | `src/background/chrome-tab-state-browser.ts`      | Chrome adapter for the tab state port                            |
+| Scan orchestrator         | `src/background/scan-orchestrator.ts`             | Scan sequencing and retries through the browser port             |
+| Scan assessment           | `src/background/scan-assessment.ts`               | Builds the scan payload; checks, health, and Standard assessment |
+| Frame merge               | `src/background/frame-merge.ts`                   | Frame extractions → Checkout page, per-field scope               |
+| Captured traffic          | `src/background/captured-traffic.ts`              | Raw network → document headers, requests, analytics              |
+| Scan browser port         | `src/background/scan-browser.ts`                  | Port types the Scan needs from the browser                       |
+| Chrome scan adapter       | `src/background/chrome-scan-browser.ts`           | Chrome adapter for the port; document and script fetches         |
+| Network recorder          | `src/background/network-recorder.ts`              | Records raw responses and analytics bodies during scans          |
+| Check modules             | `src/background/checks/`                          | Pure `Check` implementations                                     |
+| Page policy               | `src/background/checks/page-policy.ts`            | Document header evidence and the enforced CSP for checks         |
+| Callback source           | `src/background/checks/callback-source.ts`        | Reads captured onSubmit/beforeSubmit source for checks           |
+| Pay button visibility     | `src/background/checks/pay-button.ts`             | Which button-required methods render without their button        |
+| Config interceptor        | `src/content/config-interceptor.ts`               | MAIN-world SDK config capture (CDN + NPM)                        |
+| Content script            | `src/content/detector.ts`                         | Lightweight always-on checkout activity signal                   |
+| Page extractor            | `src/content/page-extractor.ts`                   | MAIN-world extraction of page globals/config                     |
+| Popup                     | `src/popup/Popup.tsx` → `PopupApp.tsx`            | Quick health summary + scan trigger                              |
+| Scan lifecycle hook       | `src/popup/components/useScanLifecycle.ts`        | Renders a tab snapshot through the tab state client              |
+| Chrome tab state client   | `src/popup/components/chrome-tab-state-client.ts` | Chrome adapter for the client: runtime messages                  |
+| DevTools panel            | `src/devtools/panel/`                             | Full inspection UI                                               |
+| Shared contracts          | `src/shared/types.ts`                             | Core interfaces and types used across layers                     |
+| Adyen endpoint            | `src/shared/adyen-endpoint.ts`                    | What an Adyen URL means: role, environment, region               |
+| Capture record            | `src/shared/checkout-capture.ts`                  | How the interceptor accumulates captures in a frame              |
+| Config field schema       | `src/shared/checkout-config-schema.ts`            | Raw options → `CheckoutConfig` for all captures                  |
+| Configuration evidence    | `src/shared/scan-evidence.ts`                     | Present / absent / unobserved per config field                   |
+| Checkout signals          | `src/shared/checkout-signals.ts`                  | Checkout DOM, frame strength, checkout activity                  |
+| SDK presence              | `src/shared/sdk-presence.ts`                      | SDK presence verdict stored on `ScanResult`                      |
+| SDK version               | `src/shared/sdk-version.ts`                       | Version signals, URL/bundle patterns, release dates              |
+| Implementation attributes | `src/shared/implementation-attributes.ts`         | Flavor, flow, environment, region; once per scan                 |
+| Finding projection        | `src/shared/export-report.ts`                     | Issue rows for popup, panel, and reports                         |
 
 ### Key Seams
 
@@ -150,8 +151,9 @@ Each seam names the gate that enforces it.
 - **Tab state**: `createTabState(browser, scan)` in `src/background/tab-state.ts` owns the per-tab storage keys, the badge, one Scan per page, and discarding a Scan when its tab navigates. Every transition publishes the tab's whole `TabSnapshot` (result, checkout activity, and scan status: idle, running, or failed) as `MSG_TAB_STATE_CHANGED`. It reaches Chrome through `TabStateBrowser`; production passes `chromeTabStateBrowser`, tests use `createFakeTabStateBrowser()` from `tests/fixtures/fakeTabStateBrowser.ts`. _depcruise_ `tab-state-through-port`, `chrome-adapter-wired-by-worker`; _ESLint_: the tab state may not use `chrome`, `fetch`, `setTimeout`, or `Date.now`, and popup, DevTools, and the worker may not import the `STORAGE_*` key prefixes.
 - **Tab state client**: the popup and DevTools render a tab through `useScanLifecycle(target, client)`, which reads and follows the tab's snapshots through a `TabStateClient`, never `chrome.storage` or raw runtime messages. The popup and panel roots pass `chromeTabStateClient`; tests connect the real tab state with `connectTabStateClient()` from `tests/fixtures/inMemoryTabStateClient.ts`. _depcruise_ `tab-state-client-wired-by-views`; _ESLint_: the hook may not use `chrome`.
 - **SDK version**: `resolveVersionInfo()` in `src/shared/sdk-version.ts` owns version precedence, the Adyen URL and bundle patterns, and the release-date lookup, and records the signal in `VersionInfo.source`. The detector reads versions with `findSdkVersionInUrls()` from the same module. _Tests_: `tests/unit/shared/sdk-version.test.ts` drives every signal through `resolveVersionInfo()`, with bundle text served in memory.
-- **Implementation attributes**: `readImplementationAttributes(payload)` derives flavor, flow, environment, region, import method, and checkout activity once per payload. Checks read them from the runner context (`(payload, { attributes }) => …`); views and reports read `ScanResult.attributes` (through `summarizeImplementation()` for display values), never the inference rules. _ESLint_: popup, DevTools, and the worker may not import `shared/implementation-attributes.ts`.
-- **SDK presence**: views and the badge read `ScanResult.sdkPresence`; they must not infer it from the `sdk-detected` check's severity. _ESLint_: popup, DevTools, and the worker may not reference `'sdk-detected'`.
+- **Scan conclusions**: `runChecks(payload, checks)` in `src/background/checks/index.ts` is the only way checks run: it derives the SDK presence verdict and the implementation attributes once (`ScanConclusions`) and passes the same record to every `Check.run(payload, conclusions)`; the scan assessment stores it on the `ScanResult`. _Tests_: `scan-assessment.test.ts` asserts every check receives the stored record; check tests run through `requireCheck()`/`runCheck()` from `tests/unit/checks/requireCheck.ts`, and `makeScanResult()` takes its conclusions from `runChecks()`.
+- **Implementation attributes**: `readImplementationAttributes(payload)` holds the rules for flavor, flow, environment, region, import method, and checkout activity. Checks read them from the runner context (`(payload, { attributes }) => …`); views and reports read `ScanResult.attributes` (through `summarizeImplementation()` for display values), never the inference rules. _ESLint_: popup, DevTools, and the worker may not import `shared/implementation-attributes.ts`.
+- **SDK presence**: checks read it from the runner context (`{ sdkPresence }`); views and the badge read `ScanResult.sdkPresence`; they must not infer it from the `sdk-detected` check's severity. _ESLint_: popup, DevTools, and the worker may not reference `'sdk-detected'`.
 - **Page policy**: checks read the checkout document's response headers through `src/background/checks/page-policy.ts`: `readDocumentHeader()` returns `present`, `absent`, or `unavailable`, and `readPagePolicy()` returns the enforced CSP, which every enforced policy must allow a resource under. _ESLint_: other checks may not read `payload.documentHeaders` or import `parseCsp`, `isUrlAllowedByCsp`, or `getEffectiveCspSources`.
 - **Adyen endpoint**: `src/shared/adyen-endpoint.ts` is the one reading of Adyen URLs: `readAdyenEndpoint()` returns the role (`cdn`, `checkoutshopper`, `checkout-api`, `analytics`, `other`) and the environment and region the host names, and the module also owns the origins Adyen Web derives from its `environment` option, the Checkout API and translation paths, and the analytics host patterns. Traffic capture, the interceptor, the content scripts, implementation attributes, and checks ask it instead of matching hosts. _depcruise_ `adyen-endpoint-inline-safe`: it may depend on `shared/types.ts` only.
 - **Checkout signals**: `src/shared/checkout-signals.ts` is the one definition of checkout activity: the DOM selectors of mounted checkout (`readCheckoutDom()`, `hasMountedCheckout()`), Adyen iframes and merchant documents, frame strength (`checkoutStrength()`, `isRenderingCheckout()`), and page-level activity (`hasCheckoutActivity()`). The detector and page extractor read the DOM through it, the frame merge ranks frames with it, and implementation attributes decide checkout activity with it. _depcruise_ `checkout-signals-inline-safe`, `evidence-inline-safe`.
@@ -198,13 +200,13 @@ Every check in `src/background/checks/` is a **pure function** — synchronous, 
 interface Check {
   readonly id: CheckId;
   readonly category: CheckCategory;
-  run(payload: ScanPayload): CheckResult;
+  run: (payload: ScanPayload, conclusions: ScanConclusions) => CheckResult;
 }
 ```
 
 Check-specific guidance:
 
-- Read implementation attributes (flavor, flow, environment, region, import method, checkout activity) from the runner context, `(payload, { attributes, pass }) => …`, not by re-deriving them from the payload. Use `documentationIntegration(attributes)` from `checks/constants.ts` for Drop-in/Components docs links.
+- Read the scan conclusions — SDK presence and implementation attributes (flavor, flow, environment, region, import method, checkout activity) — from the runner context, `(payload, { sdkPresence, attributes, pass }) => …`, not by re-deriving them from the payload. Use `documentationIntegration(attributes)` from `checks/constants.ts` for Drop-in/Components docs links.
 - Export grouped arrays (for example `CSP_CHECKS`) from check files; do not export every individual check object.
 - Register all new checks in `src/background/checks/index.ts` and add the new ID to `CheckId` in `src/shared/types.ts`.
 - Prefer `createRegistry()` context helpers in check runners: `pass()`, `fail()`, `warn()`, `notice()`, `skip()`, `info()`. Destructure them in the runner signature (`(payload, { pass, skip }) => …`).
@@ -221,7 +223,7 @@ Check-specific guidance:
 
 - Location: `tests/unit/` (subdirectories: `background/`, `checks/`, `content/`, `devtools/`, `popup/`, `shared/`, `docs/`)
 - Framework: Vitest with jsdom
-- Fixtures: `tests/fixtures/makeScanPayload.ts` — use `makeScanPayload()`, `makeAdyenPayload()` (complete captured options), `makeCheckoutPage()` (the merged page on a payload), `makePageExtract()` (one frame's extraction; both take `observedConfig` with only the observed sources, such as `{ captured: makeCapturedConfig(…) }`), `makeCapturedConfig(options, complete?)`, `makeCheckoutConfig()`, `makeDocumentHeaders(headers?)` and `UNAVAILABLE_DOCUMENT_HEADERS`, `makeAdyenMetadata()`, `makeRequest()`, `makeHeader()`, `makeScanResult()` (derives `attributes` from its payload).
+- Fixtures: `tests/fixtures/makeScanPayload.ts` — use `makeScanPayload()`, `makeAdyenPayload()` (complete captured options), `makeCheckoutPage()` (the merged page on a payload), `makePageExtract()` (one frame's extraction; both take `observedConfig` with only the observed sources, such as `{ captured: makeCapturedConfig(…) }`), `makeCapturedConfig(options, complete?)`, `makeCheckoutConfig()`, `makeDocumentHeaders(headers?)` and `UNAVAILABLE_DOCUMENT_HEADERS`, `makeAdyenMetadata()`, `makeRequest()`, `makeHeader()`, `makeScanResult()` (derives the conclusions, health score, and Standard assessment from its payload and checks; the default payload exposes SDK metadata, so pass a payload without it for a scan that found no SDK). Run a check with `requireCheck(checks, id).run(payload)` or `runCheck(check, payload)`.
 - Scan tests: drive `runScan()` through `createFakeScanBrowser()` and `framesOf()` from `tests/fixtures/fakeScanBrowser.ts`, passing raw network traffic (`network: { responses, posts }`); assert on the returned `ScanResult` and the recorded port calls. Test traffic reading, document headers, and analytics through `runScan()`; test frame selection and field scope with `mergeFrames()` directly.
 - Tab state tests: drive `createTabState()` with `createFakeTabStateBrowser()` and a controllable scan function; assert on stored state, badges, and the published snapshots, including navigation while a Scan is pending.
 - Scan lifecycle hook tests: connect the real tab state with `connectTabStateClient()` from `tests/fixtures/inMemoryTabStateClient.ts` and render the hook; no `chrome` stubs are needed.

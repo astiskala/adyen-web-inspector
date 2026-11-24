@@ -9,17 +9,6 @@ import {
   makeCapturedConfig,
 } from '../../fixtures/makeScanPayload';
 
-describe('readImplementationAttributes', () => {
-  it('derives the record once per scan payload', () => {
-    const payload = makeAdyenPayload();
-
-    expect(readImplementationAttributes(payload)).toBe(readImplementationAttributes(payload));
-    expect(readImplementationAttributes(makeAdyenPayload())).not.toBe(
-      readImplementationAttributes(payload)
-    );
-  });
-});
-
 describe('environment and region', () => {
   it.each([
     ['test', { value: 'test', source: 'config' }, { value: 'unknown', source: 'unknown' }],

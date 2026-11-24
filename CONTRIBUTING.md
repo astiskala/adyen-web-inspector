@@ -129,7 +129,7 @@ The build fails if a content-script bundle contains ESM `import`/`export` statem
 
 Every check is a **pure function** — synchronous, no side effects, independently testable. Checks should distinguish verified absence from partial or inferred evidence; skip when evidence is insufficient and use `notice` when a finding needs manual verification rather than claiming an unverified failure.
 
-Read implementation attributes (integration flavor and flow, environment, region, import method, checkout activity) from the runner context's `attributes`; the Scan derives them once per payload. Read checkout configuration with `readCheckoutField(payload, key)`. It returns `present` (with the value and its source: `captured`, `component`, or `inferred`, plus the `signal` for inferred values: `adyen-request` or `page-json`), `absent` (proven by AdyenCheckout options captured whole), or `unobserved` (with reason `no-config` or `partial-config`). Pass `{ includeInferred: false }` when inferred values must not count. Each check decides the severity for each state; only `absent` may justify a missing-field failure. Read response headers with `readDocumentHeader(payload, name)`, which returns `present`, `absent`, or `unavailable`; skip header checks when headers are unavailable.
+Read the SDK presence verdict and implementation attributes (integration flavor and flow, environment, region, import method, checkout activity) from the runner context's `sdkPresence` and `attributes`; the scan assessment concludes them once per scan and passes the same record to every check. Read checkout configuration with `readCheckoutField(payload, key)`. It returns `present` (with the value and its source: `captured`, `component`, or `inferred`, plus the `signal` for inferred values: `adyen-request` or `page-json`), `absent` (proven by AdyenCheckout options captured whole), or `unobserved` (with reason `no-config` or `partial-config`). Pass `{ includeInferred: false }` when inferred values must not count. Each check decides the severity for each state; only `absent` may justify a missing-field failure. Read response headers with `readDocumentHeader(payload, name)`, which returns `present`, `absent`, or `unavailable`; skip header checks when headers are unavailable.
 
 ### 1. Create the check
 
@@ -139,7 +139,7 @@ Add or extend a file in `src/background/checks/`. Each check implements:
 interface Check {
   readonly id: CheckId;
   readonly category: CheckCategory;
-  run(payload: ScanPayload): CheckResult;
+  run: (payload: ScanPayload, conclusions: ScanConclusions) => CheckResult;
 }
 ```
 

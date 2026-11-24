@@ -3,7 +3,7 @@ import { createTabState } from '../../../src/background/tab-state';
 import { STATUS_COLORS } from '../../../src/shared/constants';
 import type { TabSnapshot } from '../../../src/shared/messages';
 import type { ScanResult } from '../../../src/shared/types';
-import { makeScanResult } from '../../fixtures/makeScanPayload';
+import { makeScanPayload, makeScanResult } from '../../fixtures/makeScanPayload';
 import {
   createFakeTabStateBrowser,
   type FakeTabStateBrowser,
@@ -131,9 +131,7 @@ describe('tab state Scan lifecycle', () => {
     await harness.tabState.checkoutActivityDetected(TAB);
     const scan = harness.tabState.requestScan(TAB);
     await settle();
-    harness.pending[0]?.resolve(
-      makeScanResult({ tabId: TAB, sdkPresence: { detected: false, source: 'none' } })
-    );
+    harness.pending[0]?.resolve(makeScanResult({ payload: makeScanPayload({ tabId: TAB }) }));
     await scan;
 
     expect(harness.browser.badges.has(TAB)).toBe(false);

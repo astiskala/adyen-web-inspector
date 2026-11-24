@@ -5,7 +5,7 @@ import { Panel } from '../../../src/devtools/panel/Panel';
 import { Popup } from '../../../src/popup/PopupApp';
 import type { CheckoutActivity, TabScanStatus, TabSnapshot } from '../../../src/shared/messages';
 import type { ScanResult } from '../../../src/shared/types';
-import { makeAdyenPayload, makeScanResult } from '../../fixtures/makeScanPayload';
+import { makeAdyenPayload, makeScanPayload, makeScanResult } from '../../fixtures/makeScanPayload';
 
 interface Message {
   readonly type: string;
@@ -213,9 +213,8 @@ describe('scan views', () => {
   );
 
   it('uses the scan verdict for SDK presence in the DevTools panel', async () => {
-    harness.sendMessage.mockResolvedValue(
-      snapshot(makeScanResult({ tabId: 3, sdkPresence: { detected: false, source: 'none' } }))
-    );
+    const noSdk = makeScanResult({ payload: makeScanPayload({ tabId: 3 }) });
+    harness.sendMessage.mockResolvedValue(snapshot(noSdk));
     await mount(Panel);
 
     await vi.waitFor(() => {
@@ -437,9 +436,8 @@ describe('DevTools panel states', () => {
 
 describe('popup result states', () => {
   it('offers another attempt when the scan found no SDK', async () => {
-    harness.sendMessage.mockResolvedValue(
-      snapshot(makeScanResult({ tabId: 3, sdkPresence: { detected: false, source: 'none' } }))
-    );
+    const noSdk = makeScanResult({ payload: makeScanPayload({ tabId: 3 }) });
+    harness.sendMessage.mockResolvedValue(snapshot(noSdk));
     await mount(Popup);
 
     await vi.waitFor(() => {

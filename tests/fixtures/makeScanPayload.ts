@@ -1,4 +1,6 @@
-import { readImplementationAttributes } from '../../src/shared/implementation-attributes';
+import { runChecks } from '../../src/background/checks/index';
+import { calculateHealthScore } from '../../src/shared/health';
+import { computeStandardCompliance } from '../../src/shared/standard-compliance';
 import type {
   ScanPayload,
   PageExtractResult,
@@ -179,25 +181,33 @@ export function makeScanPayload(overrides: Partial<ScanPayload> = {}): ScanPaylo
     capturedRequests: [],
     versionInfo: makeVersionInfo(),
     analyticsData: null,
-    scannedAt: new Date().toISOString(),
+    scannedAt: '2026-09-28T00:00:00.000Z',
     ...overrides,
   };
 }
 
 /**
-Creates a stored scan result fixture with no checks and optional overrides.
+Creates a stored scan result fixture whose conclusions, health score, and
+Standard assessment follow from its payload and checks, as a scan's would.
+The default payload exposes SDK metadata; the default checks are none.
 */
 export function makeScanResult(overrides: Partial<ScanResult> = {}): ScanResult {
-  const payload = overrides.payload ?? makeScanPayload();
+  const payload =
+    overrides.payload ??
+    makeScanPayload({ page: makeCheckoutPage({ adyenMetadata: makeAdyenMetadata() }) });
+  const { conclusions } = runChecks(payload, []);
+  const checks = overrides.checks ?? [];
   return {
-    tabId: 1,
-    pageUrl: 'https://example.com/checkout',
-    scannedAt: '2026-09-28T00:00:00.000Z',
-    sdkPresence: { detected: true, source: 'metadata' },
-    attributes: readImplementationAttributes(payload),
-    checks: [],
-    health: { score: 100, passing: 0, failing: 0, warnings: 0, total: 0, tier: 'excellent' },
-    standardCompliance: { compliant: false, reasons: [] },
+    tabId: payload.tabId,
+    pageUrl: payload.pageUrl,
+    scannedAt: payload.scannedAt,
+    ...conclusions,
+    checks,
+    health: calculateHealthScore(checks),
+    standardCompliance: computeStandardCompliance(
+      payload.versionInfo.detected,
+      conclusions.attributes
+    ),
     ...overrides,
     payload,
   };

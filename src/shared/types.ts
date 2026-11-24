@@ -124,8 +124,14 @@ export interface CheckResult {
 export interface Check {
   readonly id: CheckId;
   readonly category: CheckCategory;
-  run: (payload: ScanPayload) => CheckResult;
+  run: (payload: ScanPayload, conclusions: ScanConclusions) => CheckResult;
 }
+
+/**
+What the scan assessment concludes from a scan payload before any check
+runs. It is derived once per scan, and every check reads the same record.
+*/
+export type ScanConclusions = Pick<ScanResult, 'sdkPresence' | 'attributes'>;
 
 // ─── SDK Metadata (from window.AdyenWebMetadata) ─────────────────────────────
 
