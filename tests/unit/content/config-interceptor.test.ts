@@ -858,6 +858,35 @@ describe('config-interceptor installation and edge cases', () => {
     expect(define.modules).toEqual([{ mode: 'test' }]);
   });
 
+  it('records checkout Resource Timing entries past the browser buffer, up to a limit', async () => {
+    resetGlobals();
+    const observe = vi.fn();
+    let callback: ((list: { getEntries: () => object[] }) => void) | undefined;
+    vi.stubGlobal(
+      'PerformanceObserver',
+      class {
+        observe = observe;
+        constructor(observer: typeof callback) {
+          callback = observer;
+        }
+      }
+    );
+    const deliver = (entries: object[]): void => {
+      callback?.({ getEntries: () => entries });
+    };
+    await loadInterceptor();
+    const sessions = { name: 'https://checkoutshopper-test.adyen.com/checkoutshopper/v1/sessions' };
+
+    deliver([{ name: 'https://pixel.example/p.gif' }, sessions]);
+    deliver(Array.from({ length: 600 }, () => sessions));
+
+    expect(observe).toHaveBeenCalledWith({ type: 'resource', buffered: true });
+    const recorded = g[PAGE_GLOBALS.observedResources] as object[];
+    expect(recorded).toHaveLength(500);
+    expect(recorded[0]).toBe(sessions);
+    vi.unstubAllGlobals();
+  });
+
   it('leaves page APIs alone when another copy is already installed', async () => {
     resetGlobals();
     g[INSTALLED_KEY] = true;

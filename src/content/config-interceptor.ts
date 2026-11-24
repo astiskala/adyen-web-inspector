@@ -26,11 +26,13 @@ import {
   recordInference,
 } from '../shared/checkout-capture.js';
 import { readCheckoutOptions } from '../shared/checkout-config-schema.js';
+import { readObservedRequest } from '../shared/observed-requests.js';
 import { PAGE_GLOBALS, type PageGlobalValues } from '../shared/constants.js';
 import type { CallbackSource, CheckoutCapture } from '../shared/types.js';
 
 (function configInterceptor(): void {
   type PlainRecord = Record<string, unknown>;
+
   type Callable = (this: unknown, ...arguments_: unknown[]) => unknown;
 
   const pageGlobals = globalThis as typeof globalThis & PageGlobalValues;
@@ -247,6 +249,24 @@ import type { CallbackSource, CheckoutCapture } from '../shared/types.js';
       }
     }
   }
+
+  // ---------------------------------------------------------------------------
+  // Resource Timing
+  // ---------------------------------------------------------------------------
+
+  // The browser's Resource Timing buffer holds 250 entries by default, and an
+  // observer still sees entries once it is full; only checkout requests are kept.
+  const OBSERVED_RESOURCE_LIMIT = 500;
+  const observedResources: PerformanceEntry[] = [];
+  pageGlobals[PAGE_GLOBALS.observedResources] = observedResources;
+  attempt(() => {
+    new PerformanceObserver((list) => {
+      for (const entry of list.getEntries()) {
+        if (observedResources.length >= OBSERVED_RESOURCE_LIMIT) return;
+        if (readObservedRequest(entry) !== null) observedResources.push(entry);
+      }
+    }).observe({ type: 'resource', buffered: true });
+  });
 
   // ---------------------------------------------------------------------------
   // Closed shadow roots

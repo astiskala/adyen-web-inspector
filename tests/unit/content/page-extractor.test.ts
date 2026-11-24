@@ -266,6 +266,33 @@ describe('page extractor', () => {
     ]);
   });
 
+  it('adds checkout requests the interceptor recorded after the browser buffer filled, once each', async () => {
+    const sessions = {
+      name: 'https://checkoutshopper-test.adyen.com/checkoutshopper/v1/sessions',
+      initiatorType: 'fetch',
+      responseStatus: 200,
+    };
+    const late = { name: 'https://shop.example/api/v71/payments/details', initiatorType: 'fetch' };
+    vi.spyOn(globalThis.performance, 'getEntriesByType').mockReturnValue([
+      sessions,
+    ] as unknown as PerformanceEntryList);
+    pageGlobals[PAGE_GLOBALS.observedResources] = [sessions, late, 'tampered', null];
+
+    const page = await extractPage();
+    expect(page.observedRequests).toEqual([
+      { url: sessions.name, initiatorType: 'fetch', responseStatus: 200 },
+      { url: late.name, initiatorType: 'fetch' },
+    ]);
+  });
+
+  it('ignores a recorded-resources global the page replaced', async () => {
+    vi.spyOn(globalThis.performance, 'getEntriesByType').mockReturnValue([]);
+    pageGlobals[PAGE_GLOBALS.observedResources] = { length: 1 };
+
+    const page = await extractPage();
+    expect(page.observedRequests).toEqual([]);
+  });
+
   it('records only the requests a scan reads, not other third-party resources', async () => {
     const kept = [
       'https://shop.example/api/v71/sessions',

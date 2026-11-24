@@ -4,17 +4,13 @@ Reads page globals, DOM state, and config in each accessible frame, then
 serialises a plain result onto a page global for the background scan to read.
 */
 
-import {
-  isCheckoutApiRequest,
-  readAdyenEndpoint,
-  readTranslationLocale,
-} from '../shared/adyen-endpoint.js';
+import { readAdyenEndpoint } from '../shared/adyen-endpoint.js';
 import { reportedAnalytics } from '../shared/checkout-analytics.js';
 import { readCheckoutCapture } from '../shared/checkout-capture.js';
 import { collectShadowRoots, readCheckoutDom } from '../shared/checkout-signals.js';
 import { mergeCheckoutConfigs, readCheckoutOptions } from '../shared/checkout-config-schema.js';
-import { DF_IFRAME_URL_PATTERN, PAGE_GLOBALS, type PageGlobalValues } from '../shared/constants.js';
-import { findSdkVersionInUrls } from '../shared/sdk-version.js';
+import { PAGE_GLOBALS, type PageGlobalValues } from '../shared/constants.js';
+import { readObservedRequest } from '../shared/observed-requests.js';
 import type {
   AdyenStyleInfo,
   AdyenWebMetadata,
@@ -158,49 +154,24 @@ function extractIframes(): IframeInfo[] {
 }
 
 /**
-Requests a scan reads: Adyen hosts, Checkout API paths a merchant server may
-proxy, self-hosted SDK assets, translation files, and the device fingerprint
-page. Other resources, such as third-party pixels whose URLs can carry
-shopper identifiers, are not recorded.
+Checkout-related Resource Timing entries, from the page's buffer and from
+what the config interceptor recorded: Chrome keeps only 250 entries by
+default, so on busy pages later checkout requests are missing from the buffer.
 */
-function isCheckoutRequest(url: string): boolean {
-  return (
-    readAdyenEndpoint(url) !== null ||
-    isCheckoutApiRequest(url) ||
-    findSdkVersionInUrls([url]) !== null ||
-    readTranslationLocale(url) !== null ||
-    DF_IFRAME_URL_PATTERN.test(url)
-  );
-}
-
 function extractObservedRequests(): ObservedRequest[] {
-  const entries = globalThis.performance.getEntriesByType('resource');
-  const requests: ObservedRequest[] = [];
-
+  const recorded = (globalThis as GlobalWithAdyen)[PAGE_GLOBALS.observedResources];
+  const entries: unknown[] = [
+    ...globalThis.performance.getEntriesByType('resource'),
+    ...(Array.isArray(recorded) ? recorded : []),
+  ];
+  const requests = new Map<string, ObservedRequest>();
   for (const entry of entries) {
-    if (typeof entry.name !== 'string' || !isCheckoutRequest(entry.name)) {
-      continue;
+    const request = readObservedRequest(entry);
+    if (request !== null) {
+      requests.set(`${request.url} ${request.initiatorType} ${request.responseStatus}`, request);
     }
-
-    const resourceEntry = entry as PerformanceResourceTiming;
-    const initiatorType =
-      typeof resourceEntry.initiatorType === 'string' && resourceEntry.initiatorType.length > 0
-        ? resourceEntry.initiatorType
-        : undefined;
-    // Browsers report 0 for opaque cross-origin responses and older Chromium lacks the field.
-    const responseStatus =
-      typeof resourceEntry.responseStatus === 'number' && resourceEntry.responseStatus > 0
-        ? resourceEntry.responseStatus
-        : undefined;
-
-    requests.push({
-      url: entry.name,
-      ...(initiatorType !== undefined && { initiatorType }),
-      ...(responseStatus !== undefined && { responseStatus }),
-    });
   }
-
-  return requests;
+  return requests.values().toArray();
 }
 
 interface ComponentExtraction {

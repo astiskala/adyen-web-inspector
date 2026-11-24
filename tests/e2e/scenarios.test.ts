@@ -689,3 +689,20 @@ test('The same documented CDN URLs without SRI fail integrity checks', async ({
   expect(requireCheck(result, 'security-sri-css').severity).toBe('warn');
   expect(requireCheck(result, 'security-csp-script-src').severity).toBe('pass');
 });
+
+test('Busy page keeps the checkout request the full Resource Timing buffer dropped', async ({
+  context,
+  extensionId,
+}) => {
+  const result = await scanFixture(
+    context,
+    extensionId,
+    'dummy-merchant.html?scenario=resource-heavy'
+  );
+
+  expect(
+    result.payload.capturedRequests.some((request) =>
+      request.url.endsWith('/api/v71/paymentMethods')
+    )
+  ).toBe(true);
+});

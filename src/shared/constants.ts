@@ -114,6 +114,7 @@ export const PAGE_GLOBALS = {
   interceptorInstalled: '__adyenWebInspectorCapturedConfig__installed',
   pageExtractResultJson: '__adyenWebInspectorPageExtractResultJson',
   closedShadowRoots: '__adyenWebInspectorClosedShadowRoots',
+  observedResources: '__adyenWebInspectorObservedResources',
 } as const;
 
 /**
@@ -136,6 +137,10 @@ export interface PageGlobalValues {
   Closed shadow roots by host, recorded as the page attaches them, so the page extractor can read checkout mounted inside them.
   */
   [PAGE_GLOBALS.closedShadowRoots]?: WeakMap<Element, ShadowRoot>;
+  /**
+  Checkout-related Resource Timing entries recorded from the start of the page, past the browser's buffer limit.
+  */
+  [PAGE_GLOBALS.observedResources]?: PerformanceEntry[];
 }
 
 // ─── Version Gates ────────────────────────────────────────────────────────────

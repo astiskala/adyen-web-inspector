@@ -161,6 +161,15 @@ async function runScenario() {
     await loadExternalScript(
       'https://checkoutshopper-test.cdn.adyen.com/checkoutshopper/sdk/6.31.0/adyen.js'
     );
+  } else if (scenario === 'resource-heavy') {
+    // Fills the browser's 250-entry Resource Timing buffer before checkout makes its request.
+    await Promise.all(
+      Array.from({ length: 300 }, (_, index) =>
+        globalThis.fetch(`/assets/product-${index}.json`).catch(() => {})
+      )
+    );
+    await globalThis.fetch('/api/v71/paymentMethods', { method: 'POST' }).catch(() => {});
+    await mountCheckout(baseConfig, 'dropin');
   } else if (scenario === 'sdk-only') {
     globalThis.document.querySelector('#checkout').textContent = 'SDK loaded, checkout not mounted';
   } else if (scenario === 'secure-headers') {
