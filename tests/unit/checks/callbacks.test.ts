@@ -766,6 +766,8 @@ describe('callback-before-submit', () => {
 });
 
 describe('callback-actions-pattern', () => {
+  const V6_VERSION = { detected: '6.31.0', source: 'metadata', latest: '6.40.0' } as const;
+
   it('passes when onSubmit uses v6 actions.resolve pattern', () => {
     const payload = makeAdyenPayload(
       {},
@@ -777,13 +779,29 @@ describe('callback-actions-pattern', () => {
   it('warns when onSubmit uses v5 component pattern', () => {
     const payload = makeAdyenPayload(
       {},
-      { onSubmitSources: ['function(state, component) { component.setStatus("loading"); }'] }
+      { onSubmitSources: ['function(state, component) { component.setStatus("loading"); }'] },
+      { versionInfo: V6_VERSION }
     );
     expect(actionsPattern.run(payload).severity).toBe('warn');
   });
 
+  it('does not ask a v5 integration to use the v6 actions pattern', () => {
+    const payload = makeAdyenPayload(
+      {},
+      { onSubmitSources: ['function(state, component) { component.setStatus("loading"); }'] },
+      { versionInfo: { detected: '5.68.0', source: 'metadata', latest: '6.40.0' } }
+    );
+    const result = actionsPattern.run(payload);
+    expect(result.severity).toBe('skip');
+    expect(result.detail).toContain('older than v6');
+  });
+
   it('returns info when pattern cannot be determined', () => {
-    const payload = makeAdyenPayload({}, { onSubmitSources: ['doSomething()'] });
+    const payload = makeAdyenPayload(
+      {},
+      { onSubmitSources: ['doSomething()'] },
+      { versionInfo: V6_VERSION }
+    );
     expect(actionsPattern.run(payload).severity).toBe('info');
   });
 

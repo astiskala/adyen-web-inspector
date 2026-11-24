@@ -11,6 +11,7 @@ import type {
 } from '../../shared/types.js';
 import type { CALLBACK_KEYS } from '../../shared/checkout-config-schema.js';
 import { INTEGRATION_FLOW_LABELS } from '../../shared/constants.js';
+import { meetsMinimumVersion } from '../../shared/version-utilities.js';
 import {
   hasCapturedCheckoutConfig,
   readCheckoutField,
@@ -216,6 +217,8 @@ const STRINGS = {
   BEFORE_SUBMIT_INFO_TITLE: 'beforeSubmit is not configured.',
 
   ACTIONS_PATTERN_SKIP_TITLE: 'Actions pattern check skipped.',
+  ACTIONS_PATTERN_PRE_V6_SKIP_REASON:
+    'The detected SDK is older than v6, where onSubmit uses component callbacks; the actions pattern applies from v6.',
   ACTIONS_PATTERN_PASS_TITLE: 'onSubmit uses the v6 actions.resolve() / actions.reject() pattern.',
   ACTIONS_PATTERN_WARN_TITLE:
     'onSubmit appears to use v5-style component callbacks. Update to v6 actions pattern.',
@@ -567,6 +570,9 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
 
     if (onSubmit.resolvesActions) {
       return pass(STRINGS.ACTIONS_PATTERN_PASS_TITLE);
+    }
+    if (meetsMinimumVersion(payload.versionInfo.detected, '6.0.0') === 'unmet') {
+      return skip(STRINGS.ACTIONS_PATTERN_SKIP_TITLE, STRINGS.ACTIONS_PATTERN_PRE_V6_SKIP_REASON);
     }
 
     return onSubmit.usesComponentCallbacks

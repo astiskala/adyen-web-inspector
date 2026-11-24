@@ -28,6 +28,26 @@ describe('risk-df-iframe', () => {
     expect(riskIframe.run(payload).severity).toBe('warn');
   });
 
+  it('does not warn twice when the merchant disabled risk data collection', () => {
+    const payload = makeAdyenPayload({}, { riskEnabled: false });
+    const result = riskIframe.run(payload);
+    expect(result.severity).toBe('skip');
+    expect(result.detail).toContain('disabled in checkout configuration');
+    expect(riskNotDisabled.run(payload).severity).toBe('warn');
+  });
+
+  it('still expects the iframe when only page JSON says risk is disabled', () => {
+    const payload = makeScanPayload({
+      page: makeCheckoutPage({
+        observedConfig: {
+          captured: makeCapturedConfig({ clientKey: 'test_X' }, true),
+          inferred: { 'page-json': { riskEnabled: false } },
+        },
+      }),
+    });
+    expect(riskIframe.run(payload).severity).toBe('warn');
+  });
+
   it('skips when no active Adyen checkout is detected', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({ iframes: [] }),

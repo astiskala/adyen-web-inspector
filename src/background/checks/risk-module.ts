@@ -15,6 +15,8 @@ const RISK_MANAGEMENT_URL = 'https://docs.adyen.com/risk-management/';
 const STRINGS = {
   DF_IFRAME_SKIP_TITLE: 'Device fingerprint check skipped.',
   DF_IFRAME_SKIP_REASON: 'No active Adyen checkout detected.',
+  DF_IFRAME_DISABLED_SKIP_REASON:
+    'Risk data collection is disabled in checkout configuration, so no device fingerprint iframe is expected; the risk module check reports this.',
   DF_IFRAME_PASS_TITLE: 'Device fingerprint iframe loaded.',
   DF_IFRAME_PASS_DETAIL: 'Adyen risk module device fingerprinting is active.',
   DF_IFRAME_WARN_TITLE: 'Device fingerprint iframe was not detected.',
@@ -49,6 +51,10 @@ export const RISK_CHECKS = createRegistry(CATEGORY)
     (payload, { attributes, pass, skip, warn }) => {
       if (!attributes.checkoutActivity) {
         return skip(STRINGS.DF_IFRAME_SKIP_TITLE, STRINGS.DF_IFRAME_SKIP_REASON);
+      }
+      const risk = readCheckoutField(payload, 'riskEnabled', { includeInferred: false });
+      if (risk.state === 'present' && !risk.value) {
+        return skip(STRINGS.DF_IFRAME_SKIP_TITLE, STRINGS.DF_IFRAME_DISABLED_SKIP_REASON);
       }
 
       const { page, capturedRequests } = payload;
