@@ -94,7 +94,7 @@ function readEndpointTraffic(payload: ScanPayload): EndpointTraffic {
 
 function firstOf<T>(
   endpoints: readonly AdyenEndpoint[],
-  read: (e: AdyenEndpoint) => T | null
+  read: (candidate: AdyenEndpoint) => T | null
 ): T | null {
   for (const endpoint of endpoints) {
     const value = read(endpoint);
@@ -182,7 +182,7 @@ Flavor from analytics, then Drop-in URL patterns and DOM, then captured or reque
  */
 function resolveIntegrationFlavor(
   payload: ScanPayload,
-  checkoutActivity: boolean
+  isCheckoutActive: boolean
 ): Attribute<'flavor'> {
   const analyticsFlavor = payload.analyticsData?.flavor?.toLowerCase();
   const mappedFlavor =
@@ -210,7 +210,7 @@ function resolveIntegrationFlavor(
   return {
     value: 'Unknown',
     source:
-      detectSdkPresence(payload.page).detected && !checkoutActivity
+      !isCheckoutActive && detectSdkPresence(payload.page).detected
         ? 'sdk-loaded-no-checkout'
         : 'unknown',
   };

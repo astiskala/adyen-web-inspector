@@ -7,7 +7,7 @@
  */
 
 import type { ScanPayload } from '../../shared/types.js';
-import { cspAllowsUrl, getEffectiveCspSources, parseCsp } from '../../shared/utils.js';
+import { isUrlAllowedByCsp, getEffectiveCspSources, parseCsp } from '../../shared/utilities.js';
 
 type CspDirective = Parameters<typeof getEffectiveCspSources>[1];
 type GoverningSources = NonNullable<ReturnType<typeof getEffectiveCspSources>>;
@@ -68,7 +68,7 @@ export function readDocumentHeader(payload: ScanPayload, name: string): Document
   return value === undefined ? { state: 'absent' } : { state: 'present', value };
 }
 
-function allowsAnySource(governing: GoverningSources): boolean {
+function isAnySourceAllowed(governing: GoverningSources): boolean {
   return governing.sources.includes('*') || governing.sources.includes('https:');
 }
 
@@ -92,11 +92,11 @@ export function readPagePolicy(payload: ScanPayload): PagePolicy {
   return {
     status: 'enforced',
     allows: (directive, url) =>
-      policies.every((policy) => cspAllowsUrl(policy, directive, url, payload.pageUrl)),
+      policies.every((policy) => isUrlAllowedByCsp(policy, directive, url, payload.pageUrl)),
     governing,
     restrictive: (directive) =>
       governing(directive).find(
-        (sources): sources is GoverningSources => sources !== null && !allowsAnySource(sources)
+        (sources): sources is GoverningSources => sources !== null && !isAnySourceAllowed(sources)
       ),
     declares: (directive) => policies.some((policy) => policy.directives[directive] !== undefined),
   };

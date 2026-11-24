@@ -10,7 +10,7 @@ import {
   SESSION_REPLAY_PATTERNS,
   TAG_MANAGER_PATTERNS,
 } from '../../shared/constants.js';
-import { extractHostname } from '../../shared/utils.js';
+import { extractHostname } from '../../shared/utilities.js';
 import { COMMON_DETAILS } from './constants.js';
 import { createRegistry, type CheckContext, type CheckOutcome } from './registry.js';
 
@@ -91,7 +91,10 @@ function findMatchingScripts(srcs: string[], patterns: readonly ThirdPartyPatter
   return matches;
 }
 
-function scriptMatchesAnyPattern(source: string, patterns: readonly ThirdPartyPattern[]): boolean {
+function isScriptMatchingAnyPattern(
+  source: string,
+  patterns: readonly ThirdPartyPattern[]
+): boolean {
   return patterns.some(({ pattern }) => pattern.test(source));
 }
 
@@ -159,7 +162,8 @@ export const THIRD_PARTY_CHECKS = createRegistry(CATEGORY)
   )
   .add('3p-no-sri', (payload, { pass, notice }) => {
     const knownThirdPartyScripts = payload.page.scripts.filter(
-      (s) => s.src.startsWith('http') && scriptMatchesAnyPattern(s.src, THIRD_PARTY_SCRIPT_PATTERNS)
+      (s) =>
+        s.src.startsWith('http') && isScriptMatchingAnyPattern(s.src, THIRD_PARTY_SCRIPT_PATTERNS)
     );
 
     if (knownThirdPartyScripts.length === 0) {

@@ -2,7 +2,7 @@ import type { JSX } from 'preact';
 import { MIN_SUPPORTED_MAJOR_VERSION } from '../shared/constants.js';
 import type { CheckoutActivity } from '../shared/messages.js';
 import type { ScanResult } from '../shared/types.js';
-import { parseVersion } from '../shared/utils.js';
+import { parseVersion } from '../shared/utilities.js';
 import { exportPdf } from './components/pdf-export.js';
 import { IdentityCard } from './components/IdentityCard.js';
 import { HealthScore } from './components/HealthScore.js';
@@ -19,8 +19,9 @@ import { cssModule } from './components/css-module.js';
 
 const s = cssModule(styles);
 
-function getActiveTabId(): Promise<number | undefined> {
-  return chrome.tabs.query({ active: true, currentWindow: true }).then((tabs) => tabs[0]?.id);
+async function getActiveTabId(): Promise<number | undefined> {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  return tab?.id;
 }
 
 const activeTab = { getTabId: getActiveTabId } as const;
@@ -88,7 +89,7 @@ export function Popup(): JSX.Element {
             <button
               class="btn"
               onClick={() => {
-                exportPdf(view.result).catch(() => {});
+                void exportPdf(view.result).catch(() => {});
               }}
               title="Export PDF report"
             >

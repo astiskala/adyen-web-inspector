@@ -6,8 +6,8 @@ import type { ScanResult } from './types.js';
 
 export * from './results.js';
 export * from './health.js';
-export * from './version-utils.js';
-export * from './csp-utils.js';
+export * from './version-utilities.js';
+export * from './csp-utilities.js';
 
 /**
 Describes a thrown value: an Error's message, a string as-is, otherwise its type tag.

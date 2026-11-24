@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calculateHealthScore } from '../../../src/shared/utils';
+import { calculateHealthScore } from '../../../src/shared/utilities';
 import type { CheckId, CheckResult, Severity } from '../../../src/shared/types';
 
 function makeCheck(id: CheckId, severity: Severity): CheckResult {

@@ -85,8 +85,7 @@ function readRiskEnabled(options: PlainRecord): boolean | undefined {
   const risk = readModuleToggle(options['risk']);
   if (risk !== undefined) return risk;
   const legacy = options['riskEnabled'];
-  if (typeof legacy === 'boolean') return legacy;
-  return typeof legacy === 'function' ? true : undefined;
+  return typeof legacy === 'boolean' ? legacy : typeof legacy === 'function' || undefined;
 }
 
 /**

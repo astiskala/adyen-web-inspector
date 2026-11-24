@@ -29,7 +29,7 @@ type IssueOutcome = (
   title: string,
   detail?: string,
   remediation?: string,
-  docsUrl?: string
+  documentationUrl?: string
 ) => CheckOutcome;
 
 /**
@@ -67,14 +67,14 @@ function buildOutcome(
   title: string,
   detail?: string,
   remediation?: string,
-  docsUrl?: string
+  documentationUrl?: string
 ): CheckOutcome {
   return {
     severity,
     title,
     ...(detail !== undefined && { detail }),
     ...(remediation !== undefined && { remediation }),
-    ...(docsUrl !== undefined && { docsUrl }),
+    ...(documentationUrl !== undefined && { docsUrl: documentationUrl }),
   };
 }
 
@@ -91,12 +91,12 @@ class CheckRegistry {
 
     const helpers: Omit<CheckContext, 'attributes'> = {
       pass: (title, detail) => buildOutcome('pass', title, detail),
-      fail: (title, detail, remediation, docsUrl) =>
-        buildOutcome('fail', title, detail, remediation, docsUrl),
-      warn: (title, detail, remediation, docsUrl) =>
-        buildOutcome('warn', title, detail, remediation, docsUrl),
-      notice: (title, detail, remediation, docsUrl) =>
-        buildOutcome('notice', title, detail, remediation, docsUrl),
+      fail: (title, detail, remediation, documentationUrl) =>
+        buildOutcome('fail', title, detail, remediation, documentationUrl),
+      warn: (title, detail, remediation, documentationUrl) =>
+        buildOutcome('warn', title, detail, remediation, documentationUrl),
+      notice: (title, detail, remediation, documentationUrl) =>
+        buildOutcome('notice', title, detail, remediation, documentationUrl),
       info: (title, detail) => buildOutcome('info', title, detail),
       skip: (title, detail) => buildOutcome('skip', title, detail),
     };

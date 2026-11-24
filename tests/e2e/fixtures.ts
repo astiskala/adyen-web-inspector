@@ -258,7 +258,7 @@ export async function scanFixture(
             if (!isStarted) return;
             chrome.runtime.onMessage.removeListener(listener);
             const result = message.snapshot?.result ?? null;
-            if (scan.state === 'idle' && result !== null) resolveScan(result);
+            if (result !== null && scan.state === 'idle') resolveScan(result);
             else rejectScan(new Error(scan.error ?? 'Scan finished without a result.'));
           };
           chrome.runtime.onMessage.addListener(listener);

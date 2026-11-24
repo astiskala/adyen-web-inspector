@@ -4,8 +4,8 @@ import {
   hasCheckoutActivity,
   isMerchantDocument,
   readCheckoutDom,
-  rendersCheckout,
-  showsMountedCheckout,
+  isRenderingCheckout,
+  hasMountedCheckout,
 } from '../../../src/shared/checkout-signals';
 import {
   makeAdyenMetadata,
@@ -55,13 +55,13 @@ describe('readCheckoutDom', () => {
   it('shows mounted checkout for adyen-checkout elements or Adyen iframes only', () => {
     document.body.innerHTML =
       '<script src="https://checkoutshopper-test.adyen.com/sdk.js"></script>';
-    expect(showsMountedCheckout(readCheckoutDom(document))).toBe(false);
+    expect(hasMountedCheckout(readCheckoutDom(document))).toBe(false);
 
     document.body.innerHTML = '<div class="adyen-checkout__button"></div>';
-    expect(showsMountedCheckout(readCheckoutDom(document))).toBe(true);
+    expect(hasMountedCheckout(readCheckoutDom(document))).toBe(true);
 
     document.body.innerHTML = '<iframe name="adyen-card"></iframe>';
-    expect(showsMountedCheckout(readCheckoutDom(document))).toBe(true);
+    expect(hasMountedCheckout(readCheckoutDom(document))).toBe(true);
   });
 });
 
@@ -99,15 +99,17 @@ describe('frame signals', () => {
   });
 
   it('decides whether a frame renders checkout itself', () => {
-    expect(rendersCheckout(makePageExtract({ capturedConfig: makeCapturedConfig({}, true) }))).toBe(
-      true
-    );
-    expect(rendersCheckout(makePageExtract({ capturedConfig: makeCapturedConfig({}) }))).toBe(
+    expect(
+      isRenderingCheckout(makePageExtract({ capturedConfig: makeCapturedConfig({}, true) }))
+    ).toBe(true);
+    expect(isRenderingCheckout(makePageExtract({ capturedConfig: makeCapturedConfig({}) }))).toBe(
       false
     );
-    expect(rendersCheckout(makePageExtract({ hasCardDOM: true }))).toBe(true);
-    expect(rendersCheckout(makePageExtract({ componentMountCount: 1 }))).toBe(true);
-    expect(rendersCheckout(makePageExtract({ adyenMetadata: makeAdyenMetadata() }))).toBe(false);
+    expect(isRenderingCheckout(makePageExtract({ hasCardDOM: true }))).toBe(true);
+    expect(isRenderingCheckout(makePageExtract({ componentMountCount: 1 }))).toBe(true);
+    expect(isRenderingCheckout(makePageExtract({ adyenMetadata: makeAdyenMetadata() }))).toBe(
+      false
+    );
   });
 });
 

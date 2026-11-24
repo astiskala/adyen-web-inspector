@@ -121,12 +121,12 @@ function buildIssueTableForSection(
     for (const issue of group.issues) {
       const color = SEVERITY_COLORS[issue.severity];
       const detail = issue.detail === null ? '' : `<br><small>${escapeHtml(issue.detail)}</small>`;
-      const docsLink = `<br><a class="docs-link" href="${escapeHtml(issue.docsUrl)}" target="_blank" rel="noopener noreferrer">Read documentation</a>`;
+      const documentationLink = `<br><a class="docs-link" href="${escapeHtml(issue.docsUrl)}" target="_blank" rel="noopener noreferrer">Read documentation</a>`;
       rows.push(`
       <tr>
         <td style="color:${color};font-weight:600;text-transform:uppercase;white-space:nowrap">${escapeHtml(issue.severity)}</td>
         <td>${escapeHtml(issue.title)}${detail}</td>
-        <td>${escapeHtml(issue.remediation)}${docsLink}</td>
+        <td>${escapeHtml(issue.remediation)}${documentationLink}</td>
       </tr>`);
     }
   }

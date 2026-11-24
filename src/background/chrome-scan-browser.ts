@@ -4,7 +4,7 @@
 
 import { PAGE_GLOBALS } from '../shared/constants.js';
 import type { CapturedHeader, PageExtractResult } from '../shared/types.js';
-import { describeError } from '../shared/utils.js';
+import { describeError } from '../shared/utilities.js';
 import { NetworkRecorder } from './network-recorder.js';
 import { getAdyenWebReleaseInfo } from './npm-registry.js';
 import type {
@@ -44,7 +44,11 @@ async function fetchHeaders(url: string, method: 'HEAD' | 'GET'): Promise<Captur
     url,
     { method, credentials: 'include', cache: 'no-store', redirect: 'follow' },
     HEADER_PROBE_TIMEOUT_MS,
-    (response) => [...response.headers.entries()].map(([name, value]) => ({ name, value }))
+    (response) =>
+      response.headers
+        .entries()
+        .map(([name, value]) => ({ name, value }))
+        .toArray()
   );
   return headers ?? [];
 }

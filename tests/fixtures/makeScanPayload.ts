@@ -84,9 +84,9 @@ export function makeCheckoutConfig(overrides: CheckoutConfigOverrides = {}): Che
  */
 export function makeCapturedConfig(
   options: CheckoutConfig,
-  complete = false
+  isComplete = false
 ): CapturedCheckoutOptions {
-  return { options, complete };
+  return { options, complete: isComplete };
 }
 
 /**

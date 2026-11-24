@@ -11,7 +11,7 @@ import {
   STRING_OPTION_KEYS,
 } from '../../shared/checkout-config-schema.js';
 import { readCheckoutField } from '../../shared/scan-evidence.js';
-import { parseVersion } from '../../shared/utils.js';
+import { parseVersion } from '../../shared/utilities.js';
 import { SKIP_REASONS } from './constants.js';
 import { createRegistry, type CheckContext, type CheckOutcome } from './registry.js';
 

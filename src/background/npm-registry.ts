@@ -9,7 +9,7 @@ import {
   NPM_REGISTRY_URL,
   STORAGE_NPM_CACHE_KEY,
 } from '../shared/constants.js';
-import { isRecord } from '../shared/utils.js';
+import { isRecord } from '../shared/utilities.js';
 import type { AdyenWebReleaseInfo } from './scan-browser.js';
 
 interface NpmCacheEntry {

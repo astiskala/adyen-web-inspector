@@ -14,8 +14,8 @@ import type {
   SdkVersionSource,
   VersionInfo,
 } from './types.js';
-import { extractHostname } from './utils.js';
-import { parseVersion } from './version-utils.js';
+import { extractHostname } from './utilities.js';
+import { parseVersion } from './version-utilities.js';
 
 /**
 Patterns that read a version from Adyen CDN script and asset URLs.

@@ -76,7 +76,8 @@ export function readPayButtonVisibility(payload: ScanPayload): PayButtonVisibili
   }
 
   const hidden = new Map<ButtonRequiredMethod, HiddenBy>();
-  for (const type of new Set([...rendered.keys(), ...events.paymentMethods, ...configuredHidden])) {
+  const candidates = new Set([...rendered.keys(), ...events.paymentMethods, ...configuredHidden]);
+  for (const type of candidates) {
     const method = buttonRequiredMethod(type);
     if (method === null || hidden.has(method)) continue;
     const reason = hiddenBy(type);

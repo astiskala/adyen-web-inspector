@@ -26,18 +26,18 @@ export function parseCsp(headerValue: string): ParsedCsp {
   return { directives };
 }
 
-function sourceMatchesUrl(source: string, resource: URL, page: URL): boolean {
+function isSourceMatchingUrl(source: string, resource: URL, page: URL): boolean {
   if (source === "'self'") return resource.origin === page.origin;
   if (source === '*') return resource.protocol === 'https:' || resource.protocol === 'http:';
   return source === 'https:' || source === 'http:'
     ? resource.protocol === source
-    : hostSourceMatchesUrl(source, resource);
+    : isHostSourceMatchingUrl(source, resource);
 }
 
 /**
 Matches a host source such as `https://*.adyen.com:443/path` against a resource URL.
  */
-function hostSourceMatchesUrl(source: string, resource: URL): boolean {
+function isHostSourceMatchingUrl(source: string, resource: URL): boolean {
   const match = /^(?:(https?):\/\/)?(\*\.)?([^/:]+)(?::(\d+))?(\/.*)?$/.exec(source.toLowerCase());
   const host = match?.[3];
   if (match === null || host === undefined) return false;
@@ -80,7 +80,8 @@ export function getEffectiveCspSources(
   csp: ParsedCsp,
   directive: CspFetchDirective
 ): EffectiveCspSources | null {
-  for (const candidate of CSP_DIRECTIVE_FALLBACKS[directive]) {
+  const candidates = CSP_DIRECTIVE_FALLBACKS[directive];
+  for (const candidate of candidates) {
     const sources = csp.directives[candidate];
     if (sources !== undefined) return { directive: candidate, sources };
   }
@@ -90,7 +91,7 @@ export function getEffectiveCspSources(
 /**
 Returns true when the policy allows loading the URL for the resource type.
  */
-export function cspAllowsUrl(
+export function isUrlAllowedByCsp(
   csp: ParsedCsp,
   directive: CspFetchDirective,
   url: string,
@@ -102,7 +103,7 @@ export function cspAllowsUrl(
   try {
     const resource = new URL(url, pageUrl);
     const page = new URL(pageUrl);
-    return effective.sources.some((source) => sourceMatchesUrl(source, resource, page));
+    return effective.sources.some((source) => isSourceMatchingUrl(source, resource, page));
   } catch {
     return false;
   }

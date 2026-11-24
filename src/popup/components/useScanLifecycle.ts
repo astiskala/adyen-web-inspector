@@ -87,7 +87,7 @@ export function useScanLifecycle(
   Resolves the inspected tab once per target; the resolution never throws synchronously.
    */
   function resolveTabId(): Promise<number | undefined> {
-    tabId.current ??= Promise.resolve().then(() => target.getTabId());
+    tabId.current ??= Promise.try(() => target.getTabId());
     return tabId.current;
   }
 
@@ -110,7 +110,7 @@ export function useScanLifecycle(
       update(fromSnapshot(await client.read(id)));
     }
 
-    follow().catch((error: unknown) => {
+    void follow().catch((error: unknown) => {
       update(failed({ kind: 'runtime', cause: error }));
     });
     return (): void => {
@@ -139,7 +139,7 @@ export function useScanLifecycle(
 
   function scan(): void {
     update((previous) => ({ ...previous, scanning: true, loading: false, error: null }));
-    requestScan().catch((error: unknown) => {
+    void requestScan().catch((error: unknown) => {
       update(failed({ kind: 'request', cause: error }));
     });
   }

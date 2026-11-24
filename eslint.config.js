@@ -275,7 +275,7 @@ export default defineConfig([
       'object-shorthand': 'error',
       'prefer-template': 'error',
       'no-console': 'error',
-      'no-void': 'error',
+      'no-void': ['error', { allowAsStatement: true }],
       'no-extend-native': 'error',
       'no-nested-ternary': 'error',
       'no-negated-condition': 'error',
@@ -343,7 +343,7 @@ export default defineConfig([
           paths: BASE_RESTRICTED_IMPORT_PATHS,
           patterns: [
             {
-              group: ['**/shared/utils.js', '**/shared/csp-utils.js'],
+              group: ['**/shared/utilities.js', '**/shared/csp-utilities.js'],
               importNames: ['parseCsp', 'cspAllowsUrl', 'getEffectiveCspSources'],
               message:
                 'Read the Content-Security-Policy through readPagePolicy() in checks/page-policy.ts.',

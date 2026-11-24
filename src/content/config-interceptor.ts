@@ -30,18 +30,18 @@ import { PAGE_GLOBALS, type PageGlobalValues } from '../shared/constants.js';
 import type { CallbackSource, CheckoutCapture } from '../shared/types.js';
 
 (function configInterceptor(): void {
-  const WRAPPED = '__awInspectorWrapped';
-
   type PlainRecord = Record<string, unknown>;
   type SdkCallable = (this: unknown, ...arguments_: unknown[]) => unknown;
 
-  const ADYEN_INSTANCE_MARKER = '__adyenInstance';
   const pageGlobals = globalThis as typeof globalThis & PageGlobalValues;
 
   if (pageGlobals[PAGE_GLOBALS.interceptorInstalled] === true) {
     return;
   }
   pageGlobals[PAGE_GLOBALS.interceptorInstalled] = true;
+
+  const WRAPPED = '__awInspectorWrapped';
+  const ADYEN_INSTANCE_MARKER = '__adyenInstance';
 
   // ---------------------------------------------------------------------------
   // Capture record
@@ -121,20 +121,22 @@ import type { CallbackSource, CheckoutCapture } from '../shared/types.js';
 
   function fetchUrl(input: RequestInfo | URL): string | null {
     if (typeof input === 'string') return input;
-    if (input instanceof URL) return input.toString();
+    if (input instanceof URL) return input.href;
     return input instanceof Request ? input.url : null;
   }
 
   const originalFetch = globalThis.fetch;
-  globalThis.fetch = function (input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-    const url = fetchUrl(input);
-    if (url !== null) {
-      tryCaptureFromUrl(url);
-      tryCaptureAnalytics(url, init?.body);
-    }
+  Object.defineProperty(globalThis, 'fetch', {
+    value: function fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+      const url = fetchUrl(input);
+      if (url !== null) {
+        tryCaptureFromUrl(url);
+        tryCaptureAnalytics(url, init?.body);
+      }
 
-    return originalFetch.call(globalThis, input, init);
-  };
+      return originalFetch.call(globalThis, input, init);
+    },
+  });
 
   const originalOpen = XMLHttpRequest.prototype.open;
   XMLHttpRequest.prototype.open = function (
@@ -184,7 +186,8 @@ import type { CallbackSource, CheckoutCapture } from '../shared/types.js';
   }
 
   function copyStatics(original: SdkCallable, wrapped: SdkCallable): void {
-    for (const [key, descriptor] of Object.entries(Object.getOwnPropertyDescriptors(original))) {
+    const descriptors = Object.entries(Object.getOwnPropertyDescriptors(original));
+    for (const [key, descriptor] of descriptors) {
       if (['prototype', 'length', 'name', 'arguments', 'caller'].includes(key)) {
         continue;
       }
@@ -212,7 +215,7 @@ import type { CallbackSource, CheckoutCapture } from '../shared/types.js';
     index['create'] = wrappedCreate;
   }
 
-  function tryCaptureFromInstance(inst: unknown): boolean {
+  function didCaptureFromInstance(inst: unknown): boolean {
     if (inst === null || typeof inst !== 'object') {
       return false;
     }
@@ -247,12 +250,8 @@ import type { CallbackSource, CheckoutCapture } from '../shared/types.js';
     commit(recordCheckoutInit(capture));
   }
 
-  function observeCheckoutFactoryResult(result: Promise<unknown>): void {
-    result
-      .then((inst: unknown) => {
-        tryCaptureFromInstance(inst);
-      })
-      .catch(() => {});
+  async function observeCheckoutFactoryResult(result: Promise<unknown>): Promise<void> {
+    didCaptureFromInstance(await result);
   }
 
   /**
@@ -264,7 +263,7 @@ import type { CallbackSource, CheckoutCapture } from '../shared/types.js';
       captureConfig(arguments_[0], 'checkout');
       const result = original.apply(this, arguments_);
       if (result instanceof Promise) {
-        observeCheckoutFactoryResult(result);
+        void observeCheckoutFactoryResult(result).catch(() => {});
       }
       return result;
     };

@@ -12,7 +12,7 @@ import {
   type TabScanStatus,
   type TabSnapshot,
 } from '../../shared/messages.js';
-import { isRecord, isScanResult } from '../../shared/utils.js';
+import { isRecord, isScanResult } from '../../shared/utilities.js';
 import type { TabStateClient } from './useScanLifecycle.js';
 
 function readActivity(value: unknown): CheckoutActivity {
@@ -25,7 +25,7 @@ function readScanStatus(value: unknown): TabScanStatus {
   if (!isRecord(value)) return { state: 'idle' };
   if (value['state'] === 'running') return { state: 'running' };
   const error = value['error'];
-  return value['state'] === 'failed' && typeof error === 'string'
+  return typeof error === 'string' && value['state'] === 'failed'
     ? { state: 'failed', error }
     : { state: 'idle' };
 }

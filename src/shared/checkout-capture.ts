@@ -56,10 +56,14 @@ function isNonEmptyString(value: unknown): value is string {
 
 function renderedComponent(
   type: string,
-  showPayButton: boolean,
+  isPayButtonShown: boolean,
   clickToPayDisabled: unknown
 ): RenderedComponent {
-  return { type, showPayButton, ...(clickToPayDisabled === true && { clickToPayDisabled }) };
+  return {
+    type,
+    showPayButton: isPayButtonShown,
+    ...(clickToPayDisabled === true && { clickToPayDisabled }),
+  };
 }
 
 /**
@@ -125,7 +129,7 @@ export function recordCheckoutOptions(
   const fields = readCheckoutOptions(raw, placement);
   if (fields === null) return capture;
   const isComplete = placement === 'checkout' && !Array.isArray(raw);
-  if (isEmpty(fields) && !isComplete) return capture;
+  if (!isComplete && isEmpty(fields)) return capture;
   return {
     ...capture,
     captured: {
@@ -214,7 +218,7 @@ function readCaptured(value: unknown): CapturedCheckoutOptions | null {
 function readRendered(value: unknown): RenderedComponent[] {
   if (!isPlainRecord(value)) return [];
   const { type, showPayButton } = value;
-  return isNonEmptyString(type) && typeof showPayButton === 'boolean'
+  return typeof showPayButton === 'boolean' && isNonEmptyString(type)
     ? [renderedComponent(type, showPayButton, value['clickToPayDisabled'])]
     : [];
 }

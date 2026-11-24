@@ -5,7 +5,7 @@
  * the background service worker. SDK presence is established by a scan.
  */
 import { readAdyenEndpoint } from '../shared/adyen-endpoint.js';
-import { readCheckoutDom, showsMountedCheckout } from '../shared/checkout-signals.js';
+import { readCheckoutDom, hasMountedCheckout } from '../shared/checkout-signals.js';
 import {
   MSG_CHECKOUT_ACTIVITY_CLEARED,
   MSG_CHECKOUT_ACTIVITY_DETECTED,
@@ -19,8 +19,10 @@ interface CheckoutActivity {
 }
 
 const DETECTION_DEBOUNCE_MS = 200;
-let pendingTimer: ReturnType<typeof globalThis.setTimeout> | undefined;
-let lastSentState: string | null = null;
+const detection: {
+  pendingTimer: ReturnType<typeof globalThis.setTimeout> | undefined;
+  lastSentState: string | null;
+} = { pendingTimer: undefined, lastSentState: null };
 
 /**
 Reads the SDK version from Adyen-hosted script URLs (supplementary data).
@@ -36,7 +38,7 @@ function extractVersionFromScripts(): string | undefined {
 Reports mounted checkout as the checkout signals define it; SDK script tags alone do not count.
  */
 function detectCheckoutActivity(): CheckoutActivity {
-  if (!showsMountedCheckout(readCheckoutDom(document))) return { found: false };
+  if (!hasMountedCheckout(readCheckoutDom(document))) return { found: false };
   const version = extractVersionFromScripts();
   return { found: true, ...(version !== undefined && { version }) };
 }
@@ -45,14 +47,14 @@ function buildStateKey(result: CheckoutActivity): string {
   return `${result.found ? '1' : '0'}:${result.version ?? ''}`;
 }
 
-function sendDetectionResult(force = false): void {
+function sendDetectionResult(isForced = false): void {
   const result = detectCheckoutActivity();
   const stateKey = buildStateKey(result);
-  if (!force && stateKey === lastSentState) {
+  if (!isForced && stateKey === detection.lastSentState) {
     return;
   }
 
-  lastSentState = stateKey;
+  detection.lastSentState = stateKey;
 
   const message: ContentToBswMessage = result.found
     ? {
@@ -62,17 +64,17 @@ function sendDetectionResult(force = false): void {
       }
     : { type: MSG_CHECKOUT_ACTIVITY_CLEARED, tabId: 0 };
 
-  chrome.runtime.sendMessage(message).catch(() => {
+  void chrome.runtime.sendMessage(message).catch(() => {
     // Background service worker may not be ready yet — safe to ignore
   });
 }
 
 function scheduleDetection(delay = DETECTION_DEBOUNCE_MS): void {
-  if (pendingTimer !== undefined) {
-    globalThis.clearTimeout(pendingTimer);
+  if (detection.pendingTimer !== undefined) {
+    globalThis.clearTimeout(detection.pendingTimer);
   }
-  pendingTimer = globalThis.setTimeout(() => {
-    pendingTimer = undefined;
+  detection.pendingTimer = globalThis.setTimeout(() => {
+    detection.pendingTimer = undefined;
     sendDetectionResult();
   }, delay);
 }

@@ -779,8 +779,8 @@ describe('callback-multiple-submissions', () => {
   });
 });
 
-function rendered(type: string, showPayButton: boolean): RenderedComponent {
-  return { type, showPayButton };
+function rendered(type: string, isPayButtonShown: boolean): RenderedComponent {
+  return { type, showPayButton: isPayButtonShown };
 }
 
 describe('callback-custom-pay-button-compatibility', () => {

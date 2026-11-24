@@ -192,7 +192,7 @@ describe('scan views', () => {
       });
       const remediation =
         'Follow the linked Adyen guidance, apply the configuration change, then rerun the scan.';
-      const docsUrl = 'https://docs.adyen.com/online-payments/web-best-practices/';
+      const documentationUrl = 'https://docs.adyen.com/online-payments/web-best-practices/';
       sendMessage.mockResolvedValue(snapshot(withoutGuidance, { detected: true }));
 
       await mount(View);
@@ -200,7 +200,7 @@ describe('scan views', () => {
       await vi.waitFor(() => {
         expect(host.textContent).toContain(remediation);
       });
-      expect([...host.querySelectorAll('a')].map((link) => link.href)).toContain(docsUrl);
+      expect([...host.querySelectorAll('a')].map((link) => link.href)).toContain(documentationUrl);
     }
   );
 

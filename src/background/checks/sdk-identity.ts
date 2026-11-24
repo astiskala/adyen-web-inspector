@@ -7,7 +7,7 @@ import type { ImplementationAttributes } from '../../shared/types.js';
 import { isAdyenCheckoutResource } from '../../shared/adyen-endpoint.js';
 import { readCheckoutField } from '../../shared/scan-evidence.js';
 import { detectSdkPresence } from '../../shared/sdk-presence.js';
-import { docsIntegration } from './constants.js';
+import { documentationIntegration } from './constants.js';
 import { createRegistry } from './registry.js';
 
 const STRINGS = {
@@ -143,8 +143,6 @@ export const SDK_IDENTITY_CHECKS = createRegistry(CATEGORY)
         return skip(STRINGS.BUNDLE_TYPE_CDN_SKIP_TITLE, STRINGS.BUNDLE_TYPE_CDN_SKIP_REASON);
       }
 
-      const bundleType = adyenMetadata?.bundleType ?? payload.analyticsData?.buildType ?? 'unknown';
-
       if (adyenMetadata === null && payload.analyticsData?.buildType === undefined) {
         return skip(
           STRINGS.BUNDLE_TYPE_UNKNOWN_SKIP_TITLE,
@@ -152,13 +150,15 @@ export const SDK_IDENTITY_CHECKS = createRegistry(CATEGORY)
         );
       }
 
+      const bundleType = adyenMetadata?.bundleType ?? payload.analyticsData?.buildType ?? 'unknown';
+
       if (bundleType === 'auto') {
-        const docsUrl = getFlowSensitiveBundleDocsUrl(attributes);
+        const documentationUrl = getFlowSensitiveBundleDocumentationUrl(attributes);
         return notice(
           STRINGS.BUNDLE_AUTO_NOTICE_TITLE,
           STRINGS.BUNDLE_AUTO_NOTICE_DETAIL,
           STRINGS.BUNDLE_AUTO_NOTICE_REMEDIATION,
-          docsUrl
+          documentationUrl
         );
       }
 
@@ -204,7 +204,7 @@ export const SDK_IDENTITY_CHECKS = createRegistry(CATEGORY)
   })
   .getChecks();
 
-function getFlowSensitiveBundleDocsUrl(attributes: ImplementationAttributes): string {
+function getFlowSensitiveBundleDocumentationUrl(attributes: ImplementationAttributes): string {
   const flow = attributes.flow.value === 'sessions' ? 'sessions' : 'advanced';
-  return BUNDLE_AUTO_DOCS[flow][docsIntegration(attributes)];
+  return BUNDLE_AUTO_DOCS[flow][documentationIntegration(attributes)];
 }

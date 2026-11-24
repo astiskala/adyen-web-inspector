@@ -28,7 +28,7 @@ import {
   type TabSnapshot,
 } from '../shared/messages.js';
 import type { ScanResult } from '../shared/types.js';
-import { describeError, isScanResult } from '../shared/utils.js';
+import { describeError, isScanResult } from '../shared/utilities.js';
 
 /**
 A badge on the extension's action icon for one tab.
@@ -124,7 +124,7 @@ function badgeFor({ result, checkoutActivity, scan }: TabSnapshot): TabBadge | n
   if (scan.state === 'running') return SCANNING_BADGE;
   if (result !== null) {
     return result.sdkPresence.detected
-      ? { text: `${result.health.score}`, color: HEALTH_TIER_COLORS[result.health.tier] }
+      ? { text: result.health.score.toString(), color: HEALTH_TIER_COLORS[result.health.tier] }
       : null;
   }
   return checkoutActivity.detected ? ACTIVITY_BADGE : null;
@@ -140,9 +140,25 @@ function readActivity(stored: Readonly<Record<string, unknown>>, tabId: number):
 Runs a transition after the tab's earlier ones; a failed transition does not block later ones.
  */
 function enqueue<T>(tab: TabRuntime, transition: () => T | Promise<T>): Promise<T> {
-  const next = tab.queue.then(transition);
-  tab.queue = next.catch(() => {});
+  const next = runAfter(tab.queue, transition);
+  tab.queue = Promise.allSettled([next]);
   return next;
+}
+
+async function runAfter<T>(
+  previous: Promise<unknown>,
+  transition: () => T | Promise<T>
+): Promise<T> {
+  await previous;
+  return transition();
+}
+
+async function settleScan(running: Promise<ScanResult>): Promise<ScanOutcome> {
+  try {
+    return { result: await running };
+  } catch (error: unknown) {
+    return { error };
+  }
 }
 
 /**
@@ -193,7 +209,7 @@ export function createTabState(browser: TabStateBrowser, scan: RunScan): TabStat
       if (tab.scan.state === 'running') return null;
       tab.scan = RUNNING;
       // The Scan must start even if storage cannot be read; its outcome publishes again.
-      await publish(tab).catch(() => {});
+      await Promise.allSettled([publish(tab)]);
       return tab.generation;
     });
   }
@@ -236,10 +252,7 @@ export function createTabState(browser: TabStateBrowser, scan: RunScan): TabStat
       const tab = runtime(tabId);
       const generation = await startScan(tab);
       if (generation === null) return;
-      const outcome = await scan(tabId).then(
-        (result): ScanOutcome => ({ result }),
-        (error: unknown): ScanOutcome => ({ error })
-      );
+      const outcome = await settleScan(scan(tabId));
       await finishScan(tab, generation, outcome);
     },
 

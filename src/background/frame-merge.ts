@@ -8,7 +8,7 @@ import { mergeCheckoutConfigs } from '../shared/checkout-config-schema.js';
 import {
   checkoutStrength,
   isMerchantDocument,
-  rendersCheckout,
+  isRenderingCheckout,
 } from '../shared/checkout-signals.js';
 import type {
   CapturedCheckoutOptions,
@@ -166,7 +166,7 @@ export function mergeFrames(frames: readonly FrameExtraction[]): CheckoutPage | 
   const results = extracted.map((frame) => frame.result);
   const merchantFrames = extracted.filter(isMerchantFrame);
   const isCheckoutInChildFrame = merchantFrames.some(
-    (frame) => frame.frameId !== TOP_FRAME_ID && rendersCheckout(frame.result)
+    (frame) => frame.frameId !== TOP_FRAME_ID && isRenderingCheckout(frame.result)
   );
 
   return {

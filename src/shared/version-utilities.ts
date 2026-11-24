@@ -17,9 +17,9 @@ export function parseVersion(version: string): ParsedVersion | null {
   if (!match) return null;
   const [, majorText = '', minorText = '', patchText = ''] = match;
   return {
-    major: Number.parseInt(majorText, 10),
-    minor: Number.parseInt(minorText, 10),
-    patch: Number.parseInt(patchText, 10),
+    major: Number(majorText),
+    minor: Number(minorText),
+    patch: Number(patchText),
   };
 }
 

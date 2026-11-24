@@ -6,7 +6,7 @@ import { buildJsonExport } from '../../shared/export-json.js';
 import { buildPrintableReportMetadata } from '../../shared/export-metadata.js';
 import { exportPdf } from '../../popup/components/pdf-export.js';
 import type { ScanResult } from '../../shared/types.js';
-import { describeError } from '../../shared/utils.js';
+import { describeError } from '../../shared/utilities.js';
 import {
   OverviewTab,
   BestPracticesTab,
@@ -137,7 +137,7 @@ export function Panel(): JSX.Element {
             <button
               class="btn"
               onClick={() => {
-                exportPdf(result).catch(() => {});
+                void exportPdf(result).catch(() => {});
               }}
             >
               Export PDF

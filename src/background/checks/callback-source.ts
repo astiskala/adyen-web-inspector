@@ -119,10 +119,11 @@ function parseSwitchStatement(source: string, switchStart: number): ParsedSwitch
  * resolves them, or when it exits without resolving its own. A branch that
  * only adjusts data falls through to the resolution after it.
  */
-function leavesSubmissionsUnhandled(branch: string, codeAfter: string): boolean {
-  return RESOLUTION_HANDOFF_PATTERN.test(codeAfter)
-    ? EXIT_PATTERN.test(branch) && !RESOLUTION_HANDOFF_PATTERN.test(branch)
-    : true;
+function areSubmissionsLeftUnhandled(branch: string, codeAfter: string): boolean {
+  return (
+    !RESOLUTION_HANDOFF_PATTERN.test(codeAfter) ||
+    (EXIT_PATTERN.test(branch) && !RESOLUTION_HANDOFF_PATTERN.test(branch))
+  );
 }
 
 function hasStringCasesWithoutDefault(switchBlock: string): boolean {
@@ -151,7 +152,7 @@ function hasUnhandledSelectorIfStatement(source: string, selectorPattern: RegExp
       const trailingTokenStart = skipWhitespace(source, statementEnd + 1);
       if (
         !source.startsWith('else', trailingTokenStart) &&
-        leavesSubmissionsUnhandled(
+        areSubmissionsLeftUnhandled(
           source.slice(statementStart, statementEnd + 1),
           source.slice(statementEnd + 1)
         )
@@ -180,7 +181,7 @@ function hasUnhandledSelectorSwitchStatement(source: string, selectorPattern: Re
       parsed.block !== undefined &&
       selectorPattern.test(parsed.condition) &&
       hasStringCasesWithoutDefault(parsed.block) &&
-      leavesSubmissionsUnhandled(parsed.block, source.slice(parsed.nextSearchIndex))
+      areSubmissionsLeftUnhandled(parsed.block, source.slice(parsed.nextSearchIndex))
     ) {
       return true;
     }
@@ -261,17 +262,17 @@ function detectStateDataForwarding(source: string): StateDataForwarding {
   const data = String.raw`${state}\s*(?:\?\.|\.)\s*data\b`;
   const wholeState = new RegExp(String.raw`${state}\b${NOT_MEMBER_ACCESS}`);
   const wholeData = new RegExp(`${data}${NOT_MEMBER_ACCESS}`);
+  if (wholeData.test(callback.body)) return { kind: 'complete', fields: [] };
+  if (wholeState.test(callback.body)) return { kind: 'unknown', fields: [] };
+
   const fieldAccess = new RegExp(
     String.raw`${data}\s*(?:\?\.|\.)\s*([A-Za-z_$][\w$]*)\b${NOT_MEMBER_ACCESS}`,
     'g'
   );
-
-  if (wholeData.test(callback.body)) return { kind: 'complete', fields: [] };
-  if (wholeState.test(callback.body)) return { kind: 'unknown', fields: [] };
-
   const fields = [
     ...new Set(
-      [...callback.body.matchAll(fieldAccess)]
+      callback.body
+        .matchAll(fieldAccess)
         .map((match) => match[1])
         .filter((field): field is string => field !== undefined)
     ),
@@ -284,7 +285,7 @@ function detectStateDataForwarding(source: string): StateDataForwarding {
 /**
 Returns true when callback source appears to guard against duplicate submissions.
  */
-function detectsMultipleSubmissions(source: string): boolean {
+function hasMultipleSubmissionDetection(source: string): boolean {
   // Looks for common patterns like .disabled = true, setLoading(true), .setAttribute('disabled', ...), etc.
   const patterns = [
     /\.disabled\s*=\s*(?:true|1)/,
@@ -377,5 +378,5 @@ export function readSubmissionGuard(payload: ScanPayload): SubmissionGuard {
   const combined = `${readSource(payload, 'onSubmitSource')}\n${readSource(payload, 'beforeSubmitSource')}`;
   return combined.trim() === ''
     ? { status: 'unavailable', reason: 'no-source' }
-    : { status: 'read', guarded: detectsMultipleSubmissions(combined) };
+    : { status: 'read', guarded: hasMultipleSubmissionDetection(combined) };
 }

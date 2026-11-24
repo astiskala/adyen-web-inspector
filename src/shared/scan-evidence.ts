@@ -150,8 +150,8 @@ export function withRequestDerivedLocale(
   page: CheckoutPage,
   requests: readonly CapturedRequest[]
 ): CheckoutPage {
-  const observed = CONFIGURING_SLOTS.some(({ read }) => isObserved(read(page)?.locale));
-  if (observed) return page;
+  const isLocaleObserved = CONFIGURING_SLOTS.some(({ read }) => isObserved(read(page)?.locale));
+  if (isLocaleObserved) return page;
 
   const locale = requests
     .map((request) => readTranslationLocale(request.url))

@@ -6,7 +6,7 @@
  */
 
 import type { ImplementationAttributes, StandardCompliance } from './types.js';
-import { compareVersions, parseVersion } from './utils.js';
+import { compareVersions, parseVersion } from './utilities.js';
 
 const MINIMUM_STANDARD_DROPIN_VERSION = '6.30.0';
 

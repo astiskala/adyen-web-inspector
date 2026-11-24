@@ -62,22 +62,27 @@ const MAX_TREE_DEPTH = 15;
  * Recursively walks a Preact VNode tree to find the props that carry
  * `core.options`. Returns the mounted checkout if found, or null.
  */
-function findMountedCheckout(node: unknown, depth: number): MountedCheckout | null {
-  if (depth > MAX_TREE_DEPTH || typeof node !== 'object' || node === null) return null;
+function findMountedCheckout(root: unknown, rootDepth: number): MountedCheckout | null {
+  let node = root;
+  let depth = rootDepth;
+  while (typeof node === 'object' && node !== null && depth <= MAX_TREE_DEPTH) {
+    const vnode = node as PreactVNode;
+    const properties = vnode.__c?.props ?? {};
+    const options = properties.core?.options;
+    if (options !== undefined && options !== null) {
+      return { options, paymentMethodsConfiguration: properties.paymentMethodsConfiguration };
+    }
 
-  const vnode = node as PreactVNode;
-  const properties = vnode.__c?.props ?? {};
-  const options = properties.core?.options;
-  if (options !== undefined && options !== null) {
-    return { options, paymentMethodsConfiguration: properties.paymentMethodsConfiguration };
-  }
-
-  const children = vnode.__k;
-  if (!Array.isArray(children)) return findMountedCheckout(children, depth + 1);
-
-  for (const child of children) {
-    const result = findMountedCheckout(child, depth + 1);
-    if (result !== null) return result;
+    const children = vnode.__k;
+    if (Array.isArray(children)) {
+      for (const child of children) {
+        const result = findMountedCheckout(child, depth + 1);
+        if (result !== null) return result;
+      }
+      return null;
+    }
+    node = children;
+    depth += 1;
   }
   return null;
 }
@@ -314,7 +319,7 @@ const ADYEN_API_KEY_PATTERN = /AQ[A-Za-z0-9+/]+==-[A-Za-z0-9+/]+=-[A-Za-z0-9+/]+
 /**
 Looks for an Adyen API key in inline scripts and in everything the capture record holds.
  */
-function detectApiKeyExposure(capture: CheckoutCapture): boolean {
+function isApiKeyExposed(capture: CheckoutCapture): boolean {
   const scripts = document.querySelectorAll<HTMLScriptElement>('script:not([src])');
   for (const script of scripts) {
     if (ADYEN_API_KEY_PATTERN.test(script.textContent)) {
@@ -425,7 +430,7 @@ function extract(): PageExtractResult {
   const metadata = extractMetadata(g);
   const { config: componentConfig, mountCount } = extractComponentConfig();
   const capture = readCheckoutCapture(g[PAGE_GLOBALS.checkoutCapture]);
-  const isApiKeyDetected = detectApiKeyExposure(capture);
+  const isApiKeyDetected = isApiKeyExposed(capture);
   const dom = readCheckoutDom(document);
   const { events } = capture;
   const hasEvents = events.rendered.length > 0 || events.paymentMethods.length > 0;

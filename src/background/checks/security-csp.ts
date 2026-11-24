@@ -138,7 +138,7 @@ const CDN_TRANSLATION_LANGUAGES = new Set(
 /**
 Adyen Web bundles en-US and fetches other supported translations from the CDN.
  */
-function fetchesCdnTranslations(payload: ScanPayload): boolean {
+function areCdnTranslationsFetched(payload: ScanPayload): boolean {
   const locale = readCheckoutField(payload, 'locale');
   if (locale.state !== 'present') return false;
   const language = locale.value.slice(0, 2).toLowerCase();
@@ -244,7 +244,7 @@ export const CSP_CHECKS = createRegistry(CATEGORY)
     const required: RequiredCspUrl[] = [
       { url: `${urls.api}v1/`, purpose: 'checkout API' },
       { url: `${urls.analytics}v3/analytics`, purpose: 'checkout analytics' },
-      ...(fetchesCdnTranslations(payload)
+      ...(areCdnTranslationsFetched(payload)
         ? [{ url: `${urls.cdn}sdk/`, purpose: 'translations' }]
         : []),
     ];
@@ -299,9 +299,11 @@ export const CSP_CHECKS = createRegistry(CATEGORY)
         ADYEN_PCI_DSS_EXTERNAL_SOURCES_DOC
       );
     }
-    return policy.governing('form-action').every((governing) => governing === null)
-      ? pass(STRINGS.FORM_ACTION_UNSET_PASS_TITLE)
-      : pass(STRINGS.FORM_ACTION_PASS_TITLE);
+    return pass(
+      policy.governing('form-action').every((governing) => governing === null)
+        ? STRINGS.FORM_ACTION_UNSET_PASS_TITLE
+        : STRINGS.FORM_ACTION_PASS_TITLE
+    );
   })
   .add('security-csp-frame-ancestors', (payload, { pass, warn, skip }) => {
     const policy = readPagePolicy(payload);
@@ -331,14 +333,12 @@ export const CSP_CHECKS = createRegistry(CATEGORY)
     if (policy.status === 'unavailable') {
       return skip(STRINGS.REPORTING_SKIP_TITLE, SKIP_REASONS.HEADERS_UNAVAILABLE);
     }
-    const reportingEndpoints = readDocumentHeader(payload, 'reporting-endpoints');
-
     if (policy.status === 'absent') {
       return info(STRINGS.REPORTING_SKIP_INFO_TITLE);
     }
 
+    const reportingEndpoints = readDocumentHeader(payload, 'reporting-endpoints');
     const hasReportTo = policy.declares('report-to');
-    const hasReportUri = policy.declares('report-uri');
 
     if (hasReportTo && reportingEndpoints.state === 'present' && reportingEndpoints.value !== '') {
       return pass(STRINGS.REPORTING_PASS_TITLE);
@@ -353,7 +353,7 @@ export const CSP_CHECKS = createRegistry(CATEGORY)
       );
     }
 
-    return hasReportUri
+    return policy.declares('report-uri')
       ? info(STRINGS.REPORTING_REPORT_URI_INFO_TITLE, STRINGS.REPORTING_REPORT_URI_INFO_DETAIL)
       : info(STRINGS.REPORTING_NONE_INFO_TITLE, STRINGS.REPORTING_NONE_INFO_DETAIL);
   })

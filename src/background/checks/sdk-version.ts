@@ -4,7 +4,7 @@
  */
 
 import type { SdkVersionSource, VersionInfo } from '../../shared/types.js';
-import { compareVersions, parseVersion } from '../../shared/utils.js';
+import { compareVersions, parseVersion } from '../../shared/utilities.js';
 import { createRegistry } from './registry.js';
 
 const RELEASE_NOTES_URL = 'https://docs.adyen.com/online-payments/release-notes/';

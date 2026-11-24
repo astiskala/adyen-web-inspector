@@ -1,5 +1,5 @@
 import type { CheckoutPage, ScanPayload, ScanResult } from '../shared/types.js';
-import { calculateHealthScore } from '../shared/utils.js';
+import { calculateHealthScore } from '../shared/utilities.js';
 import { readImplementationAttributes } from '../shared/implementation-attributes.js';
 import { withRequestDerivedLocale } from '../shared/scan-evidence.js';
 import { detectSdkPresence } from '../shared/sdk-presence.js';

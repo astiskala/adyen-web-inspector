@@ -133,7 +133,7 @@ async function readDocumentHeaders(
   fetchDocumentHeaders: FetchDocumentHeaders
 ): Promise<DocumentHeaders> {
   const topDocument = responses.findLast((response) => response.type === 'main_frame');
-  if (!page.checkoutInIframe && topDocument !== undefined && topDocument.headers.length > 0) {
+  if (topDocument !== undefined && !page.checkoutInIframe && topDocument.headers.length > 0) {
     return {
       status: 'observed',
       url: topDocument.url,
