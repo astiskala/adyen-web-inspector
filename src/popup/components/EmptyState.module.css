@@ -1,52 +1,47 @@
 .container {
-  padding: 24px 12px;
+  min-height: 260px;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 12px;
+  padding: 24px 16px;
   text-align: center;
-  color: var(--color-text-secondary);
-  font-size: 12px;
-  line-height: 1.6;
 }
 
 .icon {
-  font-size: 28px;
-  margin-bottom: 8px;
+  display: inline-grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  color: var(--tone-text);
+  background: var(--tone-bg);
+}
+
+.icon svg {
+  width: 23px;
+  height: 23px;
 }
 
 .title {
-  font-weight: 600;
+  font-size: 16px;
   margin-bottom: 4px;
-  color: var(--color-text);
 }
 
-.titleWarning {
-  margin-bottom: 6px;
-  color: var(--color-amber);
-  font-size: 13px;
+.body,
+.actionHint {
+  color: var(--color-text-secondary);
 }
 
 .body {
-  padding: 4px 8px;
-}
-
-.body strong {
-  color: var(--color-text);
-}
-
-.action {
-  margin-top: 12px;
+  max-width: 32ch;
 }
 
 .actionHint {
-  margin-bottom: 6px;
+  font-size: 12px;
+  margin-bottom: 4px;
 }
 
 .actionButton {
-  min-width: 120px;
-}
-
-.link {
-  display: inline-block;
-  margin-top: 6px;
-  color: var(--color-blue);
-  text-decoration: none;
-  font-size: 11px;
+  min-width: 160px;
 }

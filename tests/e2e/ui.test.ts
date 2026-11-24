@@ -45,7 +45,7 @@ test.describe('Popup', () => {
     const popup = await openPopupFor(context, extensionId, page);
 
     await expect(popup.getByText('Adyen Web SDK detected')).toBeVisible();
-    await expect(popup.getByRole('button', { name: 'Run Scan', exact: true })).toBeEnabled();
+    await expect(popup.getByRole('button', { name: 'Run scan', exact: true })).toBeEnabled();
     await expect(popup.getByText('Adyen not detected')).toHaveCount(0);
   });
 
@@ -57,9 +57,9 @@ test.describe('Popup', () => {
     const popup = await openPopupFor(context, extensionId, page);
 
     await expect(popup.getByText('Adyen not detected')).toBeVisible();
-    await expect(popup.getByRole('button', { name: 'Run Scan', exact: true })).toHaveCount(0);
+    await expect(popup.getByRole('button', { name: 'Run scan', exact: true })).toHaveCount(0);
 
-    await popup.getByRole('button', { name: 'Attempt Scan', exact: true }).click();
+    await popup.getByRole('button', { name: 'Attempt scan', exact: true }).click();
     await expect
       .poll(
         async () => {
@@ -72,8 +72,8 @@ test.describe('Popup', () => {
 
     const result = await requireStoredResult(context, extensionId, page);
     expect(requireCheck(result, 'sdk-detected').severity).toBe('fail');
-    await expect(popup.getByRole('button', { name: 'Attempt Scan', exact: true })).toBeEnabled();
-    await expect(popup.getByText('Health Score')).toHaveCount(0);
+    await expect(popup.getByRole('button', { name: 'Attempt scan', exact: true })).toBeEnabled();
+    await expect(popup.getByText('Health score')).toHaveCount(0);
     expect(await getBadgeText(context, extensionId, page)).toBe('');
   });
 
@@ -85,33 +85,50 @@ test.describe('Popup', () => {
     await expect.poll(() => getBadgeText(context, extensionId, page)).toBe('✓');
     const popup = await openPopupFor(context, extensionId, page);
 
-    await popup.getByRole('button', { name: 'Run Scan', exact: true }).click();
-    await expect(popup.getByRole('button', { name: 'Re-run Scan', exact: true })).toBeEnabled({
+    await popup.getByRole('button', { name: 'Run scan', exact: true }).click();
+    await expect(popup.getByRole('button', { name: 'Re-run scan', exact: true })).toBeEnabled({
       timeout: SCAN_TIMEOUT_MS,
     });
 
     const result = await requireStoredResult(context, extensionId, page);
     const { score, passing, total } = result.health;
     expect(await getBadgeText(context, extensionId, page)).toBe(score.toString());
-    const passRatio = popup.getByText(`${passing}/${total} checks passing`, { exact: true });
-    await expect(passRatio).toBeVisible();
-    await expect(passRatio.locator('xpath=following-sibling::span')).toHaveText(score.toString());
+    await expect(popup.getByRole('meter', { name: 'Health score' })).toHaveAttribute(
+      'aria-valuenow',
+      score.toString()
+    );
+    await expect(
+      popup.getByText(`${passing} of ${total} checks passing`, { exact: true })
+    ).toBeVisible();
+    await expect(popup.getByText('Implementation attributes')).toHaveCount(0);
 
-    await expect(popup.getByText('Implementation Attributes')).toBeVisible();
+    await popup.getByRole('button', { name: 'Settings' }).click();
+    await popup.getByRole('radio', { name: /^Detailed/ }).check();
+    await popup.getByRole('button', { name: 'Back' }).click();
+    await expect(popup.getByText('Implementation attributes')).toBeVisible();
     await expect(popup.getByText('6.31.0', { exact: true })).toBeVisible();
     await expect(popup.getByText('Sessions', { exact: true })).toBeVisible();
     await expect(popup.getByText('Drop-in', { exact: true })).toBeVisible();
 
     const cspFinding = requireCheck(result, 'security-csp-present');
     expect(cspFinding.severity).toBe('warn');
+    const warnings = popup.locator('summary', { hasText: 'Warning' }).first();
     const warningCount = result.checks.filter((check) => check.severity === 'warn').length;
-    const warnings = popup.locator('summary', { hasText: 'Warnings' });
     await expect(warnings).toContainText(warningCount.toString());
-    await expect(popup.getByText(cspFinding.title, { exact: true })).toBeHidden();
-    await warnings.click();
-    await expect(popup.getByText(cspFinding.title, { exact: true })).toBeVisible();
+    const issue = popup.getByText(cspFinding.title, { exact: true });
+    await expect(warnings.locator('..')).toHaveAttribute('open', '');
+    await expect(issue).toBeVisible();
+    await issue.press('Enter');
+    await expect(
+      issue.locator('..').getByRole('link', { name: 'Read documentation' })
+    ).toBeVisible();
 
-    await expect(popup.getByRole('button', { name: 'Export PDF', exact: true })).toBeVisible();
+    const bounds = await popup.getByRole('main').boundingBox();
+    expect(bounds?.width).toBe(380);
+    expect(bounds?.height).toBeLessThanOrEqual(600);
+    await expect(
+      popup.getByRole('button', { name: 'Open full report', exact: true })
+    ).toBeVisible();
   });
 });
 
@@ -151,27 +168,104 @@ test.describe('DevTools panel', () => {
     const page = await openFixture(context, CHECKOUT_FIXTURE);
     const panel = await openDevtoolsPanelFor(context, extensionId, page);
 
-    await expect(panel.getByText('Click "Run Scan" to inspect this page.')).toBeVisible();
-    await panel.getByRole('button', { name: 'Run Scan', exact: true }).click();
-    await expect(panel.getByRole('button', { name: 'Re-run Scan', exact: true })).toBeEnabled({
+    await expect(panel.getByRole('heading', { name: 'Adyen Web SDK detected' })).toBeVisible();
+    await expect(panel.getByRole('button', { name: 'Export JSON' })).toBeDisabled();
+    await panel.getByRole('button', { name: 'Run scan', exact: true }).first().click();
+    await expect(panel.getByRole('button', { name: 'Re-run scan', exact: true })).toBeEnabled({
       timeout: SCAN_TIMEOUT_MS,
     });
 
     const result = await requireStoredResult(context, extensionId, page);
     const { score, passing, total } = result.health;
     await expect(panel.getByText(`Score: ${score} · ${passing}/${total} passing`)).toBeVisible();
-    await expect(panel.getByText('Implementation Attributes')).toBeVisible();
+    await expect(panel.getByText('Implementation attributes')).toBeVisible();
 
-    await panel.getByRole('tab', { name: 'Security', exact: true }).click();
+    await panel.getByRole('tab', { name: 'Overview', exact: true }).press('ArrowRight');
+    await expect(panel.getByRole('tab', { name: 'Best practices' })).toBeFocused();
+    await panel.getByRole('tab', { name: 'Best practices' }).press('ArrowRight');
     const cspFinding = requireCheck(result, 'security-csp-present');
     await expect(panel.getByText(cspFinding.title, { exact: true })).toBeVisible();
 
-    await panel.getByRole('tab', { name: 'Skipped Checks', exact: true }).click();
+    await panel.getByRole('tab', { name: 'Skipped checks', exact: true }).click();
     const skippedFinding = requireCheck(result, 'auth-client-key-rejected');
     expect(skippedFinding.severity).toBe('skip');
     await expect(panel.getByText(skippedFinding.title, { exact: true })).toBeVisible();
 
-    await panel.getByRole('tab', { name: 'Extracted Config', exact: true }).click();
+    await panel.getByRole('tab', { name: 'Extracted config', exact: true }).click();
     await expect(panel.locator('pre').first()).toContainText('"clientKey": "test_dummy"');
   });
+});
+
+test('opens the full report, filters findings and exports at narrow widths', async ({
+  context,
+  extensionId,
+}, testInfo) => {
+  const page = await openFixture(context, 'dummy-merchant.html?scenario=advanced-components');
+  await expect.poll(() => getBadgeText(context, extensionId, page)).toBe('✓');
+  const popup = await openPopupFor(context, extensionId, page);
+  const panel = await openDevtoolsPanelFor(context, extensionId, page);
+
+  await popup.getByRole('button', { name: 'Settings' }).click();
+  await popup.getByRole('radio', { name: 'Match system' }).press('ArrowRight');
+  await popup.getByRole('radio', { name: 'Light', exact: true }).press('ArrowRight');
+  await expect(popup.getByRole('radio', { name: 'Dark', exact: true })).toBeChecked();
+  await expect(panel.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await popup.getByRole('radio', { name: /^Detailed/ }).check();
+  await popup.getByRole('button', { name: 'Back' }).click();
+  await expect(popup.getByRole('button', { name: 'Settings' })).toBeFocused();
+  const reopened = await openPopupFor(context, extensionId, page);
+  await expect(reopened.locator('html')).toHaveAttribute('data-theme', 'dark');
+
+  await reopened.getByRole('button', { name: 'Run scan', exact: true }).click();
+  await expect(reopened.getByRole('button', { name: 'Open full report' })).toBeVisible({
+    timeout: SCAN_TIMEOUT_MS,
+  });
+  await expect(reopened.getByRole('heading', { name: 'Implementation attributes' })).toBeAttached();
+
+  await context.addInitScript(() => {
+    Object.assign(globalThis, {
+      print: (): void => {
+        document.documentElement.dataset['printRequested'] = 'true';
+      },
+    });
+  });
+  const reportOpened = context.waitForEvent('page');
+  await reopened.getByRole('button', { name: 'Open full report' }).click();
+  const report = await reportOpened;
+  await expect(report.getByRole('heading', { name: 'Integration health report' })).toBeVisible();
+  await expect(report.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await expect(report.locator('html')).not.toHaveAttribute('data-print-requested');
+
+  await report.setViewportSize({ width: 375, height: 720 });
+  await expect.poll(() => report.evaluate(() => document.documentElement.scrollWidth)).toBe(375);
+
+  const findings = report.getByRole('region', { name: 'Findings', exact: true });
+  const warningRows = findings.locator('tr[data-severity="warn"]');
+  const failRows = findings.locator('tr[data-severity="fail"]');
+  const noticeRows = findings.locator('tr[data-severity="notice"]');
+  await expect(warningRows.first()).toBeVisible();
+  await expect(failRows.first()).toBeVisible();
+  await findings.getByRole('button', { name: /^Notice/ }).click();
+  await expect(noticeRows.first()).toBeVisible();
+  await expect(warningRows.first()).toBeHidden();
+  await expect(failRows.first()).toBeHidden();
+
+  const downloaded = report.waitForEvent('download');
+  await report.getByRole('button', { name: 'Export JSON' }).click();
+  const download = await downloaded;
+  expect(download.suggestedFilename()).toMatch(/^adyen-inspector-\d+\.json$/);
+  await report.getByRole('button', { name: 'Export PDF' }).click();
+  await expect(report.locator('html')).toHaveAttribute('data-print-requested', 'true');
+
+  await report.emulateMedia({ media: 'print' });
+  await expect(report.getByRole('button', { name: 'Export PDF' })).toBeHidden();
+  await expect(warningRows.first()).toBeVisible();
+  await expect(failRows.first()).toBeVisible();
+  await expect(report.getByText('SDK Metadata', { exact: true })).toBeVisible();
+  const pdf = await report.pdf({
+    path: testInfo.outputPath('integration-report.pdf'),
+    preferCSSPageSize: true,
+    printBackground: true,
+  });
+  expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
 });

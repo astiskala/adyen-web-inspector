@@ -1,15 +1,21 @@
 import type { JSX } from 'preact';
-import type { ScanResult, CheckResult, Severity } from '../../shared/types.js';
+import type { ScanResult, CheckResult } from '../../shared/types.js';
 import {
   buildFindingProjection,
   buildRawConfigSections,
   type IssueGroup,
-  type IssueRow,
 } from '../../shared/export-report.js';
 import { IdentityCard } from '../../popup/components/IdentityCard.js';
 import { HealthScore } from '../../popup/components/HealthScore.js';
 import { IssueList } from '../../popup/components/IssueList.js';
 import { StandardComplianceBadge } from '../../popup/components/StandardComplianceBadge.js';
+import { CodeSection } from '../../popup/components/CodeSection.js';
+import {
+  FindingGrid,
+  NetworkGrid,
+  SkippedGrid,
+  SuccessGrid,
+} from '../../popup/components/ScanTables.js';
 import styles from './panel.module.css';
 import { cssModule } from '../../popup/components/css-module.js';
 
@@ -17,74 +23,6 @@ const s = cssModule(styles);
 
 interface Properties {
   readonly result: ScanResult;
-}
-
-const SEVERITY_CLASSES: Readonly<Record<Severity, string>> = {
-  pass: 'severityPass',
-  fail: 'severityFail',
-  warn: 'severityWarn',
-  notice: 'severityNotice',
-  info: 'severityInfo',
-  skip: 'severitySkip',
-};
-
-interface SeverityBadgeProperties {
-  readonly severity: Severity;
-}
-
-function SeverityBadge({ severity }: SeverityBadgeProperties): JSX.Element {
-  return <span class={`${s('severity')} ${s(SEVERITY_CLASSES[severity])}`}>{severity}</span>;
-}
-
-function IssueItem({ issue }: { readonly issue: IssueRow }): JSX.Element {
-  return (
-    <div class={s('checkCard')}>
-      <div class={s('checkSummaryStatic')}>
-        <span class={s('checkSummaryTitle')}>{issue.title}</span>
-        <SeverityBadge severity={issue.severity} />
-      </div>
-      <div class={s('checkBody')}>
-        {issue.detail !== null && (
-          <div>
-            <strong>Detail:</strong> {issue.detail}
-          </div>
-        )}
-        <div>
-          <strong>Remediation:</strong> {issue.remediation}
-        </div>
-        <a href={issue.docsUrl} target="_blank" rel="noopener noreferrer">
-          Documentation →
-        </a>
-      </div>
-    </div>
-  );
-}
-
-function ImpactGroupSection({ group }: { readonly group: IssueGroup }): JSX.Element {
-  return (
-    <div class={s('impactGroupSection')}>
-      <h3 class={s('impactGroupTitle')}>
-        {group.label}
-        <span class={s('impactGroupCount')}>{group.issues.length}</span>
-      </h3>
-      <div class={s('checkList')}>
-        {group.issues.map((issue) => (
-          <IssueItem key={issue.id} issue={issue} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function SuccessfulCheckItem({ check }: { readonly check: CheckResult }): JSX.Element {
-  return (
-    <div class={s('checkCard')}>
-      <div class={s('checkSummaryStatic')}>
-        <span class={s('checkSummaryTitle')}>{check.title}</span>
-        <SeverityBadge severity="pass" />
-      </div>
-    </div>
-  );
 }
 
 interface CategorizedCheckTabProperties {
@@ -102,45 +40,47 @@ function CategorizedCheckTab({
 }: CategorizedCheckTabProperties): JSX.Element {
   return (
     <div class={s('tabContent')}>
-      <div class={s('section')}>
-        <h3 class={s('sectionTitle')}>Issues</h3>
+      <section class={s('card')}>
+        <h2>Issues</h2>
         {issueGroups.length === 0 ? (
-          <div class={s('emptyStateSubsection')}>{issueEmptyState}</div>
+          <p class="muted">{issueEmptyState}</p>
         ) : (
-          issueGroups.map((group) => <ImpactGroupSection key={group.impact} group={group} />)
+          issueGroups.map((group) => (
+            <section class={s('impactGroup')} key={group.impact}>
+              <h3>
+                {group.label} <span class="dataBadge">{group.issues.length}</span>
+              </h3>
+              <FindingGrid issues={group.issues} label={group.label} />
+            </section>
+          ))
         )}
-      </div>
-
-      <div class={s('section')}>
-        <h3 class={s('sectionTitle')}>Successful Checks</h3>
+      </section>
+      <section class={s('card')}>
+        <h2>Successful checks</h2>
         {successfulChecks.length === 0 ? (
-          <div class={s('emptyStateSubsection')}>{successEmptyState}</div>
+          <p class="muted">{successEmptyState}</p>
         ) : (
-          <div class={s('checkList')}>
-            {successfulChecks.map((check) => (
-              <SuccessfulCheckItem key={check.id} check={check} />
-            ))}
-          </div>
+          <SuccessGrid checks={successfulChecks} label="Successful checks" />
         )}
-      </div>
+      </section>
     </div>
   );
 }
 
-// ─── Tab Components ───────────────────────────────────────────────────────────
-
 /**
-Combined overview of implementation identity, health score, and issues.
+Combined overview of health, implementation identity, and issues.
 */
 export function OverviewTab({ result }: Properties): JSX.Element {
   return (
-    <div class={s('tabContent')}>
-      <div class={s('overviewCard')}>
-        <IdentityCard result={result} />
+    <div class={`${s('tabContent')} ${s('overview')}`}>
+      <div class={s('stack')}>
         <HealthScore result={result} />
         <StandardComplianceBadge compliance={result.standardCompliance} />
-        <div class={s('overviewIssues')}>
-          <IssueList checks={result.checks} />
+      </div>
+      <div class={s('stack')}>
+        <IdentityCard result={result} />
+        <div class={s('card')}>
+          <IssueList key={result.scannedAt} checks={result.checks} />
         </div>
       </div>
     </div>
@@ -180,55 +120,34 @@ export function SecurityTab({ result }: Properties): JSX.Element {
 }
 
 /**
-Network capture table for requests recorded during the scan.
+Network capture grid for requests recorded during the scan.
 */
 export function NetworkTab({ result }: Properties): JSX.Element {
-  const reqs = buildFindingProjection(result).network.capturedRequests;
+  const { capturedRequests } = buildFindingProjection(result).network;
 
   return (
     <div class={s('tabContent')}>
-      <div class={s('section')}>
-        <h3 class={s('sectionTitle')}>Captured Requests</h3>
-        {reqs.length === 0 ? (
-          <div class={s('emptyState')}>No Adyen requests captured.</div>
-        ) : (
-          <table class={s('netTable')}>
-            <thead>
-              <tr>
-                <th>Type</th>
-                <th>URL</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {reqs.map((request) => (
-                <tr key={`${request.type}-${request.url}-${request.statusCode}`}>
-                  <td>{request.type}</td>
-                  <td>{request.url}</td>
-                  <td>{request.statusCode === 0 ? '—' : request.statusCode}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+      <section class={s('card')}>
+        <h2>
+          Captured requests <span class="dataBadge">{capturedRequests.length}</span>
+        </h2>
+        <NetworkGrid requests={capturedRequests} />
+      </section>
     </div>
   );
 }
 
 /**
-JSON view of selected captured/inferred checkout fields and SDK metadata.
+JSON view of selected captured or inferred checkout fields and SDK metadata.
 */
 export function RawConfigTab({ result }: Properties): JSX.Element {
   const sections = buildRawConfigSections(buildFindingProjection(result).rawConfig);
 
   return (
     <div class={s('tabContent')}>
+      <h2 class="visuallyHidden">Extracted config</h2>
       {sections.map(({ title, text }) => (
-        <div key={title} class={s('section')}>
-          <h3 class={s('sectionTitle')}>{title}</h3>
-          <pre class={s('codeBlock')}>{text}</pre>
-        </div>
+        <CodeSection key={title} title={title} text={text} />
       ))}
     </div>
   );
@@ -242,20 +161,12 @@ export function SkippedChecksTab({ result }: Properties): JSX.Element {
 
   return (
     <div class={s('tabContent')}>
-      {skipped.length === 0 ? (
-        <div class={s('emptyState')}>No checks were skipped.</div>
-      ) : (
-        <div class={s('checkList')}>
-          {skipped.map((check) => (
-            <div key={check.id} class={s('checkCard')}>
-              <div class={s('checkSummaryStatic')}>
-                <span class={s('checkSummaryTitle')}>{check.title}</span>
-                {check.reason !== null && <span class={s('skipReason')}>{check.reason}</span>}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      <section class={s('card')}>
+        <h2>
+          Skipped checks <span class="dataBadge">{skipped.length}</span>
+        </h2>
+        <SkippedGrid checks={skipped} />
+      </section>
     </div>
   );
 }

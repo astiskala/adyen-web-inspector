@@ -1,9 +1,17 @@
 import type { JSX, TargetedKeyboardEvent } from 'preact';
 import { useState } from 'preact/hooks';
 import { chromeTabStateClient } from '../../popup/components/chrome-tab-state-client.js';
-import { scanButtonLabel, useScanLifecycle } from '../../popup/components/useScanLifecycle.js';
+import {
+  scanButtonLabel,
+  useScanLifecycle,
+  type ScanLifecycle,
+} from '../../popup/components/useScanLifecycle.js';
 import { chromeReportBrowser } from '../../popup/components/chrome-report-browser.js';
-import { exportJson, exportPdf } from '../../shared/report-export.js';
+import { EmptyState } from '../../popup/components/EmptyState.js';
+import { InspectorIcon } from '../../popup/components/InspectorIcon.js';
+import { HealthTier } from '../../popup/components/HealthScore.js';
+import { useTheme } from '../../popup/components/useTheme.js';
+import { exportJson, openReport } from '../../shared/report-export.js';
 import type { ScanResult } from '../../shared/types.js';
 import { describeError } from '../../shared/utilities.js';
 import {
@@ -21,11 +29,11 @@ const s = cssModule(styles);
 
 const TABS = [
   'Overview',
-  'Best Practices',
+  'Best practices',
   'Security',
-  'Skipped Checks',
+  'Skipped checks',
   'Network',
-  'Extracted Config',
+  'Extracted config',
 ] as const;
 type TabName = (typeof TABS)[number];
 const CONTEXT_INVALIDATED_ERROR_TEXT = 'Extension context invalidated';
@@ -46,7 +54,7 @@ function isContextInvalidated(error: unknown): boolean {
   return describeError(error).includes(CONTEXT_INVALIDATED_ERROR_TEXT);
 }
 
-function getPanelErrorMessage(error: ReturnType<typeof useScanLifecycle>['error']): string {
+function getPanelErrorMessage(error: ScanLifecycle['error']): string {
   if (error === null) return '';
   if (error.kind === 'scan') {
     return error.message === '' ? 'Scan failed. Try reloading the page.' : error.message;
@@ -79,13 +87,65 @@ function tabForKey(activeTab: TabName, key: string): TabName | undefined {
 
 function renderTab(activeTab: TabName, result: ScanResult): JSX.Element {
   if (activeTab === 'Overview') return <OverviewTab result={result} />;
-  if (activeTab === 'Best Practices') return <BestPracticesTab result={result} />;
+  if (activeTab === 'Best practices') return <BestPracticesTab result={result} />;
   if (activeTab === 'Security') return <SecurityTab result={result} />;
   if (activeTab === 'Network') return <NetworkTab result={result} />;
-  return activeTab === 'Extracted Config' ? (
+  return activeTab === 'Extracted config' ? (
     <RawConfigTab result={result} />
   ) : (
     <SkippedChecksTab result={result} />
+  );
+}
+
+function PanelState({
+  session,
+  message,
+}: {
+  readonly session: ScanLifecycle;
+  readonly message: string;
+}): JSX.Element {
+  const { loading, scanning, error, checkoutActivity, result, scan } = session;
+  if (loading) return <EmptyState icon="spinner" title="Loading…" />;
+  if (scanning) {
+    return (
+      <EmptyState icon="spinner" title="Scanning this page…">
+        This usually takes a few seconds.
+      </EmptyState>
+    );
+  }
+  if (error !== null) {
+    return (
+      <EmptyState
+        icon="fail"
+        tone="fail"
+        title="Scan failed"
+        scanAction={{ label: 'Try again', onScan: scan }}
+      >
+        {message}
+      </EmptyState>
+    );
+  }
+  if (result === null && checkoutActivity.detected) {
+    return (
+      <EmptyState
+        icon="pass"
+        tone="pass"
+        title="Adyen Web SDK detected"
+        scanAction={{ label: 'Run scan', onScan: scan }}
+      >
+        Run a scan to inspect this page.
+      </EmptyState>
+    );
+  }
+
+  return (
+    <EmptyState
+      icon="search"
+      title="Adyen not detected"
+      scanAction={{ label: 'Attempt scan', hint: 'Scan anyway?', onScan: scan }}
+    >
+      {SDK_NOT_DETECTED_MESSAGE}
+    </EmptyState>
   );
 }
 
@@ -94,40 +154,12 @@ DevTools panel root that coordinates scan lifecycle, exports, and tab views.
 */
 export function Panel(): JSX.Element {
   const [activeTab, setActiveTab] = useState<TabName>('Overview');
-  const { result, scanning, error, scan } = useScanLifecycle(inspectedTab, chromeTabStateClient);
-  const errorMessage = getPanelErrorMessage(error);
-
-  const isSdkNotDetected = result !== null && !result.sdkPresence.detected;
-  const isShowScanButton = !isSdkNotDetected;
-
-  const scanButtonText = scanButtonLabel({ scanning, result });
-
-  let bodyContent: JSX.Element;
-  if (result === null) {
-    bodyContent = (
-      <div class={s('emptyState')} role="status">
-        {scanning ? 'Scanning…' : 'Click "Run Scan" to inspect this page.'}
-      </div>
-    );
-  } else if (isSdkNotDetected) {
-    bodyContent = (
-      <div class={s('tabContent')}>
-        <div class={s('emptyState')}>{SDK_NOT_DETECTED_MESSAGE}</div>
-      </div>
-    );
-  } else {
-    bodyContent = (
-      <div
-        class={s('tabPanel')}
-        role="tabpanel"
-        id="tab-panel"
-        tabIndex={0}
-        aria-labelledby={tabId(activeTab)}
-      >
-        {renderTab(activeTab, result)}
-      </div>
-    );
-  }
+  const [reportFailed, setReportFailed] = useState(false);
+  useTheme();
+  const session = useScanLifecycle(inspectedTab, chromeTabStateClient);
+  const { result, scanning, error, scan } = session;
+  const isAvailable = result?.sdkPresence.detected === true && !scanning && error === null;
+  const scanIcon = isAvailable ? 'retry' : 'scan';
 
   function selectTabByKey(event: TargetedKeyboardEvent<HTMLDivElement>): void {
     const next = tabForKey(activeTab, event.key);
@@ -137,75 +169,99 @@ export function Panel(): JSX.Element {
     event.currentTarget.querySelector<HTMLElement>(`#${tabId(next)}`)?.focus();
   }
 
+  function printReport(scanResult: ScanResult): void {
+    setReportFailed(false);
+    void openReport(scanResult, chromeReportBrowser, 'print').catch(() => {
+      setReportFailed(true);
+    });
+  }
+
   return (
-    <div class={s('panelRoot')}>
+    <main class={s('panelRoot')}>
       <div class={s('toolbar')}>
-        {isShowScanButton && (
-          <button class={`btn ${scanning ? '' : 'btnPrimary'}`} onClick={scan} disabled={scanning}>
-            {scanButtonText}
-          </button>
-        )}
-        {result && !isSdkNotDetected && (
-          <>
-            <button
-              class="btn"
-              onClick={() => {
-                exportJson(result, chromeReportBrowser);
-              }}
-            >
-              Export JSON
-            </button>
-            <button
-              class="btn"
-              onClick={() => {
-                void exportPdf(result, chromeReportBrowser).catch(() => {});
-              }}
-            >
-              Export PDF
-            </button>
-          </>
-        )}
-        <span class={s('toolbarSpacer')} />
-        {result && !isSdkNotDetected && (
-          <span class={s('toolbarScore')}>
-            Score: {result.health.score} · {result.health.passing}/{result.health.total} passing
-          </span>
+        <button class="btn btnPrimary" onClick={scan} disabled={scanning}>
+          <InspectorIcon name={scanning ? 'spinner' : scanIcon} />
+          {scanButtonLabel({ scanning, result: isAvailable ? result : null })}
+        </button>
+        <button
+          class="btn"
+          onClick={
+            isAvailable
+              ? (): void => {
+                  exportJson(result, chromeReportBrowser);
+                }
+              : undefined
+          }
+          disabled={!isAvailable}
+        >
+          <InspectorIcon name="download" /> Export JSON
+        </button>
+        <button
+          class="btn"
+          onClick={
+            isAvailable
+              ? (): void => {
+                  printReport(result);
+                }
+              : undefined
+          }
+          disabled={!isAvailable}
+        >
+          <InspectorIcon name="download" /> Export PDF
+        </button>
+        {isAvailable && (
+          <div class={s('toolbarScore')}>
+            <HealthTier tier={result.health.tier} />
+            <span>
+              Score: {result.health.score} · {result.health.passing}/{result.health.total} passing
+            </span>
+          </div>
         )}
       </div>
-      {errorMessage ? (
-        <div class={s('errorBanner')} role="alert">
-          {errorMessage}
-        </div>
-      ) : null}
-      {!isSdkNotDetected && (
-        <div
-          class={s('tabBar')}
-          role="tablist"
-          aria-label="Scan result sections"
-          onKeyDown={selectTabByKey}
-        >
-          {TABS.map((tab) => {
-            const isActive = tab === activeTab;
-            return (
-              <button
-                key={tab}
-                id={tabId(tab)}
-                role="tab"
-                aria-selected={isActive}
-                aria-controls="tab-panel"
-                tabIndex={isActive ? 0 : -1}
-                class={isActive ? `${s('tab')} ${s('tabActive')}` : s('tab')}
-                onClick={() => {
-                  setActiveTab(tab);
-                }}
-              >
-                {tab}
-              </button>
-            );
-          })}
-        </div>
+      {reportFailed && (
+        <p class={s('errorBanner')} data-tone="fail" role="alert">
+          Could not open the report. Try again.
+        </p>
       )}
-      {bodyContent}
-    </div>
+      <div
+        class={s('tabBar')}
+        role="tablist"
+        aria-label="Scan result sections"
+        onKeyDown={selectTabByKey}
+      >
+        {TABS.map((tab) => {
+          const isActive = tab === activeTab;
+          return (
+            <button
+              key={tab}
+              id={tabId(tab)}
+              role="tab"
+              aria-selected={isActive}
+              aria-controls="tab-panel"
+              tabIndex={isActive ? 0 : -1}
+              class={isActive ? `${s('tab')} ${s('tabActive')}` : s('tab')}
+              onClick={() => {
+                setActiveTab(tab);
+              }}
+            >
+              {tab}
+            </button>
+          );
+        })}
+      </div>
+      <div
+        class={s('tabPanel')}
+        role="tabpanel"
+        id="tab-panel"
+        tabIndex={0}
+        aria-labelledby={tabId(activeTab)}
+      >
+        {isAvailable ? (
+          renderTab(activeTab, result)
+        ) : (
+          <PanelState session={session} message={getPanelErrorMessage(error)} />
+        )}
+      </div>
+    </main>
   );
 }

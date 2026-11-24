@@ -1,69 +1,58 @@
 .container {
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--color-border);
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  border-radius: var(--radius);
+  background: var(--color-surface-alt);
 }
 
-.header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-}
-
-.title {
-  font-size: 11px;
-  font-weight: 600;
+.title,
+.meta {
   color: var(--color-text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  font-size: 12px;
 }
 
 .scoreWrap {
   display: flex;
   align-items: center;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
-.scoreExcellent {
-  color: var(--color-green);
-}
-.scoreIssues {
-  color: var(--color-amber);
-}
-.scoreCritical {
-  color: var(--color-red);
+.score {
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
 }
 
-.meta {
-  font-size: 11px;
+.score small {
+  margin-left: 3px;
+  font-size: 14px;
   color: var(--color-text-secondary);
+  font-weight: 400;
 }
 
 .bar {
-  height: 4px;
+  height: 8px;
+  background: var(--color-track);
   border-radius: 2px;
-  background: var(--color-border);
   overflow: hidden;
+}
+
+.bar[data-tone='pass'] {
+  --fill-color: var(--color-meter-green);
+}
+
+.bar[data-tone='warn'] {
+  --fill-color: var(--color-meter-amber);
+}
+
+.bar[data-tone='fail'] {
+  --fill-color: var(--color-meter-red);
 }
 
 .fill {
   height: 100%;
-  border-radius: 2px;
-  transition: width 0.3s ease;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .fill {
-    transition: none;
-  }
-}
-
-.fillExcellent {
-  background: var(--color-green);
-}
-.fillIssues {
-  background: var(--color-amber);
-}
-.fillCritical {
-  background: var(--color-red);
+  background: var(--fill-color);
 }

@@ -10,6 +10,23 @@ export interface ReportMetadata {
   readonly browser: string;
 }
 
+const SCAN_DATE = new Intl.DateTimeFormat('en-GB', {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  timeZone: 'UTC',
+  timeZoneName: 'short',
+});
+
+/**
+An unambiguous scan date for the popup and report.
+*/
+export function formatScannedAt(scannedAt: string): string {
+  return SCAN_DATE.format(new Date(scannedAt));
+}
+
 interface NavigatorBrand {
   readonly brand: string;
   readonly version: string;

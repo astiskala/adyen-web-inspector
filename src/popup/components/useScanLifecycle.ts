@@ -68,13 +68,15 @@ function failed(error: ScanFailure): (previous: ScanState) => ScanState {
 }
 
 /**
+A tab's scan state as a view renders it, with the scan trigger.
+*/
+export type ScanLifecycle = ScanState & { readonly scan: () => void };
+
+/**
 Renders one tab's snapshot as the tab state publishes it, and exposes a
 scan trigger shared by the popup and DevTools panel.
 */
-export function useScanLifecycle(
-  target: TabTarget,
-  client: TabStateClient
-): ScanState & { readonly scan: () => void } {
+export function useScanLifecycle(target: TabTarget, client: TabStateClient): ScanLifecycle {
   const [state, setState] = useState<ScanState>(INITIAL_STATE);
   const tabId = useRef<Promise<number | undefined> | null>(null);
   const mounted = useRef(false);
@@ -162,5 +164,5 @@ export function scanButtonLabel({
   result,
 }: Pick<ScanState, 'scanning' | 'result'>): string {
   if (scanning) return 'Scanning…';
-  return result === null ? 'Run Scan' : 'Re-run Scan';
+  return result === null ? 'Run scan' : 'Re-run scan';
 }

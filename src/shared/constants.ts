@@ -3,7 +3,7 @@ Shared constants used across all extension components.
 */
 
 import type { ShadowRootRecord } from './shadow-root-record.js';
-import type { CheckoutCapture, HealthScore, IntegrationFlow, Severity } from './types.js';
+import type { CheckoutCapture, HealthScore, IntegrationFlow } from './types.js';
 
 // ─── Client Key Prefixes ──────────────────────────────────────────────────────
 
@@ -158,34 +158,30 @@ export const MIN_SUPPORTED_VERSION = `${MIN_SUPPORTED_MAJOR_VERSION}.0.0`;
 // ─── UI Constants ─────────────────────────────────────────────────────────────
 
 /**
-Status colours for the badge and printed report, matching the light palette in base.css.
+Status colours for the Chrome toolbar badge.
 */
 export const STATUS_COLORS = {
   pass: '#188038',
   warn: '#b06000',
   fail: '#d93025',
-  info: '#1a73e8',
 } as const;
 
 /**
-Colour of each check severity in reports.
-*/
-export const SEVERITY_COLORS: Readonly<Record<Severity, string>> = {
-  pass: STATUS_COLORS.pass,
-  warn: STATUS_COLORS.warn,
-  fail: STATUS_COLORS.fail,
-  notice: STATUS_COLORS.info,
-  info: STATUS_COLORS.info,
-  skip: '#6b7280',
-};
-
-/**
-Colour of each health tier, shared by the badge and reports.
+Colour of each health tier on the Chrome toolbar badge.
 */
 export const HEALTH_TIER_COLORS: Readonly<Record<HealthScore['tier'], string>> = {
   excellent: STATUS_COLORS.pass,
   issues: STATUS_COLORS.warn,
   critical: STATUS_COLORS.fail,
+};
+
+/**
+Display labels for health tiers, shared by every view.
+*/
+export const HEALTH_TIER_LABELS: Readonly<Record<HealthScore['tier'], string>> = {
+  excellent: 'Healthy',
+  issues: 'Needs attention',
+  critical: 'Critical',
 };
 
 /**

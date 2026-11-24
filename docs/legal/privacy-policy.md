@@ -36,7 +36,8 @@ During a scan, the inspected tab's response headers and its Adyen checkout analy
 ## Storage and retention
 
 - Per-tab scan results and passive detection state are stored in `chrome.storage.session`; tab state is cleared on tab close or navigation start.
-- PDF export temporarily places the scan result in `chrome.storage.session` for the report tab to retrieve and remove. If the report tab never loads, that handoff remains until extension session storage is cleared.
+- Opening a report temporarily places the scan result in `chrome.storage.session` for the report tab to retrieve and remove. If the report tab never loads, that handoff remains until extension session storage is cleared.
+- The theme and popup detail level are saved locally by the extension. These preferences contain no scan data.
 - The latest npm version is cached in `chrome.storage.local` with a 24-hour refresh interval.
 
 ## Your controls

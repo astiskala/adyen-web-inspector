@@ -1,5 +1,5 @@
 /**
-Accessibility tests — axe-core checks the built popup and DevTools panel against WCAG 2.2 AA
+Accessibility tests — axe-core checks the built popup, DevTools panel, and report against WCAG 2.2 AA
 after a scan, in light and dark colour schemes, with every expandable finding opened.
 */
 
@@ -13,8 +13,8 @@ const WCAG_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
 const COLOR_SCHEMES = ['light', 'dark'] as const;
 
 async function scan(view: Page): Promise<void> {
-  await view.getByRole('button', { name: 'Run Scan', exact: true }).click();
-  await expect(view.getByRole('button', { name: 'Re-run Scan', exact: true })).toBeEnabled({
+  await view.getByRole('button', { name: 'Run scan', exact: true }).first().click();
+  await expect(view.getByRole('button', { name: 'Re-run scan', exact: true })).toBeEnabled({
     timeout: SCAN_TIMEOUT_MS,
   });
 }
@@ -36,17 +36,30 @@ async function expectNoViolations(view: Page): Promise<void> {
 }
 
 for (const colorScheme of COLOR_SCHEMES) {
-  test(`popup meets WCAG 2.2 AA after a scan (${colorScheme})`, async ({
+  test(`popup, settings, and report meet WCAG 2.2 AA (${colorScheme})`, async ({
     context,
     extensionId,
   }) => {
+    // This case runs three axe passes and opens two extension surfaces.
+    test.setTimeout(60_000);
     const page = await openFixture(context, CHECKOUT_FIXTURE);
     const popup = await openPopupFor(context, extensionId, page);
     await popup.emulateMedia({ colorScheme });
 
     await scan(popup);
+    await popup.getByRole('button', { name: 'Settings' }).click();
+    await expectNoViolations(popup);
+    await popup.getByRole('radio', { name: /^Detailed/ }).check();
+    await popup.getByRole('button', { name: 'Back' }).click();
     await expandAll(popup);
     await expectNoViolations(popup);
+
+    const opened = context.waitForEvent('page');
+    await popup.getByRole('button', { name: 'Open full report' }).click();
+    const report = await opened;
+    await report.emulateMedia({ colorScheme });
+    await expect(report.getByRole('heading', { name: 'Integration health report' })).toBeVisible();
+    await expectNoViolations(report);
   });
 
   test(`DevTools panel meets WCAG 2.2 AA on every tab (${colorScheme})`, async ({

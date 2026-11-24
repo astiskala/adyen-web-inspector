@@ -1,6 +1,7 @@
 import type { JSX } from 'preact';
-import { groupIssuesByImpact, type IssueGroup, type IssueRow } from '../../shared/export-report.js';
+import { groupIssuesByImpact, ISSUE_STATUSES, type IssueRow } from '../../shared/export-report.js';
 import type { CheckResult } from '../../shared/types.js';
+import { StatusTag } from './StatusTag.js';
 import styles from './IssueList.module.css';
 import { cssModule } from './css-module.js';
 
@@ -8,26 +9,30 @@ const s = cssModule(styles);
 
 interface Properties {
   readonly checks: readonly CheckResult[];
+  readonly detailed?: boolean;
 }
 
-interface IssueItemProperties {
+function IssueItem({
+  issue,
+  detailed,
+}: {
   readonly issue: IssueRow;
-  readonly dotClass: string;
-}
+  readonly detailed: boolean;
+}): JSX.Element {
+  if (!detailed) return <li class={s('item')}>{issue.title}</li>;
 
-function IssueItem({ issue, dotClass }: IssueItemProperties): JSX.Element {
   return (
     <li class={s('item')}>
       <details>
-        <summary class={s('summary')}>
-          <span class={dotClass} />
-          <span class={s('checkTitle')}>{issue.title}</span>
-        </summary>
+        <summary class={s('summary')}>{issue.title}</summary>
         <div class={s('detail')}>
-          {issue.detail !== null && <div>{issue.detail}</div>}
-          <div class={s('remediation')}>{issue.remediation}</div>
-          <a class={s('docsLink')} href={issue.docsUrl} target="_blank" rel="noopener noreferrer">
-            Documentation →
+          <p class={s('impact')}>{issue.impact}</p>
+          {issue.detail !== null && <p>{issue.detail}</p>}
+          <p>
+            <strong>Fix:</strong> {issue.remediation}
+          </p>
+          <a href={issue.docsUrl} target="_blank" rel="noopener noreferrer">
+            Read documentation
           </a>
         </div>
       </details>
@@ -35,99 +40,44 @@ function IssueItem({ issue, dotClass }: IssueItemProperties): JSX.Element {
   );
 }
 
-interface ImpactGroupProperties {
-  readonly group: IssueGroup;
-  readonly badgeClass: string;
-  readonly dotClass: string;
-}
-
-function ImpactGroup({ group, badgeClass, dotClass }: ImpactGroupProperties): JSX.Element {
-  return (
-    <div>
-      <div class={s('priorityHeader')}>
-        <span>{group.label}</span>
-        <span class={`${s('badge')} ${badgeClass}`}>{group.issues.length}</span>
-      </div>
-      <ul class={s('list')}>
-        {group.issues.map((issue) => (
-          <IssueItem key={issue.id} issue={issue} dotClass={dotClass} />
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function issueGroupsWithSeverity(
-  checks: readonly CheckResult[],
-  severity: CheckResult['severity']
-): IssueGroup[] {
-  return groupIssuesByImpact(checks.filter((check) => check.severity === severity));
-}
-
-function countIssues(groups: readonly IssueGroup[]): number {
-  return groups.flatMap((group) => group.issues).length;
-}
-
 /**
-Renders issue rows from the finding projection by severity, then impact,
-with expandable detail, remediation, and documentation.
+Presents the check groups, with expandable fixes and documentation in Detailed.
 */
-export function IssueList({ checks }: Properties): JSX.Element {
-  const failures = issueGroupsWithSeverity(checks, 'fail');
-  const warnings = issueGroupsWithSeverity(checks, 'warn');
-  const notices = issueGroupsWithSeverity(checks, 'notice').flatMap((group) => group.issues);
-
-  if (failures.length === 0 && warnings.length === 0 && notices.length === 0) {
-    return <div class={s('empty')}>No issues detected — everything looks good!</div>;
-  }
+export function IssueList({ checks, detailed = true }: Properties): JSX.Element {
+  const groups = groupIssuesByImpact(checks);
+  const issues = groups.flatMap((group) => group.issues);
+  const sections = ISSUE_STATUSES.map(({ severity, label }) => ({
+    severity,
+    label,
+    rows: issues.filter((issue) => issue.severity === severity),
+  })).filter(({ rows }) => rows.length > 0);
+  const hasFailuresOrWarnings = issues.some(({ severity }) => severity !== 'notice');
 
   return (
-    <div>
-      {failures.length > 0 && (
-        <details class={s('section')} open>
-          <summary class={s('sectionHeader')}>
-            <span>Issues</span>
-            <span class={`${s('badge')} ${s('badgeFail')}`}>{countIssues(failures)}</span>
-          </summary>
-          {failures.map((group) => (
-            <ImpactGroup
-              key={group.impact}
-              group={group}
-              badgeClass={s('badgeFail')}
-              dotClass={`${s('dot')} ${s('dotFail')}`}
-            />
-          ))}
-        </details>
+    <section class={s('checks')} aria-label="Checks">
+      <h2>Checks</h2>
+      {!hasFailuresOrWarnings && (
+        <p class={s('empty')}>
+          <StatusTag tone="pass" plain>
+            No fails or warnings.
+          </StatusTag>
+        </p>
       )}
-      {warnings.length > 0 && (
-        <details class={s('section')}>
+      {sections.map(({ severity, label, rows }) => (
+        <details key={severity} class={s('section')} open={severity === sections[0]?.severity}>
           <summary class={s('sectionHeader')}>
-            <span>Warnings</span>
-            <span class={`${s('badge')} ${s('badgeWarn')}`}>{countIssues(warnings)}</span>
-          </summary>
-          {warnings.map((group) => (
-            <ImpactGroup
-              key={group.impact}
-              group={group}
-              badgeClass={s('badgeWarn')}
-              dotClass={`${s('dot')} ${s('dotWarn')}`}
-            />
-          ))}
-        </details>
-      )}
-      {notices.length > 0 && (
-        <details class={s('section')}>
-          <summary class={s('sectionHeader')}>
-            <span>Notices</span>
-            <span class={`${s('badge')} ${s('badgeNotice')}`}>{notices.length}</span>
+            <StatusTag tone={severity} plain>
+              {label}
+            </StatusTag>
+            <span class={s('count')}>{rows.length}</span>
           </summary>
           <ul class={s('list')}>
-            {notices.map((issue) => (
-              <IssueItem key={issue.id} issue={issue} dotClass={`${s('dot')} ${s('dotNotice')}`} />
+            {rows.map((issue) => (
+              <IssueItem key={issue.id} issue={issue} detailed={detailed} />
             ))}
           </ul>
         </details>
-      )}
-    </div>
+      ))}
+    </section>
   );
 }

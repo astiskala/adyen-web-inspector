@@ -49,7 +49,7 @@ afterEach(async () => {
 describe('extension page entries', () => {
   it.each([
     ['popup', '../../../src/popup/Popup', 'popup-body', 'Loading…'],
-    ['DevTools panel', '../../../src/devtools/panel/panelEntry', 'devtools-panel', 'Run Scan'],
+    ['DevTools panel', '../../../src/devtools/panel/panelEntry', 'devtools-panel', 'Run scan'],
   ])('mounts the %s into its root', async (_label, entry, bodyClass, text) => {
     document.body.innerHTML = '<div id="root"></div>';
 

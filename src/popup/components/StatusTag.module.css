@@ -1,0 +1,22 @@
+.plain,
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--tone-text);
+}
+
+.tag {
+  padding: 2px 6px;
+  border-radius: var(--radius);
+  background: var(--tone-bg);
+  font-size: 12px;
+}
+
+.tag svg,
+.plain svg {
+  width: 14px;
+  height: 14px;
+}

@@ -1,4 +1,5 @@
-import type { ComponentChildren, JSX } from 'preact';
+import type { ComponentChildren, ComponentProps, JSX, Ref } from 'preact';
+import { InspectorIcon } from './InspectorIcon.js';
 import styles from './EmptyState.module.css';
 import { cssModule } from './css-module.js';
 
@@ -7,27 +8,22 @@ const s = cssModule(styles);
 interface ScanAction {
   readonly label: string;
   readonly hint?: string;
-  readonly scanning: boolean;
+  readonly scanning?: boolean;
   readonly onScan: () => void;
-}
-
-interface EmptyStateLink {
-  readonly href: string;
-  readonly label: string;
+  readonly buttonRef?: Ref<HTMLButtonElement>;
 }
 
 interface EmptyStateProperties {
-  readonly icon: string;
+  readonly icon: ComponentProps<typeof InspectorIcon>['name'];
   readonly title: string;
-  readonly tone?: 'neutral' | 'warning';
+  readonly tone?: 'neutral' | 'warn' | 'pass' | 'fail';
   readonly scanAction?: ScanAction;
-  readonly link?: EmptyStateLink;
-  readonly children: ComponentChildren;
+  readonly link?: { readonly href: string; readonly label: string };
+  readonly children?: ComponentChildren;
 }
 
 /**
-Centered popup state with an icon, a title, explanatory text, and an
-optional scan button or documentation link.
+Centred state with an icon, explanatory text, and an optional scan or docs action.
 */
 export function EmptyState({
   icon,
@@ -37,30 +33,32 @@ export function EmptyState({
   link,
   children,
 }: EmptyStateProperties): JSX.Element {
-  const titleClass = tone === 'warning' ? `${s('title')} ${s('titleWarning')}` : s('title');
-
   return (
-    <div class={s('container')} role="status">
-      <div class={s('icon')} aria-hidden="true">
-        {icon}
+    <div class={s('container')}>
+      <span class={s('icon')} data-tone={tone}>
+        <InspectorIcon name={icon} />
+      </span>
+      <div role="status">
+        <h2 class={s('title')}>{title}</h2>
+        <div class={s('body')}>{children}</div>
       </div>
-      <div class={titleClass}>{title}</div>
-      <div class={s('body')}>{children}</div>
       {scanAction !== undefined && (
-        <div class={s('action')}>
-          {scanAction.hint !== undefined && <div class={s('actionHint')}>{scanAction.hint}</div>}
+        <div>
+          {scanAction.hint !== undefined && <p class={s('actionHint')}>{scanAction.hint}</p>}
           <button
-            class={`btn ${scanAction.scanning ? '' : 'btnPrimary'} ${s('actionButton')}`}
+            class={`btn btnPrimary ${s('actionButton')}`}
+            ref={scanAction.buttonRef ?? null}
             onClick={scanAction.onScan}
             disabled={scanAction.scanning}
           >
-            {scanAction.scanning ? 'Scanning…' : scanAction.label}
+            <InspectorIcon name={scanAction.scanning === true ? 'spinner' : 'scan'} />
+            {scanAction.label}
           </button>
         </div>
       )}
       {link !== undefined && (
-        <a class={s('link')} href={link.href} target="_blank" rel="noopener noreferrer">
-          {link.label}
+        <a href={link.href} target="_blank" rel="noopener noreferrer">
+          {link.label} <InspectorIcon name="external" />
         </a>
       )}
     </div>

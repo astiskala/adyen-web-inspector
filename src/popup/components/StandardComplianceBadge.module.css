@@ -1,56 +1,26 @@
 .container {
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--color-border);
+  padding: 12px;
+  border-radius: var(--radius);
+  background: var(--tone-bg);
+  color: var(--color-text);
+  font-size: 13px;
 }
 
 .header {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin-bottom: 4px;
-}
-
-.icon {
-  font-size: 14px;
-  line-height: 1;
-  flex-shrink: 0;
-}
-
-.iconCompliant {
-  color: var(--color-green);
-}
-
-.iconNonCompliant {
-  color: var(--color-red);
-}
-
-.title {
-  font-size: 12px;
+  gap: 8px;
   font-weight: 600;
-  color: var(--color-text);
+}
+
+.header svg {
+  color: var(--tone-text);
 }
 
 .reasons {
-  margin: 4px 0 0 20px;
-  padding: 0;
-  list-style: disc;
-}
-
-.reason {
-  font-size: 11px;
-  color: var(--color-text-secondary);
-  line-height: 1.5;
+  margin: 6px 0 0 38px;
 }
 
 .caveat {
-  margin-top: 6px;
-  font-size: 11px;
-  color: var(--color-text-secondary);
-  line-height: 1.4;
-}
-
-/* Underlined, so the link is distinguishable from the caveat text without colour. */
-.caveat a {
-  color: var(--color-blue, #2563eb);
-  text-decoration: underline;
+  margin: 8px 0 0 24px;
 }

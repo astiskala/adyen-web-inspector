@@ -46,9 +46,10 @@ pnpm build
 
 ## Using the extension
 
-1. Open a checkout page and click the extension icon. The passive badge detects mounted Adyen elements; click **Run Scan** to inspect the current tab (or **Attempt Scan** if detection missed it).
-2. For detailed results, open Chrome DevTools and select the **Adyen Inspector** panel. Run or re-run a scan there to view the overview, findings, skipped checks, observed network requests, and extracted config.
-3. Use **Export JSON** in DevTools to download the full scan result, including captured configuration fields and observed URLs. Use **Export PDF** in the popup or panel to open a printable report; save it as PDF in the browser print dialog.
+1. Open a checkout page and click the extension icon. The passive badge detects mounted Adyen elements; click **Run scan** to inspect the current tab (or **Attempt scan** if detection missed it).
+2. The popup starts in **Essential** view. In **Settings**, choose **Detailed** for expandable fixes, implementation attributes, and scan time. The theme setting applies to the popup, panel, and report.
+3. Choose **Open full report** in the popup to see all findings, successful and skipped checks, network requests, and extracted config. Use **Export JSON** to download the data or **Export PDF** to open the browser's print dialog with the A4 layout.
+4. You can also run a scan, view the same results, and export directly from the **Adyen Inspector** panel in Chrome DevTools.
 
 The popup hides scan controls when it detects an SDK version below v6; the DevTools panel can still run scans for inspection. Scans are snapshots of browser-visible signals, not proof of server-side settings or payment success. Findings marked for manual review require independent verification. Treat exported results as sensitive if the inspected page exposes sensitive URLs or configuration.
 

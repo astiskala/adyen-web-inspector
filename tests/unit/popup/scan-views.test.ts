@@ -43,8 +43,12 @@ async function publish(tabSnapshot: TabSnapshot): Promise<void> {
   });
 }
 
+function findButton(label: string): HTMLButtonElement | undefined {
+  return [...harness.host.querySelectorAll('button')].find((b) => b.textContent.trim() === label);
+}
+
 async function clickButton(label: string): Promise<void> {
-  const button = [...harness.host.querySelectorAll('button')].find((b) => b.textContent === label);
+  const button = findButton(label);
   expect(button).toBeDefined();
   await act(async () => {
     button?.click();
@@ -64,6 +68,7 @@ async function mount(View: () => JSX.Element): Promise<void> {
 }
 
 beforeEach(() => {
+  globalThis.localStorage.clear();
   harness.host = document.createElement('div');
   document.body.append(harness.host);
   harness.listener = undefined;
@@ -72,6 +77,7 @@ beforeEach(() => {
     tabs: { query: vi.fn().mockResolvedValue([{ id: 3 }]) },
     devtools: { inspectedWindow: { tabId: 3 } },
     runtime: {
+      getManifest: () => ({ version: '1.5.0' }),
       sendMessage: harness.sendMessage,
       onMessage: {
         addListener: vi.fn((function_: (message: Message) => void) => {
@@ -92,16 +98,73 @@ afterEach(async () => {
 });
 
 describe('scan views', () => {
+  it('stores detail and theme changes and restores focus after settings', async () => {
+    await mount(Popup);
+    const select = async (input: HTMLInputElement | null): Promise<void> => {
+      await act(() => {
+        input?.click();
+      });
+    };
+
+    const settingsButton = (): HTMLButtonElement | null =>
+      harness.host.querySelector<HTMLButtonElement>('button[aria-label="Settings"]');
+    await act(() => {
+      settingsButton()?.click();
+    });
+    const focused = document.activeElement;
+    expect(focused?.textContent.trim()).toBe('Back');
+    expect(harness.host.querySelector('h1')?.textContent).toBe('Settings');
+
+    const theme = (name: string): HTMLInputElement | null =>
+      [...harness.host.querySelectorAll<HTMLInputElement>('input[name="theme"]')].find(
+        (input) => input.value === name
+      ) ?? null;
+    expect(theme('system')?.checked).toBe(true);
+    await select(theme('light'));
+    expect(document.documentElement.dataset['theme']).toBe('light');
+    await select(theme('dark'));
+    expect(document.documentElement.dataset['theme']).toBe('dark');
+
+    const details = harness.host.querySelectorAll<HTMLInputElement>('input[name="detail"]');
+    expect(details[0]?.checked).toBe(true);
+    await select(details[1] ?? null);
+    expect(details[1]?.checked).toBe(true);
+    await clickButton('Back');
+    expect(document.activeElement).toBe(settingsButton());
+    await publish(snapshot(makeResult()));
+    expect(harness.host.textContent).toContain('Implementation attributes');
+
+    await act(() => {
+      settingsButton()?.click();
+    });
+    await select(harness.host.querySelector<HTMLInputElement>('input[name="detail"]'));
+    await clickButton('Back');
+    expect(harness.host.textContent).not.toContain('Implementation attributes');
+
+    await act(() => {
+      globalThis.dispatchEvent(new StorageEvent('storage', { key: 'unrelated' }));
+    });
+    expect(document.documentElement.dataset['theme']).toBe('dark');
+
+    for (const value of ['light', 'dark', 'system']) {
+      await act(() => {
+        globalThis.localStorage.setItem('inspector-theme', value);
+        globalThis.dispatchEvent(new StorageEvent('storage', { key: 'inspector-theme' }));
+      });
+      expect(document.documentElement.dataset['theme']).toBe(value);
+    }
+  });
+
   it('keeps the popup version gate and shows a completed scan', async () => {
     harness.sendMessage.mockResolvedValue(snapshot(null, { detected: true, version: '5.67.0' }));
     await mount(Popup);
     await vi.waitFor(() => {
-      expect(harness.host.textContent).toContain('Adyen Web Version Outdated');
+      expect(harness.host.textContent).toContain('Adyen Web version outdated');
     });
 
     await publish(snapshot(makeResult()));
     await vi.waitFor(() => {
-      expect(harness.host.textContent).toContain('Re-run Scan');
+      expect(harness.host.textContent).toContain('Re-run scan');
     });
   });
 
@@ -113,7 +176,7 @@ describe('scan views', () => {
       expect(harness.host.textContent).toContain('Scanning…');
     });
     const button = [...harness.host.querySelectorAll('button')].find(
-      (b) => b.textContent === 'Scanning…'
+      (b) => b.textContent.trim() === 'Scanning…'
     );
     expect(button?.disabled).toBe(true);
   });
@@ -125,7 +188,7 @@ describe('scan views', () => {
     await vi.waitFor(() => {
       expect(harness.host.textContent).toContain('Adyen Web SDK detected');
     });
-    expect(harness.host.textContent).toContain('Run Scan');
+    expect(harness.host.textContent).toContain('Run scan');
     expect(harness.host.textContent).not.toContain('Export PDF');
   });
 
@@ -135,7 +198,7 @@ describe('scan views', () => {
     await vi.waitFor(() => {
       expect(harness.host.textContent).toContain('Adyen not detected');
     });
-    expect(harness.host.textContent).toContain('Attempt Scan');
+    expect(harness.host.textContent).toContain('Attempt scan');
   });
 
   it('shows the scan error view with a retry after a failed scan', async () => {
@@ -145,10 +208,10 @@ describe('scan views', () => {
     await vi.waitFor(() => {
       expect(harness.host.textContent).toContain('Scan failed');
     });
-    expect(harness.host.textContent).toContain('Try Again');
+    expect(harness.host.textContent).toContain('Try again');
   });
 
-  it('groups popup failures and warnings with the shared impact labels', async () => {
+  it('shows check titles but omits impact labels in Essential', async () => {
     harness.sendMessage.mockResolvedValue(
       snapshot(
         makeScanResult({
@@ -178,15 +241,12 @@ describe('scan views', () => {
     await vi.waitFor(() => {
       expect(harness.host.textContent).toContain('Missing country');
     });
-    const headers = [...harness.host.querySelectorAll('[class*="priorityHeader"]')].map(
-      (header) => header.textContent
-    );
-    expect(headers).toEqual(['High impact1', 'High impact1', 'Medium impact1']);
+    expect(harness.host.textContent).not.toContain('High impact');
   });
 
   it.each([
     ['popup', Popup, null],
-    ['DevTools panel', Panel, 'Best Practices'],
+    ['DevTools panel', Panel, 'Best practices'],
   ] as const)(
     'shows the resolved remediation and documentation in the %s',
     async (_label, View, tab) => {
@@ -201,6 +261,7 @@ describe('scan views', () => {
       const documentationUrl = 'https://docs.adyen.com/online-payments/web-best-practices/';
       harness.sendMessage.mockResolvedValue(snapshot(withoutGuidance, { detected: true }));
 
+      globalThis.localStorage.setItem('inspector-detail', 'detailed');
       await mount(View);
       if (tab !== null) await clickButton(tab);
       await vi.waitFor(() => {
@@ -220,7 +281,11 @@ describe('scan views', () => {
     await vi.waitFor(() => {
       expect(harness.host.textContent).toContain('Adyen Web SDK was not detected on this page.');
     });
-    expect(harness.host.textContent).not.toContain('Export JSON');
+    expect(
+      [...harness.host.querySelectorAll('button')].find(
+        (button) => button.textContent.trim() === 'Export JSON'
+      )?.disabled
+    ).toBe(true);
   });
 
   it('renders every DevTools panel tab for a detected result', async () => {
@@ -255,12 +320,12 @@ describe('scan views', () => {
     });
 
     const tabs = [
-      ['Best Practices', 'No locale was configured.'],
+      ['Best practices', 'No locale was configured.'],
       ['Security', 'HTTPS in use'],
-      ['Skipped Checks', 'No third-party scripts.'],
+      ['Skipped checks', 'No third-party scripts.'],
       ['Network', 'No Adyen requests captured.'],
-      ['Extracted Config', 'No inferred config captured.'],
-      ['Overview', 'Implementation Attributes'],
+      ['Extracted config', 'No inferred config captured.'],
+      ['Overview', 'Implementation attributes'],
     ] as const;
     for (const [tab, text] of tabs) {
       await clickButton(tab);
@@ -281,11 +346,11 @@ describe('scan views', () => {
       selected()?.id
     );
     await press('ArrowLeft');
-    expect(selected()?.textContent).toBe('Extracted Config');
+    expect(selected()?.textContent).toBe('Extracted config');
     expect(document.activeElement).toBe(selected());
     await press('ArrowRight');
     await press('End');
-    expect(selected()?.textContent).toBe('Extracted Config');
+    expect(selected()?.textContent).toBe('Extracted config');
     await press('Home');
     await press('Enter');
     expect(selected()?.textContent).toBe('Overview');
@@ -300,7 +365,7 @@ describe('scan views', () => {
     await mount(Panel);
     harness.sendMessage.mockRejectedValueOnce(new Error('Extension context invalidated'));
     const button = [...harness.host.querySelectorAll('button')].find(
-      (b) => b.textContent === 'Run Scan'
+      (b) => b.textContent.trim() === 'Run scan'
     );
     expect(button).toBeDefined();
     await act(async () => {
@@ -344,6 +409,18 @@ async function settle(): Promise<void> {
 }
 
 describe('DevTools panel states', () => {
+  it('offers a scan on a detected checkout and disables exports until results exist', async () => {
+    harness.sendMessage.mockResolvedValue(snapshot(null, { detected: true }));
+    await mount(Panel);
+    await vi.waitFor(() => {
+      expect(harness.host.querySelector('h2')?.textContent).toBe('Adyen Web SDK detected');
+    });
+    const exports = [...harness.host.querySelectorAll('button')].filter((button) =>
+      button.textContent.trim().startsWith('Export ')
+    );
+    expect(exports.map((button) => button.disabled)).toEqual([true, true]);
+  });
+
   it.each([
     ['a failed scan without a message', '', 'Scan failed. Try reloading the page.'],
     ['a failed scan with its message', 'Blocked page', 'Blocked page'],
@@ -360,7 +437,7 @@ describe('DevTools panel states', () => {
     await mount(Panel);
     harness.sendMessage.mockRejectedValueOnce(new Error('offline'));
 
-    await clickButton('Run Scan');
+    await clickButton('Run scan');
     await settle();
 
     await vi.waitFor(() => {
@@ -385,7 +462,7 @@ describe('DevTools panel states', () => {
     };
     await mount(Panel);
 
-    await clickButton('Run Scan');
+    await clickButton('Run scan');
     await settle();
 
     await vi.waitFor(() => {
@@ -400,12 +477,38 @@ describe('DevTools panel states', () => {
     await mount(Panel);
 
     await vi.waitFor(() => {
-      expect(harness.host.querySelector('[class*="emptyState"]')?.textContent).toBe('Scanning…');
+      expect(harness.host.querySelector('h2')?.textContent).toBe('Scanning this page…');
     });
     const button = [...harness.host.querySelectorAll('button')].find(
-      (b) => b.textContent === 'Scanning…'
+      (b) => b.textContent.trim() === 'Scanning…'
     );
     expect(button?.disabled).toBe(true);
+  });
+
+  it.each([
+    ['Copied', vi.fn().mockResolvedValue(undefined)],
+    ['Could not copy', vi.fn().mockRejectedValue(new Error('Clipboard unavailable'))],
+  ])('shows %s after copying captured configuration', async (message, writeText) => {
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+    onTestFinished(() => {
+      Reflect.deleteProperty(navigator, 'clipboard');
+    });
+    harness.sendMessage.mockResolvedValue(snapshot(makeResult()));
+    await mount(Panel);
+    await vi.waitFor(() => {
+      expect(
+        harness.host.querySelector<HTMLButtonElement>('button[aria-selected="true"]')?.textContent
+      ).toBe('Overview');
+    });
+    await clickButton('Extracted config');
+    await act(async () => {
+      harness.host
+        .querySelector<HTMLButtonElement>('button[aria-label="Copy Captured Checkout Fields"]')
+        ?.click();
+      await Promise.resolve();
+    });
+    expect(writeText).toHaveBeenCalledWith(harness.host.querySelector('pre')?.textContent);
+    expect(harness.host.textContent).toContain(message);
   });
 
   it('exports the result as JSON and as a PDF report', async () => {
@@ -458,7 +561,9 @@ describe('DevTools panel states', () => {
     await vi.waitFor(() => {
       expect(report.remove).toHaveBeenCalled();
     });
-    expect(harness.host.querySelector('[class*="errorBanner"]')).toBeNull();
+    expect(harness.host.querySelector('[role="alert"]')?.textContent).toContain(
+      'Could not open the report'
+    );
   });
 });
 
@@ -469,14 +574,15 @@ describe('popup result states', () => {
     await mount(Popup);
 
     await vi.waitFor(() => {
-      expect(harness.host.textContent).toContain('Attempt Scan');
+      expect(harness.host.textContent).toContain('Attempt scan');
     });
-    await clickButton('Attempt Scan');
+    await clickButton('Attempt scan');
     expect(harness.host.textContent).toContain('Scanning…');
   });
 
-  it('exports a PDF report and lists notices, compliance reasons, and the environment', async () => {
+  it('opens a full report and lists notices, compliance reasons, and the environment in Detailed', async () => {
     const report = stubReportTab();
+    globalThis.localStorage.setItem('inspector-detail', 'detailed');
     const payload = makeAdyenPayload({}, { environment: 'live-in', clientKey: 'live_KEY' });
     harness.sendMessage.mockResolvedValue(
       snapshot(
@@ -498,21 +604,59 @@ describe('popup result states', () => {
     );
     await mount(Popup);
     await vi.waitFor(() => {
-      expect(harness.host.textContent).toContain('Notices');
+      expect(harness.host.textContent).toContain('Notice');
     });
 
     expect(harness.host.textContent).toContain('Referrer-Policy header is not set.');
     expect(harness.host.textContent).toContain('Sessions flow not detected.');
-    expect(harness.host.querySelector('[class*="badgeLive"]')?.textContent).toBe('live-in');
+    expect([...harness.host.querySelectorAll('dd')].map((item) => item.textContent)).toContain(
+      'live-in'
+    );
 
-    await clickButton('Export PDF');
+    await clickButton('Open full report');
     await settle();
     expect(report.create).toHaveBeenCalled();
+  });
+
+  it('returns focus to the scan action when a scan the user started finishes', async () => {
+    harness.sendMessage.mockResolvedValue(snapshot(makeResult(), { detected: true }));
+    await mount(Popup);
+    await vi.waitFor(() => {
+      expect(harness.host.textContent).toContain('Re-run scan');
+    });
+
+    findButton('Re-run scan')?.focus();
+    await clickButton('Re-run scan');
+    expect(harness.host.textContent).toContain('Scanning this page');
+    expect(document.activeElement).toBe(document.body);
+
+    await publish(snapshot(makeResult(), { detected: true }));
+    expect(findButton('Re-run scan')).toBeDefined();
+    expect(document.activeElement).toBe(findButton('Re-run scan'));
+  });
+
+  it('leaves focus alone when it moved during the scan or the next view has no scan action', async () => {
+    await mount(Popup);
+    await vi.waitFor(() => {
+      expect(harness.host.textContent).toContain('Attempt scan');
+    });
+
+    await clickButton('Attempt scan');
+    const settings = harness.host.querySelector<HTMLButtonElement>('button[aria-label="Settings"]');
+    settings?.focus();
+    await publish(snapshot(makeResult(), { detected: true }));
+    expect(document.activeElement).toBe(settings);
+
+    findButton('Re-run scan')?.focus();
+    await clickButton('Re-run scan');
+    await publish(snapshot(null, { detected: true, version: '5.67.0' }));
+    expect(harness.host.textContent).toContain('Adyen Web version outdated');
+    expect(document.activeElement).toBe(document.body);
   });
 });
 
 describe('popup compliance and export failures', () => {
-  it('shows a met Standard Drop-in assessment and survives a failed PDF export', async () => {
+  it('shows a met Standard Drop-in assessment and survives a failed report opening', async () => {
     const report = stubReportTab();
     report.create.mockRejectedValue(new Error('blocked'));
     harness.sendMessage.mockResolvedValue(
@@ -522,15 +666,18 @@ describe('popup compliance and export failures', () => {
     );
     await mount(Popup);
     await vi.waitFor(() => {
-      expect(harness.host.querySelector('[class*="iconCompliant"]')?.textContent).toBe('\u{2713}');
+      expect(harness.host.textContent).toContain('Standard Drop-in frontend criteria met');
     });
 
-    await clickButton('Export PDF');
+    await clickButton('Open full report');
     await settle();
 
     await vi.waitFor(() => {
       expect(report.remove).toHaveBeenCalled();
     });
-    expect(harness.host.textContent).toContain('Re-run Scan');
+    expect(harness.host.textContent).toContain('Re-run scan');
+    expect(harness.host.querySelector('[role="alert"]')?.textContent).toContain(
+      'Could not open the report'
+    );
   });
 });

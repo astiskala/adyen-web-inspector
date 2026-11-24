@@ -141,13 +141,19 @@ describe('buildFindingProjection', () => {
     const projected = grouped.flatMap((group) => group.issues.map((issue) => issue.title));
     const exported = buildReportExportData(result).bestPractices.issues.map((issue) => issue.title);
     const host = document.createElement('div');
-    render(h(Report, { result, metadata: { extensionVersion: '1', browser: 'Test' } }), host);
-    const heading = [...host.querySelectorAll('h2')].find(
-      (element) => element.textContent === 'Best Practices'
+    render(
+      h(Report, {
+        result,
+        metadata: { extensionVersion: '1', browser: 'Test' },
+        onExportJson: () => {},
+        onExportPdf: () => {},
+      }),
+      host
     );
     const rows = [
-      ...(heading?.nextElementSibling?.querySelectorAll<HTMLTableRowElement>(':scope tbody tr') ??
-        []),
+      ...host.querySelectorAll<HTMLTableRowElement>(
+        ':scope table[aria-label="Best practices"] tbody tr'
+      ),
     ];
     const printed = rows
       .filter((row) => row.cells.length === 3)

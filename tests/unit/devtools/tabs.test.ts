@@ -55,11 +55,13 @@ function makeResult(): ScanResult {
 describe('DevTools finding views', () => {
   it('renders skip reasons from the same projection as exports', () => {
     render(h(SkippedChecksTab, { result: makeResult() }), host);
-    const reasons = [...host.querySelectorAll('[class*="skipReason"]')].map((r) => r.textContent);
+    const reasons = [...host.querySelectorAll(':scope tbody td:nth-child(2)')].map(
+      (r) => r.textContent
+    );
 
     expect(host.textContent).toContain('Third-party SRI check skipped.');
     expect(host.textContent).toContain('CDN mismatch check skipped.');
-    expect(reasons).toEqual(['No third-party scripts detected.']);
+    expect(reasons).toEqual(['No third-party scripts detected.', '—']);
   });
 
   it('filters captured requests and groups security findings with the shared rules', () => {

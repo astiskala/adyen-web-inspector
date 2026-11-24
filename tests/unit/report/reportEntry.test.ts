@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { chromeReportBrowser } from '../../../src/popup/components/chrome-report-browser';
-import { exportPdf } from '../../../src/shared/report-export';
+import { openReport as sendReport } from '../../../src/shared/report-export';
 import type { ScanResult } from '../../../src/shared/types';
 import { makeScanResult } from '../../fixtures/makeScanPayload';
 
@@ -20,10 +20,13 @@ async function openReport(url: string): Promise<void> {
 }
 
 /**
-Hands a result over from a view, as the Export PDF button does, and returns the report page URL.
+Hands a result over from a view, as the popup and panel do, and returns the report page URL.
 */
-async function handOver(result: ScanResult | object): Promise<string> {
-  await exportPdf(result as ScanResult, chromeReportBrowser);
+async function handOver(
+  result: ScanResult | object,
+  mode: 'view' | 'print' = 'view'
+): Promise<string> {
+  await sendReport(result as ScanResult, chromeReportBrowser, mode);
   return harness.create.mock.lastCall?.[0].url ?? '';
 }
 
@@ -62,23 +65,58 @@ afterEach(() => {
 });
 
 describe('report page', () => {
-  it('renders the handed-over scan result and prints it', async () => {
-    await openReport(
-      await handOver(makeScanResult({ pageUrl: 'https://merchant.example/checkout' }))
-    );
+  it.each(['view', 'print'] as const)(
+    'renders the handed-over scan in %s mode and can print it',
+    async (mode) => {
+      await openReport(
+        await handOver(makeScanResult({ pageUrl: 'https://merchant.example/checkout' }), mode)
+      );
 
-    expect(harness.storage.size).toBe(0);
-    expect(document.title).toBe('Adyen Web Inspector — https://merchant.example/checkout');
-    expect(document.body.textContent).toContain('https://merchant.example/checkout');
-    expect(harness.print).toHaveBeenCalledTimes(1);
-  });
+      expect(harness.storage.size).toBe(0);
+      expect(document.title).toBe('Adyen Web Inspector — https://merchant.example/checkout');
+      expect(document.body.textContent).toContain('https://merchant.example/checkout');
+      expect(harness.print).toHaveBeenCalledTimes(mode === 'print' ? 1 : 0);
+      [...document.querySelectorAll('button')]
+        .find((button) => button.textContent.trim() === 'Export PDF')
+        ?.click();
+      expect(harness.print).toHaveBeenCalledTimes(mode === 'print' ? 2 : 1);
+    }
+  );
 
   it('explains a report page opened without a handoff', async () => {
     await openReport('chrome-extension://inspector/report/report.html');
 
-    expect(document.title).toBe('Adyen Web Inspector - PDF Export Failed');
+    expect(document.title).toBe('Adyen Web Inspector - Report unavailable');
     expect(document.body.textContent).toContain('missing its report token');
     expect(harness.print).not.toHaveBeenCalled();
+  });
+
+  it('downloads a JSON report from the opened report tab', async () => {
+    const url = await handOver(makeScanResult());
+    const createObjectURL = vi.fn(() => 'blob:report');
+    vi.stubGlobal(
+      'URL',
+      class extends URL {
+        static override readonly createObjectURL = createObjectURL;
+        static override readonly revokeObjectURL = vi.fn();
+      }
+    );
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    await openReport(url);
+
+    vi.useFakeTimers({ toFake: ['setTimeout'] });
+    try {
+      [...document.querySelectorAll('button')]
+        .find((button) => button.textContent.trim() === 'Export JSON')
+        ?.click();
+      vi.runAllTimers();
+
+      expect(createObjectURL).toHaveBeenCalledWith(expect.any(Blob));
+      expect(click).toHaveBeenCalledOnce();
+    } finally {
+      click.mockRestore();
+      vi.useRealTimers();
+    }
   });
 
   it('explains a handed-over result the report cannot be built from', async () => {

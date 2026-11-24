@@ -24,7 +24,9 @@ export const IMPACT_LABELS: Readonly<Record<CheckImpact, string>> = {
 /**
 Issue severities in priority order, used to sort issues within an impact group.
 */
-export const ISSUE_SEVERITIES: readonly Severity[] = ['fail', 'warn', 'notice'];
+export const ISSUE_SEVERITIES = ['fail', 'warn', 'notice'] as const satisfies readonly Severity[];
+
+export type IssueCheck = CheckResult & { readonly severity: (typeof ISSUE_SEVERITIES)[number] };
 
 /**
 Severities that state a verified outcome; info, notice, and skip do not score.
@@ -34,8 +36,8 @@ const SCORED_SEVERITIES: ReadonlySet<Severity> = new Set(['pass', 'warn', 'fail'
 /**
 Returns true when a check result is an issue (fail, warn, or notice).
 */
-export function isIssue(check: CheckResult): boolean {
-  return ISSUE_SEVERITIES.includes(check.severity);
+export function isIssue(check: CheckResult): check is IssueCheck {
+  return ISSUE_SEVERITIES.some((severity) => severity === check.severity);
 }
 
 /**

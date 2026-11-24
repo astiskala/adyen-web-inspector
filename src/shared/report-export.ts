@@ -1,5 +1,5 @@
 /**
-Report export — how a scan result leaves the extension. The PDF handoff
+Report export — how a scan result leaves the extension. The report handoff
 stores the result under a one-time token, opens the report page, and lets
 that page take the result back exactly once; the JSON export downloads the
 report data. Views and the report page reach the browser only through a
@@ -11,14 +11,14 @@ import { buildJsonExport } from './export-json.js';
 import type { ScanResult } from './types.js';
 import { isScanResult } from './utilities.js';
 
-const PDF_REPORT_STORAGE_PREFIX = 'pdf-report:';
+const REPORT_STORAGE_PREFIX = 'pdf-report:';
 /**
 Extension page that renders and prints the report.
 */
-const PDF_REPORT_PAGE_PATH = 'report/report.html';
-const PDF_REPORT_TOKEN_PARAM = 'token';
+const REPORT_PAGE_PATH = 'report/report.html';
+const REPORT_TOKEN_PARAM = 'token';
 const MESSAGES = {
-  missingToken: 'The PDF export request was missing its report token. Please try again.',
+  missingToken: 'The request was missing its report token. Open the report from a scan result.',
   unavailable: 'The export data was unavailable. Please rerun the scan and try again.',
 } as const;
 
@@ -60,11 +60,16 @@ export interface ReportBrowser {
 /**
 What the report page shows: the scan result with who exported it, or why it cannot.
 */
-type PdfReport =
-  { readonly result: ScanResult; readonly metadata: ReportMetadata } | { readonly error: string };
+type OpenedReport =
+  | {
+      readonly result: ScanResult;
+      readonly metadata: ReportMetadata;
+      readonly printOnOpen: boolean;
+    }
+  | { readonly error: string };
 
 function storageKey(token: string): string {
-  return `${PDF_REPORT_STORAGE_PREFIX}${token}`;
+  return `${REPORT_STORAGE_PREFIX}${token}`;
 }
 
 function reportMetadata(browser: ReportBrowser): ReportMetadata {
@@ -72,16 +77,23 @@ function reportMetadata(browser: ReportBrowser): ReportMetadata {
 }
 
 /**
-Hands the result to a new report tab, which renders and prints it
+Hands the result to a new report tab, which renders it and optionally prints it
 independently of the popup or DevTools lifecycle. The handoff is removed
 again when the tab cannot be opened.
 */
-export async function exportPdf(result: ScanResult, browser: ReportBrowser): Promise<void> {
+export async function openReport(
+  result: ScanResult,
+  browser: ReportBrowser,
+  mode: 'view' | 'print' = 'view'
+): Promise<void> {
   const token = browser.newToken();
   const key = storageKey(token);
   await browser.write({ [key]: result });
   try {
-    await browser.openExtensionPage(PDF_REPORT_PAGE_PATH, { [PDF_REPORT_TOKEN_PARAM]: token });
+    await browser.openExtensionPage(REPORT_PAGE_PATH, {
+      [REPORT_TOKEN_PARAM]: token,
+      ...(mode === 'print' && { print: '1' }),
+    });
   } catch (error: unknown) {
     await Promise.allSettled([browser.remove(key)]);
     throw error;
@@ -92,14 +104,19 @@ export async function exportPdf(result: ScanResult, browser: ReportBrowser): Pro
 Takes the result handed to the report page at this URL, once, with the
 metadata the report prints. Storage failures read as unavailable data.
 */
-export async function takePdfReport(url: string, browser: ReportBrowser): Promise<PdfReport> {
-  const token = new URL(url).searchParams.get(PDF_REPORT_TOKEN_PARAM);
+export async function takeReport(url: string, browser: ReportBrowser): Promise<OpenedReport> {
+  const parameters = new URL(url).searchParams;
+  const token = parameters.get(REPORT_TOKEN_PARAM);
   if (token === null || token === '') return { error: MESSAGES.missingToken };
   const key = storageKey(token);
   const [stored] = await Promise.allSettled([browser.read(key)]);
   await Promise.allSettled([browser.remove(key)]);
   return stored.status === 'fulfilled' && isScanResult(stored.value)
-    ? { result: stored.value, metadata: reportMetadata(browser) }
+    ? {
+        result: stored.value,
+        metadata: reportMetadata(browser),
+        printOnOpen: parameters.get('print') === '1',
+      }
     : { error: MESSAGES.unavailable };
 }
 

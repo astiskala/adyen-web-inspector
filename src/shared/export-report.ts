@@ -14,6 +14,7 @@ import {
   isIssue,
   ISSUE_IMPACT_ORDER,
   ISSUE_SEVERITIES,
+  type IssueCheck,
 } from './results.js';
 import type {
   AdyenEnvironment,
@@ -28,7 +29,6 @@ import type {
   IntegrationFlavor,
   IntegrationFlow,
   ScanResult,
-  Severity,
   StandardCompliance,
 } from './types.js';
 
@@ -65,7 +65,7 @@ One issue as every view renders it.
 export interface IssueRow {
   readonly id: CheckId;
   readonly category: CheckCategory;
-  readonly severity: Severity;
+  readonly severity: IssueCheck['severity'];
   readonly title: string;
   /**
   Label of the issue's impact group.
@@ -82,6 +82,16 @@ export interface IssueRow {
   */
   readonly docsUrl: string;
 }
+
+/**
+Status labels in the same order as the finding projection.
+*/
+export const ISSUE_LABELS = { fail: 'Fail', warn: 'Warning', notice: 'Notice' } as const;
+
+export const ISSUE_STATUSES = ISSUE_SEVERITIES.map((severity) => ({
+  severity,
+  label: ISSUE_LABELS[severity],
+}));
 
 /**
 Issues of one impact, sorted by severity then title.
@@ -151,7 +161,7 @@ interface FindingProjection {
   readonly rawConfig: ExportRawConfigData;
 }
 
-function bySeverityThenTitle(a: CheckResult, b: CheckResult): number {
+function bySeverityThenTitle(a: IssueCheck, b: IssueCheck): number {
   return (
     ISSUE_SEVERITIES.indexOf(a.severity) - ISSUE_SEVERITIES.indexOf(b.severity) ||
     a.title.localeCompare(b.title)
@@ -183,7 +193,7 @@ function resolveRemediation(check: CheckResult, impact: CheckImpact): string {
     : 'Review this item manually in your site config and network headers before going live.';
 }
 
-function toIssueRow(check: CheckResult, impact: CheckImpact): IssueRow {
+function toIssueRow(check: IssueCheck, impact: CheckImpact): IssueRow {
   return {
     id: check.id,
     category: check.category,

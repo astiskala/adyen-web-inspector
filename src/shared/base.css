@@ -1,27 +1,43 @@
-/* Chrome DevTools colour palette — light + dark */
+/* Local equivalents of the Bento v2 surface, label, and status tokens. */
 :root {
-  --color-blue: #1a73e8;
-  --color-red: #d93025;
-  --color-green: #188038;
-  --color-amber: #b06000;
-  --color-surface: #ffffff;
-  --color-surface-alt: #f8f9fa;
-  --color-border: #dadce0;
-  --color-text: #202124;
-  --color-text-secondary: #5f6368;
+  color-scheme: light dark;
+  --color-page: light-dark(#fafafa, #111110);
+  --color-surface: light-dark(#ffffff, #191918);
+  --color-surface-alt: light-dark(#f4f4f4, #242423);
+  --color-border: light-dark(#e5e5e5, #373736);
+  --color-control: light-dark(#767676, #949494);
+  --color-text: light-dark(#111110, #f5f5f5);
+  --color-text-secondary: light-dark(#595959, #b7b7b7);
+  --color-primary: light-dark(#111110, #ededed);
+  --color-on-primary: light-dark(#ffffff, #111110);
+  --color-blue: light-dark(#005ebd, #91c7ff);
+  --color-focus: light-dark(#006bd7, #83bfff);
+  --color-green: light-dark(#006f38, #3ae88e);
+  --color-green-bg: light-dark(#cef6e2, #003a22);
+  --color-red: light-dark(#b42e01, #ffb196);
+  --color-red-bg: light-dark(#ffeae3, #5c1800);
+  --color-amber: light-dark(#8b5300, #ffba56);
+  --color-amber-bg: light-dark(#ffecd0, #412700);
+  --color-blue-bg: light-dark(#e3effb, #00305f);
+  --color-track: light-dark(#e5e5e5, #30302f);
+  --color-meter-green: light-dark(#008845, #00d16a);
+  --color-meter-red: light-dark(#dc3801, #ff9a78);
+  --color-meter-amber: light-dark(#ab6500, #ffad32);
+  --radius: 6px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-blue: #8ab4f8;
-    --color-red: #f28b82;
-    --color-green: #81c995;
-    --color-amber: #fdd663;
-    --color-surface: #202124;
-    --color-surface-alt: #292a2d;
-    --color-border: #3c4043;
-    --color-text: #e8eaed;
-    --color-text-secondary: #9aa0a6;
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+}
+
+@media print {
+  :root,
+  :root[data-theme] {
+    color-scheme: light;
   }
 }
 
@@ -32,23 +48,47 @@
 }
 
 body {
-  font-family:
-    system-ui,
-    -apple-system,
+  font:
+    14px/1.45 Roboto,
+    'Helvetica Neue',
+    Arial,
     sans-serif;
-  font-size: 12px;
-  line-height: 1.4;
   color: var(--color-text);
   background: var(--color-surface);
 }
 
 .popup-body {
-  width: 360px;
-  min-height: 80px;
+  width: 380px;
 }
 
 button {
   font: inherit;
+}
+
+a {
+  color: var(--color-blue);
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  clip-path: inset(50%);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.inspectorBrand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
 }
 
 .btn {
@@ -56,63 +96,125 @@ button {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  height: 28px;
-  padding: 0 10px;
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
   background: var(--color-surface-alt);
   color: var(--color-text);
-  font-size: 12px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
 }
 
-.btn:hover {
-  background: color-mix(in srgb, var(--color-surface-alt) 70%, var(--color-blue) 8%);
+.btn:hover:not(:disabled) {
+  box-shadow: inset 0 0 0 100px rgb(127 127 127 / 16%);
 }
 
-.btn:active {
-  background: color-mix(in srgb, var(--color-surface-alt) 60%, var(--color-blue) 14%);
+.btn:active:not(:disabled) {
+  box-shadow: inset 0 0 0 100px rgb(127 127 127 / 26%);
 }
 
 .btn:disabled {
-  opacity: 0.65;
   cursor: default;
 }
 
 .btnPrimary {
-  color: #fff;
-  border-color: #1a73e8;
-  background: #1a73e8;
+  color: var(--color-on-primary);
+  background: var(--color-primary);
 }
 
-.btnPrimary:hover {
-  background: #1765cb;
-}
-
-.btnPrimary:active {
-  background: #1457ad;
-}
-
-@media (prefers-color-scheme: dark) {
-  .btnPrimary {
-    color: #202124;
-    border-color: #8ab4f8;
-    background: #8ab4f8;
-  }
-
-  .btnPrimary:hover {
-    background: #7baaf7;
-  }
-
-  .btnPrimary:active {
-    background: #6a9cf6;
-  }
+.btnIcon {
+  min-width: 36px;
+  padding: 0;
+  background: transparent;
 }
 
 code,
 pre,
 .monospace {
-  font-family: Menlo, Monaco, 'Courier New', monospace;
-  font-size: 11px;
+  font:
+    12px/1.5 'Roboto Mono',
+    Menlo,
+    'Courier New',
+    monospace;
+}
+
+[data-tone='neutral'] {
+  --tone-text: var(--color-text-secondary);
+  --tone-bg: var(--color-surface-alt);
+}
+
+[data-tone='pass'] {
+  --tone-text: var(--color-green);
+  --tone-bg: var(--color-green-bg);
+}
+
+[data-tone='fail'] {
+  --tone-text: var(--color-red);
+  --tone-bg: var(--color-red-bg);
+}
+
+[data-tone='warn'] {
+  --tone-text: var(--color-amber);
+  --tone-bg: var(--color-amber-bg);
+}
+
+[data-tone='notice'] {
+  --tone-text: var(--color-blue);
+  --tone-bg: var(--color-blue-bg);
+}
+
+.dataGrid {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.dataGrid :is(th, td) {
+  padding: 8px;
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.dataGrid th {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.dataGrid tr:last-child td {
+  border-bottom: 0;
+}
+
+.dataGrid small {
+  display: block;
+  margin-top: 3px;
+  font-size: 12px;
+}
+
+.dataGrid small,
+.muted {
+  color: var(--color-text-secondary);
+}
+
+.dataBadge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: var(--radius);
+  background: var(--tone-bg, var(--color-surface-alt));
+  color: var(--tone-text, var(--color-text-secondary));
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.reportMessage {
+  max-width: 720px;
+  padding: 24px;
+}
+
+.reportMessage h1 {
+  font-size: 20px;
+  margin-bottom: 8px;
 }
