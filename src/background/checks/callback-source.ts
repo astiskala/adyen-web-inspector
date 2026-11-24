@@ -211,17 +211,99 @@ function detectUnhandledOnSubmitFilters(source: string): UnhandledOnSubmitFilter
 
 interface StateDataForwarding {
   /**
-  `complete`: state.data is used as a whole; `partial`: only selected fields are read.
+  `whole`: state.data is passed on as one object, spread, or destructured
+  with a rest element; `selected`: only named fields, including
+  `paymentMethod`, are read.
   */
-  readonly kind: 'complete' | 'partial' | 'unknown';
+  readonly kind: 'whole' | 'selected' | 'unknown';
+  /**
+  Fields read from state.data by name, sorted.
+  */
   readonly fields: readonly string[];
+  /**
+  Fields the merchant server should set that onSubmit combines with state.data, sorted.
+  */
+  readonly serverFields: readonly string[];
 }
 
 const IDENTIFIER_PATTERN = /^[A-Z_$][\w$]*$/i;
+const IDENTIFIER = String.raw`[A-Za-z_$][\w$]*`;
 const NOT_MEMBER_ACCESS = String.raw`(?!\s*(?:\?\.|\.|\[))`;
+const SERVER_FIELD = '(amount|merchantAccount|reference|shopperReference)';
+const SERVER_FIELD_KEY = new RegExp(String.raw`[{,]\s*['"]?${SERVER_FIELD}['"]?(?=\s*[:,}])`, 'g');
+/**
+Matches comments, and string literals so that `//` inside a URL is not read as a comment.
+*/
+// ponytail: regex literals and `${}` inside template literals are not tokenised.
+const COMMENT_OR_STRING = /(["'`])(?:\\.|(?!\1)[^\\])*\1|\/\*[\s\S]*?\*\/|\/\/.*/g;
+const LOG_CALL = /\bconsole\s*\.\s*\w+\s*\(/;
 
 function escapeIdentifier(identifier: string): string {
   return identifier.replaceAll('$', String.raw`\$`);
+}
+
+function withoutComments(source: string): string {
+  return source.replaceAll(COMMENT_OR_STRING, (match, quote?: string) =>
+    quote === undefined ? ' ' : match
+  );
+}
+
+/**
+Removes console calls, so logging state.data does not count as sending it.
+*/
+function withoutLogging(source: string): string {
+  let result = source;
+  let match = LOG_CALL.exec(result);
+  while (match !== null) {
+    const end = findMatchingDelimiter(result, match.index + match[0].length - 1, '(', ')');
+    result = `${result.slice(0, match.index)} ${end === -1 ? '' : result.slice(end + 1)}`;
+    match = LOG_CALL.exec(result);
+  }
+  return result;
+}
+
+/**
+The object literal around `index`, or an empty string outside one.
+*/
+function enclosingObject(source: string, index: number): string {
+  let depth = 0;
+  for (let position = index - 1; position >= 0; position -= 1) {
+    const char = source[position];
+    if (char === '}') depth += 1;
+    if (char === '{' && depth === 0) {
+      const end = findMatchingDelimiter(source, position, '{', '}');
+      return end === -1 ? source.slice(position) : source.slice(position, end + 1);
+    }
+    if (char === '{') depth -= 1;
+  }
+  return '';
+}
+
+function isDefined(value: string | undefined): value is string {
+  return value !== undefined;
+}
+
+function sortedUnique(values: (string | undefined)[]): string[] {
+  return [...new Set(values.filter(isDefined))].toSorted((a, b) => a.localeCompare(b));
+}
+
+/**
+Server-owned fields assigned on state.data or set beside a `...state.data` spread.
+*/
+function readServerFields(body: string, data: string): string[] {
+  const assigned = new RegExp(String.raw`${data}\s*\.\s*${SERVER_FIELD}\s*=(?!=)`, 'g');
+  const spread = new RegExp(String.raw`\.\.\.\s*${data}${NOT_MEMBER_ACCESS}`, 'g');
+  return sortedUnique([
+    ...body.matchAll(assigned).map((match) => match[1]),
+    ...body
+      .matchAll(spread)
+      .flatMap((match) => enclosingObject(body, match.index).matchAll(SERVER_FIELD_KEY))
+      .map((match) => match[1]),
+  ]);
+}
+
+function destructuredKeys(pattern: string): (string | undefined)[] {
+  return pattern.split(',').map((entry) => /^\s*([A-Z_$][\w$]*)/i.exec(entry)?.[1]);
 }
 
 function findCallbackBody(source: string): { param: string; body: string } | null {
@@ -249,37 +331,48 @@ function findCallbackBody(source: string): { param: string; body: string } | nul
 }
 
 /**
-Classifies whether onSubmit forwards the whole `state.data` object or only
-selected fields such as `state.data.paymentMethod`. Destructured or
-wholesale-forwarded `state` is `unknown`.
+Classifies whether onSubmit passes the whole `state.data` object on or only
+selected fields such as `state.data.paymentMethod`, and which server-owned
+fields it combines with state.data. Logging and comments are ignored. A
+destructured parameter or wholesale-forwarded `state` is `unknown`.
 */
 function detectStateDataForwarding(source: string): StateDataForwarding {
-  const callback = findCallbackBody(source);
-  if (callback === null) return { kind: 'unknown', fields: [] };
+  const callback = findCallbackBody(withoutComments(source));
+  if (callback === null) return { kind: 'unknown', fields: [], serverFields: [] };
+  const body = withoutLogging(callback.body);
 
   // Excludes member access such as `other.state` while still matching `...state`.
   const state = String.raw`(?<![\w$])(?<![^.]\.)${escapeIdentifier(callback.param)}`;
   const data = String.raw`${state}\s*(?:\?\.|\.)\s*data\b`;
-  const wholeState = new RegExp(String.raw`${state}\b${NOT_MEMBER_ACCESS}`);
-  const wholeData = new RegExp(`${data}${NOT_MEMBER_ACCESS}`);
-  if (wholeData.test(callback.body)) return { kind: 'complete', fields: [] };
-  if (wholeState.test(callback.body)) return { kind: 'unknown', fields: [] };
+  const serverFields = readServerFields(body, data);
+  const destructuring = new RegExp(String.raw`\{([^{}]*)\}\s*=\s*${data}${NOT_MEMBER_ACCESS}`, 'g');
+  const patterns = body
+    .matchAll(destructuring)
+    .map((match) => match[1])
+    .filter(isDefined)
+    .toArray();
+  const remainder = body.replaceAll(destructuring, ' ');
+  if (
+    patterns.some((pattern) => pattern.includes('...')) ||
+    new RegExp(`${data}${NOT_MEMBER_ACCESS}`).test(remainder)
+  ) {
+    return { kind: 'whole', fields: [], serverFields };
+  }
+  if (new RegExp(String.raw`${state}\b${NOT_MEMBER_ACCESS}`).test(remainder)) {
+    return { kind: 'unknown', fields: [], serverFields };
+  }
 
   const fieldAccess = new RegExp(
-    String.raw`${data}\s*(?:\?\.|\.)\s*([A-Za-z_$][\w$]*)\b${NOT_MEMBER_ACCESS}`,
+    String.raw`${data}\s*(?:(?:\?\.|\.)\s*(${IDENTIFIER})\b|(?:\?\.)?\s*\[\s*['"](${IDENTIFIER})['"]\s*\])${NOT_MEMBER_ACCESS}`,
     'g'
   );
-  const fields = [
-    ...new Set(
-      callback.body
-        .matchAll(fieldAccess)
-        .map((match) => match[1])
-        .filter((field): field is string => field !== undefined)
-    ),
-  ].toSorted((a, b) => a.localeCompare(b));
+  const fields = sortedUnique([
+    ...patterns.flatMap(destructuredKeys),
+    ...remainder.matchAll(fieldAccess).map((match) => match[1] ?? match[2]),
+  ]);
   return fields.includes('paymentMethod')
-    ? { kind: 'partial', fields }
-    : { kind: 'unknown', fields: [] };
+    ? { kind: 'selected', fields, serverFields }
+    : { kind: 'unknown', fields: [], serverFields };
 }
 
 /**

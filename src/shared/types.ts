@@ -50,6 +50,7 @@ export type CheckId =
   | 'callback-on-submit'
   | 'callback-on-submit-filtering'
   | 'callback-on-submit-state-data'
+  | 'callback-on-submit-state-data-fields'
   | 'callback-on-additional-details'
   | 'callback-on-payment-completed'
   | 'callback-on-payment-failed'

@@ -292,7 +292,7 @@ test('Styling through SDK custom properties passes without class overrides', asy
   expect(requireCheck(result, 'styling-css-custom-props').severity).toBe('pass');
 });
 
-test('Advanced Components with v6 actions handles callbacks but forwards partial state.data', async ({
+test('Advanced Components with v6 actions handles callbacks but drops browser state.data fields', async ({
   context,
   extensionId,
 }) => {
@@ -307,9 +307,10 @@ test('Advanced Components with v6 actions handles callbacks but forwards partial
   expect(requireCheck(result, 'callback-on-additional-details').severity).toBe('pass');
   expect(requireCheck(result, 'callback-on-error').severity).toBe('pass');
   expect(requireCheck(result, 'callback-actions-pattern').severity).toBe('pass');
-  expect(requireCheck(result, 'callback-on-submit-state-data').severity).toBe('warn');
-  expect(requireCheck(result, 'callback-on-submit-state-data').detail).toContain(
-    'state.data.paymentMethod'
+  expect(requireCheck(result, 'callback-on-submit-state-data').severity).toBe('pass');
+  expect(requireCheck(result, 'callback-on-submit-state-data-fields').severity).toBe('warn');
+  expect(requireCheck(result, 'callback-on-submit-state-data-fields').detail).toContain(
+    'reads state.data.paymentMethod but not state.data.browserInfo'
   );
   expect(requireCheck(result, 'callback-on-submit-filtering').severity).toBe('notice');
   expect(requireCheck(result, 'callback-multiple-submissions').severity).toBe('notice');
@@ -576,7 +577,8 @@ test('Advanced Card uses merchant payment methods and checkout-level v6 callback
   expect(requireCheck(result, 'sdk-flavor').title).toContain('Components');
   expect(requireCheck(result, 'flow-type').title).toContain('Advanced');
   expect(requireCheck(result, 'callback-on-submit').severity).toBe('pass');
-  expect(requireCheck(result, 'callback-on-submit-state-data').severity).toBe('pass');
+  expect(requireCheck(result, 'callback-on-submit-state-data').severity).toBe('notice');
+  expect(requireCheck(result, 'callback-on-submit-state-data-fields').severity).toBe('pass');
   expect(requireCheck(result, 'callback-on-additional-details').severity).toBe('pass');
   expect(requireCheck(result, 'callback-actions-pattern').severity).toBe('pass');
   expect(requireCheck(result, 'risk-df-iframe').severity).toBe('pass');

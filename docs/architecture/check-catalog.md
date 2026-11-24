@@ -17,11 +17,11 @@ Each check implementation owns its outcomes and exceptional impact policy. Check
 | `version-lifecycle` |           5 | `sdk-version.ts`, `v6-deprecations.ts` |
 | `environment`       |           5 | `environment.ts`                       |
 | `auth`              |           4 | `auth.ts`                              |
-| `callbacks`         |          12 | `callbacks.ts`                         |
+| `callbacks`         |          13 | `callbacks.ts`                         |
 | `risk`              |           3 | `risk-module.ts`                       |
 | `security`          |          17 | `security.ts`, `security-csp.ts`       |
 | `third-party`       |           5 | `third-party-scripts.ts`               |
-| **Total**           |      **58** | `ALL_CHECKS`                           |
+| **Total**           |      **59** | `ALL_CHECKS`                           |
 
 ## Adyen Uplift Scope
 
@@ -63,7 +63,8 @@ Current manual-review notice checks:
 - `auth-country-code` (inferred-only value)
 - `auth-locale` (inferred-only value)
 - `callback-on-submit-filtering`
-- `callback-on-submit-state-data` (truncated callback source)
+- `callback-on-submit-state-data` (whole `state.data` or truncated callback source)
+- `callback-on-submit-state-data-fields` (truncated callback source)
 - `callback-multiple-submissions`
 - `risk-card-holder-name`
 - `3p-tag-manager`
@@ -94,7 +95,8 @@ Current manual-review notice checks:
 | `callbacks`         | `flow-type`                                | Infer integration flow (`Sessions`, `Advanced`, `Unknown`) from runtime signals.                                                                  | `info`                                   |
 | `callbacks`         | `callback-on-submit`                       | Require `onSubmit` for Advanced flow.                                                                                                             | `pass`, `fail`, `skip`                   |
 | `callbacks`         | `callback-on-submit-filtering`             | Advanced flow: warn on apparent selective `onSubmit` filtering; otherwise indicate uncertainty or request manual review.                          | `warn`, `notice`, `info`, `skip`         |
-| `callbacks`         | `callback-on-submit-state-data`            | Advanced flow: warn when `onSubmit` appears to forward only selected `state.data` fields instead of the complete object.                          | `pass`, `warn`, `notice`, `info`, `skip` |
+| `callbacks`         | `callback-on-submit-state-data`            | Advanced flow: warn when `onSubmit` adds server-owned fields such as `amount` to `state.data`; manual review when it sends `state.data` whole.    | `pass`, `warn`, `notice`, `info`, `skip` |
+| `callbacks`         | `callback-on-submit-state-data-fields`     | Advanced flow: warn when `onSubmit` sends selected `state.data` fields but drops `browserInfo`, `origin`, or `riskData`.                          | `pass`, `warn`, `notice`, `info`, `skip` |
 | `callbacks`         | `callback-on-additional-details`           | Require `onAdditionalDetails` for Advanced flow follow-up actions (for example, 3DS).                                                             | `pass`, `fail`, `skip`                   |
 | `callbacks`         | `callback-on-payment-completed`            | Verify payment-success outcome handling; stricter for Sessions flow.                                                                              | `pass`, `fail`, `warn`, `skip`           |
 | `callbacks`         | `callback-on-payment-failed`               | Verify payment-failure outcome handling; stricter for Sessions flow.                                                                              | `pass`, `fail`, `warn`, `skip`           |

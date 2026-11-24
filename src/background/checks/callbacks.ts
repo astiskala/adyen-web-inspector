@@ -147,13 +147,32 @@ const STRINGS = {
     'Captured callback source may be truncated, so complete handling cannot be verified.',
   SUBMIT_FILTER_INFO_TITLE: 'Could not determine onSubmit fallback coverage from callback source.',
 
-  STATE_DATA_SKIP_TITLE: 'onSubmit state.data forwarding check skipped.',
-  STATE_DATA_PASS_TITLE: 'onSubmit forwards the complete state.data object.',
-  STATE_DATA_WARN_TITLE: 'onSubmit appears to forward only selected state.data fields.',
-  STATE_DATA_NOTICE_TITLE: 'Verify that onSubmit forwards the complete state.data object.',
-  STATE_DATA_INFO_TITLE: 'Could not determine how onSubmit forwards state.data.',
+  STATE_DATA_SKIP_TITLE: 'onSubmit state.data handling check skipped.',
+  STATE_DATA_PASS_TITLE: 'onSubmit sends selected state.data fields, not the whole object.',
+  STATE_DATA_SERVER_FIELDS_TITLE:
+    'onSubmit combines state.data with fields your server should set.',
+  // STATE_DATA_SERVER_FIELDS_DETAIL stays inline (dynamic: lists the server-owned fields)
+  STATE_DATA_WHOLE_TITLE:
+    'Verify that your server builds /payments from selected state.data fields.',
+  STATE_DATA_WHOLE_DETAIL:
+    "onSubmit passes state.data on as a whole object, or everything but a few named fields. state.data comes from the shopper's browser, where any field can be changed or added, so a /payments request that copies it can carry an altered amount or other values. Adyen Web adds clientStateDataIndicator to state.data so that /payments requests built from the whole object can be detected.",
+  STATE_DATA_TRUNCATED_TITLE: 'Verify that onSubmit does not pass the whole state.data object on.',
+  STATE_DATA_TRUNCATED_DETAIL:
+    'onSubmit sends selected state.data fields, but the captured callback source may be truncated, so later code could still pass the whole object on.',
+  STATE_DATA_INFO_TITLE: 'Could not determine how onSubmit passes state.data on.',
   STATE_DATA_REMEDIATION:
-    'Send the complete state.data object from onSubmit to your server, and pass all of its fields in the /payments request instead of rebuilding it from selected properties.',
+    'Build the /payments request on your server from the state.data fields you expect, such as paymentMethod, browserInfo, origin, and riskData. Set amount, reference, merchantAccount, and shopperReference on your server, and do not copy the whole state.data object or clientStateDataIndicator into /payments.',
+
+  STATE_DATA_FIELDS_SKIP_TITLE: 'onSubmit state.data fields check skipped.',
+  STATE_DATA_FIELDS_PASS_TITLE: 'onSubmit sends browserInfo, origin, and riskData from state.data.',
+  STATE_DATA_FIELDS_WARN_TITLE:
+    'onSubmit appears to drop state.data fields that 3D Secure 2 and risk checks need.',
+  STATE_DATA_FIELDS_NOTICE_TITLE:
+    'Verify that onSubmit sends browserInfo, origin, and riskData from state.data.',
+  // STATE_DATA_FIELDS_DETAIL stays inline (dynamic: lists the read and missing fields)
+  STATE_DATA_FIELDS_INFO_TITLE: 'Could not determine which state.data fields onSubmit sends.',
+  STATE_DATA_FIELDS_REMEDIATION:
+    'Include browserInfo, origin, and riskData from state.data in what onSubmit sends to your server, and pass them in the /payments request.',
 
   ON_ADD_DETAILS_PASS_TITLE: 'onAdditionalDetails callback is present.',
   ON_ADD_DETAILS_FAIL_TITLE: 'onAdditionalDetails callback is missing.',
@@ -232,6 +251,11 @@ const STRINGS = {
   CUSTOM_PAY_BUTTON_COMPAT_URL:
     'https://docs.adyen.com/online-payments/web-best-practices/#unsupported-payment-methods',
 } as const;
+
+/**
+Fields Adyen Web adds to state.data for native 3D Secure 2 and risk checks.
+*/
+const BROWSER_STATE_FIELDS = ['browserInfo', 'origin', 'riskData'] as const;
 
 const BUTTON_REQUIRED_METHOD_LABELS = {
   paypal: 'PayPal',
@@ -390,23 +414,63 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
         return skip(STRINGS.STATE_DATA_SKIP_TITLE, unavailableSourceReason(onSubmit));
       }
 
-      const forwarding = onSubmit.stateData;
-      if (forwarding.kind === 'complete') return pass(STRINGS.STATE_DATA_PASS_TITLE);
-      if (forwarding.kind === 'unknown') return info(STRINGS.STATE_DATA_INFO_TITLE);
-
-      const fields = forwarding.fields.map((field) => `state.data.${field}`).join(', ');
-      const detail = `onSubmit reads ${fields} without passing state.data as a whole. Adyen Web adds fields such as browserInfo, origin, riskData, and billing or shopper details to state.data depending on the payment method; dropping them can break native 3DS2 and weaken risk checks.`;
+      const { kind, serverFields } = onSubmit.stateData;
+      const documentationUrl = getMakePaymentDocumentationUrl(attributes);
+      if (serverFields.length > 0) {
+        return warn(
+          STRINGS.STATE_DATA_SERVER_FIELDS_TITLE,
+          `onSubmit sets ${SIGNAL_LIST.format(serverFields)} together with state.data in the browser, which suggests your server copies the request body into /payments. A shopper can change anything the browser sends, so these values must come from your server.`,
+          STRINGS.STATE_DATA_REMEDIATION,
+          documentationUrl
+        );
+      }
+      if (kind === 'whole') {
+        return notice(
+          STRINGS.STATE_DATA_WHOLE_TITLE,
+          STRINGS.STATE_DATA_WHOLE_DETAIL,
+          STRINGS.STATE_DATA_REMEDIATION,
+          documentationUrl
+        );
+      }
+      if (kind === 'unknown') return info(STRINGS.STATE_DATA_INFO_TITLE);
       return onSubmit.truncated
         ? notice(
-            STRINGS.STATE_DATA_NOTICE_TITLE,
-            `${detail} The captured callback source may be truncated, so later code could still forward the complete object.`,
+            STRINGS.STATE_DATA_TRUNCATED_TITLE,
+            STRINGS.STATE_DATA_TRUNCATED_DETAIL,
             STRINGS.STATE_DATA_REMEDIATION,
+            documentationUrl
+          )
+        : pass(STRINGS.STATE_DATA_PASS_TITLE);
+    }
+  )
+  .add(
+    'callback-on-submit-state-data-fields',
+    (payload, { attributes, skip, pass, warn, notice, info }) => {
+      const onSubmit = readOnSubmitSource(payload, attributes.flow.value);
+      if (onSubmit.status === 'unavailable') {
+        return skip(STRINGS.STATE_DATA_FIELDS_SKIP_TITLE, unavailableSourceReason(onSubmit));
+      }
+
+      const { kind, fields } = onSubmit.stateData;
+      if (kind === 'unknown') return info(STRINGS.STATE_DATA_FIELDS_INFO_TITLE);
+      const missing =
+        kind === 'selected' ? BROWSER_STATE_FIELDS.filter((field) => !fields.includes(field)) : [];
+      if (missing.length === 0) return pass(STRINGS.STATE_DATA_FIELDS_PASS_TITLE);
+
+      const read = fields.map((field) => `state.data.${field}`).join(', ');
+      const dropped = SIGNAL_LIST.format(missing.map((field) => `state.data.${field}`));
+      const detail = `onSubmit reads ${read} but not ${dropped}. Adyen Web adds these fields to state.data depending on the payment method; without them, native 3D Secure 2 can fail and risk checks get less data.`;
+      return onSubmit.truncated
+        ? notice(
+            STRINGS.STATE_DATA_FIELDS_NOTICE_TITLE,
+            `${detail} The captured callback source may be truncated, so later code could still read them.`,
+            STRINGS.STATE_DATA_FIELDS_REMEDIATION,
             getMakePaymentDocumentationUrl(attributes)
           )
         : warn(
-            STRINGS.STATE_DATA_WARN_TITLE,
+            STRINGS.STATE_DATA_FIELDS_WARN_TITLE,
             detail,
-            STRINGS.STATE_DATA_REMEDIATION,
+            STRINGS.STATE_DATA_FIELDS_REMEDIATION,
             getMakePaymentDocumentationUrl(attributes)
           );
     }

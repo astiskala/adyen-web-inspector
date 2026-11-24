@@ -136,31 +136,100 @@ describe('readOnSubmitSource unhandled filters', () => {
 
 describe('readOnSubmitSource state.data forwarding', () => {
   it.each([
-    ['a bare arrow', 'state => post(state.data)', 'complete'],
-    ['an async arrow', 'async (state, component) => { await post(state.data); }', 'complete'],
-    ['a method property', 'onSubmit: function (state) { post(state.data); }', 'complete'],
-    ['an optional chain', '(state) => post(state?.data)', 'complete'],
+    ['a bare arrow', 'state => post(state.data)', 'whole'],
+    ['an async arrow', 'async (state, component) => { await post(state.data); }', 'whole'],
+    ['a method property', 'onSubmit: function (state) { post(state.data); }', 'whole'],
+    ['an optional chain', '(state) => post(state?.data)', 'whole'],
+    ['a spread', '(state) => post({ ...state.data, returnUrl })', 'whole'],
+    ['a spread outside an object literal', 'state => post([...state.data])', 'whole'],
+    [
+      'a rest element that strips fields',
+      '(state) => { const { clientStateDataIndicator, ...rest } = state.data; post(rest); }',
+      'whole',
+    ],
+    [
+      'a URL containing //',
+      '(state) => fetch("https://shop.example/pay", { body: JSON.stringify(state.data) })',
+      'whole',
+    ],
     ['wholesale state forwarding', '(state) => post(state)', 'unknown'],
     ['a destructured parameter', '({ data }) => post(data)', 'unknown'],
     ['a source without a parameter list', 'handleSubmit', 'unknown'],
     ['an unterminated parameter list', 'function (state', 'unknown'],
     ['fields that exclude paymentMethod', '(state) => post(state.data.riskData)', 'unknown'],
+    ['a nested field read', '(state) => track(state.data.paymentMethod.type)', 'unknown'],
   ])('classifies %s as %s', (_label, source, kind) => {
     expect(readSource(source)).toMatchObject({ stateData: { kind } });
   });
 
-  it('lists selected fields in sorted order', () => {
-    expect(
-      readSource(
-        '(s) => post({ pm: s.data.paymentMethod, b: s.data.browserInfo, again: s.data.paymentMethod })'
-      )
-    ).toMatchObject({ stateData: { kind: 'partial', fields: ['browserInfo', 'paymentMethod'] } });
+  it.each([
+    [
+      'dot access',
+      '(s) => post({ pm: s.data.paymentMethod, b: s.data.browserInfo, again: s.data.paymentMethod })',
+      ['browserInfo', 'paymentMethod'],
+    ],
+    [
+      'bracket access',
+      '(state) => post({ pm: state.data["paymentMethod"], o: state.data?.[\'origin\'] })',
+      ['origin', 'paymentMethod'],
+    ],
+    [
+      'destructuring',
+      '(state) => { const { paymentMethod, riskData: risk } = state.data; post({ paymentMethod, risk }); }',
+      ['paymentMethod', 'riskData'],
+    ],
+    [
+      'member access on another object with the same name',
+      '(state) => post(other.state.data, state.data.paymentMethod)',
+      ['paymentMethod'],
+    ],
+    [
+      'state.data in comments',
+      '(state) => { /* post(state.data) */ post(state.data.paymentMethod); // or state.data\n }',
+      ['paymentMethod'],
+    ],
+    [
+      'logged state.data',
+      '(state) => { console.log(state.data); post(state.data.paymentMethod); }',
+      ['paymentMethod'],
+    ],
+    [
+      'a log call cut off by truncation',
+      '(state) => { post(state.data.paymentMethod); console.info(state.data',
+      ['paymentMethod'],
+    ],
+  ])('reads selected fields from %s', (_label, source, fields) => {
+    expect(readSource(source)).toMatchObject({ stateData: { kind: 'selected', fields } });
   });
 
-  it('ignores member access on another object with the same name', () => {
-    expect(readSource('(state) => post(other.state.data, state.data.paymentMethod)')).toMatchObject(
-      { stateData: { kind: 'partial', fields: ['paymentMethod'] } }
-    );
+  it.each([
+    [
+      'keys beside a spread',
+      '(state) => post({ ...state.data, amount, "reference": ref, merchantAccount: \'Shop\' })',
+      ['amount', 'merchantAccount', 'reference'],
+    ],
+    [
+      'keys before a spread, past nested objects',
+      '(state) => post({ amount: { value: 1 }, shopperReference: id, ...state.data })',
+      ['amount', 'shopperReference'],
+    ],
+    [
+      'an assignment on state.data',
+      '(state) => { state.data.amount = total; if (state.data.reference === ref) post(state.data); }',
+      ['amount'],
+    ],
+    [
+      'an object cut off by truncation',
+      '(state) => post({ ...state.data, amount: total, ref',
+      ['amount'],
+    ],
+    [
+      'keys in an unrelated object',
+      '(state) => { post({ ...state.data }); show({ reference }); }',
+      [],
+    ],
+  ])('reads server fields from %s', (_label, source, serverFields) => {
+    expect(readSource(source)).toMatchObject({ stateData: { serverFields } });
   });
 });
 
