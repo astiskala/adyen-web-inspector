@@ -90,15 +90,22 @@ export function getEffectiveCspSources(
 
 /**
 Returns true when the policy allows loading the URL for the resource type.
+A script's `nonce` matches a listed nonce source on any host; under
+`'strict-dynamic'`, host and scheme sources no longer allow scripts.
 */
 export function isUrlAllowedByCsp(
   csp: ParsedCsp,
   directive: CspFetchDirective,
   url: string,
-  pageUrl: string
+  pageUrl: string,
+  nonce?: string
 ): boolean {
   const effective = getEffectiveCspSources(csp, directive);
   if (effective === null) return true;
+  if (directive === 'script-src') {
+    if (nonce !== undefined && effective.sources.includes(`'nonce-${nonce}'`)) return true;
+    if (effective.sources.includes("'strict-dynamic'")) return false;
+  }
 
   try {
     const resource = new URL(url, pageUrl);

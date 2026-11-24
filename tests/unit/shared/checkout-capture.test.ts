@@ -20,7 +20,7 @@ describe('recordCheckoutOptions', () => {
     );
 
     expect(capture.captured).toEqual({
-      options: { clientKey: 'test_K', onSubmit: 'checkout', onSubmitSource: '() => {}' },
+      options: { clientKey: 'test_K', onSubmit: 'checkout', onSubmitSources: ['() => {}'] },
       complete: true,
     });
   });
@@ -40,7 +40,7 @@ describe('recordCheckoutOptions', () => {
     );
     const withCard = recordCheckoutOptions(
       checkout,
-      { locale: 'nl-NL', onSubmit: () => {} },
+      { locale: 'nl-NL', onSubmit: (state: unknown) => state },
       'component'
     );
     const componentOnly = recordCheckoutOptions(
@@ -49,8 +49,12 @@ describe('recordCheckoutOptions', () => {
       'component'
     );
 
-    expect(withCard.captured).toMatchObject({
-      options: { locale: 'nl-NL', onSubmit: 'checkout' },
+    expect(withCard.captured).toEqual({
+      options: {
+        locale: 'nl-NL',
+        onSubmit: 'checkout',
+        onSubmitSources: ['() => {}', '(state) => state'],
+      },
       complete: true,
     });
     expect(componentOnly.captured).toEqual({ options: { locale: 'nl-NL' }, complete: false });

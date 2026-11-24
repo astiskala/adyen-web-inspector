@@ -16,13 +16,15 @@ function capturedWith(config: CheckoutConfig): ScanPayload {
 }
 
 function readSource(source: string): ReturnType<typeof readOnSubmitSource> {
-  return readOnSubmitSource(capturedWith({ onSubmitSource: source }), 'advanced');
+  return readOnSubmitSource(capturedWith({ onSubmitSources: [source] }), 'advanced');
 }
 
 describe('readOnSubmitSource availability', () => {
   it('needs captured checkout or component configuration', () => {
     const inferredOnly = makeScanPayload({
-      page: makeCheckoutPage({ inferredConfig: { onSubmitSource: '(state) => pay(state.data)' } }),
+      page: makeCheckoutPage({
+        inferredConfig: { onSubmitSources: ['(state) => pay(state.data)'] },
+      }),
     });
 
     expect(readOnSubmitSource(inferredOnly, 'advanced')).toEqual({
@@ -32,7 +34,7 @@ describe('readOnSubmitSource availability', () => {
   });
 
   it('is not read in Sessions flow, where Adyen Web handles submission', () => {
-    const payload = capturedWith({ onSubmitSource: '(state) => pay(state.data)' });
+    const payload = capturedWith({ onSubmitSources: ['(state) => pay(state.data)'] });
 
     expect(readOnSubmitSource(payload, 'sessions')).toEqual({
       status: 'unavailable',
@@ -63,6 +65,97 @@ describe('readOnSubmitSource availability', () => {
     expect(readSource('(s, component) => component.handleAction(a)')).toMatchObject({
       resolvesActions: false,
       usesComponentCallbacks: true,
+    });
+  });
+
+  it.each([
+    [
+      'minified v6 parameters',
+      'async(e,t,n)=>{const r=await pay(e.data.paymentMethod);if(!r)return void n.reject();n.resolve(r)}',
+      { resolvesActions: true, usesComponentCallbacks: false },
+    ],
+    [
+      'minified v5 parameters',
+      'function(e,t){t.setStatus("loading"),pay(e.data).then(r=>t.handleAction(r.action))}',
+      { resolvesActions: false, usesComponentCallbacks: true },
+    ],
+    [
+      'parameters named with $',
+      '($state, $component, $actions) => { $actions.resolve(r); }',
+      { resolvesActions: true, usesComponentCallbacks: false },
+    ],
+    [
+      'a member of another object with the actions name',
+      '(e, t, n) => { other.n.resolve(r); }',
+      { resolvesActions: false, usesComponentCallbacks: false },
+    ],
+    [
+      'calls only in comments',
+      '(state, component, actions) => { /* actions.resolve(r) */ pay(state.data); // component.setStatus("x")\n }',
+      { resolvesActions: false, usesComponentCallbacks: false },
+    ],
+  ])('reads callback names from %s', (_label, source, expected) => {
+    expect(readSource(source)).toMatchObject(expected);
+  });
+
+  it('reads a later parameter only when commas can be trusted to split the list', () => {
+    expect(readSource('(state = {}, t, n) => n.resolve(r)')).toMatchObject({
+      resolvesActions: false,
+      stateData: { kind: 'unknown' },
+    });
+    expect(readSource('(state = 1, t, n) => n.resolve(state.data)')).toMatchObject({
+      resolvesActions: true,
+      stateData: { kind: 'whole' },
+    });
+  });
+});
+
+function readSources(...sources: string[]): ReturnType<typeof readOnSubmitSource> {
+  return readOnSubmitSource(capturedWith({ onSubmitSources: sources }), 'advanced');
+}
+
+describe('readOnSubmitSource across several callbacks', () => {
+  const RESOLVES_SELECTED =
+    '(state, component, actions) => actions.resolve(pay({ pm: state.data.paymentMethod, b: state.data.browserInfo }))';
+
+  it('reports a finding when any callback shows it', () => {
+    expect(
+      readSources(
+        RESOLVES_SELECTED,
+        "(state, c, actions) => { if (state.data.paymentMethod.type === 'paypal') actions.resolve(r); }",
+        `(state) => post(state.data) ${'x'.repeat(CALLBACK_SOURCE_LIMIT)}`,
+        '(state, component) => component.setStatus("loading")'
+      )
+    ).toMatchObject({
+      truncated: true,
+      unhandledFilters: { paymentMethod: true, actionCode: false },
+      stateData: { kind: 'whole' },
+      resolvesActions: false,
+      usesComponentCallbacks: true,
+    });
+  });
+
+  it('resolves through actions only when every callback does', () => {
+    expect(readSources(RESOLVES_SELECTED, '(s, c, n) => n.reject()')).toMatchObject({
+      resolvesActions: true,
+    });
+  });
+
+  it('keeps the fields every callback reads, and every server field any callback sets', () => {
+    expect(
+      readSources(
+        RESOLVES_SELECTED,
+        '(s) => post({ amount, pm: s.data.paymentMethod, r: s.data.riskData })',
+        '(s) => { s.data.reference = ref; post(s.data.paymentMethod); }'
+      )
+    ).toMatchObject({
+      stateData: { kind: 'selected', fields: ['paymentMethod'], serverFields: ['reference'] },
+    });
+  });
+
+  it('cannot read state.data handling when any callback is unreadable', () => {
+    expect(readSources(RESOLVES_SELECTED, '({ data }) => post(data)')).toMatchObject({
+      stateData: { kind: 'unknown', fields: [] },
     });
   });
 });
@@ -128,6 +221,16 @@ describe('readOnSubmitSource unhandled filters', () => {
       'a statement that runs to the end of the source',
       "if (paymentMethod.type === 'scheme') pay(state)",
       { paymentMethod: true, actionCode: false },
+    ],
+    [
+      'a filter that is commented out',
+      "(state, component, actions) => {\n  // if (state.data.paymentMethod.type === 'paypal') return;\n  actions.resolve(r);\n}",
+      { paymentMethod: false, actionCode: false },
+    ],
+    [
+      'a minified filter that hands the renamed actions on',
+      'async(e,t,n)=>{if("scheme"===e.data.paymentMethod.type){e.data.x=1}return pay(e.data,n)}',
+      { paymentMethod: false, actionCode: false },
     ],
   ])('classifies %s', (_label, source, expected) => {
     expect(readSource(source)).toMatchObject({ unhandledFilters: expected });
@@ -236,12 +339,15 @@ describe('readOnSubmitSource state.data forwarding', () => {
 describe('readSubmissionGuard', () => {
   it.each([
     'button.disabled = true',
+    'n.disabled=!0',
     'setLoading(true)',
+    'setIsSubmitting(!0)',
     "button.setAttribute('disabled', '')",
     "button.classList.add('is-loading')",
     'this.isSubmitting = true',
+    'r.isProcessing=!0',
   ])('recognises the guard %s in beforeSubmit source', (source) => {
-    expect(readSubmissionGuard(capturedWith({ beforeSubmitSource: source }))).toEqual({
+    expect(readSubmissionGuard(capturedWith({ beforeSubmitSources: [source] }))).toEqual({
       status: 'read',
       guarded: true,
     });
@@ -250,9 +356,19 @@ describe('readSubmissionGuard', () => {
   it('reads onSubmit source without a guard pattern', () => {
     expect(
       readSubmissionGuard(
-        capturedWith({ onSubmitSource: 'actions.resolve(await pay(state.data))' })
+        capturedWith({ onSubmitSources: ['actions.resolve(await pay(state.data))'] })
       )
     ).toEqual({ status: 'read', guarded: false });
+  });
+
+  it('looks in every callback, but not in comments', () => {
+    const guardedComponent = capturedWith({
+      onSubmitSources: ['(s, c, a) => a.resolve(r)', '(s) => { button.disabled = true; }'],
+    });
+    const commentedOut = capturedWith({ onSubmitSources: ['() => { /* setLoading(true) */ }'] });
+
+    expect(readSubmissionGuard(guardedComponent)).toEqual({ status: 'read', guarded: true });
+    expect(readSubmissionGuard(commentedOut)).toEqual({ status: 'read', guarded: false });
   });
 
   it('is unavailable without configuration or callback source', () => {

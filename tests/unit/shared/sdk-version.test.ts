@@ -196,8 +196,27 @@ describe('findSdkVersionInUrls', () => {
     expect(findSdkVersionInUrls([url])).toBe(version);
   });
 
+  it.each([
+    [
+      'a self-hosted copy of the SDK',
+      'https://merchant.example/vendor/sdk/6.2.0/adyen.js',
+      '6.2.0',
+    ],
+    [
+      'any SDK asset on an Adyen host',
+      'https://checkoutshopper-live.cdn.adyen.com/checkoutshopper/sdk/6.30.0/translations/nl-NL.json',
+      '6.30.0',
+    ],
+  ])('reads %s', (_label, url, version) => {
+    expect(findSdkVersionInUrls([url])).toBe(version);
+  });
+
   it('returns null for URLs without an SDK version', () => {
     expect(findSdkVersionInUrls(['https://cdn.example.com/some-other-sdk.js'])).toBeNull();
     expect(findSdkVersionInUrls([])).toBeNull();
+  });
+
+  it('does not read the version of another vendor’s SDK', () => {
+    expect(findSdkVersionInUrls(['https://cdn.example.com/sdk/2.3.4/widget.js'])).toBeNull();
   });
 });

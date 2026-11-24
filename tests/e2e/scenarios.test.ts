@@ -511,6 +511,9 @@ test('Server-created session mounts v6 Drop-in with checkout-level outcome handl
   expect(
     result.payload.capturedRequests.some((request) => request.url.endsWith('/api/sessions'))
   ).toBe(true);
+  // Drop-in reads inherited statics from the wrapped components it is given, so it only mounts
+  // when the interceptor keeps them.
+  expect(result.payload.page.hasDropinDOM).toBe(true);
   expect(result.payload.page.capturedConfig?.options).toMatchObject({
     hasSession: true,
     countryCode: 'NL',
@@ -604,6 +607,7 @@ test('Card-only callback registration warns instead of treating handlers as chec
     onError: 'component',
     onPaymentCompleted: 'component',
     onPaymentFailed: 'component',
+    onSubmitSources: [expect.stringContaining('actions.resolve')],
   });
   expect(requireCheck(result, 'callback-on-submit').severity).toBe('warn');
   expect(requireCheck(result, 'callback-on-additional-details').severity).toBe('warn');

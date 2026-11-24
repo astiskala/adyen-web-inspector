@@ -40,7 +40,7 @@ const STRINGS = {
   SCRIPT_SRC_WARN_TITLE: 'CSP may block an observed Adyen checkout script.',
   SCRIPT_SRC_WARN_DETAIL: `If script-src omits Adyen domains, checkout assets can be blocked or require unsafe CSP relaxations. ${COMMON_DETAILS.PCI_COMPLIANCE_NOTICE}`,
   SCRIPT_SRC_WARN_REMEDIATION:
-    'Update your Content-Security-Policy to include the Adyen CDN script domains.',
+    "Update your Content-Security-Policy to include the Adyen CDN script domains. If script-src uses 'strict-dynamic', which ignores domains, load the Adyen script with your policy's nonce.",
   SCRIPT_SRC_WARN_URL: ADYEN_PCI_DSS_SCRIPT_SECURITY_DOC,
 
   FRAME_SRC_SKIP_TITLE: 'CSP frame-src check skipped.',
@@ -191,7 +191,7 @@ export const CSP_CHECKS = createRegistry(CATEGORY)
       return skip(STRINGS.SCRIPT_SRC_SKIP_TITLE, STRINGS.SCRIPT_SRC_NO_SCRIPTS_SKIP_REASON);
     }
 
-    return adyenScripts.every((script) => policy.allows('script-src', script.src))
+    return adyenScripts.every((script) => policy.allows('script-src', script.src, script.nonce))
       ? pass(STRINGS.SCRIPT_SRC_PASS_TITLE)
       : warn(
           STRINGS.SCRIPT_SRC_WARN_TITLE,

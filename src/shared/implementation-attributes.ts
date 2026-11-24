@@ -48,8 +48,7 @@ function detectEnvironmentFromConfig(environment: string): AdyenEnvironment | nu
 }
 
 function detectRegionFromConfig(environment: string): AdyenRegion | null {
-  const region = readEnvironmentOption(environment)?.region ?? null;
-  return region === 'unknown' ? null : region;
+  return readEnvironmentOption(environment)?.region ?? null;
 }
 
 /**

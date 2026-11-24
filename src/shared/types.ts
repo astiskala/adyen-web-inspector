@@ -181,6 +181,10 @@ export interface ScriptTag {
   readonly integrity?: string;
   readonly crossorigin?: string;
   readonly blockingMode?: string;
+  /**
+  The script's nonce, read from the element because browsers hide the attribute, to match CSP nonce sources.
+  */
+  readonly nonce?: string;
 }
 
 export interface LinkTag {
@@ -462,13 +466,13 @@ export interface CheckoutConfig {
   readonly onError?: CallbackSource;
   readonly beforeSubmit?: CallbackSource;
   /**
-  First 1,200 characters of captured onSubmit function source, if available.
+  Every distinct captured onSubmit function source, AdyenCheckout's first, each cut to 1,200 characters.
   */
-  readonly onSubmitSource?: string;
+  readonly onSubmitSources?: readonly string[];
   /**
-  First 1,200 characters of captured beforeSubmit function source, if available.
+  Every distinct captured beforeSubmit function source, AdyenCheckout's first, each cut to 1,200 characters.
   */
-  readonly beforeSubmitSource?: string;
+  readonly beforeSubmitSources?: readonly string[];
   /**
   True when a session object was detected in the checkout configuration (Sessions flow indicator).
   */

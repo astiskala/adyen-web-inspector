@@ -37,14 +37,18 @@ function resetGlobals(): void {
   vi.stubGlobal('XMLHttpRequest', undefined);
 }
 
+/**
+The XMLHttpRequest.open the interceptor wraps.
+*/
+const nativeOpen = vi.fn();
+
 async function loadInterceptor(): Promise<void> {
   vi.resetModules();
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue({}));
 
-  // Create a proper XHR mock
-  const openMock = vi.fn();
+  nativeOpen.mockReset();
   vi.stubGlobal('XMLHttpRequest', vi.fn());
-  XMLHttpRequest.prototype.open = openMock;
+  XMLHttpRequest.prototype.open = nativeOpen;
 
   await import('../../../src/content/config-interceptor.js');
 }
@@ -426,6 +430,134 @@ describe('config-interceptor', () => {
   });
 });
 
+/**
+Shaped like Adyen Web v6 UMD classes: statics such as txVariants live on the base class.
+*/
+class UIElement {
+  static readonly type: string | undefined = undefined;
+  static readonly txVariants: readonly string[] = [];
+  readonly options: Record<string, unknown>;
+  constructor(_checkout: unknown, options: Record<string, unknown> = {}) {
+    this.options = options;
+  }
+}
+
+class SdkCard extends UIElement {
+  static override readonly type = 'scheme';
+}
+
+class SdkDropin extends UIElement {
+  readonly registered: string[];
+  constructor(checkout: unknown, options: { paymentMethodComponents?: (typeof UIElement)[] } = {}) {
+    super(checkout, options);
+    // Drop-in registers the classes it is given by reading their statics, as Adyen Web v6 does.
+    this.registered = (options.paymentMethodComponents ?? []).flatMap((component) =>
+      [component.type, ...component.txVariants].filter((type) => type !== undefined)
+    );
+  }
+}
+
+describe('config-interceptor with SDK-shaped classes', () => {
+  const g = globalThis as unknown as Record<string, unknown>;
+
+  beforeEach(async () => {
+    resetGlobals();
+    await loadInterceptor();
+  });
+
+  afterAll(() => {
+    resetGlobals();
+  });
+
+  function installNamespace(namespace: Record<string, unknown>): Record<string, unknown> {
+    g['AdyenWeb'] = namespace;
+    return g['AdyenWeb'] as Record<string, unknown>;
+  }
+
+  it('keeps inherited statics, so Drop-in can register wrapped components', () => {
+    const namespace = installNamespace({ Card: SdkCard, Dropin: SdkDropin });
+    const WrappedCard = namespace['Card'] as typeof SdkCard;
+    const WrappedDropin = namespace['Dropin'] as typeof SdkDropin;
+
+    const dropin = new WrappedDropin({}, { paymentMethodComponents: [WrappedCard] });
+
+    expect(WrappedCard.txVariants).toEqual([]);
+    expect(dropin.registered).toEqual(['scheme']);
+    expect(dropin).toBeInstanceOf(SdkDropin);
+    expect(getCapture()).toBeUndefined();
+  });
+
+  it('constructs merchant subclasses of wrapped components with their own prototype', () => {
+    const namespace = installNamespace({ Card: SdkCard });
+    const WrappedCard = namespace['Card'] as typeof SdkCard;
+    class MerchantCard extends WrappedCard {
+      label(): string {
+        return 'merchant';
+      }
+    }
+
+    const card = new MerchantCard({}, { locale: 'nl-NL' });
+
+    expect(card.label()).toBe('merchant');
+    expect(card).toBeInstanceOf(WrappedCard);
+    expect(getCapturedConfig()).toEqual({ locale: 'nl-NL' });
+  });
+
+  it('captures the options passed to createComponent', () => {
+    const namespace = installNamespace({
+      createComponent: (type: string, checkout: unknown, options: Record<string, unknown>) =>
+        new SdkCard(checkout, { type, ...options }),
+    });
+    const createComponent = namespace['createComponent'] as (
+      type: string,
+      checkout: unknown,
+      options?: unknown
+    ) => SdkCard;
+
+    const component = createComponent('paypal', { options: { session: {} } }, { locale: 'nl-NL' });
+    createComponent('card', {});
+
+    expect(component.options).toEqual({ type: 'paypal', locale: 'nl-NL' });
+    expect(getCapturedConfig()).toEqual({ locale: 'nl-NL' });
+    expect(isCaptureComplete()).toBe(false);
+  });
+
+  it('wraps a checkout class constructed with new, and reads the instance it builds', () => {
+    class LegacyCheckout {
+      readonly options: Record<string, unknown>;
+      constructor(options: Record<string, unknown>) {
+        this.options = { ...options, locale: 'en-US' };
+      }
+      create(_type: string, _options?: unknown): Record<string, unknown> {
+        return {};
+      }
+    }
+    g['AdyenCheckout'] = LegacyCheckout;
+    const Checkout = g['AdyenCheckout'] as typeof LegacyCheckout;
+
+    const checkout = new Checkout({ clientKey: 'test_V4' });
+    checkout.create('card', { countryCode: 'NL' });
+
+    expect(checkout).toBeInstanceOf(LegacyCheckout);
+    expect(getCapture()?.initCount).toBe(1);
+    expect(getCapturedConfig()).toEqual({
+      clientKey: 'test_V4',
+      locale: 'en-US',
+      countryCode: 'NL',
+    });
+  });
+
+  it('lets XMLHttpRequest.open errors reach the page', () => {
+    nativeOpen.mockImplementation(() => {
+      throw new SyntaxError('Invalid URL');
+    });
+
+    expect(() => {
+      new XMLHttpRequest().open('GET', 'http://[bad');
+    }).toThrow('Invalid URL');
+  });
+});
+
 describe('config-interceptor installation and edge cases', () => {
   const g = globalThis as unknown as Record<string, unknown>;
 
@@ -465,8 +597,10 @@ describe('config-interceptor installation and edge cases', () => {
     const input = { toString: (): string => 'https://checkoutshopper-test.adyen.com/v1/x' };
 
     await globalThis.fetch(input as unknown as string);
+    new XMLHttpRequest().open('GET', input as unknown as string);
 
     expect(getCapture()).toBeUndefined();
+    expect(nativeOpen).toHaveBeenCalledWith('GET', input);
   });
 
   it('keeps component statics and ignores constructors called without options', () => {
@@ -493,13 +627,21 @@ describe('config-interceptor installation and edge cases', () => {
     expect(g['AdyenWeb']).toBeUndefined();
   });
 
-  it('captures options passed to a synchronous factory without inspecting its result', () => {
+  it('reads the instance a synchronous factory returns', () => {
     const instance = { create: (): void => {}, options: { clientKey: 'test_SYNC' } };
     g['AdyenCheckout'] = (): unknown => instance;
 
     (g['AdyenCheckout'] as (config: unknown) => unknown)({ countryCode: 'NL' });
 
-    expect(getCapturedConfig()).toEqual({ countryCode: 'NL' });
+    expect(getCapturedConfig()).toEqual({ countryCode: 'NL', clientKey: 'test_SYNC' });
+  });
+
+  it('leaves read-only namespaces, such as module namespace objects, unwrapped', () => {
+    const namespace = Object.freeze({ Card: SdkCard });
+    g['AdyenWeb'] = namespace;
+
+    expect(g['AdyenWeb']).toBe(namespace);
+    expect(namespace.Card).toBe(SdkCard);
   });
 
   it('keeps a rejecting factory rejecting for its caller', async () => {

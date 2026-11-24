@@ -7,6 +7,7 @@ caller's I/O, so the Scan passes it in through its browser port.
 The passive detector bundles this module inline, so it must stay light.
 */
 
+import { readAdyenEndpoint } from './adyen-endpoint.js';
 import type {
   AnalyticsData,
   CapturedRequest,
@@ -18,12 +19,17 @@ import { extractHostname } from './utilities.js';
 import { parseVersion } from './version-utilities.js';
 
 /**
-Patterns that read a version from Adyen CDN script and asset URLs.
+Patterns that read a version from Adyen Web script and asset URLs on any host, so self-hosted copies count.
 */
 const SDK_URL_VERSION_PATTERNS = [
   /checkoutshopper-sdk[./](\d+\.\d+\.\d+)/,
-  /\/sdk\/(\d+\.\d+\.\d+)\//,
+  /\/sdk\/(\d+\.\d+\.\d+)\/adyen\./,
 ] as const;
+/**
+On Adyen hosts, any SDK asset path names the version, such as a translation file.
+Elsewhere `/sdk/x.y.z/` is too common in other vendors' URLs.
+*/
+const ADYEN_HOST_VERSION_PATTERNS = [...SDK_URL_VERSION_PATTERNS, /\/sdk\/(\d+\.\d+\.\d+)\//];
 
 /**
 Patterns that read a version from bundled Adyen Web source, most specific first.
@@ -72,7 +78,9 @@ Returns the first SDK version found in Adyen CDN script or asset URLs.
 */
 export function findSdkVersionInUrls(urls: Iterable<string>): string | null {
   for (const url of urls) {
-    for (const pattern of SDK_URL_VERSION_PATTERNS) {
+    const patterns =
+      readAdyenEndpoint(url) === null ? SDK_URL_VERSION_PATTERNS : ADYEN_HOST_VERSION_PATTERNS;
+    for (const pattern of patterns) {
       const version = pattern.exec(url)?.[1];
       if (version !== undefined) return version;
     }

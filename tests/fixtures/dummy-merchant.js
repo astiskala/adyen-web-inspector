@@ -44,8 +44,11 @@ async function runScenario() {
     const session = await globalThis
       .fetch('/api/sessions', { method: 'POST' })
       .then((response) => response.json());
-    const checkout = await globalThis.AdyenWeb.AdyenCheckout({ ...baseConfig, session });
-    new globalThis.AdyenWeb.Dropin(checkout, { showPayButton: true }).mount('#checkout');
+    const { AdyenCheckout, Dropin, Card, PayPal } = globalThis.AdyenWeb;
+    const checkout = await AdyenCheckout({ ...baseConfig, session });
+    new Dropin(checkout, { showPayButton: true, paymentMethodComponents: [Card, PayPal] }).mount(
+      '#checkout'
+    );
   } else if (scenario === 'sessions-server-incomplete') {
     const session = await globalThis
       .fetch('/api/sessions', { method: 'POST' })
@@ -101,7 +104,7 @@ async function runScenario() {
       countryCode: 'NL',
       locale: 'en-US',
     });
-    new globalThis.AdyenWeb.Card(checkout, {
+    globalThis.AdyenWeb.createComponent('card', checkout, {
       onSubmit(_state, _component, actions) {
         actions.resolve({ resultCode: 'Authorised' });
       },

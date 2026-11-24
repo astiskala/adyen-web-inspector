@@ -31,7 +31,7 @@ import type { CallbackSource, CheckoutCapture } from '../shared/types.js';
 
 (function configInterceptor(): void {
   type PlainRecord = Record<string, unknown>;
-  type SdkCallable = (this: unknown, ...arguments_: unknown[]) => unknown;
+  type Callable = (this: unknown, ...arguments_: unknown[]) => unknown;
 
   const pageGlobals = globalThis as typeof globalThis & PageGlobalValues;
 
@@ -40,8 +40,18 @@ import type { CallbackSource, CheckoutCapture } from '../shared/types.js';
   }
   pageGlobals[PAGE_GLOBALS.interceptorInstalled] = true;
 
-  const WRAPPED = '__awInspectorWrapped';
-  const ADYEN_INSTANCE_MARKER = '__adyenInstance';
+  /**
+  Runs an observation; nothing the interceptor observes may break the page.
+  */
+  function attempt(observe: () => void): void {
+    try {
+      observe();
+    } catch {
+      /*
+      ignore
+      */
+    }
+  }
 
   // ---------------------------------------------------------------------------
   // Capture record
@@ -55,296 +65,203 @@ import type { CallbackSource, CheckoutCapture } from '../shared/types.js';
   function commit(next: CheckoutCapture): void {
     if (next === capture) return;
     capture = next;
-    try {
-      pageGlobals[PAGE_GLOBALS.checkoutCapture] = structuredClone(capture);
-    } catch {
-      /*
-      ignore
-      */
-    }
+    pageGlobals[PAGE_GLOBALS.checkoutCapture] = structuredClone(capture);
   }
 
   function captureConfig(raw: unknown, source: CallbackSource): void {
-    try {
-      commit(recordCheckoutOptions(capture, raw, source));
-    } catch {
-      /*
-      ignore
-      */
+    commit(recordCheckoutOptions(capture, raw, source));
+  }
+
+  // ---------------------------------------------------------------------------
+  // Call observation
+  // ---------------------------------------------------------------------------
+
+  const wrapped = new WeakSet<object>();
+
+  interface CallObserver {
+    /**
+    Sees the arguments before the original runs.
+    */
+    readonly before?: (arguments_: unknown[]) => void;
+    /**
+    Sees what the original returned or constructed.
+    */
+    readonly after?: (result: unknown) => void;
+  }
+
+  /**
+  Wraps a page function in a Proxy, so calls and `new` reach the original
+  unchanged: statics (including inherited ones), prototype, subclassing,
+  `instanceof`, name, and length all stay the original's.
+  */
+  function observeCalls<T extends object>(original: T, { before, after }: CallObserver): T {
+    function run(arguments_: unknown[], call: () => unknown): unknown {
+      if (before !== undefined) {
+        attempt(() => {
+          before(arguments_);
+        });
+      }
+      const result = call();
+      if (after !== undefined) {
+        attempt(() => {
+          after(result);
+        });
+      }
+      return result;
     }
+    const proxy = new Proxy(original, {
+      apply: (target, thisArgument, arguments_: unknown[]): unknown =>
+        run(arguments_, () => Reflect.apply(target as Callable, thisArgument, arguments_)),
+      construct: (target, arguments_: unknown[], newTarget): object =>
+        run(arguments_, () =>
+          Reflect.construct(target as Callable, arguments_, newTarget)
+        ) as object,
+    });
+    wrapped.add(proxy);
+    return proxy;
   }
 
   // ---------------------------------------------------------------------------
   // Discovery via Network & JSON
   // ---------------------------------------------------------------------------
 
-  function tryCaptureFromUrl(url: string): void {
-    try {
-      const inferred = readRequestInference(url, globalThis.location.href);
-      commit(recordInference(capture, 'adyen-request', inferred));
-    } catch {
-      /*
-      ignore
-      */
-    }
+  function captureFromUrl(url: string): void {
+    commit(
+      recordInference(capture, 'adyen-request', readRequestInference(url, globalThis.location.href))
+    );
   }
 
   const originalParse = JSON.parse;
-  JSON.parse = function (
-    text: string,
-    reviver?: (this: unknown, key: string, value: unknown) => unknown
-  ): unknown {
-    const result = originalParse.call(JSON, text, reviver) as unknown;
-    if (result !== null && typeof result === 'object') {
-      try {
-        commit(recordInference(capture, 'page-json', readCheckoutOptions(result, 'checkout')));
-      } catch {
-        return result;
-      }
-    }
-    return result;
-  };
+  JSON.parse = observeCalls(originalParse, {
+    after: (result) => {
+      commit(recordInference(capture, 'page-json', readCheckoutOptions(result, 'checkout')));
+    },
+  });
 
   /**
   Request bodies stream, so only string bodies passed in `init` are read.
   */
-  function tryCaptureAnalytics(url: string, body: unknown): void {
+  function captureAnalytics(url: string, body: unknown): void {
     if (typeof body !== 'string' || readAdyenEndpoint(url)?.role !== 'analytics') return;
-    try {
-      commit(recordAnalyticsEvents(capture, originalParse.call(JSON, body) as unknown));
-    } catch {
-      /*
-      ignore
-      */
-    }
+    commit(recordAnalyticsEvents(capture, originalParse.call(JSON, body) as unknown));
   }
 
-  function fetchUrl(input: RequestInfo | URL): string | null {
+  function requestUrl(input: unknown): string | null {
     if (typeof input === 'string') return input;
     if (input instanceof URL) return input.href;
     return input instanceof Request ? input.url : null;
   }
 
-  const originalFetch = globalThis.fetch;
   Object.defineProperty(globalThis, 'fetch', {
-    value: function fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-      const url = fetchUrl(input);
-      if (url !== null) {
-        tryCaptureFromUrl(url);
-        tryCaptureAnalytics(url, init?.body);
-      }
-
-      return originalFetch.call(globalThis, input, init);
-    },
+    value: observeCalls(globalThis.fetch, {
+      before: ([input, init]) => {
+        const url = requestUrl(input);
+        if (url === null) return;
+        captureFromUrl(url);
+        captureAnalytics(url, (init as RequestInit | undefined)?.body);
+      },
+    }),
   });
 
-  const originalOpen = XMLHttpRequest.prototype.open;
-  XMLHttpRequest.prototype.open = function (
-    this: XMLHttpRequest,
-    method: string,
-    url: string | URL,
-    ...arguments_: unknown[]
-  ): void {
-    const u = typeof url === 'string' ? url : url.href;
-    tryCaptureFromUrl(u);
-
-    try {
-      const openArguments = [method, url, ...arguments_] as [
-        string,
-        string | URL,
-        boolean,
-        string?,
-        string?,
-      ];
-      originalOpen.apply(this, openArguments);
-      return;
-    } catch {
-      /*
-      ignore
-      */
-    }
-  };
+  XMLHttpRequest.prototype.open = observeCalls(XMLHttpRequest.prototype.open, {
+    before: ([, input]) => {
+      const url = requestUrl(input);
+      if (url !== null) captureFromUrl(url);
+    },
+  });
 
   // ---------------------------------------------------------------------------
   // Global Property Traps (UMD/ESM)
   // ---------------------------------------------------------------------------
 
-  function isWrapped(function_: unknown): boolean {
-    return (
-      typeof function_ === 'function' && (function_ as unknown as PlainRecord)[WRAPPED] === true
-    );
-  }
-
-  function markWrapped(function_: SdkCallable): void {
-    try {
-      (function_ as unknown as PlainRecord)[WRAPPED] = true;
-    } catch {
-      /*
-      ignore
-      */
-    }
-  }
-
-  function copyStatics(original: SdkCallable, wrapped: SdkCallable): void {
-    const descriptors = Object.entries(Object.getOwnPropertyDescriptors(original));
-    for (const [key, descriptor] of descriptors) {
-      if (['prototype', 'length', 'name', 'arguments', 'caller'].includes(key)) {
-        continue;
-      }
-      try {
-        Object.defineProperty(wrapped, key, descriptor);
-      } catch {
-        /*
-        ignore
-        */
-      }
-    }
-  }
+  const seenInstances = new WeakSet<object>();
 
   /**
-  Wraps a checkout instance's create; the instance marker keeps it from being wrapped twice.
+  Captures a checkout instance's options once and wraps its create, which
+  v5 and earlier use to make components. Instances without create are left alone.
   */
-  function wrapInstanceCreate(index: PlainRecord, create: SdkCallable): void {
-    const wrappedCreate = function (this: unknown, ...cArguments: unknown[]): unknown {
-      if (cArguments.length > 1) {
-        captureConfig(cArguments[1], 'component');
-      }
-      return create.apply(this, cArguments);
-    };
-    markWrapped(wrappedCreate);
-    index['create'] = wrappedCreate;
-  }
+  function captureInstance(instance: unknown): void {
+    if (instance === null || typeof instance !== 'object' || seenInstances.has(instance)) return;
+    const record = instance as PlainRecord;
+    const { create } = record;
+    const options = record['options'] ?? record['_options'];
+    if (typeof create !== 'function' || options === null || typeof options !== 'object') return;
 
-  function didCaptureFromInstance(inst: unknown): boolean {
-    if (inst === null || typeof inst !== 'object') {
-      return false;
-    }
-
-    const index = inst as PlainRecord;
-    // Heuristic: looks like an Adyen Checkout instance
-    const create = index['create'];
-    const options = index['options'] ?? index['_options'];
-    const hasOptions = options !== undefined && options !== null && typeof options === 'object';
-
-    if (typeof create === 'function' && hasOptions) {
-      if (index[ADYEN_INSTANCE_MARKER] === true) {
-        return true;
-      }
-      try {
-        index[ADYEN_INSTANCE_MARKER] = true;
-      } catch {
-        /*
-        ignore
-        */
-      }
-
-      captureConfig(options, 'checkout');
-      wrapInstanceCreate(index, create as SdkCallable);
-      return true;
-    }
-
-    return false;
-  }
-
-  function incrementInitCount(): void {
-    commit(recordCheckoutInit(capture));
-  }
-
-  async function observeCheckoutFactoryResult(result: Promise<unknown>): Promise<void> {
-    didCaptureFromInstance(await result);
-  }
-
-  /**
-  Wraps an AdyenCheckout factory; callers skip factories that are already wrapped.
-  */
-  function wrapCheckoutFactory(original: SdkCallable): SdkCallable {
-    const wrapped: SdkCallable = function (this: unknown, ...arguments_: unknown[]): unknown {
-      incrementInitCount();
-      captureConfig(arguments_[0], 'checkout');
-      const result = original.apply(this, arguments_);
-      if (result instanceof Promise) {
-        void observeCheckoutFactoryResult(result).catch(() => {});
-      }
-      return result;
-    };
-    markWrapped(wrapped);
-    copyStatics(original, wrapped);
-    return wrapped;
-  }
-
-  /**
-  Wraps a component constructor; callers skip constructors that are already wrapped.
-  */
-  function wrapComponentConstructor(original: SdkCallable): SdkCallable {
-    const wrapped: SdkCallable = function (this: unknown, ...arguments_: unknown[]): unknown {
-      if (arguments_.length > 1) {
+    seenInstances.add(instance);
+    captureConfig(options, 'checkout');
+    record['create'] = observeCalls(create, {
+      before: (arguments_) => {
         captureConfig(arguments_[1], 'component');
-      }
-      const target = new.target as unknown;
-      return target === undefined
-        ? original.apply(this, arguments_)
-        : (Reflect.construct(original, arguments_, original) as unknown);
-    };
-    markWrapped(wrapped);
-    try {
-      const orig = original as unknown as { prototype: unknown };
-      const wrap = wrapped as unknown as { prototype: unknown };
-      wrap.prototype = orig.prototype;
-    } catch {
-      /*
-      ignore
-      */
-    }
-    copyStatics(original, wrapped);
-    return wrapped;
-  }
-
-  let storedAdyenCheckout: unknown;
-  try {
-    Object.defineProperty(globalThis, 'AdyenCheckout', {
-      get() {
-        return storedAdyenCheckout;
       },
-      set(v: unknown) {
-        storedAdyenCheckout =
-          typeof v === 'function' && !isWrapped(v) ? wrapCheckoutFactory(v as SdkCallable) : v;
-      },
-      configurable: true,
-      enumerable: true,
     });
-  } catch {
-    /*
-    ignore
-    */
   }
 
-  let storedAdyenWeb: unknown;
-  try {
-    Object.defineProperty(globalThis, 'AdyenWeb', {
-      get() {
-        return storedAdyenWeb;
+  function wrapCheckoutFactory(original: Callable): Callable {
+    return observeCalls(original, {
+      before: (arguments_) => {
+        commit(recordCheckoutInit(capture));
+        captureConfig(arguments_[0], 'checkout');
       },
-      set(v: unknown) {
-        if (v !== null && typeof v === 'object') {
-          const ns = v as PlainRecord;
-          for (const key of Object.keys(ns)) {
-            const value = ns[key];
-            if (typeof value === 'function' && !isWrapped(value)) {
-              ns[key] =
-                key === 'AdyenCheckout'
-                  ? wrapCheckoutFactory(value as SdkCallable)
-                  : wrapComponentConstructor(value as SdkCallable);
-            }
-          }
+      after: (result) => {
+        if (result instanceof Promise) {
+          void result.then(captureInstance).catch(() => {});
+        } else {
+          captureInstance(result);
         }
-        storedAdyenWeb = v;
       },
-      configurable: true,
-      enumerable: true,
     });
-  } catch {
-    /*
-    ignore
-    */
   }
+
+  /**
+  Which argument of an AdyenWeb namespace function carries component options:
+  `createComponent(type, checkout, options)`, else `new Component(checkout, options)`.
+  */
+  function wrapNamespaceFunction(key: string, original: Callable): Callable {
+    if (key === 'AdyenCheckout') return wrapCheckoutFactory(original);
+    const optionsIndex = key === 'createComponent' ? 2 : 1;
+    return observeCalls(original, {
+      before: (arguments_) => {
+        captureConfig(arguments_[optionsIndex], 'component');
+      },
+    });
+  }
+
+  function isUnwrappedFunction(value: unknown): value is Callable {
+    return typeof value === 'function' && !wrapped.has(value);
+  }
+
+  function wrapNamespace(namespace: unknown): void {
+    if (namespace === null || typeof namespace !== 'object') return;
+    const record = namespace as PlainRecord;
+    for (const [key, value] of Object.entries(record)) {
+      if (isUnwrappedFunction(value)) {
+        // Module namespace objects are read-only; their functions stay unwrapped.
+        attempt(() => {
+          record[key] = wrapNamespaceFunction(key, value);
+        });
+      }
+    }
+  }
+
+  function trapGlobal(name: string, wrap: (value: unknown) => unknown): void {
+    let stored: unknown;
+    attempt(() => {
+      Object.defineProperty(globalThis, name, {
+        get: () => stored,
+        set: (value: unknown) => {
+          stored = wrap(value);
+        },
+        configurable: true,
+        enumerable: true,
+      });
+    });
+  }
+
+  trapGlobal('AdyenCheckout', (value) =>
+    isUnwrappedFunction(value) ? wrapCheckoutFactory(value) : value
+  );
+  trapGlobal('AdyenWeb', (value) => {
+    wrapNamespace(value);
+    return value;
+  });
 })();

@@ -227,3 +227,32 @@ describe('isUrlAllowedByCsp wildcard sources', () => {
     expect(isUrlAllowedByCsp(policy, 'img-src', 'data:image/png;base64,AAAA', page)).toBe(false);
   });
 });
+
+describe('isUrlAllowedByCsp script nonces', () => {
+  const page = 'https://merchant.example/checkout';
+  const sdk = 'https://checkoutshopper-live.cdn.adyen.com/checkoutshopper/sdk/6.48.1/adyen.js';
+
+  it('allows a script whose nonce the policy lists, from any host', () => {
+    const policy = parseCsp("script-src 'self' 'nonce-r4nd0m'");
+
+    expect(isUrlAllowedByCsp(policy, 'script-src', sdk, page, 'r4nd0m')).toBe(true);
+    expect(isUrlAllowedByCsp(policy, 'script-src', sdk, page, 'other')).toBe(false);
+    expect(isUrlAllowedByCsp(policy, 'script-src', sdk, page)).toBe(false);
+  });
+
+  it.each([
+    "script-src 'nonce-r4nd0m' 'strict-dynamic' https://checkoutshopper-live.cdn.adyen.com",
+    "default-src 'nonce-r4nd0m' 'strict-dynamic' https: 'self'",
+  ])('ignores host and scheme sources under strict-dynamic: %s', (header) => {
+    const policy = parseCsp(header);
+
+    expect(isUrlAllowedByCsp(policy, 'script-src', sdk, page, 'r4nd0m')).toBe(true);
+    expect(isUrlAllowedByCsp(policy, 'script-src', sdk, page)).toBe(false);
+  });
+
+  it('applies strict-dynamic to scripts only', () => {
+    const policy = parseCsp("default-src 'strict-dynamic' https://*.adyen.com");
+
+    expect(isUrlAllowedByCsp(policy, 'connect-src', sdk, page)).toBe(true);
+  });
+});

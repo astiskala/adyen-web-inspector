@@ -101,15 +101,14 @@ function extractMetadata(g: GlobalWithAdyen): AdyenWebMetadata | null {
 
 function extractScripts(): ScriptTag[] {
   return [...document.querySelectorAll<HTMLScriptElement>('script[src]')].map((s) => {
-    const tag: { src: string; integrity?: string; crossorigin?: string; blockingMode?: string } = {
-      src: s.src,
-    };
+    const tag: { -readonly [K in keyof ScriptTag]: ScriptTag[K] } = { src: s.src };
     const integrity = s.getAttribute('integrity');
     const crossorigin = s.getAttribute('crossorigin');
     const blockingMode = s.dataset['blockingmode'];
     if (integrity !== null && integrity !== '') tag.integrity = integrity;
     if (crossorigin !== null && crossorigin !== '') tag.crossorigin = crossorigin;
     if (blockingMode !== undefined && blockingMode !== '') tag.blockingMode = blockingMode;
+    if (s.nonce !== '') tag.nonce = s.nonce;
     return tag;
   });
 }

@@ -134,6 +134,24 @@ describe('csp-script-src', () => {
     expect(cspScriptSource.run(payload).severity).toBe('warn');
   });
 
+  it('passes a strict CSP only when the Adyen script carries a listed nonce', () => {
+    const strictPolicy = makeDocumentHeaders([
+      makeHeader(
+        'content-security-policy',
+        "script-src 'nonce-r4nd0m' 'strict-dynamic' https://checkoutshopper-test.adyen.com"
+      ),
+    ]);
+    const sdk = 'https://checkoutshopper-test.adyen.com/checkoutshopper/sdk.js';
+    const nonced = makeScanPayload({
+      page: makeCheckoutPage({ scripts: [{ src: sdk, nonce: 'r4nd0m' }] }),
+      documentHeaders: strictPolicy,
+    });
+    const hostListedOnly = makeScanPayload({ page, documentHeaders: strictPolicy });
+
+    expect(cspScriptSource.run(nonced).severity).toBe('pass');
+    expect(cspScriptSource.run(hostListedOnly).severity).toBe('warn');
+  });
+
   it('requires all policies in a combined CSP header to allow the script', () => {
     const payload = makeScanPayload({
       page,

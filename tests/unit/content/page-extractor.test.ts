@@ -134,8 +134,9 @@ describe('page extractor', () => {
   it('collects script, stylesheet and iframe tags with their security attributes', async () => {
     document.body.innerHTML = `
       <script src="https://checkoutshopper-live.cdn.adyen.com/sdk/adyen.js"
-        integrity="sha384-abc" crossorigin="anonymous" data-blockingmode="auto"></script>
-      <script src="https://merchant.example/app.js" integrity=""></script>
+        integrity="sha384-abc" crossorigin="anonymous" data-blockingmode="auto"
+        nonce="r4nd0m"></script>
+      <script src="https://merchant.example/app.js" integrity="" nonce=""></script>
       <script>window.inline = true;</script>
       <link rel="stylesheet" href="https://checkoutshopper-live.cdn.adyen.com/sdk/adyen.css"
         integrity="sha384-def" crossorigin="anonymous">
@@ -152,6 +153,7 @@ describe('page extractor', () => {
         integrity: 'sha384-abc',
         crossorigin: 'anonymous',
         blockingMode: 'auto',
+        nonce: 'r4nd0m',
       },
       { src: 'https://merchant.example/app.js' },
     ]);

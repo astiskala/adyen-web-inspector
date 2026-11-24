@@ -231,8 +231,9 @@ describe('callback-on-submit-filtering', () => {
     const payload = makeAdyenPayload(
       {},
       {
-        onSubmitSource:
+        onSubmitSources: [
           'onSubmit: async (state, component, actions) => { const result = await submit(state.data); actions.resolve(result); }',
+        ],
       }
     );
 
@@ -243,8 +244,9 @@ describe('callback-on-submit-filtering', () => {
     const payload = makeAdyenPayload(
       {},
       {
-        onSubmitSource:
+        onSubmitSources: [
           "onSubmit: (state, component, actions) => { if (state.data.paymentMethod.type === 'scheme') { actions.resolve(result); } }",
+        ],
       }
     );
 
@@ -257,8 +259,9 @@ describe('callback-on-submit-filtering', () => {
     const payload = makeAdyenPayload(
       {},
       {
-        onSubmitSource:
+        onSubmitSources: [
           "onSubmit: (state, component, actions) => { if (state.data.paymentMethod.type === 'scheme') { return; } switch (resultCode) { case 'Authorised': actions.resolve(result); break; } }",
+        ],
       }
     );
     const result = onSubmitSelectiveHandling.run(payload);
@@ -271,8 +274,9 @@ describe('callback-on-submit-filtering', () => {
     const payload = makeAdyenPayload(
       {},
       {
-        onSubmitSource:
+        onSubmitSources: [
           "onSubmit: (state, component, actions) => { if (state.data.paymentMethod.type === 'scheme') actions.resolve(result); }",
+        ],
       }
     );
     const result = onSubmitSelectiveHandling.run(payload);
@@ -283,8 +287,9 @@ describe('callback-on-submit-filtering', () => {
     const payload = makeAdyenPayload(
       {},
       {
-        onSubmitSource:
+        onSubmitSources: [
           "onSubmit: (state, component, actions) => { switch (resultCode) { case 'Authorised': actions.resolve(result); break; } }",
+        ],
       }
     );
 
@@ -297,8 +302,9 @@ describe('callback-on-submit-filtering', () => {
     const payload = makeAdyenPayload(
       {},
       {
-        onSubmitSource:
+        onSubmitSources: [
           "onSubmit: (state, component, actions) => { if (state.data.paymentMethod.type === 'scheme') { actions.resolve(cardResult); } else { actions.resolve(otherResult); } }",
+        ],
       }
     );
 
@@ -321,7 +327,7 @@ describe('callback-on-submit-filtering', () => {
   ])('requests manual review when %s', (_case, body) => {
     const payload = makeAdyenPayload(
       {},
-      { onSubmitSource: `onSubmit: async (state, component, actions) => { ${body} }` }
+      { onSubmitSources: [`onSubmit: async (state, component, actions) => { ${body} }`] }
     );
 
     expect(onSubmitSelectiveHandling.run(payload).severity).toBe('notice');
@@ -331,8 +337,9 @@ describe('callback-on-submit-filtering', () => {
     const payload = makeAdyenPayload(
       {},
       {
-        onSubmitSource:
+        onSubmitSources: [
           "onSubmit: (state, component, actions) => { if (state.data.paymentMethod.type === 'scheme') { state.data.storePaymentMethod = true; } return submitPayment(state.data, actions); }",
+        ],
       }
     );
 
@@ -351,7 +358,7 @@ describe('callback-on-submit-filtering', () => {
   ])('warns when %s', (_case, body) => {
     const payload = makeAdyenPayload(
       {},
-      { onSubmitSource: `onSubmit: async (state, component, actions) => { ${body} }` }
+      { onSubmitSources: [`onSubmit: async (state, component, actions) => { ${body} }`] }
     );
 
     expect(onSubmitSelectiveHandling.run(payload).severity).toBe('warn');
@@ -360,7 +367,7 @@ describe('callback-on-submit-filtering', () => {
   it('skips when flow is Sessions', () => {
     const payload = makeAdyenPayload(
       {},
-      { onSubmitSource: "if (resultCode === 'Authorised') { actions.resolve(result); }" },
+      { onSubmitSources: ["if (resultCode === 'Authorised') { actions.resolve(result); }"] },
       { capturedRequests: sessionsRequests }
     );
 
@@ -368,17 +375,17 @@ describe('callback-on-submit-filtering', () => {
   });
 
   it('skips when onSubmit source is unavailable', () => {
-    const payload = makeAdyenPayload({}, { onSubmitSource: undefined });
+    const payload = makeAdyenPayload({}, {});
     expect(onSubmitSelectiveHandling.run(payload).severity).toBe('skip');
   });
 
   it('does not pass an unrecognised callback source', () => {
-    const payload = makeAdyenPayload({}, { onSubmitSource: 'doSomething()' });
+    const payload = makeAdyenPayload({}, { onSubmitSources: ['doSomething()'] });
     expect(onSubmitSelectiveHandling.run(payload).severity).toBe('info');
   });
 
   it('requests manual review when captured callback source may be truncated', () => {
-    const payload = makeAdyenPayload({}, { onSubmitSource: 'a'.repeat(1200) });
+    const payload = makeAdyenPayload({}, { onSubmitSources: ['a'.repeat(1200)] });
     expect(onSubmitSelectiveHandling.run(payload).severity).toBe('notice');
   });
 });
@@ -386,7 +393,12 @@ describe('callback-on-submit-filtering', () => {
 describe('callback-on-submit-state-data', () => {
   const stateData = requireCheck(CALLBACK_CHECKS, 'callback-on-submit-state-data');
   const runWith = (onSubmitSource: string | undefined): ReturnType<typeof stateData.run> =>
-    stateData.run(makeAdyenPayload({}, { onSubmitSource }));
+    stateData.run(
+      makeAdyenPayload(
+        {},
+        onSubmitSource === undefined ? {} : { onSubmitSources: [onSubmitSource] }
+      )
+    );
 
   it.each([
     '(state, component, actions) => { post({ paymentMethod: state.data.paymentMethod, amount }); }',
@@ -414,8 +426,9 @@ describe('callback-on-submit-state-data', () => {
     const payload = makeAdyenPayload(
       {},
       {
-        onSubmitSource:
+        onSubmitSources: [
           '(state, component, actions) => fetch("/payments", { body: JSON.stringify({ ...state.data, amount: cart.total, reference }) })',
+        ],
       },
       { analyticsData: makeAnalyticsData({ flavor: 'dropin' }) }
     );
@@ -459,7 +472,7 @@ describe('callback-on-submit-state-data', () => {
     expect(runWith(undefined).severity).toBe('skip');
     const sessions = makeAdyenPayload(
       {},
-      { onSubmitSource: '(state) => submit(state.data.paymentMethod)' },
+      { onSubmitSources: ['(state) => submit(state.data.paymentMethod)'] },
       { capturedRequests: sessionsRequests }
     );
     expect(stateData.run(sessions).severity).toBe('skip');
@@ -469,7 +482,12 @@ describe('callback-on-submit-state-data', () => {
 describe('callback-on-submit-state-data-fields', () => {
   const stateDataFields = requireCheck(CALLBACK_CHECKS, 'callback-on-submit-state-data-fields');
   const runWith = (onSubmitSource: string | undefined): ReturnType<typeof stateDataFields.run> =>
-    stateDataFields.run(makeAdyenPayload({}, { onSubmitSource }));
+    stateDataFields.run(
+      makeAdyenPayload(
+        {},
+        onSubmitSource === undefined ? {} : { onSubmitSources: [onSubmitSource] }
+      )
+    );
 
   it.each([
     '(state) => post(state.data)',
@@ -483,8 +501,9 @@ describe('callback-on-submit-state-data-fields', () => {
     const payload = makeAdyenPayload(
       {},
       {
-        onSubmitSource:
+        onSubmitSources: [
           '(state) => post({ paymentMethod: state.data.paymentMethod, browserInfo: state.data.browserInfo })',
+        ],
       },
       { analyticsData: makeAnalyticsData({ flavor: 'dropin' }) }
     );
@@ -738,7 +757,7 @@ describe('callback-actions-pattern', () => {
   it('passes when onSubmit uses v6 actions.resolve pattern', () => {
     const payload = makeAdyenPayload(
       {},
-      { onSubmitSource: 'async (state, component, actions) => { actions.resolve(result); }' }
+      { onSubmitSources: ['async (state, component, actions) => { actions.resolve(result); }'] }
     );
     expect(actionsPattern.run(payload).severity).toBe('pass');
   });
@@ -746,13 +765,13 @@ describe('callback-actions-pattern', () => {
   it('warns when onSubmit uses v5 component pattern', () => {
     const payload = makeAdyenPayload(
       {},
-      { onSubmitSource: 'function(state, component) { component.setStatus("loading"); }' }
+      { onSubmitSources: ['function(state, component) { component.setStatus("loading"); }'] }
     );
     expect(actionsPattern.run(payload).severity).toBe('warn');
   });
 
   it('returns info when pattern cannot be determined', () => {
-    const payload = makeAdyenPayload({}, { onSubmitSource: 'doSomething()' });
+    const payload = makeAdyenPayload({}, { onSubmitSources: ['doSomething()'] });
     expect(actionsPattern.run(payload).severity).toBe('info');
   });
 
@@ -764,14 +783,14 @@ describe('callback-actions-pattern', () => {
   });
 
   it('skips when no onSubmitSource', () => {
-    const payload = makeAdyenPayload({}, { onSubmitSource: undefined });
+    const payload = makeAdyenPayload({}, {});
     expect(actionsPattern.run(payload).severity).toBe('skip');
   });
 
   it('skips when flow is not advanced', () => {
     const payload = makeAdyenPayload(
       {},
-      { onSubmitSource: 'actions.resolve(result);' },
+      { onSubmitSources: ['actions.resolve(result);'] },
       { capturedRequests: sessionsRequests }
     );
     expect(actionsPattern.run(payload).severity).toBe('skip');
@@ -790,7 +809,7 @@ describe('callback-multiple-submissions', () => {
     const payload = makeAdyenPayload(
       {},
       {
-        onSubmitSource: 'onSubmit: (state, component, actions) => { btn.disabled = true; }',
+        onSubmitSources: ['onSubmit: (state, component, actions) => { btn.disabled = true; }'],
       }
     );
     expect(multipleSubmissions.run(payload).severity).toBe('info');
@@ -800,14 +819,14 @@ describe('callback-multiple-submissions', () => {
     const payload = makeAdyenPayload(
       {},
       {
-        beforeSubmitSource: 'beforeSubmit: (state, component, actions) => { setLoading(true); }',
+        beforeSubmitSources: ['beforeSubmit: (state, component, actions) => { setLoading(true); }'],
       }
     );
     expect(multipleSubmissions.run(payload).severity).toBe('info');
   });
 
   it('skips when combined source is empty', () => {
-    const payload = makeAdyenPayload({}, { onSubmitSource: '', beforeSubmitSource: '' });
+    const payload = makeAdyenPayload({}, { onSubmitSources: [''], beforeSubmitSources: [''] });
     expect(multipleSubmissions.run(payload).severity).toBe('skip');
   });
 
@@ -815,7 +834,7 @@ describe('callback-multiple-submissions', () => {
     const payload = makeAdyenPayload(
       {},
       {
-        onSubmitSource: 'onSubmit: (state, component, actions) => { console.log("clicked"); }',
+        onSubmitSources: ['onSubmit: (state, component, actions) => { console.log("clicked"); }'],
       }
     );
     expect(multipleSubmissions.run(payload).severity).toBe('notice');
@@ -866,8 +885,9 @@ describe('callback-custom-pay-button-compatibility', () => {
     const payload = payButtonPayload(
       { rendered: [rendered('scheme', true), rendered('paypal', true)] },
       {
-        onSubmitSource:
+        onSubmitSources: [
           "onSubmit: (state, component, actions) => { if (state.data.paymentMethod.type === 'scheme') { actions.resolve(r); } }",
+        ],
         beforeSubmit: 'checkout',
       }
     );
@@ -1047,8 +1067,9 @@ describe('partial checkoutConfig fallback', () => {
   it('source-based callback checks use componentConfig when checkoutConfig is partial', () => {
     const payload = makePartialCheckoutConfigPayload({
       onSubmit: 'checkout',
-      onSubmitSource:
+      onSubmitSources: [
         'async (state, component, actions) => { button.disabled = true; actions.resolve(result); }',
+      ],
     });
 
     expect(onSubmitSelectiveHandling.run(payload).severity).toBe('notice');
@@ -1076,8 +1097,9 @@ describe('callback-on-submit-filtering source parsing', () => {
     const payload = makeAdyenPayload(
       {},
       {
-        onSubmitSource:
+        onSubmitSources: [
           "onSubmit: (state, component, actions) => { if ((state.data.paymentMethod.type === 'scheme')) { actions.resolve(result); } }",
+        ],
       }
     );
 
@@ -1088,8 +1110,9 @@ describe('callback-on-submit-filtering source parsing', () => {
     const payload = makeAdyenPayload(
       {},
       {
-        onSubmitSource:
+        onSubmitSources: [
           "onSubmit: (state, component, actions) => { if (state.data.paymentMethod.type === 'scheme') { actions.resolve(",
+        ],
       }
     );
 

@@ -21,10 +21,6 @@ const PAYMENT_METHOD_SELECTOR_PATTERN =
   /\bpaymentMethod(?:\?\.)?\.type\b|\bpaymentMethod\s*\[\s*['"]type['"]\s*\]/;
 const ACTION_CODE_SELECTOR_PATTERN =
   /\bresultCode\b|\baction(?:\?\.)?\.type\b|\baction\s*\[\s*['"]type['"]\s*\]/;
-/**
-Code that resolves the submission itself or hands `actions` to code that does.
-*/
-const RESOLUTION_HANDOFF_PATTERN = /\bactions\b|\bcomponent\.handleAction\(/;
 const EXIT_PATTERN = /\b(?:return|throw)\b/;
 
 const WHITESPACE_CHARS: ReadonlySet<string | undefined> = new Set([' ', '\n', '\r', '\t', '\f']);
@@ -117,13 +113,11 @@ function parseSwitchStatement(source: string, switchStart: number): ParsedSwitch
 /**
 A selective branch leaves submissions unhandled when no code after it
 resolves them, or when it exits without resolving its own. A branch that
-only adjusts data falls through to the resolution after it.
+only adjusts data falls through to the resolution after it. `handoff`
+matches code that resolves the submission or hands `actions` on.
 */
-function areSubmissionsLeftUnhandled(branch: string, codeAfter: string): boolean {
-  return (
-    !RESOLUTION_HANDOFF_PATTERN.test(codeAfter) ||
-    (EXIT_PATTERN.test(branch) && !RESOLUTION_HANDOFF_PATTERN.test(branch))
-  );
+function areSubmissionsLeftUnhandled(branch: string, codeAfter: string, handoff: RegExp): boolean {
+  return !handoff.test(codeAfter) || (EXIT_PATTERN.test(branch) && !handoff.test(branch));
 }
 
 function hasStringCasesWithoutDefault(switchBlock: string): boolean {
@@ -132,7 +126,11 @@ function hasStringCasesWithoutDefault(switchBlock: string): boolean {
   return hasStringCases && !hasDefaultCase;
 }
 
-function hasUnhandledSelectorIfStatement(source: string, selectorPattern: RegExp): boolean {
+function hasUnhandledSelectorIfStatement(
+  source: string,
+  selectorPattern: RegExp,
+  handoff: RegExp
+): boolean {
   const ifPattern = /\bif\s*\(/g;
   let match = ifPattern.exec(source);
 
@@ -154,7 +152,8 @@ function hasUnhandledSelectorIfStatement(source: string, selectorPattern: RegExp
         !source.startsWith('else', trailingTokenStart) &&
         areSubmissionsLeftUnhandled(
           source.slice(statementStart, statementEnd + 1),
-          source.slice(statementEnd + 1)
+          source.slice(statementEnd + 1),
+          handoff
         )
       ) {
         return true;
@@ -168,7 +167,11 @@ function hasUnhandledSelectorIfStatement(source: string, selectorPattern: RegExp
   return false;
 }
 
-function hasUnhandledSelectorSwitchStatement(source: string, selectorPattern: RegExp): boolean {
+function hasUnhandledSelectorSwitchStatement(
+  source: string,
+  selectorPattern: RegExp,
+  handoff: RegExp
+): boolean {
   const switchPattern = /\bswitch\s*\(/g;
   let match = switchPattern.exec(source);
 
@@ -181,7 +184,7 @@ function hasUnhandledSelectorSwitchStatement(source: string, selectorPattern: Re
       parsed.block !== undefined &&
       selectorPattern.test(parsed.condition) &&
       hasStringCasesWithoutDefault(parsed.block) &&
-      areSubmissionsLeftUnhandled(parsed.block, source.slice(parsed.nextSearchIndex))
+      areSubmissionsLeftUnhandled(parsed.block, source.slice(parsed.nextSearchIndex), handoff)
     ) {
       return true;
     }
@@ -198,14 +201,13 @@ Detects onSubmit branches that select specific payment methods or action
 codes without an else or default fallback, when other submissions cannot
 reach a resolution after them.
 */
-function detectUnhandledOnSubmitFilters(source: string): UnhandledOnSubmitFilters {
+function detectUnhandledOnSubmitFilters(source: string, handoff: RegExp): UnhandledOnSubmitFilters {
+  const isUnhandled = (selector: RegExp): boolean =>
+    hasUnhandledSelectorIfStatement(source, selector, handoff) ||
+    hasUnhandledSelectorSwitchStatement(source, selector, handoff);
   return {
-    paymentMethod:
-      hasUnhandledSelectorIfStatement(source, PAYMENT_METHOD_SELECTOR_PATTERN) ||
-      hasUnhandledSelectorSwitchStatement(source, PAYMENT_METHOD_SELECTOR_PATTERN),
-    actionCode:
-      hasUnhandledSelectorIfStatement(source, ACTION_CODE_SELECTOR_PATTERN) ||
-      hasUnhandledSelectorSwitchStatement(source, ACTION_CODE_SELECTOR_PATTERN),
+    paymentMethod: isUnhandled(PAYMENT_METHOD_SELECTOR_PATTERN),
+    actionCode: isUnhandled(ACTION_CODE_SELECTOR_PATTERN),
   };
 }
 
@@ -226,8 +228,11 @@ interface StateDataForwarding {
   readonly serverFields: readonly string[];
 }
 
-const IDENTIFIER_PATTERN = /^[A-Z_$][\w$]*$/i;
 const IDENTIFIER = String.raw`[A-Za-z_$][\w$]*`;
+/**
+A parameter that is a plain name, optionally with a default value.
+*/
+const PARAMETER_NAME_PATTERN = /^\s*([a-z_$][\w$]*)\s*(?:=|$)/i;
 const NOT_MEMBER_ACCESS = String.raw`(?!\s*(?:\?\.|\.|\[))`;
 const SERVER_FIELD = '(amount|merchantAccount|reference|shopperReference)';
 const SERVER_FIELD_KEY = new RegExp(String.raw`[{,]\s*['"]?${SERVER_FIELD}['"]?(?=\s*[:,}])`, 'g');
@@ -306,43 +311,73 @@ function destructuredKeys(pattern: string): (string | undefined)[] {
   return pattern.split(',').map((entry) => /^\s*([A-Z_$][\w$]*)/i.exec(entry)?.[1]);
 }
 
-function findCallbackBody(source: string): { param: string; body: string } | null {
-  let trimmed = source.trimStart();
-  const propertyPrefix = /^[A-Z_$][\w$]*\s*:\s*/i.exec(trimmed);
-  if (propertyPrefix !== null) trimmed = trimmed.slice(propertyPrefix[0].length);
-  const bareArrow = /^(?:async\s+)?([A-Za-z_$][\w$]*)\s*=>/.exec(trimmed);
+/**
+The parameter names of `onSubmit(state, component, actions)` as the callback
+declares them, so minified names such as `(e, t, n)` are read too.
+*/
+interface CallbackSignature {
+  /**
+  The state parameter, or null when it is destructured or no parameter list was found.
+  */
+  readonly state: string | null;
+  readonly component: string;
+  readonly actions: string;
+  /**
+  Source after the parameter list.
+  */
+  readonly body: string;
+}
+
+/**
+Simple parameter names, undefined where a parameter is destructured.
+Destructuring and computed defaults can hold commas, so then only the first name is certain.
+*/
+function readParameterNames(parameters: string): (string | undefined)[] {
+  const names = parameters
+    .split(',')
+    .map((parameter) => PARAMETER_NAME_PATTERN.exec(parameter)?.[1]);
+  return /[{[(]/.test(parameters) ? names.slice(0, 1) : names;
+}
+
+function readParameters(source: string): { names: (string | undefined)[]; body: string } {
+  const bareArrow = /^(?:async\s+)?([A-Za-z_$][\w$]*)\s*=>/.exec(source);
   if (bareArrow?.[1] !== undefined) {
-    return { param: bareArrow[1], body: trimmed.slice(bareArrow[0].length) };
+    return { names: [bareArrow[1]], body: source.slice(bareArrow[0].length) };
   }
+  const start = source.indexOf('(');
+  const end = start === -1 ? -1 : findMatchingDelimiter(source, start, '(', ')');
+  return end === -1
+    ? { names: [], body: '' }
+    : { names: readParameterNames(source.slice(start + 1, end)), body: source.slice(end + 1) };
+}
 
-  const parametersStart = trimmed.indexOf('(');
-  if (parametersStart === -1) return null;
-  const parametersEnd = findMatchingDelimiter(trimmed, parametersStart, '(', ')');
-  if (parametersEnd === -1) return null;
+function readSignature(source: string): CallbackSignature {
+  const trimmed = source.trimStart();
+  const propertyPrefix = /^[A-Z_$][\w$]*\s*:\s*/i.exec(trimmed);
+  const { names, body } = readParameters(trimmed.slice(propertyPrefix?.[0].length ?? 0));
+  const [state = null, component = 'component', actions = 'actions'] = names;
+  return { state, component, actions, body };
+}
 
-  const parameter = trimmed
-    .slice(parametersStart + 1, parametersEnd)
-    .split(',')[0]
-    ?.split('=')[0]
-    ?.trim();
-  return parameter === undefined || !IDENTIFIER_PATTERN.test(parameter)
-    ? null
-    : { param: parameter, body: trimmed.slice(parametersEnd + 1) };
+/**
+A reference to `name` that is not a member of another object, such as
+`other.state`, while still matching a spread such as `...state`.
+*/
+function reference(name: string): string {
+  return String.raw`(?<![\w$])(?<![^.]\.)${escapeIdentifier(name)}(?![\w$])`;
 }
 
 /**
 Classifies whether onSubmit passes the whole `state.data` object on or only
 selected fields such as `state.data.paymentMethod`, and which server-owned
-fields it combines with state.data. Logging and comments are ignored. A
-destructured parameter or wholesale-forwarded `state` is `unknown`.
+fields it combines with state.data. Logging is ignored. A destructured
+parameter or wholesale-forwarded `state` is `unknown`.
 */
-function detectStateDataForwarding(source: string): StateDataForwarding {
-  const callback = findCallbackBody(withoutComments(source));
-  if (callback === null) return { kind: 'unknown', fields: [], serverFields: [] };
-  const body = withoutLogging(callback.body);
+function detectStateDataForwarding(signature: CallbackSignature): StateDataForwarding {
+  if (signature.state === null) return { kind: 'unknown', fields: [], serverFields: [] };
+  const body = withoutLogging(signature.body);
 
-  // Excludes member access such as `other.state` while still matching `...state`.
-  const state = String.raw`(?<![\w$])(?<![^.]\.)${escapeIdentifier(callback.param)}`;
+  const state = reference(signature.state);
   const data = String.raw`${state}\s*(?:\?\.|\.)\s*data\b`;
   const serverFields = readServerFields(body, data);
   const destructuring = new RegExp(String.raw`\{([^{}]*)\}\s*=\s*${data}${NOT_MEMBER_ACCESS}`, 'g');
@@ -358,7 +393,7 @@ function detectStateDataForwarding(source: string): StateDataForwarding {
   ) {
     return { kind: 'whole', fields: [], serverFields };
   }
-  if (new RegExp(String.raw`${state}\b${NOT_MEMBER_ACCESS}`).test(remainder)) {
+  if (new RegExp(`${state}${NOT_MEMBER_ACCESS}`).test(remainder)) {
     return { kind: 'unknown', fields: [], serverFields };
   }
 
@@ -376,18 +411,96 @@ function detectStateDataForwarding(source: string): StateDataForwarding {
 }
 
 /**
+Duplicate-submission guards; minifiers write `true` as `!0`.
+*/
+const SUBMISSION_GUARD_PATTERNS = [
+  /\.disabled\s*=\s*(?:true|!0|1)/,
+  /\bset(?:Is)?(?:Loading|Submitting|Processing)\s*\(\s*(?:true|!0|1)\s*\)/,
+  /\.setAttribute\s*\(\s*['"]disabled['"]/,
+  /\.classList\.add\s*\(\s*['"](?:is-)?loading['"]/,
+  /\bis(?:Submitting|Processing)\s*=\s*(?:true|!0)/,
+];
+
+/**
 Returns true when callback source appears to guard against duplicate submissions.
 */
 function hasMultipleSubmissionDetection(source: string): boolean {
-  // Looks for common patterns like .disabled = true, setLoading(true), .setAttribute('disabled', ...), etc.
-  const patterns = [
-    /\.disabled\s*=\s*(?:true|1)/,
-    /setLoading\s*\(\s*(?:true|1)\s*\)/,
-    /\.setAttribute\s*\(\s*['"]disabled['"]/,
-    /\.classList\.add\s*\(\s*['"](?:is-)?loading['"]/,
-    /this\.isSubmitting\s*=\s*true/,
-  ];
-  return patterns.some((p) => p.test(source));
+  return SUBMISSION_GUARD_PATTERNS.some((pattern) => pattern.test(source));
+}
+
+/**
+What static inspection of one captured onSubmit source found.
+*/
+interface OnSubmitReading {
+  /**
+  The source reached the capture limit, so code after the cut-off was not seen.
+  */
+  readonly truncated: boolean;
+  /**
+  Branches that select payment methods or action codes without a fallback.
+  */
+  readonly unhandledFilters: UnhandledOnSubmitFilters;
+  readonly stateData: StateDataForwarding;
+  /**
+  Calls `actions.resolve()` or `actions.reject()`, the v6 pattern.
+  */
+  readonly resolvesActions: boolean;
+  /**
+  Calls `component.setStatus()` or `component.handleAction()`, the v5 pattern.
+  */
+  readonly usesComponentCallbacks: boolean;
+}
+
+function readOnSubmit(captured: string): OnSubmitReading {
+  const source = withoutComments(captured);
+  const signature = readSignature(source);
+  const actions = reference(signature.actions);
+  const component = reference(signature.component);
+  const handoff = new RegExp(String.raw`${actions}|${component}\s*\.\s*handleAction\s*\(`);
+  return {
+    truncated: captured.length >= CALLBACK_SOURCE_LIMIT,
+    unhandledFilters: detectUnhandledOnSubmitFilters(source, handoff),
+    stateData: detectStateDataForwarding(signature),
+    resolvesActions: new RegExp(String.raw`${actions}\s*\.\s*(?:resolve|reject)\s*\(`).test(source),
+    usesComponentCallbacks: new RegExp(
+      String.raw`${component}\s*\.\s*(?:setStatus|handleAction)\s*\(`
+    ).test(source),
+  };
+}
+
+/**
+How every onSubmit source together forwards state.data: any whole object
+makes it whole, and any unreadable source makes it unknown, so no source
+goes unverified. Fields are those every source reads.
+*/
+function combineStateData(readings: readonly StateDataForwarding[]): StateDataForwarding {
+  const serverFields = sortedUnique(readings.flatMap((reading) => reading.serverFields));
+  for (const kind of ['whole', 'unknown'] as const) {
+    if (readings.some((reading) => reading.kind === kind)) {
+      return { kind, fields: [], serverFields };
+    }
+  }
+  const fields = sortedUnique(readings.flatMap((reading) => reading.fields)).filter((field) =>
+    readings.every((reading) => reading.fields.includes(field))
+  );
+  return { kind: 'selected', fields, serverFields };
+}
+
+/**
+Combines the readings of every onSubmit source: a finding in any source
+counts, and resolving through `actions` must hold for all of them.
+*/
+function combineReadings(readings: readonly OnSubmitReading[]): OnSubmitReading {
+  return {
+    truncated: readings.some((reading) => reading.truncated),
+    unhandledFilters: {
+      paymentMethod: readings.some((reading) => reading.unhandledFilters.paymentMethod),
+      actionCode: readings.some((reading) => reading.unhandledFilters.actionCode),
+    },
+    stateData: combineStateData(readings.map((reading) => reading.stateData)),
+    resolvesActions: readings.every((reading) => reading.resolvesActions),
+    usesComponentCallbacks: readings.some((reading) => reading.usesComponentCallbacks),
+  };
 }
 
 /**
@@ -396,30 +509,11 @@ Why captured onSubmit source cannot be read.
 type SourceUnavailable = 'no-config' | 'sessions-flow' | 'no-source';
 
 /**
-What static inspection of captured onSubmit source found.
+What static inspection of every captured onSubmit source found together.
 */
 export type OnSubmitSource =
   | { readonly status: 'unavailable'; readonly reason: SourceUnavailable }
-  | {
-      readonly status: 'read';
-      /**
-      The source reached the capture limit, so code after the cut-off was not seen.
-      */
-      readonly truncated: boolean;
-      /**
-      Branches that select payment methods or action codes without a fallback.
-      */
-      readonly unhandledFilters: UnhandledOnSubmitFilters;
-      readonly stateData: StateDataForwarding;
-      /**
-      Calls `actions.resolve()` or `actions.reject()`, the v6 pattern.
-      */
-      readonly resolvesActions: boolean;
-      /**
-      Calls `component.setStatus()` or `component.handleAction()`, the v5 pattern.
-      */
-      readonly usesComponentCallbacks: boolean;
-    };
+  | ({ readonly status: 'read' } & OnSubmitReading);
 
 /**
 Whether callback source shows a duplicate-submission guard.
@@ -428,47 +522,45 @@ type SubmissionGuard =
   | { readonly status: 'unavailable'; readonly reason: 'no-config' | 'no-source' }
   | { readonly status: 'read'; readonly guarded: boolean };
 
-type CallbackSourceKey = 'onSubmitSource' | 'beforeSubmitSource';
+type CallbackSourceKey = 'onSubmitSources' | 'beforeSubmitSources';
 
 /**
 Callback source only ever comes from captured options, never from inferred values.
 */
-function readSource(payload: ScanPayload, key: CallbackSourceKey): string {
+function readSources(payload: ScanPayload, key: CallbackSourceKey): readonly string[] {
   const evidence = readCheckoutField(payload, key, { includeInferred: false });
-  return evidence.state === 'present' ? evidence.value : '';
+  return evidence.state === 'present' ? evidence.value : [];
 }
 
 /**
-Reads the captured onSubmit source. It is unavailable without captured
-checkout or component configuration, and in Sessions flow, where Adyen Web
-handles submission itself.
+Reads every captured onSubmit source, AdyenCheckout's and each component's.
+It is unavailable without captured checkout or component configuration, and
+in Sessions flow, where Adyen Web handles submission itself.
 */
 export function readOnSubmitSource(payload: ScanPayload, flow: IntegrationFlow): OnSubmitSource {
   if (!hasCapturedCheckoutConfig(payload.page)) {
     return { status: 'unavailable', reason: 'no-config' };
   }
   if (flow === 'sessions') return { status: 'unavailable', reason: 'sessions-flow' };
-  const source = readSource(payload, 'onSubmitSource');
-  if (source === '') return { status: 'unavailable', reason: 'no-source' };
-
-  return {
-    status: 'read',
-    truncated: source.length >= CALLBACK_SOURCE_LIMIT,
-    unhandledFilters: detectUnhandledOnSubmitFilters(source),
-    stateData: detectStateDataForwarding(source),
-    resolvesActions: /actions\.(?:resolve|reject)\(/.test(source),
-    usesComponentCallbacks: /component\.(?:setStatus|handleAction)\(/.test(source),
-  };
+  const sources = readSources(payload, 'onSubmitSources');
+  return sources.length === 0
+    ? { status: 'unavailable', reason: 'no-source' }
+    : { status: 'read', ...combineReadings(sources.map(readOnSubmit)) };
 }
 
 /**
-Looks for a duplicate-submission guard in captured onSubmit and beforeSubmit source.
+Looks for a duplicate-submission guard in every captured onSubmit and beforeSubmit source.
 */
 export function readSubmissionGuard(payload: ScanPayload): SubmissionGuard {
   if (!hasCapturedCheckoutConfig(payload.page)) {
     return { status: 'unavailable', reason: 'no-config' };
   }
-  const combined = `${readSource(payload, 'onSubmitSource')}\n${readSource(payload, 'beforeSubmitSource')}`;
+  const combined = [
+    ...readSources(payload, 'onSubmitSources'),
+    ...readSources(payload, 'beforeSubmitSources'),
+  ]
+    .map(withoutComments)
+    .join('\n');
   return combined.trim() === ''
     ? { status: 'unavailable', reason: 'no-source' }
     : { status: 'read', guarded: hasMultipleSubmissionDetection(combined) };

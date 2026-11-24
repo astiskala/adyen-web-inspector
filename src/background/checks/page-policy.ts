@@ -23,9 +23,9 @@ export type DocumentHeaderEvidence =
 interface EnforcedPagePolicy {
   readonly status: 'enforced';
   /**
-  Returns true when every enforced policy allows the URL for the directive.
+  Returns true when every enforced policy allows the URL for the directive; a script's nonce can allow it too.
   */
-  allows: (directive: CspDirective, url: string) => boolean;
+  allows: (directive: CspDirective, url: string, nonce?: string) => boolean;
   /**
   Governing sources per policy, following fallbacks; null where a policy leaves it unrestricted.
   */
@@ -91,8 +91,8 @@ export function readPagePolicy(payload: ScanPayload): PagePolicy {
 
   return {
     status: 'enforced',
-    allows: (directive, url) =>
-      policies.every((policy) => isUrlAllowedByCsp(policy, directive, url, payload.pageUrl)),
+    allows: (directive, url, nonce) =>
+      policies.every((policy) => isUrlAllowedByCsp(policy, directive, url, payload.pageUrl, nonce)),
     governing,
     restrictive: (directive) =>
       governing(directive).find(

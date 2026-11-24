@@ -22,6 +22,7 @@ describe('readCheckoutOptions', () => {
   it('returns null for values that are not options objects', () => {
     expect(readCheckoutOptions(null, 'checkout')).toBeNull();
     expect(readCheckoutOptions('options', 'checkout')).toBeNull();
+    expect(readCheckoutOptions([{ clientKey: 'test_K' }], 'checkout')).toBeNull();
     expect(readCheckoutOptions({}, 'checkout')).toEqual({});
   });
 
@@ -53,9 +54,7 @@ describe('readCheckoutOptions', () => {
 
   it('reads the legacy riskEnabled option', () => {
     expect(readCheckoutOptions({ riskEnabled: false }, 'checkout')).toEqual({ riskEnabled: false });
-    expect(readCheckoutOptions({ riskEnabled: (): void => {} }, 'checkout')).toEqual({
-      riskEnabled: true,
-    });
+    expect(readCheckoutOptions({ riskEnabled: (): void => {} }, 'checkout')).toEqual({});
     expect(
       readCheckoutOptions({ risk: { enabled: true }, riskEnabled: false }, 'checkout')
     ).toEqual({ riskEnabled: true });
@@ -114,8 +113,8 @@ describe('readCheckoutOptions', () => {
         onSubmit: submitHandler,
         beforeSubmit: beforeSubmitHandler,
         onPaymentCompleted: (): void => {},
-        onValid: true,
-        onError: false,
+        onValid: (): void => {},
+        onError: true,
       },
       'component'
     );
@@ -127,13 +126,13 @@ describe('readCheckoutOptions', () => {
       onValid: 'component',
     });
     expect(config?.onError).toBeUndefined();
-    expect(config?.onSubmitSource).toContain('submitHandler');
-    expect(config?.beforeSubmitSource).toContain('return data');
+    expect(config?.onSubmitSources).toEqual([expect.stringContaining('submitHandler')]);
+    expect(config?.beforeSubmitSources).toEqual([expect.stringContaining('return data')]);
   });
 
   it('truncates callback source to the shared limit', () => {
     const config = readCheckoutOptions({ onSubmit: longOnSubmitHandler }, 'checkout');
-    expect(config?.onSubmitSource).toHaveLength(CALLBACK_SOURCE_LIMIT);
+    expect(config?.onSubmitSources?.[0]).toHaveLength(CALLBACK_SOURCE_LIMIT);
   });
 
   it.each([
@@ -182,6 +181,26 @@ describe('applyCapturedOptions', () => {
     });
     expect(applyCapturedOptions(null, { locale: 'en-US' })).toEqual({ locale: 'en-US' });
   });
+
+  it('keeps every distinct callback source, earlier captures first', () => {
+    const checkout = { onSubmit: 'checkout', onSubmitSources: ['checkoutSubmit'] } as const;
+
+    expect(
+      applyCapturedOptions(checkout, {
+        onSubmit: 'component',
+        onSubmitSources: ['cardSubmit', 'checkoutSubmit'],
+        beforeSubmitSources: ['guard'],
+      })
+    ).toEqual({
+      onSubmit: 'checkout',
+      onSubmitSources: ['checkoutSubmit', 'cardSubmit'],
+      beforeSubmitSources: ['guard'],
+    });
+    expect(applyCapturedOptions(checkout, { locale: 'nl-NL' })).toEqual({
+      ...checkout,
+      locale: 'nl-NL',
+    });
+  });
 });
 
 function hiddenSourceHandler(_data: unknown): void {
@@ -199,6 +218,6 @@ describe('readCheckoutOptions callback source', () => {
     const config = readCheckoutOptions({ onSubmit: hiddenSourceHandler }, 'checkout');
 
     expect(config).toMatchObject({ onSubmit: 'checkout' });
-    expect(config).not.toHaveProperty('onSubmitSource');
+    expect(config).not.toHaveProperty('onSubmitSources');
   });
 });

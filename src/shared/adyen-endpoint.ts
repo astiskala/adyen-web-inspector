@@ -189,25 +189,24 @@ export function environmentOption(endpoint: AdyenEndpoint): string | null {
     : `live-${namedRegion.toLowerCase()}`;
 }
 
+function isAdyenWebEnvironment(name: string): name is keyof typeof ADYEN_WEB_ORIGINS {
+  return Object.hasOwn(ADYEN_WEB_ORIGINS, name);
+}
+
 /**
 Reads an Adyen Web `environment` option, such as live-us, as the environment
 and region it selects: plain live is EU, and test is global, so it has no
-region. Returns null for values Adyen Web does not name this way.
+region. Like Adyen Web, it only lowercases the option; it returns null for
+any other name, which Adyen Web sends to the default live origins.
 */
 export function readEnvironmentOption(
   option: string
 ): { readonly environment: AdyenEnvironment; readonly region: AdyenRegion | null } | null {
-  const match = /^(test|live)(?:[-_]([a-z]+))?$/.exec(option.trim().toLowerCase());
-  if (match === null) return null;
-  if (match[1] === 'test') return { environment: 'test', region: null };
-  const token = match[2];
-  if (token === undefined) return { environment: 'live', region: 'EU' };
-  const region = REGION_TOKENS[token] ?? 'unknown';
+  const name = option.toLowerCase();
+  if (!isAdyenWebEnvironment(name)) return null;
+  if (name === 'test') return { environment: 'test', region: null };
+  const region = REGION_TOKENS[name.slice('live-'.length)] ?? 'EU';
   return { environment: region === 'IN' ? 'live-in' : 'live', region };
-}
-
-function isAdyenWebEnvironment(name: string): name is keyof typeof ADYEN_WEB_ORIGINS {
-  return Object.hasOwn(ADYEN_WEB_ORIGINS, name);
 }
 
 /**

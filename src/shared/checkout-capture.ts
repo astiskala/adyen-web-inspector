@@ -128,7 +128,7 @@ export function recordCheckoutOptions(
 ): CheckoutCapture {
   const fields = readCheckoutOptions(raw, placement);
   if (fields === null) return capture;
-  const isComplete = placement === 'checkout' && !Array.isArray(raw);
+  const isComplete = placement === 'checkout';
   if (!isComplete && isEmpty(fields)) return capture;
   return {
     ...capture,

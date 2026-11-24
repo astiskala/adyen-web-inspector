@@ -108,14 +108,22 @@ describe('Adyen Web environment options', () => {
   it.each([
     ['test', { environment: 'test', region: null }],
     ['live', { environment: 'live', region: 'EU' }],
-    [' LIVE-US ', { environment: 'live', region: 'US' }],
-    ['live_au', { environment: 'live', region: 'AU' }],
+    ['LIVE-US', { environment: 'live', region: 'US' }],
+    ['live-au', { environment: 'live', region: 'AU' }],
+    ['live-apse', { environment: 'live', region: 'APSE' }],
+    ['live-nea', { environment: 'live', region: 'NEA' }],
     ['live-in', { environment: 'live-in', region: 'IN' }],
-    ['live-xx', { environment: 'live', region: 'unknown' }],
-    ['staging', null],
   ])('reads the environment option %s', (option, expected) => {
     expect(readEnvironmentOption(option)).toEqual(expected);
   });
+
+  // Adyen Web only lowercases the option, and sends any other name to the default live origins.
+  it.each([' live-us ', 'live_au', 'live-xx', 'staging'])(
+    'does not read %s, which Adyen Web does not name',
+    (option) => {
+      expect(readEnvironmentOption(option)).toBeNull();
+    }
+  );
 
   it('resolves the origins Adyen Web uses, falling back to live for unknown names', () => {
     expect(resolveAdyenWebOrigins('LIVE-US').api).toBe(

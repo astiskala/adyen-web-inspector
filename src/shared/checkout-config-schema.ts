@@ -51,8 +51,8 @@ const BOOLEAN_OPTION_KEYS = [
 ] as const satisfies readonly (keyof CheckoutConfig)[];
 
 const SOURCE_CALLBACK_KEYS = {
-  onSubmit: 'onSubmitSource',
-  beforeSubmit: 'beforeSubmitSource',
+  onSubmit: 'onSubmitSources',
+  beforeSubmit: 'beforeSubmitSources',
 } as const satisfies Partial<Record<keyof CheckoutConfig, keyof CheckoutConfig>>;
 
 /**
@@ -64,11 +64,11 @@ type PlainRecord = Record<string, unknown>;
 type MutableConfig = { -readonly [K in keyof CheckoutConfig]: CheckoutConfig[K] };
 
 function isPlainRecord(value: unknown): value is PlainRecord {
-  return typeof value === 'object' && value !== null;
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function isCallbackRegistered(value: unknown): boolean {
-  return typeof value === 'boolean' ? value : typeof value === 'function';
+function readBoolean(value: unknown): boolean | undefined {
+  return typeof value === 'boolean' ? value : undefined;
 }
 
 /**
@@ -76,16 +76,11 @@ Reads an explicit `enabled` flag. SDK defaults are not assumed, because
 parsed page JSON also passes through this schema as inferred evidence.
 */
 function readModuleToggle(value: unknown): boolean | undefined {
-  if (!isPlainRecord(value)) return undefined;
-  const enabled = value['enabled'];
-  return typeof enabled === 'boolean' ? enabled : undefined;
+  return isPlainRecord(value) ? readBoolean(value['enabled']) : undefined;
 }
 
 function readRiskEnabled(options: PlainRecord): boolean | undefined {
-  const risk = readModuleToggle(options['risk']);
-  if (risk !== undefined) return risk;
-  const legacy = options['riskEnabled'];
-  return typeof legacy === 'boolean' ? legacy : typeof legacy === 'function' || undefined;
+  return readModuleToggle(options['risk']) ?? readBoolean(options['riskEnabled']);
 }
 
 /**
@@ -114,18 +109,18 @@ function copyCallbacks(
   target: MutableConfig
 ): void {
   for (const key of ALL_CALLBACK_KEYS) {
-    if (isCallbackRegistered(options[key])) target[key] = placement;
+    if (typeof options[key] === 'function') target[key] = placement;
   }
   for (const [key, sourceKey] of Object.entries(SOURCE_CALLBACK_KEYS)) {
     const source = readCallbackSource(options[key]);
-    if (source !== undefined) target[sourceKey] = source;
+    if (source !== undefined) target[sourceKey] = [source];
   }
 }
 
 /**
 Maps raw checkout or component options to Checkout configuration fields.
-Returns null when the value is not an options object; otherwise returns the
-observed fields, which may be empty.
+Returns null when the value is not an options object (arrays included);
+otherwise returns the observed fields, which may be empty.
 */
 export function readCheckoutOptions(
   raw: unknown,
@@ -139,8 +134,8 @@ export function readCheckoutOptions(
     if (typeof value === 'string') config[key] = value;
   }
   for (const key of BOOLEAN_OPTION_KEYS) {
-    const value = raw[key];
-    if (typeof value === 'boolean') config[key] = value;
+    const value = readBoolean(raw[key]);
+    if (value !== undefined) config[key] = value;
   }
 
   const riskEnabled = readRiskEnabled(raw);
@@ -180,7 +175,8 @@ export function mergeCheckoutConfigs(configs: readonly CheckoutConfig[]): Checko
 
 /**
 Applies a newer capture over an existing one. Newer values win, except that
-a callback already registered on AdyenCheckout keeps its checkout placement.
+a callback already registered on AdyenCheckout keeps its checkout placement,
+and callback sources accumulate, earlier ones first.
 */
 export function applyCapturedOptions(
   current: CheckoutConfig | null,
@@ -190,7 +186,12 @@ export function applyCapturedOptions(
   const allowed = Object.entries(incoming).filter(
     ([key]) => !isCallbackKey(key) || current[key] !== 'checkout'
   );
-  return { ...current, ...Object.fromEntries(allowed) };
+  const sources = Object.values(SOURCE_CALLBACK_KEYS).flatMap((key) =>
+    current[key] === undefined || incoming[key] === undefined
+      ? []
+      : [[key, [...new Set([...current[key], ...incoming[key]])]] as const]
+  );
+  return { ...current, ...Object.fromEntries(allowed), ...Object.fromEntries(sources) };
 }
 
 function isCallbackKey(key: string): key is CallbackKey {

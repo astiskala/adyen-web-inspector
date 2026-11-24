@@ -67,22 +67,53 @@ globalThis.AdyenCheckout = async function AdyenCheckout(options) {
   };
 };
 
-function makeComponent(type) {
-  return class {
-    constructor(checkout, options = {}) {
-      this.checkout = checkout;
-      this.options = options;
-    }
+// Mirrors the v6 class hierarchy: statics such as txVariants are inherited from UIElement.
+class UIElement {
+  static type = undefined;
+  static txVariants = [];
 
-    mount(selector) {
-      return this.checkout.create(type, this.options).mount(selector);
-    }
-  };
+  constructor(checkout, options = {}) {
+    this.checkout = checkout;
+    this.options = options;
+  }
+
+  mount(selector) {
+    return this.checkout.create(this.constructor.type, this.options).mount(selector);
+  }
 }
 
+class Card extends UIElement {
+  static type = 'card';
+}
+
+class PayPal extends UIElement {
+  static type = 'paypal';
+}
+
+class Dropin extends UIElement {
+  static type = 'dropin';
+
+  // Like v6, Drop-in registers the component classes it is given by reading their statics.
+  constructor(checkout, options = {}) {
+    super(checkout, options);
+    for (const component of options.paymentMethodComponents ?? []) {
+      for (const type of [component.type, ...component.txVariants]) {
+        if (typeof type !== 'string') throw new TypeError('Invalid payment method component');
+      }
+    }
+  }
+}
+
+const components = { card: Card, paypal: PayPal };
+
+// The v6 UMD bundle assigns its namespace once, fully populated.
+globalThis.AdyenWeb ||= {};
 globalThis.AdyenWeb = {
   AdyenCheckout: globalThis.AdyenCheckout,
-  Dropin: makeComponent('dropin'),
-  Card: makeComponent('card'),
-  PayPal: makeComponent('paypal'),
+  createComponent(type, checkout, options) {
+    return new components[type](checkout, { type, ...options });
+  },
+  Dropin,
+  Card,
+  PayPal,
 };
