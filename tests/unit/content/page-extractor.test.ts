@@ -3,6 +3,10 @@ import { PAGE_GLOBALS } from '../../../src/shared/constants';
 import type { PageExtractResult } from '../../../src/shared/types';
 
 const pageGlobals = globalThis as unknown as Record<string, unknown>;
+
+function patchedToJson(): string {
+  return 'patched';
+}
 /**
 Shaped like an Adyen API key (`AQ…==-…=-…`) without being one.
 */
@@ -93,6 +97,24 @@ describe('page extractor', () => {
 
     const page = await extractPage();
     expect(page.adyenMetadata).toEqual(expected);
+  });
+
+  it('serialises plainly on pages that give built-in prototypes a toJSON, as Prototype.js does', async () => {
+    // eslint-disable-next-line no-extend-native -- Reproduces Prototype.js, which patches Array.prototype.
+    Object.defineProperty(Array.prototype, 'toJSON', {
+      value: patchedToJson,
+      configurable: true,
+      writable: true,
+    });
+    try {
+      document.body.innerHTML = '<script src="https://shop.example/app.js"></script>';
+
+      const page = await extractPage();
+      expect(Array.isArray(page.scripts)).toBe(true);
+      expect(Object.getOwnPropertyDescriptor(Array.prototype, 'toJSON')?.value).toBe(patchedToJson);
+    } finally {
+      Reflect.deleteProperty(Array.prototype, 'toJSON');
+    }
   });
 
   it('reads the capture record and SDK metadata from page globals', async () => {

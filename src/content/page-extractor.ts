@@ -487,7 +487,40 @@ function extract(): PageExtractResult {
   };
 }
 
+/**
+Built-in prototypes that libraries such as Prototype.js give a toJSON method,
+which would make JSON.stringify write arrays and strings as other values.
+*/
+const PATCHED_PROTOTYPES: readonly object[] = [
+  Array.prototype,
+  String.prototype,
+  Number.prototype,
+  Boolean.prototype,
+  Object.prototype,
+];
+
+/**
+Serialises the result as plain JSON, setting aside any toJSON the page added to built-in prototypes.
+*/
+function stringifyPlain(value: unknown): string {
+  const patched = PATCHED_PROTOTYPES.map((prototype) => ({
+    prototype,
+    descriptor: Object.getOwnPropertyDescriptor(prototype, 'toJSON'),
+  })).filter(
+    (entry): entry is { prototype: object; descriptor: PropertyDescriptor } =>
+      entry.descriptor?.configurable === true
+  );
+  for (const { prototype } of patched) Reflect.deleteProperty(prototype, 'toJSON');
+  try {
+    return JSON.stringify(value);
+  } finally {
+    for (const { prototype, descriptor } of patched) {
+      Object.defineProperty(prototype, 'toJSON', descriptor);
+    }
+  }
+}
+
 // This function is injected by executeScript and must be self-contained.
 const pageExtractResult = extract();
 (globalThis as GlobalWithAdyen)[PAGE_GLOBALS.pageExtractResultJson] =
-  JSON.stringify(pageExtractResult);
+  stringifyPlain(pageExtractResult);
