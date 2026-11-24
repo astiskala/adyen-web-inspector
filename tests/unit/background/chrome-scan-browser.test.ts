@@ -70,6 +70,7 @@ describe('chromeScanBrowser.extractFrames', () => {
         { frameId: 0, result: JSON.stringify(page) },
         { frameId: 2, result: null },
         { frameId: 3 },
+        { frameId: 4, result: 'overwritten by the page' },
       ]);
     vi.stubGlobal('chrome', { scripting: { executeScript } });
 
@@ -77,6 +78,7 @@ describe('chromeScanBrowser.extractFrames', () => {
       { frameId: 0, result: page },
       { frameId: 2, result: null },
       { frameId: 3, result: null },
+      { frameId: 4, result: null },
     ]);
     expect(executeScript).toHaveBeenNthCalledWith(1, {
       target: { tabId: 5, allFrames: true },
@@ -89,18 +91,19 @@ describe('chromeScanBrowser.extractFrames', () => {
     );
   });
 
-  it('reads the serialized extraction back from a page global', async () => {
+  it('takes the serialized extraction from a page global, so a later failed extraction reads nothing', async () => {
     const executeScript = vi.fn().mockResolvedValue([]);
     vi.stubGlobal('chrome', { scripting: { executeScript } });
     await chromeScanBrowser.extractFrames(5);
-    const readGlobal = (executeScript.mock.calls[1]?.[0] as { func: (key: string) => unknown })
+    const takeGlobal = (executeScript.mock.calls[1]?.[0] as { func: (key: string) => unknown })
       .func;
 
     Reflect.set(globalThis, PAGE_GLOBALS.pageExtractResultJson, '{"pageUrl":"x"}');
-    expect(readGlobal(PAGE_GLOBALS.pageExtractResultJson)).toBe('{"pageUrl":"x"}');
+    expect(takeGlobal(PAGE_GLOBALS.pageExtractResultJson)).toBe('{"pageUrl":"x"}');
+    expect(takeGlobal(PAGE_GLOBALS.pageExtractResultJson)).toBeNull();
     Reflect.set(globalThis, PAGE_GLOBALS.pageExtractResultJson, 42);
-    expect(readGlobal(PAGE_GLOBALS.pageExtractResultJson)).toBeNull();
-    Reflect.deleteProperty(globalThis, PAGE_GLOBALS.pageExtractResultJson);
+    expect(takeGlobal(PAGE_GLOBALS.pageExtractResultJson)).toBeNull();
+    expect(Reflect.has(globalThis, PAGE_GLOBALS.pageExtractResultJson)).toBe(false);
   });
 
   it('reports injection failures with the tab ID', async () => {
@@ -212,6 +215,25 @@ describe('chromeScanBrowser.fetchDocumentHeaders', () => {
       'https://merchant.example/checkout',
       expect.objectContaining({ method: 'GET' })
     );
+  });
+
+  it('ignores error and redirected responses, which describe another document', async () => {
+    const redirected = new Response(null, { headers: { 'content-security-policy': 'login' } });
+    Object.defineProperty(redirected, 'redirected', { value: true });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(null, { status: 405, headers: { allow: 'GET' } }))
+      .mockResolvedValueOnce(new Response(null, { headers: { 'x-frame-options': 'DENY' } }))
+      .mockResolvedValueOnce(redirected)
+      .mockResolvedValueOnce(redirected);
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(
+      chromeScanBrowser.fetchDocumentHeaders('https://merchant.example/checkout')
+    ).resolves.toEqual([{ name: 'x-frame-options', value: 'DENY' }]);
+    await expect(
+      chromeScanBrowser.fetchDocumentHeaders('https://merchant.example/checkout')
+    ).resolves.toEqual([]);
   });
 
   it('returns no headers when both probe requests time out', async () => {

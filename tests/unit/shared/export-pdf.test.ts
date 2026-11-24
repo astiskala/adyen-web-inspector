@@ -44,6 +44,34 @@ describe('buildPrintableHtml', () => {
     browser: 'Google Chrome 135.0.0.0 on macOS',
   };
 
+  it('escapes page-controlled values, including a forged request status', () => {
+    const hostile = '"><img src=x onerror=alert(1)>';
+    const page = makeCheckoutPage({
+      observedConfig: { captured: makeCapturedConfig({ locale: hostile }) },
+    });
+    const result = makeResult({
+      pageUrl: `https://example.com/${hostile}`,
+      checks: [makeCheck({ title: hostile, detail: hostile, remediation: hostile })],
+      payload: makeScanPayload({
+        capturedRequests: [
+          {
+            url: `https://checkoutshopper-test.adyen.com/${hostile}`,
+            type: 'script',
+            responseHeaders: [],
+            // A tampered page extraction can carry any JSON value here.
+            statusCode: hostile as unknown as number,
+          },
+        ],
+        page,
+      }),
+    });
+
+    const html = buildPrintableHtml(result, metadata);
+    const parsed = new DOMParser().parseFromString(html, 'text/html');
+    expect(parsed.querySelector('img')).toBeNull();
+    expect(html).not.toContain('<img');
+  });
+
   it('renders issues and successful checks in separate sections', () => {
     const result = makeResult({
       pageUrl: 'https://example.com/checkout?cart=123',
@@ -195,7 +223,7 @@ describe('buildPrintableHtml attributes', () => {
       metadata
     );
 
-    expect(html).toContain('#f29900');
+    expect(html).toContain('#b06000');
     expect(html).toMatch(/SDK Version<\/[^>]+>\s*<[^>]+>Unknown/);
     expect(html).not.toContain('>Region<');
   });

@@ -188,6 +188,13 @@ function buildReportMetadataHtml(
   `;
 }
 
+/**
+A status escaped like any page-derived value: a tampered extraction can put text where a number belongs.
+*/
+function formatStatus(statusCode: number): string {
+  return statusCode === 0 ? '&mdash;' : escapeHtml(statusCode.toString());
+}
+
 function buildNetworkHtml(network: FindingProjection['network']): string {
   const reqs = network.capturedRequests;
   const parts: string[] = ['<h3 style="font-size:12px;margin:12px 0 6px">Captured Requests</h3>'];
@@ -198,9 +205,9 @@ function buildNetworkHtml(network: FindingProjection['network']): string {
     const rows = reqs
       .map(
         (request) =>
-          `<tr><td>${escapeHtml(request.type)}</td><td style="font-family:monospace;font-size:11px">${escapeHtml(
+          `<tr><td>${escapeHtml(request.type)}</td><td style="font-family:monospace;font-size:11px;word-break:break-all">${escapeHtml(
             request.url
-          )}</td><td>${request.statusCode === 0 ? '&mdash;' : request.statusCode}</td></tr>`
+          )}</td><td>${formatStatus(request.statusCode)}</td></tr>`
       )
       .join('');
     parts.push(

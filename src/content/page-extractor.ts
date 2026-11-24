@@ -88,16 +88,27 @@ function findMountedCheckout(root: unknown, rootDepth: number): MountedCheckout 
   return null;
 }
 
-function readMountedConfig(mounted: MountedCheckout | null): CheckoutConfig | null {
-  if (mounted === null) return null;
+function readMountedConfig(mounted: MountedCheckout): CheckoutConfig | null {
   const config = readCheckoutOptions(mounted.options, 'checkout');
   if (config === null) return null;
   const { paymentMethodsConfiguration } = mounted;
   return { ...config, ...readCheckoutOptions({ paymentMethodsConfiguration }, 'component') };
 }
 
+/**
+Keeps only the typed fields of the page's AdyenWebMetadata global, which any page script can set.
+*/
 function extractMetadata(g: GlobalWithAdyen): AdyenWebMetadata | null {
-  return g.AdyenWebMetadata ?? null;
+  const metadata: unknown = g.AdyenWebMetadata;
+  if (typeof metadata !== 'object' || metadata === null) return null;
+  const { version, bundleType, variants } = metadata as Record<string, unknown>;
+  return {
+    ...(typeof version === 'string' && { version }),
+    ...(typeof bundleType === 'string' && { bundleType }),
+    ...(Array.isArray(variants) && {
+      variants: variants.filter((variant): variant is string => typeof variant === 'string'),
+    }),
+  };
 }
 
 function extractScripts(): ScriptTag[] {
@@ -276,24 +287,29 @@ function collectMountPoints(adyenElements: Element[]): Set<ElementWithVnode> {
   return mountPoints;
 }
 
+/**
+Components created from one AdyenCheckout share its options object, so
+distinct options objects count checkout instances, not mounted components.
+*/
 function processMountPoints(mountPoints: Set<ElementWithVnode>): {
   merged: CheckoutConfig | null;
-  findCount: number;
+  instanceCount: number;
 } {
   const configs: CheckoutConfig[] = [];
-  let findCount = 0;
+  const instances = new Set<unknown>();
 
   for (const mount of mountPoints) {
-    const config = readMountedConfig(findMountedCheckout(mount.__k, 0));
-    if (config === null) {
+    const mounted = findMountedCheckout(mount.__k, 0);
+    const config = mounted === null ? null : readMountedConfig(mounted);
+    if (mounted === null || config === null) {
       continue;
     }
 
-    findCount++;
+    instances.add(mounted.options);
     configs.push(config);
   }
 
-  return { merged: mergeCheckoutConfigs(configs), findCount };
+  return { merged: mergeCheckoutConfigs(configs), instanceCount: instances.size };
 }
 
 function extractComponentConfig(): ComponentExtraction {
@@ -305,16 +321,18 @@ function extractComponentConfig(): ComponentExtraction {
     return { config: null, mountCount: 0 };
   }
 
-  const { merged, findCount } = processMountPoints(mountPoints);
-  // Use findCount (mounts where findMountedCheckout found Adyen core options)
-  // rather than mountPoints.size, to avoid counting unrelated Preact trees.
-  return { config: merged, mountCount: findCount };
+  const { merged, instanceCount } = processMountPoints(mountPoints);
+  // Count checkout instances whose options a mounted tree exposed, rather than
+  // mountPoints.size, to avoid counting unrelated Preact trees.
+  return { config: merged, mountCount: instanceCount };
 }
 
 /**
 Matches an Adyen API key: starts with "AQ", ~159 chars, contains "==-" and "=-" delimiters.
+The segments are bounded: unbounded ones made every "AQ" in a large inline
+base64 blob scan to its end, freezing the merchant page for seconds.
 */
-const ADYEN_API_KEY_PATTERN = /AQ[A-Za-z0-9+/]+==-[A-Za-z0-9+/]+=-[A-Za-z0-9+/]+/;
+const ADYEN_API_KEY_PATTERN = /AQ[A-Za-z0-9+/]{8,512}==-[A-Za-z0-9+/]{8,256}=-[A-Za-z0-9+/]/;
 
 /**
 Looks for an Adyen API key in inline scripts and in everything the capture record holds.

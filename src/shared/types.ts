@@ -334,7 +334,8 @@ export interface PageExtractResult {
   readonly adyenMetadata: AdyenWebMetadata | null;
   readonly observedConfig: ObservedCheckoutConfig;
   /**
-  Number of vnode mount points whose trees exposed Adyen core options.
+  Number of distinct AdyenCheckout instances whose options mounted Adyen trees
+  exposed; components created from one checkout count once.
   */
   readonly componentMountCount?: number;
   /**

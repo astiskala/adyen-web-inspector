@@ -39,22 +39,29 @@ async function fetchWithTimeout<T>(
   }
 }
 
+/**
+Only a successful response for the document's own URL describes the checkout
+document: an error page (such as 405 for HEAD) or a redirect target, such as
+a login page, has other headers.
+*/
 async function fetchHeaders(url: string, method: 'HEAD' | 'GET'): Promise<CapturedHeader[]> {
   const headers = await fetchWithTimeout(
     url,
     { method, credentials: 'include', cache: 'no-store', redirect: 'follow' },
     HEADER_PROBE_TIMEOUT_MS,
     (response) =>
-      response.headers
-        .entries()
-        .map(([name, value]) => ({ name, value }))
-        .toArray()
+      response.ok && !response.redirected
+        ? response.headers
+            .entries()
+            .map(([name, value]) => ({ name, value }))
+            .toArray()
+        : null
   );
   return headers ?? [];
 }
 
 /**
-Tries `HEAD` first and falls back to `GET` when `HEAD` yields no headers.
+Tries `HEAD` first and falls back to `GET` when `HEAD` yields no usable headers.
 */
 async function fetchDocumentHeaders(pageUrl: string): Promise<CapturedHeader[]> {
   const headHeaders = await fetchHeaders(pageUrl, 'HEAD');
@@ -101,11 +108,25 @@ async function waitForTabComplete(tabId: number, timeoutMs: number): Promise<voi
 }
 
 /**
-Injected into each frame, so it must stay self-contained.
+Injected into each frame, so it must stay self-contained. The value is taken,
+not just read, so a later extraction that fails cannot return this one again.
 */
-function readPageGlobalString(key: string): string | null {
+function takePageGlobalString(key: string): string | null {
   const value: unknown = Reflect.get(globalThis, key);
+  Reflect.deleteProperty(globalThis, key);
   return typeof value === 'string' ? value : null;
+}
+
+/**
+Page scripts can overwrite the published global, so a value that is not JSON yields no result.
+*/
+function parseFrameResult(serialized: string | null | undefined): PageExtractResult | null {
+  if (serialized === undefined || serialized === null) return null;
+  try {
+    return JSON.parse(serialized) as PageExtractResult;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -121,7 +142,7 @@ async function extractFrames(tabId: number): Promise<FrameExtraction[]> {
     });
     serializedResults = await chrome.scripting.executeScript<[string], string | null>({
       target: { tabId, allFrames: true },
-      func: readPageGlobalString,
+      func: takePageGlobalString,
       args: [PAGE_GLOBALS.pageExtractResultJson],
       world: 'MAIN',
     });
@@ -134,10 +155,7 @@ async function extractFrames(tabId: number): Promise<FrameExtraction[]> {
 
   return serializedResults.map((frame) => ({
     frameId: frame.frameId,
-    result:
-      frame.result === undefined || frame.result === null
-        ? null
-        : (JSON.parse(frame.result) as PageExtractResult),
+    result: parseFrameResult(frame.result),
   }));
 }
 

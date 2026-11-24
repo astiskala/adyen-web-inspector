@@ -71,7 +71,12 @@ function pageRequests(page: CheckoutPage): CapturedRequest[] {
       reported(l.href, l.rel.toLowerCase().includes('stylesheet') ? 'stylesheet' : 'other')
     ),
     ...(page.observedRequests ?? []).map((o) =>
-      reported(o.url, o.initiatorType === 'script' ? 'script' : 'other', o.responseStatus)
+      reported(
+        o.url,
+        o.initiatorType === 'script' ? 'script' : 'other',
+        // Page scripts can tamper with what the page reports, so only a number counts.
+        typeof o.responseStatus === 'number' ? o.responseStatus : 0
+      )
     ),
   ];
 }

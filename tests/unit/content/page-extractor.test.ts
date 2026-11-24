@@ -82,6 +82,19 @@ describe('page extractor', () => {
     });
   });
 
+  it.each([
+    [
+      { version: 6, bundleType: 'umd', variants: ['card', 3], secret: 'x' },
+      { bundleType: 'umd', variants: ['card'] },
+    ],
+    ['6.31.0', null],
+  ])('keeps only typed SDK metadata fields from %j', async (metadata, expected) => {
+    pageGlobals['AdyenWebMetadata'] = metadata;
+
+    const page = await extractPage();
+    expect(page.adyenMetadata).toEqual(expected);
+  });
+
   it('reads the capture record and SDK metadata from page globals', async () => {
     pageGlobals['AdyenWebMetadata'] = { version: '6.31.0', bundleType: 'esm' };
     pageGlobals[PAGE_GLOBALS.checkoutCapture] = {
@@ -263,6 +276,14 @@ describe('page extractor mounted component configuration', () => {
     });
   });
 
+  it('counts components created from one AdyenCheckout as one instance', async () => {
+    const shared = coreOptions({ locale: 'nl-NL' });
+    mountTree('<div class="adyen-checkout__card-input"></div>', shared);
+    mountTree('<div class="adyen-checkout__ideal"></div>', shared);
+
+    await expect(extractPage()).resolves.toMatchObject({ componentMountCount: 1 });
+  });
+
   it('finds mounts inside shadow roots and merges them, earlier mounts winning', async () => {
     mountTree('<div class="adyen-checkout__card-input"></div>', coreOptions({ locale: 'nl-NL' }));
     const host = document.createElement('div');
@@ -349,6 +370,23 @@ describe('page extractor API key exposure', () => {
     expose();
 
     await expect(extractPage()).resolves.toMatchObject({ apiKeyDetected: true });
+  });
+
+  it('scans a large inline base64 blob in linear time', async () => {
+    // Random-looking base64 holds many "AQ" pairs and no key delimiters.
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+    let seed = 7;
+    const blob = Array.from({ length: 3_000_000 }, () => {
+      seed = (seed * 1_103_515_245 + 12_345) % 2_147_483_648;
+      return alphabet[(seed >>> 16) % 64];
+    }).join('');
+    const script = document.createElement('script');
+    script.textContent = `var font = "${blob}";`;
+    document.head.append(script);
+
+    const started = performance.now();
+    await expect(extractPage()).resolves.not.toHaveProperty('apiKeyDetected');
+    expect(performance.now() - started).toBeLessThan(750);
   });
 
   it('does not flag client keys', async () => {

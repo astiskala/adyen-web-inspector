@@ -205,6 +205,12 @@ describe('runScan captured traffic', () => {
             observedRequests: [
               { url: sessions, initiatorType: 'fetch', responseStatus: 401 },
               { url: 'https://example.com/other.js', initiatorType: 'script' },
+              // A page that tampers with its extraction can report any JSON value as a status.
+              {
+                url: 'https://example.com/forged.js',
+                initiatorType: 'script',
+                responseStatus: '<b>200</b>' as unknown as number,
+              },
             ],
           })
         ),
@@ -243,6 +249,7 @@ describe('runScan captured traffic', () => {
     expect(byUrl('https://example.com/other.js')).toMatchObject([
       { type: 'script', statusCode: 0 },
     ]);
+    expect(byUrl('https://example.com/forged.js')).toMatchObject([{ statusCode: 0 }]);
     expect(byUrl(sessions)).toMatchObject([{ type: 'other', statusCode: 401 }]);
     expect(checks.find((check) => check.id === 'auth-client-key-rejected')?.severity).toBe('fail');
   });
