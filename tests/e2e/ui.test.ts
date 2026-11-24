@@ -162,16 +162,16 @@ test.describe('DevTools panel', () => {
     await expect(panel.getByText(`Score: ${score} · ${passing}/${total} passing`)).toBeVisible();
     await expect(panel.getByText('Implementation Attributes')).toBeVisible();
 
-    await panel.getByRole('button', { name: 'Security', exact: true }).click();
+    await panel.getByRole('tab', { name: 'Security', exact: true }).click();
     const cspFinding = requireCheck(result, 'security-csp-present');
     await expect(panel.getByText(cspFinding.title, { exact: true })).toBeVisible();
 
-    await panel.getByRole('button', { name: 'Skipped Checks', exact: true }).click();
+    await panel.getByRole('tab', { name: 'Skipped Checks', exact: true }).click();
     const skippedFinding = requireCheck(result, 'auth-client-key-rejected');
     expect(skippedFinding.severity).toBe('skip');
     await expect(panel.getByText(skippedFinding.title, { exact: true })).toBeVisible();
 
-    await panel.getByRole('button', { name: 'Extracted Config', exact: true }).click();
+    await panel.getByRole('tab', { name: 'Extracted Config', exact: true }).click();
     await expect(panel.locator('pre').first()).toContainText('"clientKey": "test_dummy"');
   });
 });

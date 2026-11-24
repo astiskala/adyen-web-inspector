@@ -40,8 +40,10 @@ export function EmptyState({
   const titleClass = tone === 'warning' ? `${s('title')} ${s('titleWarning')}` : s('title');
 
   return (
-    <div class={s('container')}>
-      <div class={s('icon')}>{icon}</div>
+    <div class={s('container')} role="status">
+      <div class={s('icon')} aria-hidden="true">
+        {icon}
+      </div>
       <div class={titleClass}>{title}</div>
       <div class={s('body')}>{children}</div>
       {scanAction !== undefined && (

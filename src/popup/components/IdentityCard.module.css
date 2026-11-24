@@ -51,6 +51,16 @@
   color: var(--color-green);
 }
 
+@media (prefers-color-scheme: dark) {
+  .badgeTest {
+    background: rgb(242 139 130 / 16%);
+  }
+
+  .badgeLive {
+    background: rgb(129 201 149 / 16%);
+  }
+}
+
 .badgeUnknown {
   background: var(--color-surface-alt);
   color: var(--color-text-secondary);

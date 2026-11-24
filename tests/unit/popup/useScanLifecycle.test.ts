@@ -251,6 +251,38 @@ describe('useScanLifecycle after the view closes', () => {
     expect(reads).toBe(0);
   });
 
+  it("does not show an earlier target's snapshot that arrives after the target changed", async () => {
+    await harness.tabState.checkoutActivityDetected(TAB);
+    const stale = Promise.withResolvers<Awaited<ReturnType<TabStateClient['read']>>>();
+    const slowFirstRead: TabStateClient = {
+      ...harness.client,
+      read: async (tabId) => (tabId === TAB ? stale.promise : harness.client.read(tabId)),
+    };
+    await mount(INSPECTED_TAB, slowFirstRead);
+    await mount({ getTabId: () => TAB + 1 }, slowFirstRead);
+    expect(harness.session.checkoutActivity).toEqual({ detected: false });
+
+    stale.resolve(await harness.client.read(TAB));
+    await settle();
+
+    expect(harness.session.checkoutActivity).toEqual({ detected: false });
+  });
+
+  it('ignores a scan request failure that arrives after the view closed', async () => {
+    const request = Promise.withResolvers<undefined>();
+    await mount(INSPECTED_TAB, { ...harness.client, requestScan: () => request.promise });
+    await startScan();
+    const before = harness.session;
+
+    await act(async () => {
+      render(null, harness.host);
+    });
+    request.reject(new Error('Extension context invalidated'));
+    await settle();
+
+    expect(harness.session).toBe(before);
+  });
+
   it('ignores a snapshot that arrives after the view closed', async () => {
     const snapshot = Promise.withResolvers<Awaited<ReturnType<TabStateClient['read']>>>();
     const slow: TabStateClient = { ...harness.client, read: () => snapshot.promise };

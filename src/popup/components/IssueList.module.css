@@ -101,10 +101,13 @@
 
 .checkTitle {
   flex: 1;
+  min-width: 0;
   line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
 .detail {
+  overflow-wrap: anywhere;
   padding: 4px 12px 8px 34px;
   font-size: 11px;
   color: var(--color-text-secondary);

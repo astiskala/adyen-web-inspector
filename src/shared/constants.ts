@@ -151,7 +151,7 @@ Status colours for the badge and printed report, matching the light palette in b
 */
 export const STATUS_COLORS = {
   pass: '#188038',
-  warn: '#f29900',
+  warn: '#b06000',
   fail: '#d93025',
   info: '#1a73e8',
 } as const;

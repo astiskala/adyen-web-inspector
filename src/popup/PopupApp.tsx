@@ -63,7 +63,11 @@ export function Popup(): JSX.Element {
 
   return (
     <div>
-      {view.state === 'loading' && <div class={s('loading')}>Loading…</div>}
+      {view.state === 'loading' && (
+        <div class={s('loading')} role="status">
+          Loading…
+        </div>
+      )}
       {view.state === 'error' && <ScanError onRetry={scan} scanning={scanning} />}
       {view.state === 'ready' && <DetectedReady />}
       {view.state === 'not-detected' && <NotDetected onAttemptScan={scan} scanning={scanning} />}

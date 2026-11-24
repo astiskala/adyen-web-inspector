@@ -52,6 +52,12 @@
   transition: width 0.3s ease;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .fill {
+    transition: none;
+  }
+}
+
 .fillExcellent {
   background: var(--color-green);
 }

@@ -93,27 +93,34 @@ export function useScanLifecycle(
 
   useEffect(() => {
     mounted.current = true;
+    // Per effect, so a read for a previous target cannot land after the target changed.
+    let isCurrent = true;
     let unsubscribe = (): void => {};
     tabId.current = null;
     const resolved = resolveTabId();
 
+    function show(next: ScanState | ((previous: ScanState) => ScanState)): void {
+      if (isCurrent) update(next);
+    }
+
     async function follow(): Promise<void> {
       const id = await resolved;
-      if (!mounted.current) return;
+      if (!isCurrent) return;
       if (id === undefined) {
-        update(fromSnapshot(EMPTY_TAB_SNAPSHOT));
+        show(fromSnapshot(EMPTY_TAB_SNAPSHOT));
         return;
       }
       unsubscribe = client.subscribe((changedTabId, snapshot) => {
-        if (changedTabId === id) update(fromSnapshot(snapshot));
+        if (changedTabId === id) show(fromSnapshot(snapshot));
       });
-      update(fromSnapshot(await client.read(id)));
+      show(fromSnapshot(await client.read(id)));
     }
 
     void follow().catch((error: unknown) => {
-      update(failed({ kind: 'runtime', cause: error }));
+      show(failed({ kind: 'runtime', cause: error }));
     });
     return (): void => {
+      isCurrent = false;
       mounted.current = false;
       unsubscribe();
     };

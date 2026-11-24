@@ -36,7 +36,14 @@ export function HealthScore({ result }: Properties): JSX.Element {
           <span class={scoreClass}>{score}</span>
         </div>
       </div>
-      <div class={s('bar')}>
+      <div
+        class={s('bar')}
+        role="meter"
+        aria-label="Health score"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={score}
+      >
         <div class={fillClasses} style={`width:${score}%`} />
       </div>
     </div>

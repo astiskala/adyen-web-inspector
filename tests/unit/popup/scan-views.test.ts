@@ -266,6 +266,34 @@ describe('scan views', () => {
       await clickButton(tab);
       expect(harness.host.textContent).toContain(text);
     }
+
+    // Tabs follow the WAI-ARIA tabs pattern: one selected tab in the tab order, arrow keys move.
+    const selected = (): HTMLElement | null =>
+      harness.host.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]');
+    const press = async (key: string): Promise<void> => {
+      await act(async () => {
+        selected()?.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+        await Promise.resolve();
+      });
+    };
+    expect(selected()?.textContent).toBe('Overview');
+    expect(harness.host.querySelector('[role="tabpanel"]')?.getAttribute('aria-labelledby')).toBe(
+      selected()?.id
+    );
+    await press('ArrowLeft');
+    expect(selected()?.textContent).toBe('Extracted Config');
+    expect(document.activeElement).toBe(selected());
+    await press('ArrowRight');
+    await press('End');
+    expect(selected()?.textContent).toBe('Extracted Config');
+    await press('Home');
+    await press('Enter');
+    expect(selected()?.textContent).toBe('Overview');
+    expect(
+      [...harness.host.querySelectorAll<HTMLElement>('[role="tab"]')].filter(
+        (tab) => tab.tabIndex === 0
+      )
+    ).toHaveLength(1);
   });
 
   it('preserves DevTools context-invalidation wording after a rejected scan request', async () => {

@@ -1,4 +1,4 @@
-import type { JSX } from 'preact';
+import type { JSX, TargetedKeyboardEvent } from 'preact';
 import { useState } from 'preact/hooks';
 import { chromeTabStateClient } from '../../popup/components/chrome-tab-state-client.js';
 import { scanButtonLabel, useScanLifecycle } from '../../popup/components/useScanLifecycle.js';
@@ -58,6 +58,25 @@ function getPanelErrorMessage(error: ReturnType<typeof useScanLifecycle>['error'
     : RUNTIME_ERROR_UI_MESSAGE;
 }
 
+const TAB_KEYS: Readonly<Record<string, (index: number) => number>> = {
+  ArrowRight: (index) => (index + 1) % TABS.length,
+  ArrowLeft: (index) => (index - 1 + TABS.length) % TABS.length,
+  Home: () => 0,
+  End: () => TABS.length - 1,
+};
+
+function tabId(tab: TabName): string {
+  return `tab-${tab.toLowerCase().replaceAll(' ', '-')}`;
+}
+
+/**
+The tab an arrow, Home, or End key moves to from the active tab, as in the WAI-ARIA tabs pattern.
+*/
+function tabForKey(activeTab: TabName, key: string): TabName | undefined {
+  const move = TAB_KEYS[key];
+  return move === undefined ? undefined : TABS[move(TABS.indexOf(activeTab))];
+}
+
 function renderTab(activeTab: TabName, result: ScanResult): JSX.Element {
   if (activeTab === 'Overview') return <OverviewTab result={result} />;
   if (activeTab === 'Best Practices') return <BestPracticesTab result={result} />;
@@ -86,7 +105,7 @@ export function Panel(): JSX.Element {
   let bodyContent: JSX.Element;
   if (result === null) {
     bodyContent = (
-      <div class={s('emptyState')}>
+      <div class={s('emptyState')} role="status">
         {scanning ? 'Scanning…' : 'Click "Run Scan" to inspect this page.'}
       </div>
     );
@@ -97,7 +116,19 @@ export function Panel(): JSX.Element {
       </div>
     );
   } else {
-    bodyContent = renderTab(activeTab, result);
+    bodyContent = (
+      <div class={s('tabPanel')} role="tabpanel" id="tab-panel" aria-labelledby={tabId(activeTab)}>
+        {renderTab(activeTab, result)}
+      </div>
+    );
+  }
+
+  function selectTabByKey(event: TargetedKeyboardEvent<HTMLDivElement>): void {
+    const next = tabForKey(activeTab, event.key);
+    if (next === undefined) return;
+    event.preventDefault();
+    setActiveTab(next);
+    event.currentTarget.querySelector<HTMLElement>(`#${tabId(next)}`)?.focus();
   }
 
   return (
@@ -135,15 +166,29 @@ export function Panel(): JSX.Element {
           </span>
         )}
       </div>
-      {errorMessage ? <div class={s('errorBanner')}>{errorMessage}</div> : null}
+      {errorMessage ? (
+        <div class={s('errorBanner')} role="alert">
+          {errorMessage}
+        </div>
+      ) : null}
       {!isSdkNotDetected && (
-        <div class={s('tabBar')}>
+        <div
+          class={s('tabBar')}
+          role="tablist"
+          aria-label="Scan result sections"
+          onKeyDown={selectTabByKey}
+        >
           {TABS.map((tab) => {
-            const cls = tab === activeTab ? `${s('tab')} ${s('tabActive')}` : s('tab');
+            const isActive = tab === activeTab;
             return (
               <button
                 key={tab}
-                class={cls}
+                id={tabId(tab)}
+                role="tab"
+                aria-selected={isActive}
+                aria-controls="tab-panel"
+                tabIndex={isActive ? 0 : -1}
+                class={isActive ? `${s('tab')} ${s('tabActive')}` : s('tab')}
                 onClick={() => {
                   setActiveTab(tab);
                 }}
