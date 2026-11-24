@@ -34,7 +34,7 @@ export interface AdyenEndpoint {
 /**
 Origins Adyen Web uses for API calls, CDN images and translations, and checkout analytics.
 */
-export interface AdyenWebOrigins {
+interface AdyenWebOrigins {
   readonly api: string;
   readonly cdn: string;
   readonly analytics: string;
@@ -220,9 +220,38 @@ export function readEnvironmentOption(
 Origins Adyen Web uses for an `environment` option. Mirrors Adyen Web v6:
 names are lowercased and unknown names fall back to the default live origins.
 */
-export function resolveAdyenWebOrigins(environment: string): AdyenWebOrigins {
+function resolveAdyenWebOrigins(environment: string): AdyenWebOrigins {
   const name = environment.toLowerCase();
   return isAdyenWebEnvironment(name) ? ADYEN_WEB_ORIGINS[name] : ADYEN_WEB_ORIGINS.live;
+}
+
+/**
+A request Adyen Web makes, and what it is for.
+*/
+interface AdyenWebRequest {
+  readonly url: string;
+  readonly purpose: string;
+}
+
+/**
+The requests Adyen Web makes for an `environment` option, by the CSP
+directive that governs them: the Checkout API and analytics, translations
+when they come from the CDN rather than the bundled en-US, and payment
+method logos.
+*/
+export function readAdyenWebRequests(
+  environment: string,
+  areTranslationsFromCdn: boolean
+): Readonly<Record<'connect-src' | 'img-src', readonly AdyenWebRequest[]>> {
+  const origins = resolveAdyenWebOrigins(environment);
+  return {
+    'connect-src': [
+      { url: `${origins.api}v1/`, purpose: 'checkout API' },
+      { url: `${origins.analytics}v3/analytics`, purpose: 'checkout analytics' },
+      ...(areTranslationsFromCdn ? [{ url: `${origins.cdn}sdk/`, purpose: 'translations' }] : []),
+    ],
+    'img-src': [{ url: `${origins.cdn}images/logos/card.svg`, purpose: 'logos' }],
+  };
 }
 
 /**

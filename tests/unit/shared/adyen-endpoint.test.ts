@@ -6,8 +6,8 @@ import {
   isSessionsRequest,
   readAdyenEndpoint,
   readEnvironmentOption,
+  readAdyenWebRequests,
   readTranslationLocale,
-  resolveAdyenWebOrigins,
   servedRegion,
 } from '../../../src/shared/adyen-endpoint';
 
@@ -125,14 +125,30 @@ describe('Adyen Web environment options', () => {
     }
   );
 
-  it('resolves the origins Adyen Web uses, falling back to live for unknown names', () => {
-    expect(resolveAdyenWebOrigins('LIVE-US').api).toBe(
-      'https://checkoutshopper-live-us.adyen.com/checkoutshopper/'
-    );
-    expect(resolveAdyenWebOrigins('test').cdn).toBe(
-      'https://checkoutshopper-test.cdn.adyen.com/checkoutshopper/'
-    );
-    expect(resolveAdyenWebOrigins('staging')).toEqual(resolveAdyenWebOrigins('live'));
+  it('lists the requests Adyen Web makes per CSP directive, falling back to live for unknown names', () => {
+    expect(readAdyenWebRequests('LIVE-US', false)).toEqual({
+      'connect-src': [
+        {
+          url: 'https://checkoutshopper-live-us.adyen.com/checkoutshopper/v1/',
+          purpose: 'checkout API',
+        },
+        {
+          url: 'https://checkoutanalytics-live-us.adyen.com/checkoutanalytics/v3/analytics',
+          purpose: 'checkout analytics',
+        },
+      ],
+      'img-src': [
+        {
+          url: 'https://checkoutshopper-live-us.cdn.adyen.com/checkoutshopper/images/logos/card.svg',
+          purpose: 'logos',
+        },
+      ],
+    });
+    expect(readAdyenWebRequests('test', true)['connect-src']).toContainEqual({
+      url: 'https://checkoutshopper-test.cdn.adyen.com/checkoutshopper/sdk/',
+      purpose: 'translations',
+    });
+    expect(readAdyenWebRequests('staging', false)).toEqual(readAdyenWebRequests('live', false));
   });
 });
 

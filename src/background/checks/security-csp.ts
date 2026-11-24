@@ -3,11 +3,7 @@ Security checks (`security`) — Content-Security-Policy compatibility with Adye
 */
 
 import type { ScanPayload } from '../../shared/types.js';
-import {
-  isAdyenCheckoutResource,
-  resolveAdyenWebOrigins,
-  type AdyenWebOrigins,
-} from '../../shared/adyen-endpoint.js';
+import { isAdyenCheckoutResource, readAdyenWebRequests } from '../../shared/adyen-endpoint.js';
 import { ADYEN_WEB_TRANSLATION_LOCALES } from '../../shared/constants.js';
 import { readCheckoutField } from '../../shared/scan-evidence.js';
 import { COMMON_DETAILS, SKIP_REASONS } from './constants.js';
@@ -66,12 +62,16 @@ const STRINGS = {
   CONNECT_SRC_SKIP_TITLE: 'CSP connect-src check skipped.',
   CONNECT_SRC_PASS_TITLE: 'CSP connect-src allows the Adyen Web endpoints for this environment.',
   CONNECT_SRC_WARN_TITLE: 'CSP connect-src may block Adyen Web requests.',
+  CONNECT_SRC_WARN_CONSEQUENCE:
+    'Adyen Web calls these origins for Sessions, card BIN lookups, checkout attempt IDs, and localized text.',
   CONNECT_SRC_WARN_REMEDIATION:
     'Allow the listed Adyen origins in connect-src (or default-src when connect-src is not set). Adyen recommends connect-src * because some payment methods also call their own domains.',
 
   IMG_SRC_SKIP_TITLE: 'CSP img-src check skipped.',
   IMG_SRC_PASS_TITLE: 'CSP img-src allows Adyen payment method logos.',
   IMG_SRC_WARN_TITLE: 'CSP img-src may block Adyen payment method logos.',
+  IMG_SRC_WARN_CONSEQUENCE:
+    'Adyen Web loads payment method and card brand logos from this origin, so blocked images leave empty icons in checkout.',
   IMG_SRC_WARN_REMEDIATION:
     'Allow the Adyen CDN origin in img-src (or default-src when img-src is not set). Adyen recommends img-src *.',
 
@@ -132,15 +132,12 @@ function skipUnenforced(
 }
 
 /**
-The origins Adyen Web uses for the configured environment, else for a test environment signal.
+The Adyen Web environment: the configured option, else test when a test signal shows it.
 */
-function resolveAdyenWebUrls(
-  payload: ScanPayload,
-  { attributes }: CheckContext
-): AdyenWebOrigins | null {
+function adyenWebEnvironment(payload: ScanPayload, { attributes }: CheckContext): string | null {
   const environment = readCheckoutField(payload, 'environment');
-  if (environment.state === 'present') return resolveAdyenWebOrigins(environment.value);
-  return attributes.environment.value === 'test' ? resolveAdyenWebOrigins('test') : null;
+  if (environment.state === 'present') return environment.value;
+  return attributes.environment.value === 'test' ? 'test' : null;
 }
 
 const CDN_TRANSLATION_LANGUAGES = new Set(
@@ -157,21 +154,39 @@ function areCdnTranslationsFetched(payload: ScanPayload): boolean {
   return language !== 'en' && CDN_TRANSLATION_LANGUAGES.has(language);
 }
 
-interface RequiredCspUrl {
-  readonly url: string;
-  readonly purpose: string;
+interface RequestCheckStrings {
+  readonly skipTitle: string;
+  readonly passTitle: string;
+  readonly warnTitle: string;
+  readonly warnConsequence: string;
+  readonly warnRemediation: string;
 }
 
-function describeBlockedUrls(blocked: readonly RequiredCspUrl[]): string {
-  return blocked.map(({ url, purpose }) => `${new URL(url).origin} (${purpose})`).join(', ');
-}
-
-function findBlockedUrls(
-  policy: EnforcedPolicy,
+/**
+Checks that the policy allows the requests Adyen Web makes under one directive.
+*/
+function runRequestCheck(
   directive: 'connect-src' | 'img-src',
-  required: readonly RequiredCspUrl[]
-): RequiredCspUrl[] {
-  return required.filter(({ url }) => !policy.allows(directive, url));
+  strings: RequestCheckStrings,
+  payload: ScanPayload,
+  context: CheckContext
+): CheckOutcome {
+  const { skip, pass, warn } = context;
+  const policy = readPagePolicy(payload);
+  if (policy.status !== 'enforced') return skipUnenforced(policy, strings.skipTitle, context);
+  const environment = adyenWebEnvironment(payload, context);
+  if (environment === null) return skip(strings.skipTitle, STRINGS.NO_ENV_SKIP_REASON);
+
+  const requests = readAdyenWebRequests(environment, areCdnTranslationsFetched(payload));
+  const blocked = requests[directive].filter(({ url }) => !policy.allows(directive, url));
+  if (blocked.length === 0) return pass(strings.passTitle);
+  const origins = blocked.map(({ url, purpose }) => `${new URL(url).origin} (${purpose})`);
+  return warn(
+    strings.warnTitle,
+    `The policy does not allow ${origins.join(', ')}. ${strings.warnConsequence}`,
+    strings.warnRemediation,
+    ADYEN_PCI_DSS_EXTERNAL_SOURCES_DOC
+  );
 }
 
 export const CSP_CHECKS = createRegistry(CATEGORY)
@@ -251,58 +266,35 @@ export const CSP_CHECKS = createRegistry(CATEGORY)
         )
       : pass(STRINGS.FRAME_SRC_PASS_TITLE);
   })
-  .add('security-csp-connect-src', (payload, context) => {
-    const { skip, pass, warn } = context;
-    const policy = readPagePolicy(payload);
-    if (policy.status !== 'enforced') {
-      return skipUnenforced(policy, STRINGS.CONNECT_SRC_SKIP_TITLE, context);
-    }
-    const urls = resolveAdyenWebUrls(payload, context);
-    if (urls === null) {
-      return skip(STRINGS.CONNECT_SRC_SKIP_TITLE, STRINGS.NO_ENV_SKIP_REASON);
-    }
-
-    const required: RequiredCspUrl[] = [
-      { url: `${urls.api}v1/`, purpose: 'checkout API' },
-      { url: `${urls.analytics}v3/analytics`, purpose: 'checkout analytics' },
-      ...(areCdnTranslationsFetched(payload)
-        ? [{ url: `${urls.cdn}sdk/`, purpose: 'translations' }]
-        : []),
-    ];
-    const blocked = findBlockedUrls(policy, 'connect-src', required);
-    return blocked.length === 0
-      ? pass(STRINGS.CONNECT_SRC_PASS_TITLE)
-      : warn(
-          STRINGS.CONNECT_SRC_WARN_TITLE,
-          `The policy does not allow ${describeBlockedUrls(blocked)}. Adyen Web calls these origins for Sessions, card BIN lookups, checkout attempt IDs, and localized text.`,
-          STRINGS.CONNECT_SRC_WARN_REMEDIATION,
-          ADYEN_PCI_DSS_EXTERNAL_SOURCES_DOC
-        );
-  })
+  .add('security-csp-connect-src', (payload, context) =>
+    runRequestCheck(
+      'connect-src',
+      {
+        skipTitle: STRINGS.CONNECT_SRC_SKIP_TITLE,
+        passTitle: STRINGS.CONNECT_SRC_PASS_TITLE,
+        warnTitle: STRINGS.CONNECT_SRC_WARN_TITLE,
+        warnConsequence: STRINGS.CONNECT_SRC_WARN_CONSEQUENCE,
+        warnRemediation: STRINGS.CONNECT_SRC_WARN_REMEDIATION,
+      },
+      payload,
+      context
+    )
+  )
   .add(
     'security-csp-img-src',
-    (payload, context) => {
-      const { skip, pass, warn } = context;
-      const policy = readPagePolicy(payload);
-      if (policy.status !== 'enforced') {
-        return skipUnenforced(policy, STRINGS.IMG_SRC_SKIP_TITLE, context);
-      }
-      const urls = resolveAdyenWebUrls(payload, context);
-      if (urls === null) {
-        return skip(STRINGS.IMG_SRC_SKIP_TITLE, STRINGS.NO_ENV_SKIP_REASON);
-      }
-
-      const required = [{ url: `${urls.cdn}images/logos/card.svg`, purpose: 'logos' }];
-      const blocked = findBlockedUrls(policy, 'img-src', required);
-      return blocked.length === 0
-        ? pass(STRINGS.IMG_SRC_PASS_TITLE)
-        : warn(
-            STRINGS.IMG_SRC_WARN_TITLE,
-            `The policy does not allow ${describeBlockedUrls(blocked)}. Adyen Web loads payment method and card brand logos from this origin, so blocked images leave empty icons in checkout.`,
-            STRINGS.IMG_SRC_WARN_REMEDIATION,
-            ADYEN_PCI_DSS_EXTERNAL_SOURCES_DOC
-          );
-    },
+    (payload, context) =>
+      runRequestCheck(
+        'img-src',
+        {
+          skipTitle: STRINGS.IMG_SRC_SKIP_TITLE,
+          passTitle: STRINGS.IMG_SRC_PASS_TITLE,
+          warnTitle: STRINGS.IMG_SRC_WARN_TITLE,
+          warnConsequence: STRINGS.IMG_SRC_WARN_CONSEQUENCE,
+          warnRemediation: STRINGS.IMG_SRC_WARN_REMEDIATION,
+        },
+        payload,
+        context
+      ),
     { warnImpact: 'low' }
   )
   .add('security-csp-form-action', (payload, context) => {
