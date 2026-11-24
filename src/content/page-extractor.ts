@@ -11,7 +11,7 @@ import {
 } from '../shared/adyen-endpoint.js';
 import { reportedAnalytics } from '../shared/checkout-analytics.js';
 import { readCheckoutCapture } from '../shared/checkout-capture.js';
-import { readCheckoutDom } from '../shared/checkout-signals.js';
+import { collectShadowRoots, readCheckoutDom } from '../shared/checkout-signals.js';
 import { mergeCheckoutConfigs, readCheckoutOptions } from '../shared/checkout-config-schema.js';
 import { DF_IFRAME_URL_PATTERN, PAGE_GLOBALS, type PageGlobalValues } from '../shared/constants.js';
 import { findSdkVersionInUrls } from '../shared/sdk-version.js';
@@ -268,21 +268,9 @@ function findAllVnodeRoots(): ElementWithVnode[] {
 Finds Adyen checkout elements including inside Shadow DOMs.
 */
 function findAdyenElements(): Element[] {
-  const results = [...document.querySelectorAll('[class*="adyen-checkout"]')];
-
-  function findShadowHosts(element: Element, depth: number): void {
-    if (depth > 6) return;
-    if (element.shadowRoot !== null) {
-      const adyenInShadow = [...element.shadowRoot.querySelectorAll('[class*="adyen-checkout"]')];
-      results.push(...adyenInShadow);
-    }
-    for (const child of element.children) {
-      findShadowHosts(child, depth + 1);
-    }
-  }
-
-  findShadowHosts(document.body, 0);
-  return results;
+  return [document, ...collectShadowRoots(document)].flatMap((root) => [
+    ...root.querySelectorAll('[class*="adyen-checkout"]'),
+  ]);
 }
 
 function collectMountPoints(adyenElements: Element[]): Set<ElementWithVnode> {

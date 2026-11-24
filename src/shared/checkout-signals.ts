@@ -71,20 +71,58 @@ function isAdyenIframe({ name, src }: IframeIdentity): boolean {
 }
 
 /**
-Reads what a document's DOM shows of mounted checkout.
+At most this many elements are inspected for shadow roots, so very large pages stay cheap.
 */
-export function readCheckoutDom(root: ParentNode): CheckoutDom {
-  const hasElement = (selector: string): boolean => root.querySelector(selector) !== null;
+const SHADOW_SCAN_LIMIT = 20_000;
+
+/**
+Returns the open shadow roots under a root, nested ones included, for
+checkout that web components or design systems mount inside Shadow DOM.
+*/
+export function collectShadowRoots(root: ParentNode): ShadowRoot[] {
+  const shadowRoots: ShadowRoot[] = [];
+  const pending: ParentNode[] = [root];
+  let scanned = 0;
+  for (let current = pending.pop(); current !== undefined; current = pending.pop()) {
+    for (const element of current.querySelectorAll('*')) {
+      scanned += 1;
+      if (scanned > SHADOW_SCAN_LIMIT) return shadowRoots;
+      if (element.shadowRoot === null) {
+        continue;
+      }
+
+      shadowRoots.push(element.shadowRoot);
+      pending.push(element.shadowRoot);
+    }
+  }
+  return shadowRoots;
+}
+
+function readDom(roots: readonly ParentNode[]): CheckoutDom {
+  const hasElement = (selector: string): boolean =>
+    roots.some((root) => root.querySelector(selector) !== null);
   return {
     dropin: hasElement(SELECTORS.dropin),
     card: hasElement(SELECTORS.card),
     newCardForm: hasElement(SELECTORS.newCardForm),
     cardHolderName: hasElement(SELECTORS.cardHolderName),
     anyElement: hasElement(SELECTORS.anyElement),
-    adyenIframe: [...root.querySelectorAll('iframe')].some((frame) =>
-      isAdyenIframe({ name: frame.name, src: frame.src })
+    adyenIframe: roots.some((root) =>
+      [...root.querySelectorAll('iframe')].some((frame) =>
+        isAdyenIframe({ name: frame.name, src: frame.src })
+      )
     ),
   };
+}
+
+/**
+Reads what a document's DOM shows of mounted checkout. Open shadow roots are
+searched only when the light DOM shows no checkout, which keeps the common
+case to a few selector queries.
+*/
+export function readCheckoutDom(root: ParentNode): CheckoutDom {
+  const light = readDom([root]);
+  return hasMountedCheckout(light) ? light : readDom([root, ...collectShadowRoots(root)]);
 }
 
 /**

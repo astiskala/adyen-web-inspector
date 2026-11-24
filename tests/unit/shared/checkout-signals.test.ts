@@ -6,6 +6,7 @@ import {
   readCheckoutDom,
   isRenderingCheckout,
   hasMountedCheckout,
+  collectShadowRoots,
 } from '../../../src/shared/checkout-signals';
 import {
   makeAdyenMetadata,
@@ -21,7 +22,42 @@ beforeEach(() => {
   document.body.replaceChildren();
 });
 
+/**
+Nests a shadow host `depth` elements below body and returns its open shadow root.
+*/
+function deepShadowRoot(depth: number): ShadowRoot {
+  let parent: HTMLElement = document.body;
+  for (let level = 0; level < depth; level += 1) {
+    const child = document.createElement('div');
+    parent.append(child);
+    parent = child;
+  }
+  return parent.attachShadow({ mode: 'open' });
+}
+
 describe('readCheckoutDom', () => {
+  it('finds checkout mounted deep inside nested open shadow roots', () => {
+    const outer = deepShadowRoot(12);
+    const host = document.createElement('checkout-widget');
+    outer.append(host);
+    const inner = host.attachShadow({ mode: 'open' });
+    inner.innerHTML =
+      '<div class="adyen-checkout__dropin"><div class="adyen-checkout__card-input"></div></div>';
+
+    expect(readCheckoutDom(document)).toMatchObject({ dropin: true, card: true, anyElement: true });
+    expect(collectShadowRoots(document)).toEqual([outer, inner]);
+  });
+
+  it('stops looking for shadow roots on very large pages', () => {
+    const filler = document.createElement('div');
+    filler.innerHTML = '<span></span>'.repeat(20_001);
+    document.body.append(filler);
+    deepShadowRoot(1).innerHTML = '<div class="adyen-checkout__dropin"></div>';
+
+    expect(collectShadowRoots(document)).toEqual([]);
+    expect(readCheckoutDom(document).dropin).toBe(false);
+  });
+
   it('reads a mounted Drop-in with a new-card form and cardholder name field', () => {
     document.body.innerHTML = `
       <div class="adyen-checkout__dropin">

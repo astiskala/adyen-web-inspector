@@ -302,6 +302,26 @@ describe('page extractor mounted component configuration', () => {
     await expect(extractPage()).resolves.toMatchObject({ componentMountCount: 1 });
   });
 
+  it('reads a checkout mounted in a shadow root deep in the page', async () => {
+    let parent: HTMLElement = document.body;
+    for (let level = 0; level < 10; level += 1) {
+      const child = document.createElement('section');
+      parent.append(child);
+      parent = child;
+    }
+    const shadow = parent.attachShadow({ mode: 'open' });
+    mountTree(
+      '<div class="adyen-checkout__dropin"></div>',
+      coreOptions({ locale: 'sv-SE' }),
+      shadow
+    );
+
+    await expect(extractPage()).resolves.toMatchObject({
+      observedConfig: { component: { locale: 'sv-SE' } },
+      hasDropinDOM: true,
+    });
+  });
+
   it('finds mounts inside shadow roots and merges them, earlier mounts winning', async () => {
     mountTree('<div class="adyen-checkout__card-input"></div>', coreOptions({ locale: 'nl-NL' }));
     const host = document.createElement('div');
@@ -509,19 +529,6 @@ describe('page extractor tree walk limits', () => {
     await expect(extractPage()).resolves.toMatchObject({
       observedConfig: { component: { countryCode: 'NL' } },
     });
-  });
-
-  it('does not look for shadow hosts nested deeper than seven levels', async () => {
-    let parent: Element = document.body;
-    for (let level = 0; level < 8; level += 1) {
-      const child = document.createElement('div');
-      parent.append(child);
-      parent = child;
-    }
-    const shadow = parent.attachShadow({ mode: 'open' });
-    mountTree('<div class="adyen-checkout__dropin"></div>', coreOptions({ locale: 'a' }), shadow);
-
-    await expect(extractPage()).resolves.toMatchObject({ observedConfig: { component: null } });
   });
 
   it('does not count trees whose core options are not an object', async () => {
