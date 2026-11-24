@@ -9,6 +9,7 @@ import {
   makeAnalyticsData,
   makeCapturedConfig,
 } from '../../fixtures/makeScanPayload';
+import type { AnalyticsComponentEvents, RenderedComponent } from '../../../src/shared/types';
 import { requireCheck } from './requireCheck';
 
 const flowType = requireCheck(CALLBACK_CHECKS, 'flow-type');
@@ -256,7 +257,7 @@ describe('callback-on-submit-filtering', () => {
       {},
       {
         onSubmitSource:
-          "onSubmit: (state, component, actions) => { if (state.data.paymentMethod.type === 'scheme') { actions.resolve(result); } switch (resultCode) { case 'Authorised': break; } }",
+          "onSubmit: (state, component, actions) => { if (state.data.paymentMethod.type === 'scheme') { return; } switch (resultCode) { case 'Authorised': actions.resolve(result); break; } }",
       }
     );
     const result = onSubmitSelectiveHandling.run(payload);
@@ -301,6 +302,58 @@ describe('callback-on-submit-filtering', () => {
     );
 
     expect(onSubmitSelectiveHandling.run(payload).severity).toBe('notice');
+  });
+
+  it.each([
+    [
+      'a method-specific branch falls through to shared resolution',
+      "if (state.data.paymentMethod.type === 'scheme') { state.data.storePaymentMethod = true; } const result = await pay(state.data); actions.resolve(result);",
+    ],
+    [
+      'a method-specific branch resolves and returns before shared resolution',
+      "if (state.data.paymentMethod.type === 'paypal') { actions.resolve(await payPal(state.data)); return; } actions.resolve(await pay(state.data));",
+    ],
+    [
+      'a method switch without default falls through to shared resolution',
+      "switch (state.data.paymentMethod.type) { case 'scheme': state.data.foo = 1; break; } actions.resolve(await pay(state.data));",
+    ],
+  ])('requests manual review when %s', (_case, body) => {
+    const payload = makeAdyenPayload(
+      {},
+      { onSubmitSource: `onSubmit: async (state, component, actions) => { ${body} }` }
+    );
+
+    expect(onSubmitSelectiveHandling.run(payload).severity).toBe('notice');
+  });
+
+  it('does not warn when a method-specific branch falls through to a helper that receives actions', () => {
+    const payload = makeAdyenPayload(
+      {},
+      {
+        onSubmitSource:
+          "onSubmit: (state, component, actions) => { if (state.data.paymentMethod.type === 'scheme') { state.data.storePaymentMethod = true; } return submitPayment(state.data, actions); }",
+      }
+    );
+
+    expect(onSubmitSelectiveHandling.run(payload).severity).toBe('info');
+  });
+
+  it.each([
+    [
+      'a method-specific branch returns without resolving',
+      "if (state.data.paymentMethod.type === 'scheme') { return; } actions.resolve(await pay(state.data));",
+    ],
+    [
+      'a method switch case throws without resolving',
+      "switch (state.data.paymentMethod.type) { case 'paypal': throw new Error('unsupported'); } actions.resolve(await pay(state.data));",
+    ],
+  ])('warns when %s', (_case, body) => {
+    const payload = makeAdyenPayload(
+      {},
+      { onSubmitSource: `onSubmit: async (state, component, actions) => { ${body} }` }
+    );
+
+    expect(onSubmitSelectiveHandling.run(payload).severity).toBe('warn');
   });
 
   it('skips when flow is Sessions', () => {
@@ -710,6 +763,11 @@ describe('callback-multiple-submissions', () => {
     expect(multipleSubmissions.run(payload).severity).toBe('info');
   });
 
+  it('skips when combined source is empty', () => {
+    const payload = makeAdyenPayload({}, { onSubmitSource: '', beforeSubmitSource: '' });
+    expect(multipleSubmissions.run(payload).severity).toBe('skip');
+  });
+
   it('returns notice when no prevention pattern detected', () => {
     const payload = makeAdyenPayload(
       {},
@@ -721,75 +779,145 @@ describe('callback-multiple-submissions', () => {
   });
 });
 
+function rendered(type: string, showPayButton: boolean): RenderedComponent {
+  return { type, showPayButton };
+}
+
 describe('callback-custom-pay-button-compatibility', () => {
-  it('skips when no indicators of custom pay button', () => {
-    const payload = makeAdyenPayload(
-      {},
-      { beforeSubmit: undefined, onSubmitSource: 'actions.resolve()' }
-    );
-    expect(customPayButtonCompat.run(payload).severity).toBe('skip');
+  const NO_EVENTS = { rendered: [], paymentMethods: [] } as const;
+
+  function payButtonPayload(
+    events: Partial<AnalyticsComponentEvents> | null,
+    config: Parameters<typeof makeCheckoutConfig>[0] = {}
+  ): ReturnType<typeof makeScanPayload> {
+    return makeScanPayload({
+      page: makeCheckoutPage({
+        capturedConfig: makeCapturedConfig(makeCheckoutConfig(config), true),
+        ...(events === null ? {} : { analyticsEvents: { ...NO_EVENTS, ...events } }),
+      }),
+    });
+  }
+
+  it('skips when no checkout configuration or analytics events were captured', () => {
+    const result = customPayButtonCompat.run(makeScanPayload());
+    expect(result.severity).toBe('skip');
+    expect(result.detail).toBe('Checkout config not detected.');
   });
 
-  it('skips when a custom button is detected without a payment method inventory', () => {
-    const payload = makeAdyenPayload({}, { beforeSubmit: 'checkout' });
-    expect(customPayButtonCompat.run(payload).severity).toBe('skip');
+  it('skips with rescan guidance when no component reported its pay button', () => {
+    const result = customPayButtonCompat.run(payButtonPayload({ paymentMethods: ['paypal'] }));
+    expect(result.severity).toBe('skip');
+    expect(result.detail).toContain('analytics');
+    expect(result.detail).toContain('10 seconds');
   });
 
-  it('passes when custom button indicators present but no unsupported methods', () => {
-    const payload = makeAdyenPayload(
-      {},
-      { beforeSubmit: 'checkout' },
-      { analyticsData: makeAnalyticsData({ variants: ['scheme', 'ideal'] }) }
+  it('passes when every rendered component shows its own pay button', () => {
+    const payload = payButtonPayload({
+      rendered: [rendered('paypal', true), rendered('klarna', true), rendered('scheme', false)],
+      paymentMethods: ['paypal', 'klarna', 'scheme'],
+    });
+    expect(customPayButtonCompat.run(payload).severity).toBe('pass');
+  });
+
+  it('passes for selective onSubmit handling when PayPal keeps its own button', () => {
+    const payload = payButtonPayload(
+      { rendered: [rendered('scheme', true), rendered('paypal', true)] },
+      {
+        onSubmitSource:
+          "onSubmit: (state, component, actions) => { if (state.data.paymentMethod.type === 'scheme') { actions.resolve(r); } }",
+        beforeSubmit: 'checkout',
+      }
     );
     expect(customPayButtonCompat.run(payload).severity).toBe('pass');
   });
 
-  it('warns when custom button used with Klarna detected in analytics', () => {
-    const payload = makeAdyenPayload(
-      {},
-      { beforeSubmit: 'checkout' },
-      { analyticsData: makeAnalyticsData({ variants: ['klarna', 'scheme'] }) }
+  it('fails when PayPal rendered without its pay button', () => {
+    const result = customPayButtonCompat.run(
+      payButtonPayload({ rendered: [rendered('paypal', false)] })
     );
-    const result = customPayButtonCompat.run(payload);
+    expect(result.severity).toBe('fail');
+    expect(result.title).toBe('Custom pay button used with unsupported payment methods: PayPal.');
+    expect(result.detail).toContain('PayPal rendered with showPayButton: false');
+    expect(result.docsUrl).toBe(
+      'https://docs.adyen.com/online-payments/web-best-practices/#unsupported-payment-methods'
+    );
+  });
+
+  it('warns when any Klarna variant or a standalone Click to Pay rendered without its button', () => {
+    const result = customPayButtonCompat.run(
+      payButtonPayload({
+        rendered: [
+          rendered('klarna_account', false),
+          rendered('klarna_paynow', false),
+          rendered('clicktopay', false),
+        ],
+      })
+    );
     expect(result.severity).toBe('warn');
-    expect(result.title).toContain('klarna');
+    expect(result.title).toBe(
+      'Custom pay button used with unsupported payment methods: Klarna and Click to Pay.'
+    );
   });
 
-  it('warns when custom button used with PayPal detected in requests', () => {
-    const payload = makeAdyenPayload(
-      {},
-      { beforeSubmit: 'checkout' },
-      { capturedRequests: [makeRequest('https://checkout-test.adyen.com/v71/payments/paypal')] }
+  it('fails for Drop-in configuration that hides PayPal before the shopper selects it', () => {
+    const result = customPayButtonCompat.run(
+      payButtonPayload(null, { hiddenPayButtonMethods: ['paypal', 'ideal'] })
     );
-    const result = customPayButtonCompat.run(payload);
+    expect(result.severity).toBe('fail');
+    expect(result.detail).toContain(
+      'PayPal has showPayButton: false in paymentMethodsConfiguration'
+    );
+  });
+
+  it('flags offered methods that inherit showPayButton: false from AdyenCheckout', () => {
+    const result = customPayButtonCompat.run(
+      payButtonPayload(
+        { rendered: [rendered('scheme', false)], paymentMethods: ['scheme', 'klarna'] },
+        { showPayButton: false }
+      )
+    );
     expect(result.severity).toBe('warn');
-    expect(result.title).toContain('paypal');
+    expect(result.detail).toContain('Klarna inherits showPayButton: false from AdyenCheckout');
   });
 
-  it('passes when custom button is used with Apple Pay', () => {
-    const payload = makeAdyenPayload(
-      {},
-      { beforeSubmit: 'checkout' },
-      { analyticsData: makeAnalyticsData({ variants: ['applepay'] }) }
+  it('lets the showPayButton a component rendered with override inherited configuration', () => {
+    const payload = payButtonPayload(
+      { rendered: [rendered('paypal', true)], paymentMethods: ['paypal', 'scheme'] },
+      { showPayButton: false, hiddenPayButtonMethods: ['paypal'] }
     );
-    const result = customPayButtonCompat.run(payload);
-    expect(result.severity).toBe('pass');
+    expect(customPayButtonCompat.run(payload).severity).toBe('pass');
   });
 
-  it('warns when custom button used with Click to Pay detected in analytics', () => {
-    const payload = makeAdyenPayload(
-      {},
-      { beforeSubmit: 'checkout' },
-      { analyticsData: makeAnalyticsData({ variants: ['clicktopay'] }) }
+  it('does not flag AdyenCheckout showPayButton: false for methods that are not offered', () => {
+    const payload = payButtonPayload(
+      { rendered: [rendered('scheme', false)], paymentMethods: ['scheme'] },
+      { showPayButton: false }
     );
-    const result = customPayButtonCompat.run(payload);
+    expect(customPayButtonCompat.run(payload).severity).toBe('pass');
+  });
+
+  it.each([
+    ['the Card component rendered without its button', [rendered('scheme', false)], {}],
+    ['Drop-in configuration hides the card button', [], { hiddenPayButtonMethods: ['card'] }],
+  ])('warns for Click to Pay inside Card when %s', (_case, components, config) => {
+    const result = customPayButtonCompat.run(
+      payButtonPayload({ rendered: components, paymentMethods: ['scheme', 'clicktopay'] }, config)
+    );
     expect(result.severity).toBe('warn');
-    expect(result.title).toContain('clicktopay');
+    expect(result.title).toContain('Click to Pay');
   });
 
-  it('skips when combined source is empty', () => {
-    const payload = makeAdyenPayload({}, { onSubmitSource: '', beforeSubmitSource: '' });
-    expect(multipleSubmissions.run(payload).severity).toBe('skip');
+  it('does not flag Click to Pay when it is disabled on Card or was never loaded', () => {
+    const disabled = payButtonPayload({
+      rendered: [{ type: 'scheme', showPayButton: false, clickToPayDisabled: true }],
+      paymentMethods: ['scheme', 'clicktopay'],
+    });
+    const notLoaded = payButtonPayload({
+      rendered: [rendered('scheme', false)],
+      paymentMethods: ['scheme'],
+    });
+    expect(customPayButtonCompat.run(disabled).severity).toBe('pass');
+    expect(customPayButtonCompat.run(notLoaded).severity).toBe('pass');
   });
 });
 

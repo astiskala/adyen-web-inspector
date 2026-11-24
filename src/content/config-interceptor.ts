@@ -6,17 +6,21 @@
  * 1. Global AdyenCheckout/AdyenWeb property traps wrap exposed factories and
  *    component constructors; promise results can expose instance options.
  * 2. Wrapped page fetch and XMLHttpRequest.open calls inspect Adyen request
- *    URLs for environment, locale, countryCode, and clientKey signals. They do
- *    not read request bodies or initiate additional network requests.
+ *    URLs for environment, locale, countryCode, and clientKey signals. Fetch
+ *    also reads string bodies sent to Adyen checkout analytics hosts, keeping
+ *    only component events; no other request body is read, and no additional
+ *    network requests are initiated.
  * 3. Wrapped JSON.parse inspects parsed objects for config-shaped fields.
  *
  * Everything observed goes into one capture record (shared/checkout-capture.ts),
  * published on a page global for the on-demand page extractor to read.
  */
 
+import { readAdyenEndpoint } from '../shared/adyen-endpoint.js';
 import {
   EMPTY_CHECKOUT_CAPTURE,
   readRequestInference,
+  recordAnalyticsEvents,
   recordCheckoutInit,
   recordCheckoutOptions,
   recordInference,
@@ -93,14 +97,28 @@ import type { CallbackSource, CheckoutCapture } from '../shared/types.js';
     return result;
   };
 
+  /** Request bodies stream, so only string bodies passed in `init` are read. */
+  function tryCaptureAnalytics(url: string, body: unknown): void {
+    if (typeof body !== 'string' || readAdyenEndpoint(url)?.role !== 'analytics') return;
+    try {
+      commit(recordAnalyticsEvents(capture, originalParse.call(JSON, body) as unknown));
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function fetchUrl(input: RequestInfo | URL): string | null {
+    if (typeof input === 'string') return input;
+    if (input instanceof URL) return input.toString();
+    return input instanceof Request ? input.url : null;
+  }
+
   const originalFetch = globalThis.fetch;
   globalThis.fetch = function (input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-    if (typeof input === 'string') {
-      tryCaptureFromUrl(input);
-    } else if (input instanceof URL) {
-      tryCaptureFromUrl(input.toString());
-    } else if (input instanceof Request) {
-      tryCaptureFromUrl(input.url);
+    const url = fetchUrl(input);
+    if (url !== null) {
+      tryCaptureFromUrl(url);
+      tryCaptureAnalytics(url, init?.body);
     }
 
     return originalFetch.call(globalThis, input, init);

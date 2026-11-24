@@ -98,37 +98,38 @@ Allowed types: `feat`, `fix`, `chore`, `docs`, `style`, `refactor`, `test`, `ci`
 
 ### Key Runtime Components
 
-| Component                 | Entry                                             | Role                                                     |
-| ------------------------- | ------------------------------------------------- | -------------------------------------------------------- |
-| Background service worker | `src/background/worker.ts`                        | Routes messages and tab events to the tab state          |
-| Tab state                 | `src/background/tab-state.ts`                     | Per-tab storage keys, badge, Scan lifecycle, snapshots   |
-| Chrome tab state adapter  | `src/background/chrome-tab-state-browser.ts`      | Chrome adapter for the tab state port                    |
-| Scan orchestrator         | `src/background/scan-orchestrator.ts`             | Scan sequencing and retries through the browser port     |
-| Frame merge               | `src/background/frame-merge.ts`                   | Frame extractions → Checkout page, per-field scope       |
-| Captured traffic          | `src/background/captured-traffic.ts`              | Raw network → document headers, requests, analytics      |
-| Scan browser port         | `src/background/scan-browser.ts`                  | Port types the Scan needs from the browser               |
-| Chrome scan adapter       | `src/background/chrome-scan-browser.ts`           | Chrome adapter for the port; document and script fetches |
-| Network recorder          | `src/background/network-recorder.ts`              | Records raw responses and analytics bodies during scans  |
-| Check modules             | `src/background/checks/`                          | Pure `Check` implementations                             |
-| Page policy               | `src/background/checks/page-policy.ts`            | Document header evidence and the enforced CSP for checks |
-| Callback source           | `src/background/checks/callback-source.ts`        | Reads captured onSubmit/beforeSubmit source for checks   |
-| Config interceptor        | `src/content/config-interceptor.ts`               | MAIN-world SDK config capture (CDN + NPM)                |
-| Content script            | `src/content/detector.ts`                         | Lightweight always-on checkout activity signal           |
-| Page extractor            | `src/content/page-extractor.ts`                   | MAIN-world extraction of page globals/config             |
-| Popup                     | `src/popup/Popup.tsx` → `PopupApp.tsx`            | Quick health summary + scan trigger                      |
-| Scan lifecycle hook       | `src/popup/components/useScanLifecycle.ts`        | Renders a tab snapshot through the tab state client      |
-| Chrome tab state client   | `src/popup/components/chrome-tab-state-client.ts` | Chrome adapter for the client: runtime messages          |
-| DevTools panel            | `src/devtools/panel/`                             | Full inspection UI                                       |
-| Shared contracts          | `src/shared/types.ts`                             | Core interfaces and types used across layers             |
-| Adyen endpoint            | `src/shared/adyen-endpoint.ts`                    | What an Adyen URL means: role, environment, region       |
-| Capture record            | `src/shared/checkout-capture.ts`                  | How the interceptor accumulates captures in a frame      |
-| Config field schema       | `src/shared/checkout-config-schema.ts`            | Raw options → `CheckoutConfig` for all captures          |
-| Configuration evidence    | `src/shared/scan-evidence.ts`                     | Present / absent / unobserved per config field           |
-| Checkout signals          | `src/shared/checkout-signals.ts`                  | Checkout DOM, frame strength, checkout activity          |
-| SDK presence              | `src/shared/sdk-presence.ts`                      | SDK presence verdict stored on `ScanResult`              |
-| SDK version               | `src/shared/sdk-version.ts`                       | Version signals, URL/bundle patterns, release dates      |
-| Implementation attributes | `src/shared/implementation-attributes.ts`         | Flavor, flow, environment, region; once per scan         |
-| Finding projection        | `src/shared/export-report.ts`                     | Issue rows for popup, panel, and reports                 |
+| Component                 | Entry                                             | Role                                                      |
+| ------------------------- | ------------------------------------------------- | --------------------------------------------------------- |
+| Background service worker | `src/background/worker.ts`                        | Routes messages and tab events to the tab state           |
+| Tab state                 | `src/background/tab-state.ts`                     | Per-tab storage keys, badge, Scan lifecycle, snapshots    |
+| Chrome tab state adapter  | `src/background/chrome-tab-state-browser.ts`      | Chrome adapter for the tab state port                     |
+| Scan orchestrator         | `src/background/scan-orchestrator.ts`             | Scan sequencing and retries through the browser port      |
+| Frame merge               | `src/background/frame-merge.ts`                   | Frame extractions → Checkout page, per-field scope        |
+| Captured traffic          | `src/background/captured-traffic.ts`              | Raw network → document headers, requests, analytics       |
+| Scan browser port         | `src/background/scan-browser.ts`                  | Port types the Scan needs from the browser                |
+| Chrome scan adapter       | `src/background/chrome-scan-browser.ts`           | Chrome adapter for the port; document and script fetches  |
+| Network recorder          | `src/background/network-recorder.ts`              | Records raw responses and analytics bodies during scans   |
+| Check modules             | `src/background/checks/`                          | Pure `Check` implementations                              |
+| Page policy               | `src/background/checks/page-policy.ts`            | Document header evidence and the enforced CSP for checks  |
+| Callback source           | `src/background/checks/callback-source.ts`        | Reads captured onSubmit/beforeSubmit source for checks    |
+| Pay button visibility     | `src/background/checks/pay-button.ts`             | Which button-required methods render without their button |
+| Config interceptor        | `src/content/config-interceptor.ts`               | MAIN-world SDK config capture (CDN + NPM)                 |
+| Content script            | `src/content/detector.ts`                         | Lightweight always-on checkout activity signal            |
+| Page extractor            | `src/content/page-extractor.ts`                   | MAIN-world extraction of page globals/config              |
+| Popup                     | `src/popup/Popup.tsx` → `PopupApp.tsx`            | Quick health summary + scan trigger                       |
+| Scan lifecycle hook       | `src/popup/components/useScanLifecycle.ts`        | Renders a tab snapshot through the tab state client       |
+| Chrome tab state client   | `src/popup/components/chrome-tab-state-client.ts` | Chrome adapter for the client: runtime messages           |
+| DevTools panel            | `src/devtools/panel/`                             | Full inspection UI                                        |
+| Shared contracts          | `src/shared/types.ts`                             | Core interfaces and types used across layers              |
+| Adyen endpoint            | `src/shared/adyen-endpoint.ts`                    | What an Adyen URL means: role, environment, region        |
+| Capture record            | `src/shared/checkout-capture.ts`                  | How the interceptor accumulates captures in a frame       |
+| Config field schema       | `src/shared/checkout-config-schema.ts`            | Raw options → `CheckoutConfig` for all captures           |
+| Configuration evidence    | `src/shared/scan-evidence.ts`                     | Present / absent / unobserved per config field            |
+| Checkout signals          | `src/shared/checkout-signals.ts`                  | Checkout DOM, frame strength, checkout activity           |
+| SDK presence              | `src/shared/sdk-presence.ts`                      | SDK presence verdict stored on `ScanResult`               |
+| SDK version               | `src/shared/sdk-version.ts`                       | Version signals, URL/bundle patterns, release dates       |
+| Implementation attributes | `src/shared/implementation-attributes.ts`         | Flavor, flow, environment, region; once per scan          |
+| Finding projection        | `src/shared/export-report.ts`                     | Issue rows for popup, panel, and reports                  |
 
 ### Key Seams
 
@@ -136,7 +137,7 @@ Each seam names the gate that enforces it.
 
 - **Content-script build**: `vite.config.ts` builds each content script as its own self-contained IIFE after the main build, so content scripts may import from `shared/` without emitting ESM chunk imports. _Build_: fails if a content-script bundle contains `import`/`export` statements.
 - **Config field schema**: both capture paths (AdyenCheckout interception and the mounted Preact tree) map raw options through `readCheckoutOptions()` in `src/shared/checkout-config-schema.ts`. Add new captured fields there, never in a capture path. _depcruise_ `config-schema-inline-safe`: the schema may depend on `shared/types.ts` only, because it is inlined into every content script.
-- **Capture record**: the config interceptor records everything it observes in one frame through `src/shared/checkout-capture.ts`: options captured from AdyenCheckout and component calls with their completeness (`CapturedCheckoutOptions`), values inferred per signal (`adyen-request` or `page-json`), and the initialisation count. It publishes the record on one page global, and the page extractor reads it back with `readCheckoutCapture()`, so "complete but no options" cannot be represented. _depcruise_ `checkout-capture-inline-safe`.
+- **Capture record**: the config interceptor records everything it observes in one frame through `src/shared/checkout-capture.ts`: options captured from AdyenCheckout and component calls with their completeness (`CapturedCheckoutOptions`), values inferred per signal (`adyen-request` or `page-json`), the initialisation count, and the component events of Adyen checkout analytics bodies (`recordAnalyticsEvents()`: each component's latest rendered `showPayButton` and the payment methods the events name; the interceptor reads only string bodies sent to analytics hosts, with the native `JSON.parse`). It publishes the record on one page global, and the page extractor reads it back with `readCheckoutCapture()`, so "complete but no options" cannot be represented. _depcruise_ `checkout-capture-inline-safe`.
 - **Configuration evidence**: `src/shared/scan-evidence.ts` is the only reader of the configuration slots (`capturedConfig`, `componentConfig`, `inferredConfig`, `pageJsonConfig`). Checks read checkout options with `readCheckoutField()`, which applies source precedence (captured → component → inferred from Adyen requests → page JSON) and the absence rule, and returns `present` (with its source and, for inferred values, its signal), `absent`, or `unobserved`. Page-level questions go through `checkoutConfigSources()`, `hasCapturedCheckoutConfig()`, and `hasCompleteCheckoutConfig()`; option-shaped page JSON alone never shows that checkout is configured. _ESLint_: checks and the implementation-attribute rules may not read the configuration slots directly.
 - **Scan browser port**: `runScan(tabId, browser)` takes a `ScanBrowser` (`src/background/scan-browser.ts`) and returns the `ScanResult`; the port is I/O only (tab, frames, raw network observations, document and script fetches, npm, clock). The network capture reports raw responses and analytics POST bodies (`ObservedNetwork`); what they mean is the Scan's decision. Production passes `chromeScanBrowser`; unit tests use `createFakeScanBrowser()` from `tests/fixtures/fakeScanBrowser.ts` with a virtual clock, raw network traffic, and in-memory script texts. _depcruise_ `scan-through-browser-port`, `scan-port-types-only`, `chrome-adapter-wired-by-worker`, `browser-io-behind-chrome-adapter`; _ESLint_: the Scan may not use `chrome`, `fetch`, `setTimeout`, or `Date.now`.
 - **Captured traffic**: `readCapturedTraffic()` in `src/background/captured-traffic.ts` turns the raw observations into the checkout document's headers, the main-document and Adyen requests checks read (filled in from the page's script tags, links, and Resource Timing), and the SDK fields of analytics bodies. It decides whose headers apply in one place: the tab's own response when checkout runs in the top document, else a fetch of the checkout document's URL, so availability and content always describe the same document (`DocumentHeaders`). _ESLint_: it follows the Scan's no-`chrome`/`fetch`/clock rule.
@@ -150,6 +151,7 @@ Each seam names the gate that enforces it.
 - **Adyen endpoint**: `src/shared/adyen-endpoint.ts` is the one reading of Adyen URLs: `readAdyenEndpoint()` returns the role (`cdn`, `checkoutshopper`, `checkout-api`, `analytics`, `other`) and the environment and region the host names, and the module also owns the origins Adyen Web derives from its `environment` option, the Checkout API and translation paths, and the analytics host patterns. Traffic capture, the interceptor, the content scripts, implementation attributes, and checks ask it instead of matching hosts. _depcruise_ `adyen-endpoint-inline-safe`: it may depend on `shared/types.ts` only.
 - **Checkout signals**: `src/shared/checkout-signals.ts` is the one definition of checkout activity: the DOM selectors of mounted checkout (`readCheckoutDom()`, `showsMountedCheckout()`), Adyen iframes and merchant documents, frame strength (`checkoutStrength()`, `rendersCheckout()`), and page-level activity (`hasCheckoutActivity()`). The detector and page extractor read the DOM through it, the frame merge ranks frames with it, and implementation attributes decide checkout activity with it. _depcruise_ `checkout-signals-inline-safe`, `evidence-inline-safe`.
 - **Callback source**: callback checks read captured onSubmit and beforeSubmit source through `readOnSubmitSource()` and `readSubmissionGuard()` in `src/background/checks/callback-source.ts`, which decide availability (captured config, not Sessions flow, source present) and possible truncation; the checks keep their own severities. _Module_: the source parsers are private, so checks can only use these readings.
+- **Pay button visibility**: the custom pay button check reads `readPayButtonVisibility()` in `src/background/checks/pay-button.ts`, which decides which of PayPal, Klarna, and Click to Pay would render without their own pay button. Precedence: the `showPayButton` a component reported in its analytics `rendered` event (`CheckoutPage.analyticsEvents`), then `paymentMethodsConfiguration` (`hiddenPayButtonMethods`), then AdyenCheckout's `showPayButton` for offered methods; Click to Pay without its own component follows Card. Callbacks such as `beforeSubmit` or selective `onSubmit` branches are not custom pay button signals, because they fire for the component's own button too.
 - **Finding projection**: every issue view renders `IssueRow`s from `groupIssuesByImpact()` or `buildFindingProjection()` in `src/shared/export-report.ts`; rows carry the impact label, reader-friendly remediation, and a docs link with fallback, so no view sorts or rewords issues (the popup only splits them by severity before grouping). JSON reports flatten the same rows; flow labels come from `INTEGRATION_FLOW_LABELS`. _ESLint_: popup, DevTools, and the worker may not import `shared/results.ts`.
 - **Page globals**: `PageGlobalValues` in `src/shared/constants.ts` declares what each `PAGE_GLOBALS` key holds; the config interceptor and page extractor both read and write through it. _Types_: both scripts type their page globals as `PageGlobalValues`.
 
@@ -236,7 +238,7 @@ Check-specific guidance:
 - `tests/e2e/scenarios.test.ts` scans offline dummy merchant scenarios using `scanFixture()` from `tests/e2e/fixtures.ts`; external script/API requests are fulfilled locally and the npm version cache is seeded for deterministic results.
 - Keep a meaningful browser-result assertion for each registered check ID in `scenarios.test.ts`. Use the optional `duringScan` callback on `scanFixture()` for traffic that must occur during a scan (such as analytics POSTs).
 - `tests/e2e/ui.test.ts` checks what the built popup and DevTools panel render. The popup inspects the active tab of its window, so open it with `openPopupFor()`, which adds it as a background tab beside the fixture page. `openDevtoolsPanelFor()` loads the real panel bundle in a tab and stubs only `chrome.devtools.inspectedWindow.tabId`, because Playwright cannot open DevTools panels.
-- `dummy-adyen-web.js` simulates both the legacy `checkout.create()` path and v6 `AdyenWeb.Dropin`/`Card` constructors; the fixture server stubs `/api/sessions`, `/api/paymentMethods`, `/api/payments`, and `/api/payments/details` without real Adyen requests or credentials.
+- `dummy-adyen-web.js` simulates both the legacy `checkout.create()` path and v6 `AdyenWeb.Dropin`/`Card`/`PayPal` constructors; when a scenario sets `analytics: { enabled: true }`, mounted components also send v6-style `rendered` analytics events with their `showPayButton`; the fixture server stubs `/api/sessions`, `/api/paymentMethods`, `/api/payments`, and `/api/payments/details` without real Adyen requests or credentials.
 
 ---
 

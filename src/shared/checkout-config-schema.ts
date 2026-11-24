@@ -81,6 +81,14 @@ function readRiskEnabled(options: PlainRecord): boolean | undefined {
   return typeof legacy === 'function' ? true : undefined;
 }
 
+/** Payment method types whose per-method configuration hides the pay button. */
+function readHiddenPayButtonMethods(value: unknown): string[] {
+  if (!isPlainRecord(value)) return [];
+  return Object.entries(value)
+    .filter(([, config]) => isPlainRecord(config) && config['showPayButton'] === false)
+    .map(([type]) => type);
+}
+
 function readCallbackSource(callback: unknown): string | undefined {
   if (typeof callback !== 'function') return undefined;
   try {
@@ -131,6 +139,11 @@ export function readCheckoutOptions(
   if (analyticsEnabled !== undefined) config.analyticsEnabled = analyticsEnabled;
   if (isPlainRecord(raw['session'])) config.hasSession = true;
   if (isPlainRecord(raw['installmentOptions'])) config.installmentOptions = true;
+  if (placement === 'checkout' && typeof raw['showPayButton'] === 'boolean') {
+    config.showPayButton = raw['showPayButton'];
+  }
+  const hiddenPayButtonMethods = readHiddenPayButtonMethods(raw['paymentMethodsConfiguration']);
+  if (hiddenPayButtonMethods.length > 0) config.hiddenPayButtonMethods = hiddenPayButtonMethods;
 
   copyCallbacks(raw, placement, config);
   return config;

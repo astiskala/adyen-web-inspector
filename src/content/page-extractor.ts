@@ -37,32 +37,51 @@ interface PreactVNode {
       core?: {
         options?: unknown;
       };
+      /** Drop-in passes its own props, including per-method configuration, beside the core. */
+      paymentMethodsConfiguration?: unknown;
     };
   };
   __k?: unknown;
 }
 
+/** A mounted checkout: AdyenCheckout options and the per-method configuration beside them. */
+interface MountedCheckout {
+  readonly options: unknown;
+  readonly paymentMethodsConfiguration: unknown;
+}
+
 const MAX_TREE_DEPTH = 15;
 
 /**
- * Recursively walks a Preact VNode tree to find `props.core.options`.
- * Returns the options object if found, or null.
+ * Recursively walks a Preact VNode tree to find the props that carry
+ * `core.options`. Returns the mounted checkout if found, or null.
  */
-function findCoreOptions(node: unknown, depth: number): unknown {
+function findMountedCheckout(node: unknown, depth: number): MountedCheckout | null {
   if (depth > MAX_TREE_DEPTH || typeof node !== 'object' || node === null) return null;
 
   const vnode = node as PreactVNode;
-  const options = vnode.__c?.props?.core?.options;
-  if (options !== undefined && options !== null) return options;
+  const props = vnode.__c?.props ?? {};
+  const options = props.core?.options;
+  if (options !== undefined && options !== null) {
+    return { options, paymentMethodsConfiguration: props.paymentMethodsConfiguration };
+  }
 
   const children = vnode.__k;
-  if (!Array.isArray(children)) return findCoreOptions(children, depth + 1);
+  if (!Array.isArray(children)) return findMountedCheckout(children, depth + 1);
 
   for (const child of children) {
-    const result = findCoreOptions(child, depth + 1);
+    const result = findMountedCheckout(child, depth + 1);
     if (result !== null) return result;
   }
   return null;
+}
+
+function readMountedConfig(mounted: MountedCheckout | null): CheckoutConfig | null {
+  if (mounted === null) return null;
+  const config = readCheckoutOptions(mounted.options, 'checkout');
+  if (config === null) return null;
+  const { paymentMethodsConfiguration } = mounted;
+  return { ...config, ...readCheckoutOptions({ paymentMethodsConfiguration }, 'component') };
 }
 
 function extractMetadata(g: GlobalWithAdyen): AdyenWebMetadata | null {
@@ -254,7 +273,7 @@ function processMountPoints(mountPoints: Set<ElementWithVnode>): {
   let findCount = 0;
 
   for (const mount of mountPoints) {
-    const config = readCheckoutOptions(findCoreOptions(mount.__k, 0), 'checkout');
+    const config = readMountedConfig(findMountedCheckout(mount.__k, 0));
     if (config !== null) {
       findCount++;
       configs.push(config);
@@ -274,7 +293,7 @@ function extractComponentConfig(): ComponentExtraction {
   }
 
   const { merged, findCount } = processMountPoints(mountPoints);
-  // Use findCount (mounts where findCoreOptions found Adyen core options)
+  // Use findCount (mounts where findMountedCheckout found Adyen core options)
   // rather than mountPoints.size, to avoid counting unrelated Preact trees.
   return { config: merged, mountCount: findCount };
 }
@@ -385,6 +404,8 @@ function extract(): PageExtractResult {
   const capture = readCheckoutCapture(g[PAGE_GLOBALS.checkoutCapture]);
   const apiKeyDetected = detectApiKeyExposure(capture);
   const dom = readCheckoutDom(document);
+  const { events } = capture;
+  const hasEvents = events.rendered.length > 0 || events.paymentMethods.length > 0;
 
   return {
     adyenMetadata: metadata,
@@ -398,6 +419,7 @@ function extract(): PageExtractResult {
     observedRequests: extractObservedRequests(),
     ...(capture.initCount > 0 ? { checkoutInitCount: capture.initCount } : {}),
     ...(mountCount > 0 ? { componentMountCount: mountCount } : {}),
+    ...(hasEvents ? { analyticsEvents: events } : {}),
     ...(dom.dropin ? { hasDropinDOM: true } : {}),
     ...(dom.card ? { hasCardDOM: true } : {}),
     ...(dom.newCardForm ? { hasNewCardFormDOM: true } : {}),

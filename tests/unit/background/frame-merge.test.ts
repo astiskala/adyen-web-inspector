@@ -201,6 +201,38 @@ describe('mergeFrames field scope', () => {
     });
   });
 
+  it('combines analytics component events across frames, earlier frames winning per component', () => {
+    const page = merge(
+      makePageExtract(),
+      makePageExtract({
+        analyticsEvents: {
+          rendered: [{ type: 'paypal', showPayButton: false }],
+          paymentMethods: ['paypal', 'dropin'],
+        },
+        pageUrl: 'https://merchant.example/a',
+      }),
+      makePageExtract({
+        analyticsEvents: {
+          rendered: [
+            { type: 'paypal', showPayButton: true },
+            { type: 'scheme', showPayButton: true },
+          ],
+          paymentMethods: ['scheme', 'paypal'],
+        },
+        pageUrl: 'https://merchant.example/b',
+      })
+    );
+
+    expect(page.analyticsEvents).toEqual({
+      rendered: [
+        { type: 'paypal', showPayButton: false },
+        { type: 'scheme', showPayButton: true },
+      ],
+      paymentMethods: ['paypal', 'dropin', 'scheme'],
+    });
+    expect(merge(makePageExtract())).not.toHaveProperty('analyticsEvents');
+  });
+
   it('leaves absence unproven when no frame captured options whole', () => {
     const partial = merge(
       makePageExtract({ capturedConfig: makeCapturedConfig({ clientKey: 'test_K' }) }),

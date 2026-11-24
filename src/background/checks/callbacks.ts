@@ -11,9 +11,14 @@ import type {
 } from '../../shared/types.js';
 import type { CALLBACK_KEYS } from '../../shared/checkout-config-schema.js';
 import { INTEGRATION_FLOW_LABELS } from '../../shared/constants.js';
-import { readCheckoutField, type CheckoutFieldEvidence } from '../../shared/scan-evidence.js';
+import {
+  hasCapturedCheckoutConfig,
+  readCheckoutField,
+  type CheckoutFieldEvidence,
+} from '../../shared/scan-evidence.js';
 import { readOnSubmitSource, readSubmissionGuard, type OnSubmitSource } from './callback-source.js';
 import { docsIntegration, SKIP_REASONS } from './constants.js';
+import { readPayButtonVisibility, type HiddenBy } from './pay-button.js';
 import { createRegistry, type CheckContext, type CheckOutcome } from './registry.js';
 
 const CATEGORY = 'callbacks' as const;
@@ -37,8 +42,6 @@ const FLOW_DOCS = {
 } as const;
 
 type CallbackKey = (typeof CALLBACK_KEYS)[number];
-
-const UNSUPPORTED_CUSTOM_BUTTON_METHODS = ['paypal', 'klarna', 'clicktopay'];
 
 const CAPTURED_ONLY = { includeInferred: false } as const;
 
@@ -185,7 +188,7 @@ const STRINGS = {
     'Add an onError handler to your AdyenCheckout configuration to catch and respond to technical errors during the checkout lifecycle.',
 
   BEFORE_SUBMIT_SKIP_TITLE: 'beforeSubmit check skipped.',
-  BEFORE_SUBMIT_PASS_TITLE: 'beforeSubmit callback is present (custom pay button flow).',
+  BEFORE_SUBMIT_PASS_TITLE: 'beforeSubmit callback is present.',
   BEFORE_SUBMIT_INFO_TITLE: 'beforeSubmit is not configured.',
 
   ACTIONS_PATTERN_SKIP_TITLE: 'Actions pattern check skipped.',
@@ -212,18 +215,30 @@ const STRINGS = {
     'https://docs.adyen.com/online-payments/web-best-practices/#prevent-multiple-submissions',
 
   CUSTOM_PAY_BUTTON_COMPAT_SKIP_TITLE: 'Custom pay button compatibility check skipped.',
-  CUSTOM_PAY_BUTTON_COMPAT_NO_INDICATORS_SKIP_REASON: 'No custom pay button indicators detected.',
-  CUSTOM_PAY_BUTTON_COMPAT_NO_INVENTORY_SKIP_REASON: 'Payment method inventory was not observed.',
+  CUSTOM_PAY_BUTTON_COMPAT_NOT_REPORTED_SKIP_REASON:
+    'No component reported its pay button in Adyen checkout analytics. Analytics may be disabled, the SDK may be older than v6, or the scan ran within about 10 seconds of checkout rendering; rescan once checkout has been open for a few seconds.',
   CUSTOM_PAY_BUTTON_COMPAT_PASS_TITLE:
-    'No unsupported payment methods detected for custom pay button.',
-  CUSTOM_PAY_BUTTON_COMPAT_WARN_TITLE: 'Unsupported payment methods for custom pay button.',
-  CUSTOM_PAY_BUTTON_COMPAT_WARN_DETAIL:
-    'Custom pay buttons (signalled by beforeSubmit or selective onSubmit handling) are not supported for PayPal, Klarna, and Click to Pay.',
-  CUSTOM_PAY_BUTTON_COMPAT_WARN_REMEDIATION:
-    'For PayPal, Klarna, and Click to Pay, you must use the button provided by the Adyen Component rather than a custom pay button.',
-  CUSTOM_PAY_BUTTON_COMPAT_WARN_URL:
+    'PayPal, Klarna, and Click to Pay keep the pay button their component renders.',
+  // CUSTOM_PAY_BUTTON_COMPAT_ISSUE_TITLE stays inline (dynamic: lists the affected payment methods)
+  CUSTOM_PAY_BUTTON_COMPAT_ISSUE_DETAIL:
+    'Adyen Web does not support a custom pay button for PayPal, Klarna, or Click to Pay. With showPayButton set to false, PayPal renders no button and rejects submit() calls.',
+  CUSTOM_PAY_BUTTON_COMPAT_REMEDIATION:
+    'Keep showPayButton enabled for PayPal, Klarna, and Click to Pay, for example by overriding it in their component or paymentMethodsConfiguration entry, so shoppers use the button the component renders.',
+  CUSTOM_PAY_BUTTON_COMPAT_URL:
     'https://docs.adyen.com/online-payments/web-best-practices/#unsupported-payment-methods',
 } as const;
+
+const BUTTON_REQUIRED_METHOD_LABELS = {
+  paypal: 'PayPal',
+  klarna: 'Klarna',
+  clicktopay: 'Click to Pay',
+} as const;
+
+const HIDDEN_BY_PHRASES: Record<HiddenBy, string> = {
+  rendered: 'rendered with showPayButton: false',
+  'method-config': 'has showPayButton: false in paymentMethodsConfiguration',
+  'checkout-config': 'inherits showPayButton: false from AdyenCheckout',
+};
 
 interface AdvancedRequiredCallbackOptions {
   readonly key: CallbackKey;
@@ -531,50 +546,31 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
       STRINGS.MULTIPLE_SUBMISSIONS_URL
     );
   })
-  .add('callback-custom-pay-button-compatibility', (payload, { attributes, skip, pass, warn }) => {
-    const onSubmit = readOnSubmitSource(payload, attributes.flow.value);
-    if (onSubmit.status === 'unavailable' && onSubmit.reason === 'no-config') {
-      return skip(
-        STRINGS.CUSTOM_PAY_BUTTON_COMPAT_SKIP_TITLE,
-        SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED
+  .add('callback-custom-pay-button-compatibility', (payload, { skip, pass, warn, fail }) => {
+    const { hidden, reported } = readPayButtonVisibility(payload);
+    if (hidden.length > 0) {
+      const labels = hidden.map(({ method }) => BUTTON_REQUIRED_METHOD_LABELS[method]);
+      const causes = hidden.map(
+        ({ method, hiddenBy }) =>
+          `${BUTTON_REQUIRED_METHOD_LABELS[method]} ${HIDDEN_BY_PHRASES[hiddenBy]}`
+      );
+      const report = hidden.some(({ method }) => method === 'paypal') ? fail : warn;
+      return report(
+        `Custom pay button used with unsupported payment methods: ${SIGNAL_LIST.format(labels)}.`,
+        `${STRINGS.CUSTOM_PAY_BUTTON_COMPAT_ISSUE_DETAIL} Detected: ${causes.join('; ')}.`,
+        STRINGS.CUSTOM_PAY_BUTTON_COMPAT_REMEDIATION,
+        STRINGS.CUSTOM_PAY_BUTTON_COMPAT_URL
       );
     }
+    if (reported) return pass(STRINGS.CUSTOM_PAY_BUTTON_COMPAT_PASS_TITLE);
 
-    const hasBeforeSubmit = readCallback(payload, 'beforeSubmit').state === 'present';
-    const hasSelectiveOnSubmit =
-      onSubmit.status === 'read' && onSubmit.unhandledFilters.paymentMethod;
-
-    if (!hasBeforeSubmit && !hasSelectiveOnSubmit) {
-      return skip(
-        STRINGS.CUSTOM_PAY_BUTTON_COMPAT_SKIP_TITLE,
-        STRINGS.CUSTOM_PAY_BUTTON_COMPAT_NO_INDICATORS_SKIP_REASON
-      );
-    }
-
-    // Heuristic: if these strings appear in any captured request or analytics, they might be present.
-    const capturedVariants = payload.analyticsData?.variants ?? [];
-    const detectedUnsupported = UNSUPPORTED_CUSTOM_BUTTON_METHODS.filter(
-      (u) =>
-        capturedVariants.some((v) => v.toLowerCase().includes(u)) ||
-        payload.capturedRequests.some((r) => r.url.toLowerCase().includes(u))
+    const observed =
+      hasCapturedCheckoutConfig(payload.page) || payload.page.analyticsEvents !== undefined;
+    return skip(
+      STRINGS.CUSTOM_PAY_BUTTON_COMPAT_SKIP_TITLE,
+      observed
+        ? STRINGS.CUSTOM_PAY_BUTTON_COMPAT_NOT_REPORTED_SKIP_REASON
+        : SKIP_REASONS.CHECKOUT_CONFIG_NOT_DETECTED
     );
-
-    if (detectedUnsupported.length > 0) {
-      return warn(
-        `${STRINGS.CUSTOM_PAY_BUTTON_COMPAT_WARN_TITLE} (${detectedUnsupported.join(', ')})`,
-        STRINGS.CUSTOM_PAY_BUTTON_COMPAT_WARN_DETAIL,
-        STRINGS.CUSTOM_PAY_BUTTON_COMPAT_WARN_REMEDIATION,
-        STRINGS.CUSTOM_PAY_BUTTON_COMPAT_WARN_URL
-      );
-    }
-
-    if (capturedVariants.length === 0) {
-      return skip(
-        STRINGS.CUSTOM_PAY_BUTTON_COMPAT_SKIP_TITLE,
-        STRINGS.CUSTOM_PAY_BUTTON_COMPAT_NO_INVENTORY_SKIP_REASON
-      );
-    }
-
-    return pass(STRINGS.CUSTOM_PAY_BUTTON_COMPAT_PASS_TITLE);
   })
   .getChecks();
