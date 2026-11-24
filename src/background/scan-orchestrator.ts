@@ -40,7 +40,7 @@ export async function runScan(tabId: number, browser: ScanBrowser): Promise<Scan
         page,
         traffic,
         latestVersion: release?.latest ?? null,
-        ...(release === null ? {} : { releaseDates: release.releaseDates }),
+        ...(release !== null && { releaseDates: release.releaseDates }),
         scannedAt: new Date(browser.now()).toISOString(),
       },
       (url) => browser.fetchScriptText(url)
@@ -50,7 +50,9 @@ export async function runScan(tabId: number, browser: ScanBrowser): Promise<Scan
   }
 }
 
-/** Extracts the Checkout page, retrying while the SDK loads until configuration is captured. */
+/**
+Extracts the Checkout page, retrying while the SDK loads until configuration is captured.
+ */
 async function extractPageData(browser: ScanBrowser, tabId: number): Promise<CheckoutPage> {
   const first = await extractTab(browser, tabId);
   if (hasCapturedCheckoutConfig(first)) return first;

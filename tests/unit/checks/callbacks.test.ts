@@ -7,6 +7,7 @@ import {
   makeRequest,
   makeCheckoutConfig,
   makeAnalyticsData,
+  makeCapturedCheckoutConfig,
   makeCapturedConfig,
 } from '../../fixtures/makeScanPayload';
 import type { AnalyticsComponentEvents, RenderedComponent } from '../../../src/shared/types';
@@ -113,7 +114,7 @@ describe('flow-type', () => {
   it('reports sessions flow when hasSession is true and no network match', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
-        capturedConfig: makeCapturedConfig(makeCheckoutConfig({ hasSession: true })),
+        capturedConfig: makeCapturedCheckoutConfig({ hasSession: true }),
       }),
     });
     const result = flowType.run(payload);
@@ -136,7 +137,7 @@ describe('flow-type', () => {
     const payload = makeScanPayload({
       capturedRequests: sessionsRequests,
       page: makeCheckoutPage({
-        capturedConfig: makeCapturedConfig(makeCheckoutConfig({ hasSession: true })),
+        capturedConfig: makeCapturedCheckoutConfig({ hasSession: true }),
       }),
     });
     const result = flowType.run(payload);
@@ -536,7 +537,7 @@ describe('callback-on-payment-completed', () => {
   it('fails for sessions flow detected via hasSession (no network)', () => {
     const payload = makeScanPayload({
       page: makeCheckoutPage({
-        capturedConfig: makeCapturedConfig(makeCheckoutConfig({ hasSession: true }), true),
+        capturedConfig: makeCapturedCheckoutConfig({ hasSession: true }, true),
       }),
     });
     expect(onPaymentCompleted.run(payload).severity).toBe('fail');
@@ -779,8 +780,8 @@ describe('callback-multiple-submissions', () => {
   });
 });
 
-function rendered(type: string, showPayButton: boolean): RenderedComponent {
-  return { type, showPayButton };
+function rendered(type: string, isPayButtonShown: boolean): RenderedComponent {
+  return { type, showPayButton: isPayButtonShown };
 }
 
 describe('callback-custom-pay-button-compatibility', () => {
@@ -792,8 +793,8 @@ describe('callback-custom-pay-button-compatibility', () => {
   ): ReturnType<typeof makeScanPayload> {
     return makeScanPayload({
       page: makeCheckoutPage({
-        capturedConfig: makeCapturedConfig(makeCheckoutConfig(config), true),
-        ...(events === null ? {} : { analyticsEvents: { ...NO_EVENTS, ...events } }),
+        capturedConfig: makeCapturedCheckoutConfig(config, true),
+        ...(events !== null && { analyticsEvents: { ...NO_EVENTS, ...events } }),
       }),
     });
   }

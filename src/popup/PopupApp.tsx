@@ -2,7 +2,7 @@ import type { JSX } from 'preact';
 import { MIN_SUPPORTED_MAJOR_VERSION } from '../shared/constants.js';
 import type { CheckoutActivity } from '../shared/messages.js';
 import type { ScanResult } from '../shared/types.js';
-import { parseVersion } from '../shared/utils.js';
+import { parseVersion } from '../shared/utilities.js';
 import { exportPdf } from './components/pdf-export.js';
 import { IdentityCard } from './components/IdentityCard.js';
 import { HealthScore } from './components/HealthScore.js';
@@ -19,8 +19,9 @@ import { cssModule } from './components/css-module.js';
 
 const s = cssModule(styles);
 
-function getActiveTabId(): Promise<number | undefined> {
-  return chrome.tabs.query({ active: true, currentWindow: true }).then((tabs) => tabs[0]?.id);
+async function getActiveTabId(): Promise<number | undefined> {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  return tab?.id;
 }
 
 const activeTab = { getTabId: getActiveTabId } as const;
@@ -30,17 +31,20 @@ type PopupView =
   | { readonly state: 'version-outdated'; readonly version: string }
   | { readonly state: 'result'; readonly result: ScanResult };
 
-/** Resolves the view for a tab without a scan result from the detector's checkout activity. */
+/**
+Resolves the view for a tab without a scan result from the detector's checkout activity.
+ */
 function getIdleView({ detected, version }: CheckoutActivity): PopupView {
   if (!detected) return { state: 'not-detected' };
   const major = parseVersion(version ?? '')?.major;
-  if (version !== undefined && major !== undefined && major < MIN_SUPPORTED_MAJOR_VERSION) {
-    return { state: 'version-outdated', version };
-  }
-  return { state: 'ready' };
+  return version !== undefined && major !== undefined && major < MIN_SUPPORTED_MAJOR_VERSION
+    ? { state: 'version-outdated', version }
+    : { state: 'ready' };
 }
 
-/** A scan that found no SDK offers another attempt, like a page where none was detected. */
+/**
+A scan that found no SDK offers another attempt, like a page where none was detected.
+ */
 function getPopupView(session: ReturnType<typeof useScanLifecycle>): PopupView {
   const { loading, error, result, checkoutActivity } = session;
   if (loading && result === null) return { state: 'loading' };
@@ -85,7 +89,7 @@ export function Popup(): JSX.Element {
             <button
               class="btn"
               onClick={() => {
-                exportPdf(view.result).catch(() => {});
+                void exportPdf(view.result).catch(() => {});
               }}
               title="Export PDF report"
             >

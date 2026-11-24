@@ -5,7 +5,7 @@
  * the background service worker. SDK presence is established by a scan.
  */
 import { readAdyenEndpoint } from '../shared/adyen-endpoint.js';
-import { readCheckoutDom, showsMountedCheckout } from '../shared/checkout-signals.js';
+import { readCheckoutDom, hasMountedCheckout } from '../shared/checkout-signals.js';
 import {
   MSG_CHECKOUT_ACTIVITY_CLEARED,
   MSG_CHECKOUT_ACTIVITY_DETECTED,
@@ -19,56 +19,62 @@ interface CheckoutActivity {
 }
 
 const DETECTION_DEBOUNCE_MS = 200;
-let pendingTimer: ReturnType<typeof globalThis.setTimeout> | undefined;
-let lastSentState: string | null = null;
+const detection: {
+  pendingTimer: ReturnType<typeof globalThis.setTimeout> | undefined;
+  lastSentState: string | null;
+} = { pendingTimer: undefined, lastSentState: null };
 
-/** Reads the SDK version from Adyen-hosted script URLs (supplementary data). */
+/**
+Reads the SDK version from Adyen-hosted script URLs (supplementary data).
+ */
 function extractVersionFromScripts(): string | undefined {
   const urls = [...document.scripts]
     .map((script) => script.src)
-    .filter((src) => readAdyenEndpoint(src) !== null);
+    .filter((source) => readAdyenEndpoint(source) !== null);
   return findSdkVersionInUrls(urls) ?? undefined;
 }
 
-/** Reports mounted checkout as the checkout signals define it; SDK script tags alone do not count. */
+/**
+Reports mounted checkout as the checkout signals define it; SDK script tags alone do not count.
+ */
 function detectCheckoutActivity(): CheckoutActivity {
-  if (!showsMountedCheckout(readCheckoutDom(document))) return { found: false };
+  if (!hasMountedCheckout(readCheckoutDom(document))) return { found: false };
   const version = extractVersionFromScripts();
-  return { found: true, ...(version === undefined ? {} : { version }) };
+  return { found: true, ...(version !== undefined && { version }) };
 }
 
 function buildStateKey(result: CheckoutActivity): string {
   return `${result.found ? '1' : '0'}:${result.version ?? ''}`;
 }
 
-function sendDetectionResult(force = false): void {
+function sendDetectionResult(isForced = false): void {
   const result = detectCheckoutActivity();
   const stateKey = buildStateKey(result);
-  if (!force && stateKey === lastSentState) {
+  if (!isForced && stateKey === detection.lastSentState) {
     return;
   }
 
-  lastSentState = stateKey;
+  detection.lastSentState = stateKey;
 
   const message: ContentToBswMessage = result.found
     ? {
         type: MSG_CHECKOUT_ACTIVITY_DETECTED,
         tabId: 0,
-        ...(result.version === undefined ? {} : { version: result.version }),
+        ...(result.version !== undefined && { version: result.version }),
       }
     : { type: MSG_CHECKOUT_ACTIVITY_CLEARED, tabId: 0 };
 
-  chrome.runtime.sendMessage(message).catch(() => {
+  void chrome.runtime.sendMessage(message).catch(() => {
     // Background service worker may not be ready yet — safe to ignore
   });
 }
 
 function scheduleDetection(delay = DETECTION_DEBOUNCE_MS): void {
-  if (pendingTimer !== undefined) {
-    globalThis.clearTimeout(pendingTimer);
+  if (detection.pendingTimer !== undefined) {
+    globalThis.clearTimeout(detection.pendingTimer);
   }
-  pendingTimer = globalThis.setTimeout(() => {
-    pendingTimer = undefined;
+  detection.pendingTimer = globalThis.setTimeout(() => {
+    detection.pendingTimer = undefined;
     sendDetectionResult();
   }, delay);
 }
@@ -90,12 +96,14 @@ function isInterestingNode(node: Node): boolean {
     return true;
   }
 
-  const src = element.getAttribute('src') ?? '';
+  const source = element.getAttribute('src') ?? '';
   const href = element.getAttribute('href') ?? '';
-  return src.includes('adyen') || href.includes('adyen');
+  return source.includes('adyen') || href.includes('adyen');
 }
 
-/** The observer watches child lists only, so every record lists added and removed nodes. */
+/**
+The observer watches child lists only, so every record lists added and removed nodes.
+ */
 function handleMutations(records: MutationRecord[]): void {
   for (const record of records) {
     for (const added of record.addedNodes) {
@@ -119,13 +127,13 @@ function installSpaRouteHooks(): void {
   const originalPushState: History['pushState'] = historyApi.pushState.bind(historyApi);
   const originalReplaceState: History['replaceState'] = historyApi.replaceState.bind(historyApi);
 
-  historyApi.pushState = (...args: Parameters<History['pushState']>): void => {
-    originalPushState(...args);
+  historyApi.pushState = (...arguments_: Parameters<History['pushState']>): void => {
+    originalPushState(...arguments_);
     scheduleDetection(0);
   };
 
-  historyApi.replaceState = (...args: Parameters<History['replaceState']>): void => {
-    originalReplaceState(...args);
+  historyApi.replaceState = (...arguments_: Parameters<History['replaceState']>): void => {
+    originalReplaceState(...arguments_);
     scheduleDetection(0);
   };
 }

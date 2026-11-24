@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseVersion } from '../../../src/shared/utils';
+import { parseVersion } from '../../../src/shared/utilities';
 import { MIN_SUPPORTED_MAJOR_VERSION } from '../../../src/shared/constants';
 
 function requireParsedVersion(version: string): NonNullable<ReturnType<typeof parseVersion>> {

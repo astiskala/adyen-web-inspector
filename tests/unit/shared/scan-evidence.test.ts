@@ -131,12 +131,10 @@ describe('checkout config sources', () => {
 
   it('knows whether AdyenCheckout options were captured whole', () => {
     expect(hasCompleteCheckoutConfig(makeCheckoutPage())).toBe(false);
-    expect(
-      hasCompleteCheckoutConfig(makeCheckoutPage({ capturedConfig: makeCapturedConfig({}) }))
-    ).toBe(false);
-    expect(
-      hasCompleteCheckoutConfig(makeCheckoutPage({ capturedConfig: makeCapturedConfig({}, true) }))
-    ).toBe(true);
+    const partial = makeCheckoutPage({ capturedConfig: makeCapturedConfig({}) });
+    const whole = makeCheckoutPage({ capturedConfig: makeCapturedConfig({}, true) });
+    expect(hasCompleteCheckoutConfig(partial)).toBe(false);
+    expect(hasCompleteCheckoutConfig(whole)).toBe(true);
   });
 });
 

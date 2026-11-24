@@ -8,7 +8,7 @@ import type { ScanResult } from '../../shared/types.js';
 function buildPdfReportUrl(token: string): string {
   const url = new URL(chrome.runtime.getURL(PDF_REPORT_PAGE_PATH));
   url.searchParams.set(PDF_REPORT_TOKEN_PARAM, token);
-  return url.toString();
+  return url.href;
 }
 
 /**
@@ -23,7 +23,7 @@ export async function exportPdf(result: ScanResult): Promise<void> {
   try {
     await chrome.tabs.create({ url: buildPdfReportUrl(token) });
   } catch (error) {
-    await chrome.storage.session.remove(storageKey).catch(() => {});
+    await Promise.allSettled([chrome.storage.session.remove(storageKey)]);
     throw error;
   }
 }

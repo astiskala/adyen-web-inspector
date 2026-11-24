@@ -9,7 +9,7 @@ import {
   NPM_REGISTRY_URL,
   STORAGE_NPM_CACHE_KEY,
 } from '../shared/constants.js';
-import { isRecord } from '../shared/utils.js';
+import { isRecord } from '../shared/utilities.js';
 import type { AdyenWebReleaseInfo } from './scan-browser.js';
 
 interface NpmCacheEntry {
@@ -54,8 +54,8 @@ function isSupportedStableVersion(version: string): boolean {
  */
 function parsePackument(data: unknown): AdyenWebReleaseInfo | null {
   if (!isRecord(data)) return null;
-  const { 'dist-tags': distTags, time } = data;
-  const latest = isRecord(distTags) ? distTags['latest'] : undefined;
+  const { 'dist-tags': distributionTags, time } = data;
+  const latest = isRecord(distributionTags) ? distributionTags['latest'] : undefined;
   if (typeof latest !== 'string' || latest === '') return null;
 
   const releaseDates: Record<string, string> = {};

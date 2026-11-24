@@ -56,16 +56,14 @@ export const RISK_CHECKS = createRegistry(CATEGORY)
         page.iframes.some((f) => f.name === DF_IFRAME_NAME) ||
         capturedRequests.some((r) => DF_IFRAME_URL_PATTERN.test(r.url));
 
-      if (hasDfIframe) {
-        return pass(STRINGS.DF_IFRAME_PASS_TITLE, STRINGS.DF_IFRAME_PASS_DETAIL);
-      }
-
-      return warn(
-        STRINGS.DF_IFRAME_WARN_TITLE,
-        STRINGS.DF_IFRAME_WARN_DETAIL,
-        STRINGS.DF_IFRAME_WARN_REMEDIATION,
-        STRINGS.DF_IFRAME_WARN_URL
-      );
+      return hasDfIframe
+        ? pass(STRINGS.DF_IFRAME_PASS_TITLE, STRINGS.DF_IFRAME_PASS_DETAIL)
+        : warn(
+            STRINGS.DF_IFRAME_WARN_TITLE,
+            STRINGS.DF_IFRAME_WARN_DETAIL,
+            STRINGS.DF_IFRAME_WARN_REMEDIATION,
+            STRINGS.DF_IFRAME_WARN_URL
+          );
     },
     { warnImpact: 'high' }
   )
@@ -86,11 +84,9 @@ export const RISK_CHECKS = createRegistry(CATEGORY)
           STRINGS.MODULE_WARN_URL
         );
       }
-      if (risk.state === 'unobserved') {
-        return skip(STRINGS.MODULE_SKIP_TITLE, STRINGS.MODULE_PARTIAL_SKIP_REASON);
-      }
-
-      return pass(STRINGS.MODULE_PASS_TITLE);
+      return risk.state === 'unobserved'
+        ? skip(STRINGS.MODULE_SKIP_TITLE, STRINGS.MODULE_PARTIAL_SKIP_REASON)
+        : pass(STRINGS.MODULE_PASS_TITLE);
     },
     { warnImpact: 'high' }
   )
@@ -98,14 +94,13 @@ export const RISK_CHECKS = createRegistry(CATEGORY)
     if (payload.page.hasNewCardFormDOM !== true) {
       return skip(STRINGS.HOLDER_NAME_SKIP_TITLE, STRINGS.HOLDER_NAME_SKIP_REASON);
     }
-    if (payload.page.hasCardHolderNameDOM === true) {
-      return pass(STRINGS.HOLDER_NAME_PASS_TITLE);
-    }
-    return notice(
-      STRINGS.HOLDER_NAME_NOTICE_TITLE,
-      STRINGS.HOLDER_NAME_NOTICE_DETAIL,
-      STRINGS.HOLDER_NAME_NOTICE_REMEDIATION,
-      STRINGS.HOLDER_NAME_NOTICE_URL
-    );
+    return payload.page.hasCardHolderNameDOM === true
+      ? pass(STRINGS.HOLDER_NAME_PASS_TITLE)
+      : notice(
+          STRINGS.HOLDER_NAME_NOTICE_TITLE,
+          STRINGS.HOLDER_NAME_NOTICE_DETAIL,
+          STRINGS.HOLDER_NAME_NOTICE_REMEDIATION,
+          STRINGS.HOLDER_NAME_NOTICE_URL
+        );
   })
   .getChecks();

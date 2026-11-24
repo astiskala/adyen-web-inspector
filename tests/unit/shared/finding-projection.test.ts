@@ -140,12 +140,13 @@ describe('buildFindingProjection', () => {
     const projected = grouped.flatMap((group) => group.issues.map((issue) => issue.title));
     const exported = buildReportExportData(result).bestPractices.issues.map((issue) => issue.title);
     const html = buildPrintableHtml(result, { extensionVersion: '1', browser: 'Test' });
-    const doc = new DOMParser().parseFromString(html, 'text/html');
-    const heading = [...doc.querySelectorAll('h2')].find(
+    const document = new DOMParser().parseFromString(html, 'text/html');
+    const heading = [...document.querySelectorAll('h2')].find(
       (element) => element.textContent === 'Best Practices'
     );
-    const rows = heading?.nextElementSibling?.querySelectorAll('tbody tr:not(.impact-row)') ?? [];
-    const printed = [...rows].map((row) => row.querySelector('td + td')?.textContent.trim());
+    const rows =
+      heading?.nextElementSibling?.querySelectorAll(':scope tbody tr:not(.impact-row)') ?? [];
+    const printed = [...rows].map((row) => row.querySelector(':scope td + td')?.textContent.trim());
 
     expect(grouped.map((group) => group.label)).toEqual([
       'High impact',

@@ -6,11 +6,11 @@ const CDN_SCRIPT = 'https://checkoutshopper-live.cdn.adyen.com/checkoutshopper/s
 
 describe('detectSdkPresence', () => {
   it('prefers Adyen Web metadata, then an Adyen-hosted checkout script', () => {
-    expect(
-      detectSdkPresence(
-        makeCheckoutPage({ adyenMetadata: makeAdyenMetadata(), scripts: [{ src: CDN_SCRIPT }] })
-      )
-    ).toEqual({ detected: true, source: 'metadata' });
+    const withMetadata = makeCheckoutPage({
+      adyenMetadata: makeAdyenMetadata(),
+      scripts: [{ src: CDN_SCRIPT }],
+    });
+    expect(detectSdkPresence(withMetadata)).toEqual({ detected: true, source: 'metadata' });
     expect(detectSdkPresence(makeCheckoutPage({ scripts: [{ src: CDN_SCRIPT }] }))).toEqual({
       detected: true,
       source: 'adyen-script',

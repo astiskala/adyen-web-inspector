@@ -3,21 +3,24 @@ import type { ObservedResponse } from '../../../src/background/scan-browser';
 import { runScan } from '../../../src/background/scan-orchestrator';
 import {
   makeAdyenMetadata,
-  makeCheckoutConfig,
   makeHeader,
   makePageExtract,
-  makeCapturedConfig,
+  makeCapturedCheckoutConfig,
 } from '../../fixtures/makeScanPayload';
 import { createFakeScanBrowser, framesOf } from '../../fixtures/fakeScanBrowser';
 
 const TAB_ID = 1;
 
+function configuredExtract(
+  overrides: Parameters<typeof makePageExtract>[0] = {}
+): ReturnType<typeof makePageExtract> {
+  return makePageExtract({ capturedConfig: makeCapturedCheckoutConfig(), ...overrides });
+}
+
 describe('runScan sequencing', () => {
   it('captures network first, waits for the tab and settles before extracting', async () => {
     const browser = createFakeScanBrowser({
-      extractions: [
-        framesOf(makePageExtract({ capturedConfig: makeCapturedConfig(makeCheckoutConfig()) })),
-      ],
+      extractions: [framesOf(configuredExtract())],
       release: { latest: '6.40.0', releaseDates: {} },
     });
 
@@ -39,7 +42,7 @@ describe('runScan sequencing', () => {
     const loading = makePageExtract({ adyenMetadata: makeAdyenMetadata() });
     const ready = makePageExtract({
       adyenMetadata: makeAdyenMetadata(),
-      capturedConfig: makeCapturedConfig(makeCheckoutConfig()),
+      capturedConfig: makeCapturedCheckoutConfig(),
     });
     const browser = createFakeScanBrowser({
       extractions: [framesOf(loading), framesOf(loading), framesOf(ready)],
@@ -86,8 +89,7 @@ describe('runScan sequencing', () => {
     const browser = createFakeScanBrowser({
       extractions: [
         framesOf(
-          makePageExtract({
-            capturedConfig: makeCapturedConfig(makeCheckoutConfig()),
+          configuredExtract({
             scripts: [{ src: bundle }],
           })
         ),
@@ -116,17 +118,14 @@ describe('runScan document headers', () => {
   const topDocument = response('https://merchant.example/', 'main_frame', { headers: captured });
   const embedded = framesOf(
     makePageExtract({ pageUrl: 'https://merchant.example/' }),
-    makePageExtract({
-      capturedConfig: makeCapturedConfig(makeCheckoutConfig()),
+    configuredExtract({
       pageUrl: 'https://merchant.example/embedded',
     })
   );
 
   it('uses the headers of the tab response when checkout runs in the top document', async () => {
     const browser = createFakeScanBrowser({
-      extractions: [
-        framesOf(makePageExtract({ capturedConfig: makeCapturedConfig(makeCheckoutConfig()) })),
-      ],
+      extractions: [framesOf(configuredExtract())],
       network: { responses: [topDocument] },
       documentHeaders: probed,
     });
@@ -281,15 +280,15 @@ describe('runScan captured traffic', () => {
 
 describe('runScan frames', () => {
   it('scans the Checkout page merged from every frame', async () => {
+    const adyenMetadata = makeAdyenMetadata({ version: '6.30.0' });
     const browser = createFakeScanBrowser({
       extractions: [
         framesOf(
           makePageExtract({
-            adyenMetadata: makeAdyenMetadata({ version: '6.30.0' }),
+            adyenMetadata,
             pageUrl: 'https://merchant.example/',
           }),
-          makePageExtract({
-            capturedConfig: makeCapturedConfig(makeCheckoutConfig()),
+          configuredExtract({
             pageUrl: 'https://merchant.example/embedded-checkout',
             isInsideIframe: true,
           })

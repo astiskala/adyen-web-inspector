@@ -24,7 +24,9 @@ import type {
 
 const EMPTY_EVENTS: AnalyticsComponentEvents = { rendered: [], paymentMethods: [] };
 
-/** The record of a frame where nothing was captured yet. */
+/**
+The record of a frame where nothing was captured yet.
+ */
 export const EMPTY_CHECKOUT_CAPTURE: CheckoutCapture = {
   captured: null,
   inferred: {},
@@ -54,24 +56,38 @@ function isNonEmptyString(value: unknown): value is string {
 
 function renderedComponent(
   type: string,
-  showPayButton: boolean,
+  isPayButtonShown: boolean,
   clickToPayDisabled: unknown
 ): RenderedComponent {
-  return { type, showPayButton, ...(clickToPayDisabled === true ? { clickToPayDisabled } : {}) };
+  return {
+    type,
+    showPayButton: isPayButtonShown,
+    ...(clickToPayDisabled === true && { clickToPayDisabled }),
+  };
 }
 
-/** Reads a `rendered` event that reported showPayButton; stored payment methods are left out. */
+/**
+Reads a `rendered` event that reported showPayButton; stored payment methods are left out.
+ */
 function readRenderedEvent(event: PlainRecord): RenderedComponent | null {
   const { component, configData } = event;
-  if (event['type'] !== 'rendered' || event['isStoredPaymentMethod'] === true) return null;
-  if (!isNonEmptyString(component) || !isPlainRecord(configData)) return null;
+  if (
+    event['type'] !== 'rendered' ||
+    event['isStoredPaymentMethod'] === true ||
+    !isNonEmptyString(component) ||
+    !isPlainRecord(configData)
+  ) {
+    return null;
+  }
   const showPayButton = configData['showPayButton'];
   return typeof showPayButton === 'boolean'
     ? renderedComponent(component, showPayButton, configData['_disableClickToPay'])
     : null;
 }
 
-/** Payment method types an info event names: its component and the methods Drop-in listed. */
+/**
+Payment method types an info event names: its component and the methods Drop-in listed.
+ */
 function namedPaymentMethods(event: PlainRecord): string[] {
   const listed: unknown[] = Array.isArray(event['availablePaymentMethods'])
     ? event['availablePaymentMethods']
@@ -112,13 +128,13 @@ export function recordCheckoutOptions(
 ): CheckoutCapture {
   const fields = readCheckoutOptions(raw, placement);
   if (fields === null) return capture;
-  const complete = placement === 'checkout' && !Array.isArray(raw);
-  if (isEmpty(fields) && !complete) return capture;
+  const isComplete = placement === 'checkout' && !Array.isArray(raw);
+  if (!isComplete && isEmpty(fields)) return capture;
   return {
     ...capture,
     captured: {
       options: applyCapturedOptions(capture.captured?.options ?? null, fields),
-      complete: complete || capture.captured?.complete === true,
+      complete: isComplete || capture.captured?.complete === true,
     },
   };
 }
@@ -152,7 +168,9 @@ export function recordAnalyticsEvents(capture: CheckoutCapture, body: unknown): 
   return events === capture.events ? capture : { ...capture, events };
 }
 
-/** Records one AdyenCheckout initialisation. */
+/**
+Records one AdyenCheckout initialisation.
+ */
 export function recordCheckoutInit(capture: CheckoutCapture): CheckoutCapture {
   return { ...capture, initCount: capture.initCount + 1 };
 }
@@ -175,16 +193,18 @@ export function readRequestInference(url: string, base: string): CheckoutConfig 
   const config: { -readonly [K in keyof CheckoutConfig]: CheckoutConfig[K] } = {};
   const environment = environmentOption(endpoint);
   if (environment !== null) config.environment = environment;
-  for (const param of URL_OPTION_PARAMS) {
-    const value = parsed.searchParams.get(param);
-    if (value !== null && value !== '') config[param] = value;
+  for (const parameter of URL_OPTION_PARAMS) {
+    const value = parsed.searchParams.get(parameter);
+    if (value !== null && value !== '') config[parameter] = value;
   }
   const translationLocale = readTranslationLocale(parsed.pathname);
   if (translationLocale !== null) config.locale = translationLocale;
   return config;
 }
 
-/** The page extractor re-serialises the record, so a plain object is read as options as-is. */
+/**
+The page extractor re-serialises the record, so a plain object is read as options as-is.
+ */
 function readConfig(value: unknown): CheckoutConfig | undefined {
   return isPlainRecord(value) ? value : undefined;
 }
@@ -198,7 +218,7 @@ function readCaptured(value: unknown): CapturedCheckoutOptions | null {
 function readRendered(value: unknown): RenderedComponent[] {
   if (!isPlainRecord(value)) return [];
   const { type, showPayButton } = value;
-  return isNonEmptyString(type) && typeof showPayButton === 'boolean'
+  return typeof showPayButton === 'boolean' && isNonEmptyString(type)
     ? [renderedComponent(type, showPayButton, value['clickToPayDisabled'])]
     : [];
 }
@@ -213,7 +233,9 @@ function readEvents(value: unknown): AnalyticsComponentEvents {
   };
 }
 
-/** Reads a published capture record, tolerating page scripts that overwrote the global. */
+/**
+Reads a published capture record, tolerating page scripts that overwrote the global.
+ */
 export function readCheckoutCapture(value: unknown): CheckoutCapture {
   if (!isPlainRecord(value)) return EMPTY_CHECKOUT_CAPTURE;
   const inferredValue = value['inferred'];

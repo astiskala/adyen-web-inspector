@@ -3,8 +3,7 @@ import { assessScan } from '../../../src/background/scan-assessment';
 import { ALL_CHECKS } from '../../../src/background/checks/index';
 import {
   makeAdyenMetadata,
-  makeCapturedConfig,
-  makeCheckoutConfig,
+  makeCapturedCheckoutConfig,
   makeCheckoutPage,
   makeDocumentHeaders,
   makeHeader,
@@ -87,9 +86,7 @@ describe('assessScan', () => {
     const evidence = makeEvidence({
       page: makeCheckoutPage({
         adyenMetadata: makeAdyenMetadata({ version: '6.30.0' }),
-        capturedConfig: makeCapturedConfig(
-          makeCheckoutConfig({ locale: undefined, hasSession: true })
-        ),
+        capturedConfig: makeCapturedCheckoutConfig({ locale: undefined, hasSession: true }),
         hasDropinDOM: true,
         scripts: [{ src: script }],
       }),

@@ -24,24 +24,32 @@ const SELECTORS = {
   anyElement: '[class*="adyen-checkout"]',
 } as const;
 
-/** What a document's DOM shows of mounted checkout. */
+/**
+What a document's DOM shows of mounted checkout.
+ */
 export interface CheckoutDom {
   readonly dropin: boolean;
   readonly card: boolean;
   readonly newCardForm: boolean;
   readonly cardHolderName: boolean;
-  /** Any element with an adyen-checkout class, such as a mounted Component. */
+  /**
+  Any element with an adyen-checkout class, such as a mounted Component.
+   */
   readonly anyElement: boolean;
   readonly adyenIframe: boolean;
 }
 
-/** The parts of an iframe that identify it. */
+/**
+The parts of an iframe that identify it.
+ */
 interface IframeIdentity {
   readonly name?: string | undefined;
   readonly src?: string | undefined;
 }
 
-/** The parts of a frame's extraction that show checkout. */
+/**
+The parts of a frame's extraction that show checkout.
+ */
 type FrameSignals = Pick<
   PageExtractResult,
   | 'capturedConfig'
@@ -56,22 +64,26 @@ type FrameSignals = Pick<
   | 'iframes'
 >;
 
-/** Returns true for an iframe Adyen Web renders: named adyen-*, or served from an Adyen host. */
+/**
+Returns true for an iframe Adyen Web renders: named adyen-*, or served from an Adyen host.
+ */
 function isAdyenIframe({ name, src }: IframeIdentity): boolean {
   return (
     name?.startsWith('adyen-') === true || (src !== undefined && readAdyenEndpoint(src) !== null)
   );
 }
 
-/** Reads what a document's DOM shows of mounted checkout. */
+/**
+Reads what a document's DOM shows of mounted checkout.
+ */
 export function readCheckoutDom(root: ParentNode): CheckoutDom {
-  const has = (selector: string): boolean => root.querySelector(selector) !== null;
+  const hasElement = (selector: string): boolean => root.querySelector(selector) !== null;
   return {
-    dropin: has(SELECTORS.dropin),
-    card: has(SELECTORS.card),
-    newCardForm: has(SELECTORS.newCardForm),
-    cardHolderName: has(SELECTORS.cardHolderName),
-    anyElement: has(SELECTORS.anyElement),
+    dropin: hasElement(SELECTORS.dropin),
+    card: hasElement(SELECTORS.card),
+    newCardForm: hasElement(SELECTORS.newCardForm),
+    cardHolderName: hasElement(SELECTORS.cardHolderName),
+    anyElement: hasElement(SELECTORS.anyElement),
     adyenIframe: [...root.querySelectorAll('iframe')].some((frame) =>
       isAdyenIframe({ name: frame.name, src: frame.src })
     ),
@@ -82,11 +94,13 @@ export function readCheckoutDom(root: ParentNode): CheckoutDom {
  * Returns true when a document shows mounted checkout: an adyen-checkout
  * element or an Adyen iframe. SDK script tags alone do not count.
  */
-export function showsMountedCheckout(dom: CheckoutDom): boolean {
+export function hasMountedCheckout(dom: CheckoutDom): boolean {
   return dom.anyElement || dom.adyenIframe;
 }
 
-/** Returns true for a document not served from an Adyen host, so hosted card fields do not count as merchant checkout. */
+/**
+Returns true for a document not served from an Adyen host, so hosted card fields do not count as merchant checkout.
+ */
 export function isMerchantDocument(url: string): boolean {
   return readAdyenEndpoint(url) === null;
 }
@@ -115,8 +129,10 @@ export function checkoutStrength(frame: FrameSignals): number {
   return strength;
 }
 
-/** Returns true when a frame renders checkout itself: complete AdyenCheckout options, or a mounted Drop-in, Card, or Adyen tree. */
-export function rendersCheckout(frame: FrameSignals): boolean {
+/**
+Returns true when a frame renders checkout itself: complete AdyenCheckout options, or a mounted Drop-in, Card, or Adyen tree.
+ */
+export function isRenderingCheckout(frame: FrameSignals): boolean {
   return hasCompleteCheckoutConfig(frame) || hasMountedTree(frame);
 }
 

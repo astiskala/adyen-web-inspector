@@ -16,7 +16,7 @@ interface EmptyStateLink {
   readonly label: string;
 }
 
-interface EmptyStateProps {
+interface EmptyStateProperties {
   readonly icon: string;
   readonly title: string;
   readonly tone?: 'neutral' | 'warning';
@@ -36,7 +36,7 @@ export function EmptyState({
   scanAction,
   link,
   children,
-}: EmptyStateProps): JSX.Element {
+}: EmptyStateProperties): JSX.Element {
   const titleClass = tone === 'warning' ? `${s('title')} ${s('titleWarning')}` : s('title');
 
   return (

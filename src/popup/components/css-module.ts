@@ -1,4 +1,6 @@
-/** A CSS module's class names; keys the stylesheet does not define are undefined. */
+/**
+A CSS module's class names; keys the stylesheet does not define are undefined.
+ */
 type CssModuleClasses = Readonly<Record<string, string | undefined>>;
 
 /**

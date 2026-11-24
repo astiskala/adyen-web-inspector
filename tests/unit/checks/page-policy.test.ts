@@ -8,12 +8,11 @@ import {
 } from '../../fixtures/makeScanPayload';
 
 function policyFor(...csp: string[]): ReturnType<typeof readPagePolicy> {
+  const headers = csp.map((value) => makeHeader('Content-Security-Policy', value));
   return readPagePolicy(
     makeScanPayload({
       pageUrl: 'https://merchant.example/checkout',
-      documentHeaders: makeDocumentHeaders(
-        csp.map((value) => makeHeader('Content-Security-Policy', value))
-      ),
+      documentHeaders: makeDocumentHeaders(headers),
     })
   );
 }
