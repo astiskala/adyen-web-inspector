@@ -3,7 +3,7 @@ import {
   EMPTY_CHECKOUT_CAPTURE,
   readCheckoutCapture,
   readRequestInference,
-  recordAnalyticsEvents,
+  recordAnalytics,
   recordCheckoutInit,
   recordCheckoutOptions,
   recordInference,
@@ -95,79 +95,12 @@ describe('recordInference and recordCheckoutInit', () => {
   });
 });
 
-function rendered(component: string, configData: Record<string, unknown>): unknown {
-  return { type: 'rendered', component, configData };
-}
+describe('recordAnalytics', () => {
+  it('records an analytics body on the capture record, and returns the same record otherwise', () => {
+    const capture = recordAnalytics(EMPTY_CHECKOUT_CAPTURE, { flavor: 'dropin' });
 
-describe('recordAnalyticsEvents', () => {
-  it('keeps the latest rendered showPayButton per component and every component named', () => {
-    const first = recordAnalyticsEvents(EMPTY_CHECKOUT_CAPTURE, {
-      channel: 'Web',
-      info: [
-        rendered('paypal', { showPayButton: false, amount: '{"value":100}' }),
-        rendered('scheme', { showPayButton: true, _disableClickToPay: true }),
-        { type: 'sdkDownloadInitiated', component: 'clicktopay', cdnUrl: 'https://x' },
-      ],
-    });
-    const second = recordAnalyticsEvents(first, {
-      info: [rendered('paypal', { showPayButton: true })],
-    });
-
-    expect(second.events).toEqual({
-      rendered: [
-        { type: 'scheme', showPayButton: true, clickToPayDisabled: true },
-        { type: 'paypal', showPayButton: true },
-      ],
-      paymentMethods: ['paypal', 'scheme', 'clicktopay'],
-    });
-  });
-
-  it('reads the payment methods Drop-in lists as available', () => {
-    const capture = recordAnalyticsEvents(EMPTY_CHECKOUT_CAPTURE, {
-      info: [
-        {
-          type: 'paymentListDisplayed',
-          component: 'dropin',
-          availablePaymentMethods: [
-            { paymentMethodType: 'klarna_paynow', displayMode: 'list' },
-            { paymentMethodType: 3 },
-            'paypal',
-          ],
-        },
-      ],
-    });
-
-    expect(capture.events).toEqual({ rendered: [], paymentMethods: ['dropin', 'klarna_paynow'] });
-  });
-
-  it('ignores stored payment methods, rendered events without showPayButton, and malformed events', () => {
-    const capture = recordAnalyticsEvents(EMPTY_CHECKOUT_CAPTURE, {
-      info: [
-        {
-          ...(rendered('scheme', { showPayButton: false }) as object),
-          isStoredPaymentMethod: true,
-        },
-        rendered('ideal', {}),
-        { type: 'rendered', component: 'giftcard' },
-        { type: 'rendered', component: '', configData: { showPayButton: false } },
-        null,
-      ],
-    });
-
-    expect(capture.events).toEqual({
-      rendered: [],
-      paymentMethods: ['scheme', 'ideal', 'giftcard'],
-    });
-  });
-
-  it('returns the same record for bodies without info events', () => {
-    expect(recordAnalyticsEvents(EMPTY_CHECKOUT_CAPTURE, { version: '6.0.0' })).toBe(
-      EMPTY_CHECKOUT_CAPTURE
-    );
-    expect(recordAnalyticsEvents(EMPTY_CHECKOUT_CAPTURE, 'text')).toBe(EMPTY_CHECKOUT_CAPTURE);
-    expect(recordAnalyticsEvents(EMPTY_CHECKOUT_CAPTURE, { info: [null] })).toBe(
-      EMPTY_CHECKOUT_CAPTURE
-    );
+    expect(capture.analytics.sdk).toEqual({ flavor: 'dropin' });
+    expect(recordAnalytics(capture, { flavor: 'dropin' })).toBe(capture);
   });
 });
 
@@ -196,34 +129,13 @@ describe('readCheckoutCapture', () => {
       captured: { options: { clientKey: 'test_K' }, complete: true },
       inferred: { 'adyen-request': { locale: 'nl-NL' } },
       initCount: 3,
-      events: {
+      analytics: {
+        sdk: { flavor: 'dropin' },
         rendered: [{ type: 'paypal', showPayButton: false }],
         paymentMethods: ['paypal'],
       },
     };
     expect(readCheckoutCapture(record)).toEqual(record);
-  });
-
-  it('keeps only well-formed analytics event entries', () => {
-    expect(
-      readCheckoutCapture({
-        events: {
-          rendered: [
-            { type: 'scheme', showPayButton: true, clickToPayDisabled: true },
-            { type: 'paypal', showPayButton: 'no' },
-            { type: 7, showPayButton: false },
-            null,
-          ],
-          paymentMethods: ['scheme', 4],
-        },
-      }).events
-    ).toEqual({
-      rendered: [{ type: 'scheme', showPayButton: true, clickToPayDisabled: true }],
-      paymentMethods: ['scheme'],
-    });
-    expect(readCheckoutCapture({ events: { rendered: 'x' } }).events).toEqual(
-      EMPTY_CHECKOUT_CAPTURE.events
-    );
   });
 
   it('reads anything a page script left behind as an empty or partial record', () => {

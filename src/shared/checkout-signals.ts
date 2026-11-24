@@ -145,7 +145,7 @@ export function hasCheckoutActivity(payload: ScanPayload): boolean {
     checkoutConfigSources(page).size > 0 ||
     hasMountedTree(page) ||
     page.iframes.some(isAdyenIframe) ||
-    payload.analyticsData !== null ||
+    payload.analytics !== null ||
     payload.capturedRequests.some((request) => isCheckoutApiRequest(request.url))
   );
 }

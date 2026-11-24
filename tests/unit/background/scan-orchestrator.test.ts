@@ -264,7 +264,11 @@ describe('runScan captured traffic', () => {
 
     const { payload, attributes } = await runScan(TAB_ID, browser);
 
-    expect(payload.analyticsData).toEqual({ flavor: 'dropin', version: '6.30.0', sessionId: 'S1' });
+    expect(payload.analytics?.sdk).toEqual({
+      flavor: 'dropin',
+      version: '6.30.0',
+      sessionId: 'S1',
+    });
     expect(attributes.flow).toMatchObject({
       value: 'sessions',
       signals: { hasAnalyticsSessionId: true },
@@ -272,12 +276,46 @@ describe('runScan captured traffic', () => {
     expect(attributes.flavor).toEqual({ value: 'Drop-in', source: 'analytics' });
   });
 
-  it('reports no analytics data when no analytics body carried SDK fields', async () => {
+  it('folds analytics bodies seen on the network after the analytics the page reported', async () => {
+    const analytics = 'https://checkoutanalytics-test.adyen.com/checkoutanalytics/v3/analytics';
+    const pageAnalytics = {
+      sdk: { flavor: 'dropin', version: '6.30.0' },
+      rendered: [{ type: 'paypal', showPayButton: false }],
+      paymentMethods: ['paypal'],
+    };
+    const browser = createFakeScanBrowser({
+      extractions: [framesOf(makePageExtract({ analytics: pageAnalytics }))],
+      network: {
+        posts: [
+          {
+            url: analytics,
+            body: JSON.stringify({
+              version: '6.31.0',
+              info: [
+                { type: 'rendered', component: 'paypal', configData: { showPayButton: true } },
+              ],
+            }),
+          },
+        ],
+      },
+    });
+
+    const { payload } = await runScan(TAB_ID, browser);
+
+    expect(payload.page.analytics).toEqual(pageAnalytics);
+    expect(payload.analytics).toEqual({
+      sdk: { flavor: 'dropin', version: '6.31.0' },
+      rendered: [{ type: 'paypal', showPayButton: true }],
+      paymentMethods: ['paypal'],
+    });
+  });
+
+  it('reports no analytics when no analytics body reported anything', async () => {
     const browser = createFakeScanBrowser({ extractions: [framesOf(makePageExtract())] });
 
     const { payload } = await runScan(TAB_ID, browser);
 
-    expect(payload.analyticsData).toBeNull();
+    expect(payload.analytics).toBeNull();
   });
 });
 

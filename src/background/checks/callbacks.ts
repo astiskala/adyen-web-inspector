@@ -616,8 +616,7 @@ export const CALLBACK_CHECKS = createRegistry(CATEGORY)
     }
     if (reported) return pass(STRINGS.CUSTOM_PAY_BUTTON_COMPAT_PASS_TITLE);
 
-    const isObserved =
-      hasCapturedCheckoutConfig(payload.page) || payload.page.analyticsEvents !== undefined;
+    const isObserved = hasCapturedCheckoutConfig(payload.page) || payload.analytics !== null;
     return skip(
       STRINGS.CUSTOM_PAY_BUTTON_COMPAT_SKIP_TITLE,
       isObserved

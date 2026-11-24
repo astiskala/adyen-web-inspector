@@ -6,11 +6,11 @@ import {
   makeCheckoutPage,
   makeRequest,
   makeCheckoutConfig,
-  makeAnalyticsData,
+  makeAnalytics,
   makeCapturedCheckoutConfig,
   makeCapturedConfig,
 } from '../../fixtures/makeScanPayload';
-import type { AnalyticsComponentEvents, RenderedComponent } from '../../../src/shared/types';
+import type { CheckoutAnalytics, RenderedComponent } from '../../../src/shared/types';
 import { requireCheck } from './requireCheck';
 
 const flowType = requireCheck(CALLBACK_CHECKS, 'flow-type');
@@ -76,7 +76,7 @@ describe('flow-type', () => {
     const payload = makeAdyenPayload(
       {},
       {},
-      { analyticsData: makeAnalyticsData({ flavor: 'components' }) }
+      { analytics: makeAnalytics({ flavor: 'components' }) }
     );
     const result = flowType.run(payload);
     expect(result.severity).toBe('info');
@@ -129,7 +129,7 @@ describe('flow-type', () => {
 
   it('reports sessions flow from analytics sessionId signal', () => {
     const payload = makeScanPayload({
-      analyticsData: makeAnalyticsData({ sessionId: 'session-id-123' }),
+      analytics: makeAnalytics({ sessionId: 'session-id-123' }),
     });
     const result = flowType.run(payload);
     expect(result.severity).toBe('info');
@@ -437,7 +437,7 @@ describe('callback-on-submit-state-data', () => {
           '(state, component, actions) => fetch("/payments", { body: JSON.stringify({ ...state.data, amount: cart.total, reference }) })',
         ],
       },
-      { analyticsData: makeAnalyticsData({ flavor: 'dropin' }) }
+      { analytics: makeAnalytics({ flavor: 'dropin' }) }
     );
     const result = stateData.run(payload);
     expect(result.severity).toBe('warn');
@@ -512,7 +512,7 @@ describe('callback-on-submit-state-data-fields', () => {
           '(state) => post({ paymentMethod: state.data.paymentMethod, browserInfo: state.data.browserInfo })',
         ],
       },
-      { analyticsData: makeAnalyticsData({ flavor: 'dropin' }) }
+      { analytics: makeAnalytics({ flavor: 'dropin' }) }
     );
     const result = stateDataFields.run(payload);
     expect(result.severity).toBe('warn');
@@ -619,7 +619,7 @@ describe('callback-on-payment-completed', () => {
       {},
       {},
       {
-        analyticsData: makeAnalyticsData({ flavor: 'dropin' }),
+        analytics: makeAnalytics({ flavor: 'dropin' }),
       }
     );
     expect(onPaymentCompleted.run(payload).docsUrl).toBe(ADVANCED_DROP_IN_CALLBACK_DOC);
@@ -692,7 +692,7 @@ describe('callback-on-payment-failed', () => {
       {},
       {
         capturedRequests: sessionsRequests,
-        analyticsData: makeAnalyticsData({ flavor: 'dropin' }),
+        analytics: makeAnalytics({ flavor: 'dropin' }),
       }
     );
     expect(onPaymentFailed.run(payload).docsUrl).toBe(SESSIONS_DROP_IN_CALLBACK_DOC);
@@ -857,21 +857,19 @@ function rendered(type: string, isPayButtonShown: boolean): RenderedComponent {
   return { type, showPayButton: isPayButtonShown };
 }
 
+function payButtonPayload(
+  events: Partial<Omit<CheckoutAnalytics, 'sdk'>> | null,
+  config: Parameters<typeof makeCheckoutConfig>[0] = {}
+): ReturnType<typeof makeScanPayload> {
+  return makeScanPayload({
+    page: makeCheckoutPage({
+      observedConfig: { captured: makeCapturedCheckoutConfig(config, true) },
+    }),
+    analytics: events === null ? null : makeAnalytics({}, events),
+  });
+}
+
 describe('callback-custom-pay-button-compatibility', () => {
-  const NO_EVENTS = { rendered: [], paymentMethods: [] } as const;
-
-  function payButtonPayload(
-    events: Partial<AnalyticsComponentEvents> | null,
-    config: Parameters<typeof makeCheckoutConfig>[0] = {}
-  ): ReturnType<typeof makeScanPayload> {
-    return makeScanPayload({
-      page: makeCheckoutPage({
-        observedConfig: { captured: makeCapturedCheckoutConfig(config, true) },
-        ...(events !== null && { analyticsEvents: { ...NO_EVENTS, ...events } }),
-      }),
-    });
-  }
-
   it('skips when no checkout configuration or analytics events were captured', () => {
     const result = customPayButtonCompat.run(makeScanPayload());
     expect(result.severity).toBe('skip');
@@ -1107,7 +1105,7 @@ describe('flow-type signal lists', () => {
         observedConfig: { component: { hasSession: true } },
       }),
       capturedRequests: sessionsRequests,
-      analyticsData: makeAnalyticsData({ sessionId: 'S1' }),
+      analytics: makeAnalytics({ sessionId: 'S1' }),
     });
 
     expect(flowType.run(payload).detail).toBe(

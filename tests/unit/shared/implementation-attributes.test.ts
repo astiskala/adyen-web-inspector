@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readImplementationAttributes } from '../../../src/shared/implementation-attributes';
 import {
   makeAdyenPayload,
-  makeAnalyticsData,
+  makeAnalytics,
   makeCheckoutPage,
   makeRequest,
   makeScanPayload,
@@ -102,7 +102,7 @@ describe('integration flow', () => {
     const fromPayments = makeScanPayload({
       capturedRequests: [makeRequest('https://checkout-test.adyen.com/v71/payments')],
     });
-    const fromAnalytics = makeScanPayload({ analyticsData: makeAnalyticsData() });
+    const fromAnalytics = makeScanPayload({ analytics: makeAnalytics() });
 
     expect(readImplementationAttributes(fromPayments).flow.value).toBe('unknown');
     expect(readImplementationAttributes(fromAnalytics).flow).toMatchObject({
@@ -182,7 +182,7 @@ describe('integration flavor, import method, and checkout activity', () => {
         },
         hasDropinDOM: true,
       }),
-      analyticsData: makeAnalyticsData({ flavor: 'components' }),
+      analytics: makeAnalytics({ flavor: 'components' }),
     });
 
     expect(readImplementationAttributes(payload).flavor).toEqual({
@@ -194,13 +194,13 @@ describe('integration flavor, import method, and checkout activity', () => {
   it.each([
     [
       'analytics custom flavor',
-      makeScanPayload({ analyticsData: makeAnalyticsData({ flavor: 'custom' }) }),
+      makeScanPayload({ analytics: makeAnalytics({ flavor: 'custom' }) }),
       { value: 'Custom', source: 'analytics' },
     ],
     [
       'a Drop-in resource URL',
       makeScanPayload({
-        analyticsData: makeAnalyticsData({ flavor: 'unexpected' }),
+        analytics: makeAnalytics({ flavor: 'unexpected' }),
         capturedRequests: [makeRequest('https://checkoutshopper-test.adyen.com/dropin.js')],
       }),
       { value: 'Drop-in', source: 'dropin-pattern' },
@@ -253,7 +253,7 @@ describe('integration flavor, import method, and checkout activity', () => {
         capturedRequests: [makeRequest('https://checkout-test.adyen.com/v71/paymentMethods')],
       }),
     ],
-    ['analytics', makeScanPayload({ analyticsData: makeAnalyticsData() })],
+    ['analytics', makeScanPayload({ analytics: makeAnalytics() })],
   ])('detects checkout activity from %s', (_label, payload) => {
     expect(readImplementationAttributes(payload).checkoutActivity).toBe(true);
   });

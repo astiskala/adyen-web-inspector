@@ -1,34 +1,27 @@
 /**
 Captured traffic — what the Scan's network observations tell about the
 checkout page: the checkout document's response headers, the main-document
-and Adyen requests checks read, and the SDK fields in Adyen checkout
-analytics bodies. Requests the page reports itself (script and link tags,
-Resource Timing) fill in what the capture missed. Part of the Scan: the
+and Adyen requests checks read, and the checkout analytics bodies, folded
+after the analytics the page itself reported. Requests the page reports
+itself (script and link tags, Resource Timing) fill in what the capture
+missed. Part of the Scan: the
 browser port only reports raw observations.
 */
 
 import { readAdyenEndpoint } from '../shared/adyen-endpoint.js';
+import {
+  EMPTY_CHECKOUT_ANALYTICS,
+  recordAnalyticsBody,
+  reportedAnalytics,
+} from '../shared/checkout-analytics.js';
 import type {
-  AnalyticsData,
   CapturedHeader,
   CapturedRequest,
+  CheckoutAnalytics,
   CheckoutPage,
   DocumentHeaders,
 } from '../shared/types.js';
 import type { ObservedNetwork, ObservedPost, ObservedResponse } from './scan-browser.js';
-
-/**
-Analytics fields the Scan keeps; the rest of each body is discarded.
-*/
-const ANALYTICS_KEYS = [
-  'flavor',
-  'version',
-  'buildType',
-  'channel',
-  'platform',
-  'locale',
-  'sessionId',
-] as const;
 
 /**
 The network evidence of one Scan.
@@ -36,7 +29,7 @@ The network evidence of one Scan.
 export interface CapturedTraffic {
   readonly documentHeaders: DocumentHeaders;
   readonly capturedRequests: CapturedRequest[];
-  readonly analyticsData: AnalyticsData | null;
+  readonly analytics: CheckoutAnalytics | null;
 }
 
 type FetchDocumentHeaders = (url: string) => Promise<CapturedHeader[]>;
@@ -96,29 +89,28 @@ function dedupe(requests: readonly CapturedRequest[]): CapturedRequest[] {
   });
 }
 
-function parseBody(post: ObservedPost): Record<string, unknown> | null {
+function parseBody(post: ObservedPost): unknown {
   try {
-    const json: unknown = JSON.parse(post.body);
-    return typeof json === 'object' && json !== null ? (json as Record<string, unknown>) : null;
+    return JSON.parse(post.body);
   } catch {
     return null;
   }
 }
 
 /**
-Merges the SDK fields of analytics bodies; later calls win per field.
+The page's analytics, then each analytics body observed on the network in order.
 */
-function readAnalytics(posts: readonly ObservedPost[]): AnalyticsData | null {
-  const merged: { -readonly [K in keyof AnalyticsData]: AnalyticsData[K] } = {};
+function readAnalytics(
+  page: CheckoutPage,
+  posts: readonly ObservedPost[]
+): CheckoutAnalytics | null {
+  let analytics = page.analytics ?? EMPTY_CHECKOUT_ANALYTICS;
   for (const post of posts) {
-    if (readAdyenEndpoint(post.url)?.role !== 'analytics') continue;
-    const body = parseBody(post);
-    for (const key of ANALYTICS_KEYS) {
-      const value = body?.[key];
-      if (typeof value === 'string' && value !== '') merged[key] = value;
+    if (readAdyenEndpoint(post.url)?.role === 'analytics') {
+      analytics = recordAnalyticsBody(analytics, parseBody(post));
     }
   }
-  return Object.keys(merged).length === 0 ? null : merged;
+  return reportedAnalytics(analytics) ?? null;
 }
 
 /**
@@ -161,6 +153,6 @@ export async function readCapturedTraffic(
       ...observed.responses.filter(isCheckedResponse).map(toCapturedRequest),
       ...pageRequests(page),
     ]),
-    analyticsData: readAnalytics(observed.posts),
+    analytics: readAnalytics(page, observed.posts),
   };
 }

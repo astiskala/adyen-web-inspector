@@ -349,7 +349,7 @@ test('Custom pay button that hides PayPal fails from its rendered analytics even
     beforeSubmit: 'checkout',
     showPayButton: false,
   });
-  expect(result.payload.page.analyticsEvents?.rendered).toEqual([
+  expect(result.payload.analytics?.rendered).toEqual([
     { type: 'scheme', showPayButton: false },
     { type: 'paypal', showPayButton: false },
   ]);
@@ -371,7 +371,7 @@ test('Card-only onSubmit logic with PayPal on its own button raises no false pos
     'dummy-merchant.html?scenario=selective-onsubmit'
   );
 
-  expect(result.payload.page.analyticsEvents?.rendered).toEqual([
+  expect(result.payload.analytics?.rendered).toEqual([
     { type: 'scheme', showPayButton: true },
     { type: 'paypal', showPayButton: true },
   ]);
@@ -442,7 +442,7 @@ test('Checkout analytics POST during a scan supplies flavor and Sessions flow ev
     }
   );
 
-  expect(result.payload.analyticsData).toMatchObject({
+  expect(result.payload.analytics?.sdk).toMatchObject({
     flavor: 'custom',
     version: '6.31.0',
     buildType: 'esm',

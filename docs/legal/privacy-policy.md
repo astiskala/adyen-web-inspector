@@ -2,7 +2,7 @@
 
 Last updated: 2026-11-24
 
-Adyen Web Inspector is a browser extension that analyzes browser-visible Adyen Web integrations. Its passive detector and MAIN-world configuration interceptor run on matching HTTP(S) pages, including before you request a scan. The detector checks for Adyen elements; the interceptor wraps selected page APIs to capture checkout configuration, infer values from URLs and parsed objects, and read component events from the page's Adyen checkout analytics requests. Full inspection runs only when you start a scan.
+Adyen Web Inspector is a browser extension that analyzes browser-visible Adyen Web integrations. Its passive detector and MAIN-world configuration interceptor run on matching HTTP(S) pages, including before you request a scan. The detector checks for Adyen elements; the interceptor wraps selected page APIs to capture checkout configuration, infer values from URLs and parsed objects, and read selected fields and component events from the page's Adyen checkout analytics requests. Full inspection runs only when you start a scan.
 
 ## What the extension processes
 
@@ -12,7 +12,7 @@ When you run a scan, the extension may process:
 - Checkout settings relevant to checks (including `clientKey`, `environment`, `locale`, `countryCode`, `showPayButton`, the payment method types whose configuration hides the pay button, callback registration, and short excerpts of `onSubmit`/`beforeSubmit` function source)
 - SDK metadata, script, stylesheet, iframe, resource-timing, and CSS-rule information
 - Response headers and HTTP status codes for the inspected page and captured Adyen-related requests
-- Selected Adyen checkout analytics POST fields used for SDK identification (for example `flavor`, `version`, `buildType`, `locale`, `sessionId`); the rest of the request body is not stored
+- Selected Adyen checkout analytics POST fields used for SDK identification (for example `flavor`, `version`, `buildType`, `locale`, `sessionId`), read in the page as requests are sent and from requests observed during a scan; the rest of the request body is not stored
 - Component events from Adyen checkout analytics requests the page sends, read in the page as they are sent: the component type, the `showPayButton` value it rendered with, whether Click to Pay was disabled on Card, and the payment method types Drop-in listed; the rest of each request body is not stored
 
 ## How data is used

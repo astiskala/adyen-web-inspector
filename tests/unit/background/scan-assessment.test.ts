@@ -20,7 +20,7 @@ function makeEvidence(overrides: Partial<Evidence> = {}): Evidence {
     traffic: {
       documentHeaders: UNAVAILABLE_DOCUMENT_HEADERS,
       capturedRequests: [],
-      analyticsData: null,
+      analytics: null,
     },
     latestVersion: '6.32.0',
     scannedAt: '2026-09-28T00:00:00.000Z',
@@ -95,7 +95,7 @@ describe('assessScan', () => {
       traffic: {
         documentHeaders,
         capturedRequests: [makeRequest(script), locale],
-        analyticsData: null,
+        analytics: null,
       },
     });
 

@@ -100,16 +100,19 @@ describe('page extractor', () => {
     });
   });
 
-  it('publishes the component events of the capture record when there are any', async () => {
-    const events = {
+  it('publishes the analytics of the capture record when they report anything', async () => {
+    const analytics = {
+      sdk: { flavor: 'dropin' },
       rendered: [{ type: 'paypal', showPayButton: false }],
       paymentMethods: ['paypal'],
     };
-    pageGlobals[PAGE_GLOBALS.checkoutCapture] = { events };
-    await expect(extractPage()).resolves.toMatchObject({ analyticsEvents: events });
+    pageGlobals[PAGE_GLOBALS.checkoutCapture] = { analytics };
+    await expect(extractPage()).resolves.toMatchObject({ analytics });
 
-    pageGlobals[PAGE_GLOBALS.checkoutCapture] = { events: { rendered: [], paymentMethods: [] } };
-    await expect(extractPage()).resolves.not.toHaveProperty('analyticsEvents');
+    pageGlobals[PAGE_GLOBALS.checkoutCapture] = {
+      analytics: { sdk: {}, rendered: [], paymentMethods: [] },
+    };
+    await expect(extractPage()).resolves.not.toHaveProperty('analytics');
   });
 
   it('tolerates a capture record that page scripts overwrote', async () => {

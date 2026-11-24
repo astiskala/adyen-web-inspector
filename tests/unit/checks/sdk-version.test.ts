@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { SDK_VERSION_CHECKS } from '../../../src/background/checks/sdk-version';
 import {
   makeAdyenPayload,
+  makeAnalytics,
   makeCheckoutPage,
   makeScanPayload,
   makeVersionInfo,
@@ -215,7 +216,7 @@ describe('uplift-cobadged-version', () => {
       {},
       {},
       {
-        analyticsData: { flavor: 'custom' },
+        analytics: makeAnalytics({ flavor: 'custom' }),
         versionInfo: makeVersionInfo({ detected: '6.15.9' }),
       }
     );

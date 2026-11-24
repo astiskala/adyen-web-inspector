@@ -11,6 +11,7 @@ import type {
   CheckoutPage,
   AdyenWebMetadata,
   AnalyticsData,
+  CheckoutAnalytics,
   CapturedHeader,
   CapturedRequest,
   ScanResult,
@@ -142,15 +143,17 @@ export function makeVersionInfo(overrides: Partial<VersionInfo> = {}): VersionIn
 }
 
 /**
-Creates checkout analytics fixture data with sensible defaults.
+Creates checkout analytics with sensible SDK field defaults and no component events.
 */
-export function makeAnalyticsData(overrides: Partial<AnalyticsData> = {}): AnalyticsData {
+export function makeAnalytics(
+  sdk: Partial<AnalyticsData> = {},
+  events: Partial<Omit<CheckoutAnalytics, 'sdk'>> = {}
+): CheckoutAnalytics {
   return {
-    flavor: 'dropin',
-    version: '5.67.0',
-    buildType: 'esm',
-    locale: 'en-US',
-    ...overrides,
+    sdk: { flavor: 'dropin', version: '5.67.0', buildType: 'esm', locale: 'en-US', ...sdk },
+    rendered: [],
+    paymentMethods: [],
+    ...events,
   };
 }
 
@@ -180,7 +183,7 @@ export function makeScanPayload(overrides: Partial<ScanPayload> = {}): ScanPaylo
     documentHeaders: makeDocumentHeaders(),
     capturedRequests: [],
     versionInfo: makeVersionInfo(),
-    analyticsData: null,
+    analytics: null,
     scannedAt: '2026-09-28T00:00:00.000Z',
     ...overrides,
   };

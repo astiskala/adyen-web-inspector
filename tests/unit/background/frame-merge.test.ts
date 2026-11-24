@@ -216,18 +216,20 @@ describe('mergeFrames field scope', () => {
     });
   });
 
-  it('combines analytics component events across frames, earlier frames winning per component', () => {
+  it('combines analytics across frames, earlier frames winning per SDK field and component', () => {
     const page = merge(
       makePageExtract(),
       makePageExtract({
-        analyticsEvents: {
+        analytics: {
+          sdk: { flavor: 'dropin' },
           rendered: [{ type: 'paypal', showPayButton: false }],
           paymentMethods: ['paypal', 'dropin'],
         },
         pageUrl: 'https://merchant.example/a',
       }),
       makePageExtract({
-        analyticsEvents: {
+        analytics: {
+          sdk: { flavor: 'components', version: '6.30.0' },
           rendered: [
             { type: 'paypal', showPayButton: true },
             { type: 'scheme', showPayButton: true },
@@ -238,14 +240,15 @@ describe('mergeFrames field scope', () => {
       })
     );
 
-    expect(page.analyticsEvents).toEqual({
+    expect(page.analytics).toEqual({
+      sdk: { flavor: 'dropin', version: '6.30.0' },
       rendered: [
         { type: 'paypal', showPayButton: false },
         { type: 'scheme', showPayButton: true },
       ],
       paymentMethods: ['paypal', 'dropin', 'scheme'],
     });
-    expect(merge(makePageExtract())).not.toHaveProperty('analyticsEvents');
+    expect(merge(makePageExtract())).not.toHaveProperty('analytics');
   });
 
   it('leaves absence unproven when no frame captured options whole', () => {

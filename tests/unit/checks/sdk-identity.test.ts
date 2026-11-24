@@ -5,7 +5,7 @@ import {
   makeAdyenPayload,
   makeCheckoutPage,
   makeAdyenMetadata,
-  makeAnalyticsData,
+  makeAnalytics,
   makeRequest,
   makeCheckoutConfig,
   makeCapturedCheckoutConfig,
@@ -111,7 +111,7 @@ describe('sdk-bundle-type', () => {
 
   it('returns pass when analytics reports eslegacy buildType (no metadata)', () => {
     const payload = makeScanPayload({
-      analyticsData: makeAnalyticsData({ buildType: 'eslegacy' }),
+      analytics: makeAnalytics({ buildType: 'eslegacy' }),
     });
     const result = sdkBundleType.run(payload);
     expect(result.severity).toBe('pass');
@@ -120,7 +120,7 @@ describe('sdk-bundle-type', () => {
 
   it('returns notice when analytics reports auto buildType and uses sessions docs', () => {
     const payload = makeScanPayload({
-      analyticsData: makeAnalyticsData({
+      analytics: makeAnalytics({
         buildType: 'auto',
         flavor: 'dropin',
         sessionId: 'session-id-123',
@@ -145,7 +145,7 @@ describe('sdk-bundle-type', () => {
       page: makeCheckoutPage({
         adyenMetadata: makeAdyenMetadata({ bundleType: 'esm' }),
       }),
-      analyticsData: makeAnalyticsData({ buildType: 'auto' }),
+      analytics: makeAnalytics({ buildType: 'auto' }),
     });
     const result = sdkBundleType.run(payload);
     expect(result.severity).toBe('pass');
@@ -159,7 +159,7 @@ describe('sdk-flavor', () => {
       {},
       {},
       {
-        analyticsData: makeAnalyticsData({ flavor: 'dropin' }),
+        analytics: makeAnalytics({ flavor: 'dropin' }),
       }
     );
     const result = sdkFlavor.run(payload);
@@ -173,7 +173,7 @@ describe('sdk-flavor', () => {
       {},
       {},
       {
-        analyticsData: makeAnalyticsData({ flavor: 'components' }),
+        analytics: makeAnalytics({ flavor: 'components' }),
       }
     );
     const result = sdkFlavor.run(payload);
@@ -187,7 +187,7 @@ describe('sdk-flavor', () => {
       {},
       {},
       {
-        analyticsData: makeAnalyticsData({ flavor: 'custom' }),
+        analytics: makeAnalytics({ flavor: 'custom' }),
       }
     );
     const result = sdkFlavor.run(payload);
@@ -291,7 +291,7 @@ describe('sdk-flavor', () => {
           captured: makeCapturedConfig({ clientKey: 'test_ABC', environment: 'test' }),
         },
       }),
-      analyticsData: makeAnalyticsData({ flavor: 'dropin' }),
+      analytics: makeAnalytics({ flavor: 'dropin' }),
     });
     const result = sdkFlavor.run(payload);
     expect(result.title).toContain('Drop-in');

@@ -5,6 +5,7 @@ serialises a plain result onto a page global for the background scan to read.
 */
 
 import { readAdyenEndpoint } from '../shared/adyen-endpoint.js';
+import { reportedAnalytics } from '../shared/checkout-analytics.js';
 import { readCheckoutCapture } from '../shared/checkout-capture.js';
 import { readCheckoutDom } from '../shared/checkout-signals.js';
 import { mergeCheckoutConfigs, readCheckoutOptions } from '../shared/checkout-config-schema.js';
@@ -431,8 +432,7 @@ function extract(): PageExtractResult {
   const capture = readCheckoutCapture(g[PAGE_GLOBALS.checkoutCapture]);
   const isApiKeyDetected = isApiKeyExposed(capture);
   const dom = readCheckoutDom(document);
-  const { events } = capture;
-  const hasEvents = events.rendered.length > 0 || events.paymentMethods.length > 0;
+  const analytics = reportedAnalytics(capture.analytics);
 
   return {
     adyenMetadata: metadata,
@@ -447,7 +447,7 @@ function extract(): PageExtractResult {
     observedRequests: extractObservedRequests(),
     ...(capture.initCount > 0 && { checkoutInitCount: capture.initCount }),
     ...(mountCount > 0 && { componentMountCount: mountCount }),
-    ...(hasEvents && { analyticsEvents: events }),
+    ...(analytics !== undefined && { analytics }),
     ...(dom.dropin && { hasDropinDOM: true }),
     ...(dom.card && { hasCardDOM: true }),
     ...(dom.newCardForm && { hasNewCardFormDOM: true }),

@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import { findSdkVersionInUrls, resolveVersionInfo } from '../../../src/shared/sdk-version';
-import type { AnalyticsData, CheckoutPage } from '../../../src/shared/types';
-import { makeAdyenMetadata, makeCheckoutPage, makeRequest } from '../../fixtures/makeScanPayload';
+import type { CheckoutPage } from '../../../src/shared/types';
+import {
+  makeAdyenMetadata,
+  makeAnalytics,
+  makeCheckoutPage,
+  makeRequest,
+} from '../../fixtures/makeScanPayload';
 
 type Evidence = Parameters<typeof resolveVersionInfo>[0];
 
@@ -13,7 +18,7 @@ function evidenceWith(
 ): Evidence {
   return {
     page: makeCheckoutPage({ pageUrl: PAGE_URL, ...page }),
-    analyticsData: null,
+    analytics: null,
     capturedRequests: [],
     latest: '6.40.0',
     ...overrides,
@@ -34,14 +39,14 @@ describe('resolveVersionInfo signal precedence', () => {
   const cdnRequest = makeRequest(
     'https://checkoutshopper-test.adyen.com/checkoutshopper/sdk/6.21.0/adyen.css'
   );
-  const analytics: AnalyticsData = { version: '6.23.0' };
+  const analytics = makeAnalytics({ version: '6.23.0' });
 
   it.each([
     {
       name: 'metadata',
       evidence: evidenceWith(
         { adyenMetadata: makeAdyenMetadata({ version: '6.30.0' }), scripts: [{ src: cdnScript }] },
-        { analyticsData: analytics, capturedRequests: [cdnRequest] }
+        { analytics, capturedRequests: [cdnRequest] }
       ),
       expected: { detected: '6.30.0', source: 'metadata' },
     },
@@ -49,7 +54,7 @@ describe('resolveVersionInfo signal precedence', () => {
       name: 'analytics',
       evidence: evidenceWith(
         { scripts: [{ src: cdnScript }] },
-        { analyticsData: analytics, capturedRequests: [cdnRequest] }
+        { analytics, capturedRequests: [cdnRequest] }
       ),
       expected: { detected: '6.23.0', source: 'analytics' },
     },
@@ -62,7 +67,7 @@ describe('resolveVersionInfo signal precedence', () => {
       name: 'request-url',
       evidence: evidenceWith(
         { adyenMetadata: makeAdyenMetadata({ version: '' }) },
-        { analyticsData: { version: '' }, capturedRequests: [cdnRequest] }
+        { analytics: makeAnalytics({ version: '' }), capturedRequests: [cdnRequest] }
       ),
       expected: { detected: '6.21.0', source: 'request-url' },
     },

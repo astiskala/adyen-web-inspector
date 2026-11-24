@@ -5,7 +5,7 @@ import type { ScanPayload } from '../../../src/shared/types';
 import {
   makeScanPayload,
   makeCheckoutPage,
-  makeAnalyticsData,
+  makeAnalytics,
   makeVersionInfo,
   makeCapturedCheckoutConfig,
 } from '../../fixtures/makeScanPayload';
@@ -25,7 +25,7 @@ describe('computeStandardCompliance', () => {
           captured: makeCapturedCheckoutConfig({ hasSession: true }),
         },
       }),
-      analyticsData: makeAnalyticsData({ flavor: 'dropin', sessionId: 'session-123' }),
+      analytics: makeAnalytics({ flavor: 'dropin', sessionId: 'session-123' }),
       versionInfo: makeVersionInfo({ detected: '6.30.0' }),
     });
 
@@ -42,7 +42,7 @@ describe('computeStandardCompliance', () => {
           captured: makeCapturedCheckoutConfig({ hasSession: true }),
         },
       }),
-      analyticsData: makeAnalyticsData({ flavor: 'dropin', sessionId: 'session-123' }),
+      analytics: makeAnalytics({ flavor: 'dropin', sessionId: 'session-123' }),
       versionInfo: makeVersionInfo({ detected: '6.31.1', latest: '6.32.0' }),
     });
 
@@ -58,7 +58,7 @@ describe('computeStandardCompliance', () => {
           captured: makeCapturedCheckoutConfig({ hasSession: true }),
         },
       }),
-      analyticsData: makeAnalyticsData({ flavor: 'dropin', sessionId: 'session-123' }),
+      analytics: makeAnalytics({ flavor: 'dropin', sessionId: 'session-123' }),
       versionInfo: makeVersionInfo({ detected: '6.29.0' }),
     });
 
@@ -73,7 +73,7 @@ describe('computeStandardCompliance', () => {
       page: makeCheckoutPage({
         observedConfig: { captured: makeCapturedCheckoutConfig() },
       }),
-      analyticsData: makeAnalyticsData({ flavor: 'dropin' }),
+      analytics: makeAnalytics({ flavor: 'dropin' }),
       versionInfo: makeVersionInfo({ detected: '6.30.0' }),
     });
 
@@ -90,7 +90,7 @@ describe('computeStandardCompliance', () => {
           captured: makeCapturedCheckoutConfig({ hasSession: true }),
         },
       }),
-      analyticsData: makeAnalyticsData({ flavor: 'components', sessionId: 'session-123' }),
+      analytics: makeAnalytics({ flavor: 'components', sessionId: 'session-123' }),
       versionInfo: makeVersionInfo({ detected: '6.30.0' }),
     });
 
@@ -105,7 +105,7 @@ describe('computeStandardCompliance', () => {
       page: makeCheckoutPage({
         observedConfig: { captured: makeCapturedCheckoutConfig() },
       }),
-      analyticsData: makeAnalyticsData({ flavor: 'components' }),
+      analytics: makeAnalytics({ flavor: 'components' }),
       versionInfo: makeVersionInfo({ detected: '6.29.0' }),
     });
 
@@ -125,7 +125,7 @@ describe('computeStandardCompliance', () => {
           captured: makeCapturedCheckoutConfig({ hasSession: true }),
         },
       }),
-      analyticsData: makeAnalyticsData({ flavor: 'dropin', sessionId: 'session-123' }),
+      analytics: makeAnalytics({ flavor: 'dropin', sessionId: 'session-123' }),
       versionInfo: makeVersionInfo({ detected: null }),
     });
 

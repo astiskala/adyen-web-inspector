@@ -167,9 +167,9 @@ function resolveIntegrationFlow(payload: ScanPayload): Attribute<'flow'> {
   const signals = {
     hasSessionsRequest: payload.capturedRequests.some((request) => isSessionsRequest(request.url)),
     hasSessionConfig: session.state === 'present' && session.value,
-    hasAnalyticsSessionId: Boolean(payload.analyticsData?.sessionId),
+    hasAnalyticsSessionId: Boolean(payload.analytics?.sdk.sessionId),
     hasCheckoutConfig: checkoutConfigSources(payload.page).size > 0,
-    hasAnalyticsData: payload.analyticsData !== null,
+    hasAnalyticsData: payload.analytics !== null,
   };
   if (signals.hasSessionsRequest || signals.hasSessionConfig || signals.hasAnalyticsSessionId) {
     return { value: 'sessions', signals };
@@ -184,7 +184,7 @@ function resolveIntegrationFlavor(
   payload: ScanPayload,
   isCheckoutActive: boolean
 ): Attribute<'flavor'> {
-  const analyticsFlavor = payload.analyticsData?.flavor?.toLowerCase();
+  const analyticsFlavor = payload.analytics?.sdk.flavor?.toLowerCase();
   const mappedFlavor =
     analyticsFlavor === undefined ? undefined : ANALYTICS_FLAVOR_MAP[analyticsFlavor];
   if (mappedFlavor !== undefined) {

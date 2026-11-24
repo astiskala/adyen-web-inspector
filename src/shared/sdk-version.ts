@@ -9,7 +9,7 @@ The passive detector bundles this module inline, so it must stay light.
 
 import { readAdyenEndpoint } from './adyen-endpoint.js';
 import type {
-  AnalyticsData,
+  CheckoutAnalytics,
   CapturedRequest,
   CheckoutPage,
   SdkVersionSource,
@@ -56,7 +56,7 @@ type FetchScriptText = (url: string) => Promise<string | null>;
 
 interface VersionEvidence {
   readonly page: Pick<CheckoutPage, 'adyenMetadata' | 'scripts' | 'pageUrl'>;
-  readonly analyticsData: AnalyticsData | null;
+  readonly analytics: CheckoutAnalytics | null;
   readonly capturedRequests: readonly CapturedRequest[];
   /**
   Latest published version on npm, the comparison point.
@@ -141,7 +141,7 @@ async function detectVersion(
   const scriptUrls = evidence.page.scripts.map((script) => script.src);
   const signals: readonly [SdkVersionSource, () => string | null][] = [
     ['metadata', (): string | null => nonEmpty(evidence.page.adyenMetadata?.version)],
-    ['analytics', (): string | null => nonEmpty(evidence.analyticsData?.version)],
+    ['analytics', (): string | null => nonEmpty(evidence.analytics?.sdk.version)],
     ['script-url', (): string | null => findSdkVersionInUrls(scriptUrls)],
     [
       'request-url',

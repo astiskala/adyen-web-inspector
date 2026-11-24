@@ -324,14 +324,15 @@ describe('config-interceptor', () => {
       info: [{ type: 'rendered', component: 'paypal', configData: { showPayButton: false } }],
     });
 
-    it('records component events from analytics requests and from no other request', async () => {
+    it('records SDK fields and component events from analytics requests only', async () => {
       await globalThis.fetch(ANALYTICS_URL, { method: 'POST', body: renderedPayPal });
       await globalThis.fetch('https://merchant.example/log', {
         method: 'POST',
         body: JSON.stringify({ info: [{ type: 'rendered', component: 'klarna' }] }),
       });
 
-      expect(getCapture()?.events).toEqual({
+      expect(getCapture()?.analytics).toEqual({
+        sdk: { channel: 'Web' },
         rendered: [{ type: 'paypal', showPayButton: false }],
         paymentMethods: ['paypal'],
       });
@@ -346,7 +347,11 @@ describe('config-interceptor', () => {
         body: JSON.stringify({ version: '6.0.0', locale: 'nl-NL', countryCode: 'NL' }),
       });
 
-      expect(getCapture()?.events).toEqual({ rendered: [], paymentMethods: [] });
+      expect(getCapture()?.analytics).toEqual({
+        sdk: { version: '6.0.0', locale: 'nl-NL' },
+        rendered: [],
+        paymentMethods: [],
+      });
       expect(getInferredConfig('page-json')).toBeUndefined();
     });
   });

@@ -147,7 +147,7 @@ export interface AdyenWebMetadata {
 // ─── Analytics Data (from checkout analytics POST bodies) ─────────────────────
 
 /**
-Fields extracted from Adyen checkout analytics requests (setup + event POSTs).
+SDK fields Adyen Web reports in its checkout analytics setup and event bodies.
 */
 export interface AnalyticsData {
   /**
@@ -268,9 +268,14 @@ export interface RenderedComponent {
 }
 
 /**
-What Adyen Web's own analytics events reported about the page's components.
+Checkout analytics: what Adyen Web's own analytics request bodies reported,
+read the same way whether the page or the Scan's network capture saw them.
 */
-export interface AnalyticsComponentEvents {
+export interface CheckoutAnalytics {
+  /**
+  SDK fields of setup and event bodies; later bodies win per field.
+  */
+  readonly sdk: AnalyticsData;
   /**
   The latest `rendered` event per component type, oldest first.
   */
@@ -296,9 +301,9 @@ export interface CheckoutCapture {
   */
   readonly initCount: number;
   /**
-  Component events read from the page's Adyen checkout analytics requests.
+  What the page's Adyen checkout analytics requests reported.
   */
-  readonly events: AnalyticsComponentEvents;
+  readonly analytics: CheckoutAnalytics;
 }
 
 /**
@@ -333,9 +338,9 @@ export interface PageExtractResult {
   */
   readonly componentMountCount?: number;
   /**
-  Component events from Adyen checkout analytics requests; absent when none were read.
+  What the frame's Adyen checkout analytics requests reported; absent when none reported anything.
   */
-  readonly analyticsEvents?: AnalyticsComponentEvents;
+  readonly analytics?: CheckoutAnalytics;
   /**
   True when a `.adyen-checkout__dropin` element is present in the DOM.
   */
@@ -385,7 +390,7 @@ Fields of the Checkout page that the frame merge reads from more than the select
 type MergedFrameField =
   | 'adyenMetadata'
   | 'observedConfig'
-  | 'analyticsEvents'
+  | 'analytics'
   | 'hasDropinDOM'
   | 'hasCardDOM'
   | 'hasNewCardFormDOM'
@@ -408,9 +413,10 @@ export interface CheckoutPage extends Omit<PageExtractResult, MergedFrameField> 
   */
   readonly observedConfig: ObservedCheckoutConfig;
   /**
-  All frames; earlier frames win per rendered component type, and payment methods are combined.
+  All frames; earlier frames win per SDK field and rendered component type, and payment methods
+  are combined. The page's evidence only: checks read the Scan's reading, `ScanPayload.analytics`.
   */
-  readonly analyticsEvents?: AnalyticsComponentEvents;
+  readonly analytics?: CheckoutAnalytics;
   /**
   Selected frame or any merchant frame: a `.adyen-checkout__dropin` element is present.
   */
@@ -583,9 +589,10 @@ export interface ScanPayload {
   readonly capturedRequests: CapturedRequest[];
   readonly versionInfo: VersionInfo;
   /**
-  Data extracted from Adyen checkout analytics POST requests (merged from multiple calls).
+  Checkout analytics the page reported, then the bodies the Scan observed on the network; null
+  when no body reported anything.
   */
-  readonly analyticsData: AnalyticsData | null;
+  readonly analytics: CheckoutAnalytics | null;
   readonly scannedAt: string; // ISO 8601
 }
 

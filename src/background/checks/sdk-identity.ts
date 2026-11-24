@@ -142,14 +142,15 @@ export const SDK_IDENTITY_CHECKS = createRegistry(CATEGORY)
         return skip(STRINGS.BUNDLE_TYPE_CDN_SKIP_TITLE, STRINGS.BUNDLE_TYPE_CDN_SKIP_REASON);
       }
 
-      if (adyenMetadata === null && payload.analyticsData?.buildType === undefined) {
+      const analyticsBuildType = payload.analytics?.sdk.buildType;
+      if (adyenMetadata === null && analyticsBuildType === undefined) {
         return skip(
           STRINGS.BUNDLE_TYPE_UNKNOWN_SKIP_TITLE,
           STRINGS.BUNDLE_TYPE_UNKNOWN_SKIP_REASON
         );
       }
 
-      const bundleType = adyenMetadata?.bundleType ?? payload.analyticsData?.buildType ?? 'unknown';
+      const bundleType = adyenMetadata?.bundleType ?? analyticsBuildType ?? 'unknown';
 
       if (bundleType === 'auto') {
         const documentationUrl = getFlowSensitiveBundleDocumentationUrl(attributes);

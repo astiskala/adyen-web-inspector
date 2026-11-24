@@ -9,6 +9,7 @@ import {
   isMerchantDocument,
   isRenderingCheckout,
 } from '../shared/checkout-signals.js';
+import { mergeCheckoutAnalytics } from '../shared/checkout-analytics.js';
 import { mergeObservedConfigs } from '../shared/scan-evidence.js';
 import type { CheckoutPage, PageExtractResult } from '../shared/types.js';
 import type { FrameExtraction } from './scan-browser.js';
@@ -25,7 +26,7 @@ served from an Adyen host, so hosted card fields do not count as checkout.
 const FIELD_SCOPE = {
   adyenMetadata: 'selected-or-first',
   observedConfig: 'all-frames',
-  analyticsEvents: 'all-frames',
+  analytics: 'all-frames',
   componentMountCount: 'selected',
   hasDropinDOM: 'selected-or-merchant',
   hasCardDOM: 'selected-or-merchant',
@@ -92,25 +93,6 @@ function readSelectedFields(
   return Object.fromEntries(entries) as Pick<CheckoutPage, ScopedField<'selected'>>;
 }
 
-/**
-Combines analytics component events; earlier frames win per rendered component type.
-*/
-function mergeAnalyticsEvents(
-  frames: readonly PageExtractResult[]
-): Pick<CheckoutPage, 'analyticsEvents'> {
-  const summaries = frames.flatMap((frame) => frame.analyticsEvents ?? []);
-  if (summaries.length === 0) return {};
-  const rendered = summaries.flatMap((summary) => summary.rendered);
-  return {
-    analyticsEvents: {
-      rendered: rendered.filter(
-        (component, index) => rendered.findIndex(({ type }) => type === component.type) === index
-      ),
-      paymentMethods: [...new Set(summaries.flatMap((summary) => summary.paymentMethods))],
-    },
-  };
-}
-
 function mergeMerchantFlags(
   selected: PageExtractResult,
   merchantFrames: readonly PageExtractResult[]
@@ -138,6 +120,7 @@ export function mergeFrames(frames: readonly FrameExtraction[]): CheckoutPage | 
   const selected = selectFrame(first, rest);
   const results = extracted.map((frame) => frame.result);
   const merchantFrames = extracted.filter(isMerchantFrame);
+  const analytics = mergeCheckoutAnalytics(results.map((result) => result.analytics));
   const isCheckoutInChildFrame = merchantFrames.some(
     (frame) => frame.frameId !== TOP_FRAME_ID && isRenderingCheckout(frame.result)
   );
@@ -149,7 +132,7 @@ export function mergeFrames(frames: readonly FrameExtraction[]): CheckoutPage | 
       results.find((result) => result.adyenMetadata !== null)?.adyenMetadata ??
       null,
     observedConfig: mergeObservedConfigs(results),
-    ...mergeAnalyticsEvents(results),
+    ...(analytics !== undefined && { analytics }),
     ...mergeMerchantFlags(
       selected.result,
       merchantFrames.map((frame) => frame.result)

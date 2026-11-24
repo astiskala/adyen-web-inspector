@@ -133,13 +133,21 @@ const SEAM_RULES = [
   {
     name: 'checkout-capture-inline-safe',
     comment:
-      'The capture record is inlined into the config interceptor and page extractor, so it may depend on types, the config field schema, and the Adyen endpoint reading only',
+      'The capture record is inlined into the config interceptor and page extractor, so it may depend on types, the config field schema, the Adyen endpoint reading, and checkout analytics only',
     severity: 'error',
     from: { path: '^src/shared/checkout-capture\\.ts$' },
     to: {
       path: '^src/',
-      pathNot: '^src/shared/(types|checkout-config-schema|adyen-endpoint)\\.ts$',
+      pathNot: '^src/shared/(types|checkout-config-schema|adyen-endpoint|checkout-analytics)\\.ts$',
     },
+  },
+  {
+    name: 'checkout-analytics-inline-safe',
+    comment:
+      'Checkout analytics is inlined into the config interceptor and page extractor, so it may depend on shared types only',
+    severity: 'error',
+    from: { path: '^src/shared/checkout-analytics\\.ts$' },
+    to: { path: '^src/', pathNot: '^src/shared/types\\.ts$' },
   },
   {
     name: 'checkout-signals-inline-safe',

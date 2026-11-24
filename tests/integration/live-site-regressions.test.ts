@@ -40,7 +40,7 @@ async function scanMyStore(): Promise<ScanResult> {
       traffic: {
         documentHeaders: makeDocumentHeaders(),
         capturedRequests: [makeRequest(RISK_SCRIPT)],
-        analyticsData: null,
+        analytics: null,
       },
       latestVersion: '6.45.2',
       scannedAt: '2026-09-29T00:00:00.000Z',
@@ -93,7 +93,7 @@ describe('Payment Checkout live-site controls', () => {
         traffic: {
           documentHeaders: makeDocumentHeaders(),
           capturedRequests: [makeRequest(SDK_SCRIPT)],
-          analyticsData: null,
+          analytics: null,
         },
         latestVersion: '6.45.2',
         scannedAt: '2026-09-29T00:00:00.000Z',

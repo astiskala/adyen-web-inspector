@@ -8,8 +8,8 @@ settings through complementary mechanisms:
 2. Wrapped page fetch and XMLHttpRequest.open calls inspect Adyen request
    URLs for environment, locale, countryCode, and clientKey signals. Fetch
    also reads string bodies sent to Adyen checkout analytics hosts, keeping
-   only component events; no other request body is read, and no additional
-   network requests are initiated.
+   only their SDK fields and component events; no other request body is
+   read, and no additional network requests are initiated.
 3. Wrapped JSON.parse inspects parsed objects for config-shaped fields.
 
 Everything observed goes into one capture record (shared/checkout-capture.ts),
@@ -20,7 +20,7 @@ import { readAdyenEndpoint } from '../shared/adyen-endpoint.js';
 import {
   EMPTY_CHECKOUT_CAPTURE,
   readRequestInference,
-  recordAnalyticsEvents,
+  recordAnalytics,
   recordCheckoutInit,
   recordCheckoutOptions,
   recordInference,
@@ -143,7 +143,7 @@ import type { CallbackSource, CheckoutCapture } from '../shared/types.js';
   */
   function captureAnalytics(url: string, body: unknown): void {
     if (typeof body !== 'string' || readAdyenEndpoint(url)?.role !== 'analytics') return;
-    commit(recordAnalyticsEvents(capture, originalParse.call(JSON, body) as unknown));
+    commit(recordAnalytics(capture, originalParse.call(JSON, body) as unknown));
   }
 
   function requestUrl(input: unknown): string | null {

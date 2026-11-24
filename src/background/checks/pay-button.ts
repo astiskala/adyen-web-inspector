@@ -10,6 +10,7 @@ without its own rendered component runs inside Card and follows Card's pay
 button, unless Card disabled it.
 */
 
+import { EMPTY_CHECKOUT_ANALYTICS } from '../../shared/checkout-analytics.js';
 import { readCheckoutField } from '../../shared/scan-evidence.js';
 import type { ScanPayload } from '../../shared/types.js';
 
@@ -40,7 +41,6 @@ interface PayButtonVisibility {
 }
 
 const CAPTURED_ONLY = { includeInferred: false } as const;
-const NO_EVENTS = { rendered: [], paymentMethods: [] } as const;
 
 function buttonRequiredMethod(type: string): ButtonRequiredMethod | null {
   if (type === 'paypal' || type === 'clicktopay') return type;
@@ -58,7 +58,7 @@ function configKeys(type: string): readonly string[] {
 Reads which button-required payment methods would render without their own pay button.
 */
 export function readPayButtonVisibility(payload: ScanPayload): PayButtonVisibility {
-  const events = payload.page.analyticsEvents ?? NO_EVENTS;
+  const events = payload.analytics ?? EMPTY_CHECKOUT_ANALYTICS;
   const rendered = new Map(events.rendered.map((component) => [component.type, component]));
   const methodConfig = readCheckoutField(payload, 'hiddenPayButtonMethods', CAPTURED_ONLY);
   const configuredHidden = methodConfig.state === 'present' ? methodConfig.value : [];

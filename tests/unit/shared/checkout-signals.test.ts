@@ -9,7 +9,7 @@ import {
 } from '../../../src/shared/checkout-signals';
 import {
   makeAdyenMetadata,
-  makeAnalyticsData,
+  makeAnalytics,
   makeCapturedConfig,
   makeCheckoutPage,
   makePageExtract,
@@ -135,7 +135,7 @@ describe('hasCheckoutActivity', () => {
         page: makeCheckoutPage({ iframes: [{ src: 'https://checkoutshopper-test.adyen.com/x' }] }),
       }),
     ],
-    ['checkout analytics', makeScanPayload({ analyticsData: makeAnalyticsData() })],
+    ['checkout analytics', makeScanPayload({ analytics: makeAnalytics() })],
     [
       'Checkout API traffic',
       makeScanPayload({

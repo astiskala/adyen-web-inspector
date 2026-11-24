@@ -27,11 +27,11 @@ export async function assessScan(
   fetchScriptText: (url: string) => Promise<string | null>
 ): Promise<ScanResult> {
   const { tabId, page, traffic, latestVersion, releaseDates, scannedAt } = evidence;
-  const { capturedRequests, analyticsData, documentHeaders } = traffic;
+  const { capturedRequests, analytics, documentHeaders } = traffic;
   const versionInfo = await resolveVersionInfo(
     {
       page,
-      analyticsData,
+      analytics,
       capturedRequests,
       latest: latestVersion,
       ...(releaseDates !== undefined && { releaseDates }),
@@ -46,7 +46,7 @@ export async function assessScan(
     documentHeaders,
     capturedRequests,
     versionInfo,
-    analyticsData,
+    analytics,
     scannedAt,
   };
   const { conclusions, results: checks } = runChecks(payload, ALL_CHECKS);

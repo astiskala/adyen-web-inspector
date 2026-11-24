@@ -59,6 +59,16 @@ const RAW_CONFIG_RULES = [
 Configuration evidence reads the configuration; the finding projection only shows it raw.
 */
 const CONFIGURATION_READERS = ['src/shared/scan-evidence.ts', 'src/shared/export-report.ts'];
+const FRAME_ANALYTICS_RULE = {
+  selector:
+    "MemberExpression[property.name='analytics']:matches([object.name='page'], [object.property.name='page'])",
+  message:
+    "Read the Scan's checkout analytics from payload.analytics; the page's are only the frames' evidence, which captured traffic folds in.",
+};
+/**
+Syntax barred across src/: raw observed configuration and the frames' own analytics.
+*/
+const SEAM_SYNTAX = [...SOURCE_RESTRICTED_SYNTAX, ...RAW_CONFIG_RULES, FRAME_ANALYTICS_RULE];
 const DOCUMENT_HEADERS_RULE = {
   selector: "MemberExpression[property.name='documentHeaders']",
   message:
@@ -288,24 +298,25 @@ export default defineConfig([
   {
     files: ['src/**/*.{ts,tsx}'],
     rules: {
-      'no-restricted-syntax': ['error', ...SOURCE_RESTRICTED_SYNTAX, ...RAW_CONFIG_RULES],
+      'no-restricted-syntax': ['error', ...SEAM_SYNTAX],
     },
   },
   {
     files: CONFIGURATION_READERS,
     rules: {
-      'no-restricted-syntax': ['error', ...SOURCE_RESTRICTED_SYNTAX],
+      'no-restricted-syntax': ['error', ...SOURCE_RESTRICTED_SYNTAX, FRAME_ANALYTICS_RULE],
+    },
+  },
+  {
+    files: ['src/background/captured-traffic.ts'],
+    rules: {
+      'no-restricted-syntax': ['error', ...SOURCE_RESTRICTED_SYNTAX, ...RAW_CONFIG_RULES],
     },
   },
   {
     files: ['src/background/checks/**/*.ts'],
     rules: {
-      'no-restricted-syntax': [
-        'error',
-        ...SOURCE_RESTRICTED_SYNTAX,
-        ...RAW_CONFIG_RULES,
-        DOCUMENT_HEADERS_RULE,
-      ],
+      'no-restricted-syntax': ['error', ...SEAM_SYNTAX, DOCUMENT_HEADERS_RULE],
       'no-restricted-globals': restrictGlobals(
         ['chrome', 'fetch', 'setTimeout'],
         PURE_CHECK_MESSAGE
@@ -321,7 +332,7 @@ export default defineConfig([
   {
     files: ['src/background/checks/page-policy.ts'],
     rules: {
-      'no-restricted-syntax': ['error', ...SOURCE_RESTRICTED_SYNTAX, ...RAW_CONFIG_RULES],
+      'no-restricted-syntax': ['error', ...SEAM_SYNTAX],
     },
   },
   {
@@ -394,8 +405,7 @@ export default defineConfig([
     rules: {
       'no-restricted-syntax': [
         'error',
-        ...SOURCE_RESTRICTED_SYNTAX,
-        ...RAW_CONFIG_RULES,
+        ...SEAM_SYNTAX,
         { selector: "Literal[value='sdk-detected']", message: SDK_PRESENCE_MESSAGE },
       ],
       'no-restricted-imports': [

@@ -2,27 +2,28 @@
 Capture record — how the config interceptor accumulates what it observes in
 one frame: options captured from AdyenCheckout and component calls with
 their completeness, values inferred from partial signals tagged by signal,
-the AdyenCheckout initialisation count, and the component events of Adyen
-checkout analytics requests. The page extractor reads the published record
-back through `readCheckoutCapture()`.
+the AdyenCheckout initialisation count, and what Adyen checkout analytics
+requests reported. The page extractor reads the published record back
+through `readCheckoutCapture()`.
 
 Content scripts bundle this module inline, so it may depend only on types,
-the config field schema, and the Adyen endpoint reading.
+the config field schema, the Adyen endpoint reading, and checkout analytics.
 */
 
 import { environmentOption, readAdyenEndpoint, readTranslationLocale } from './adyen-endpoint.js';
+import {
+  EMPTY_CHECKOUT_ANALYTICS,
+  readCheckoutAnalytics,
+  recordAnalyticsBody,
+} from './checkout-analytics.js';
 import { applyCapturedOptions, readCheckoutOptions } from './checkout-config-schema.js';
 import type {
-  AnalyticsComponentEvents,
   CallbackSource,
   CapturedCheckoutOptions,
   CheckoutCapture,
   CheckoutConfig,
   InferenceSignal,
-  RenderedComponent,
 } from './types.js';
-
-const EMPTY_EVENTS: AnalyticsComponentEvents = { rendered: [], paymentMethods: [] };
 
 /**
 The record of a frame where nothing was captured yet.
@@ -31,7 +32,7 @@ export const EMPTY_CHECKOUT_CAPTURE: CheckoutCapture = {
   captured: null,
   inferred: {},
   initCount: 0,
-  events: EMPTY_EVENTS,
+  analytics: EMPTY_CHECKOUT_ANALYTICS,
 };
 
 const INFERENCE_SIGNALS = [
@@ -48,71 +49,6 @@ function isPlainRecord(value: unknown): value is PlainRecord {
 
 function isEmpty(config: CheckoutConfig): boolean {
   return Object.keys(config).length === 0;
-}
-
-function isNonEmptyString(value: unknown): value is string {
-  return typeof value === 'string' && value !== '';
-}
-
-function renderedComponent(
-  type: string,
-  isPayButtonShown: boolean,
-  clickToPayDisabled: unknown
-): RenderedComponent {
-  return {
-    type,
-    showPayButton: isPayButtonShown,
-    ...(clickToPayDisabled === true && { clickToPayDisabled }),
-  };
-}
-
-/**
-Reads a `rendered` event that reported showPayButton; stored payment methods are left out.
-*/
-function readRenderedEvent(event: PlainRecord): RenderedComponent | null {
-  const { component, configData } = event;
-  if (
-    event['type'] !== 'rendered' ||
-    event['isStoredPaymentMethod'] === true ||
-    !isNonEmptyString(component) ||
-    !isPlainRecord(configData)
-  ) {
-    return null;
-  }
-  const showPayButton = configData['showPayButton'];
-  return typeof showPayButton === 'boolean'
-    ? renderedComponent(component, showPayButton, configData['_disableClickToPay'])
-    : null;
-}
-
-/**
-Payment method types an info event names: its component and the methods Drop-in listed.
-*/
-function namedPaymentMethods(event: PlainRecord): string[] {
-  const listed: unknown[] = Array.isArray(event['availablePaymentMethods'])
-    ? event['availablePaymentMethods']
-    : [];
-  const listedTypes = listed.map((method) =>
-    isPlainRecord(method) ? method['paymentMethodType'] : undefined
-  );
-  return [event['component'], ...listedTypes].filter(isNonEmptyString);
-}
-
-function applyInfoEvent(
-  events: AnalyticsComponentEvents,
-  event: unknown
-): AnalyticsComponentEvents {
-  if (!isPlainRecord(event)) return events;
-  const rendered = readRenderedEvent(event);
-  const named = namedPaymentMethods(event).filter((type) => !events.paymentMethods.includes(type));
-  if (rendered === null && named.length === 0) return events;
-  return {
-    rendered:
-      rendered === null
-        ? events.rendered
-        : [...events.rendered.filter(({ type }) => type !== rendered.type), rendered],
-    paymentMethods: [...events.paymentMethods, ...new Set(named)],
-  };
 }
 
 /**
@@ -156,16 +92,12 @@ export function recordInference(
 }
 
 /**
-Records the info events of an Adyen checkout analytics request body: each
-component's latest rendered showPayButton and the payment methods the events
-name. Nothing else in the body is kept. Returns the same record when the
-body adds nothing.
+Records an Adyen checkout analytics request body. Returns the same record
+when the body adds nothing.
 */
-export function recordAnalyticsEvents(capture: CheckoutCapture, body: unknown): CheckoutCapture {
-  const info: unknown[] = isPlainRecord(body) && Array.isArray(body['info']) ? body['info'] : [];
-  let events = capture.events;
-  for (const event of info) events = applyInfoEvent(events, event);
-  return events === capture.events ? capture : { ...capture, events };
+export function recordAnalytics(capture: CheckoutCapture, body: unknown): CheckoutCapture {
+  const analytics = recordAnalyticsBody(capture.analytics, body);
+  return analytics === capture.analytics ? capture : { ...capture, analytics };
 }
 
 /**
@@ -215,24 +147,6 @@ function readCaptured(value: unknown): CapturedCheckoutOptions | null {
   return options === undefined ? null : { options, complete: value['complete'] === true };
 }
 
-function readRendered(value: unknown): RenderedComponent[] {
-  if (!isPlainRecord(value)) return [];
-  const { type, showPayButton } = value;
-  return typeof showPayButton === 'boolean' && isNonEmptyString(type)
-    ? [renderedComponent(type, showPayButton, value['clickToPayDisabled'])]
-    : [];
-}
-
-function readEvents(value: unknown): AnalyticsComponentEvents {
-  if (!isPlainRecord(value)) return EMPTY_EVENTS;
-  const { rendered, paymentMethods } = value;
-  if (!Array.isArray(rendered) || !Array.isArray(paymentMethods)) return EMPTY_EVENTS;
-  return {
-    rendered: rendered.flatMap(readRendered),
-    paymentMethods: paymentMethods.filter(isNonEmptyString),
-  };
-}
-
 /**
 Reads a published capture record, tolerating page scripts that overwrote the global.
 */
@@ -249,6 +163,6 @@ export function readCheckoutCapture(value: unknown): CheckoutCapture {
     captured: readCaptured(value['captured']),
     inferred,
     initCount: typeof initCount === 'number' && initCount > 0 ? initCount : 0,
-    events: readEvents(value['events']),
+    analytics: readCheckoutAnalytics(value['analytics']),
   };
 }

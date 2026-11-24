@@ -14,6 +14,7 @@ import { assessScan } from '../../src/background/scan-assessment';
 import type { ScanPayload, ScanResult } from '../../src/shared/types';
 import {
   makeAdyenPayload,
+  makeAnalytics,
   makeHeader,
   makeRequest,
   makeScanPayload,
@@ -36,7 +37,7 @@ async function runPipeline(payload: ScanPayload): Promise<{
       traffic: {
         documentHeaders: payload.documentHeaders,
         capturedRequests: payload.capturedRequests,
-        analyticsData: payload.analyticsData,
+        analytics: payload.analytics,
       },
       latestVersion: payload.versionInfo.latest,
       scannedAt: payload.scannedAt,
@@ -158,11 +159,7 @@ function makeGoodPayload(): ScanPayload {
       }),
     ],
     versionInfo: makeVersionInfo({ detected: '6.30.0', latest: '6.30.0' }),
-    analyticsData: {
-      flavor: 'dropin',
-      version: '6.30.0',
-      buildType: 'esm',
-    },
+    analytics: makeAnalytics({ flavor: 'dropin', version: '6.30.0', buildType: 'esm' }),
   });
 }
 
@@ -224,7 +221,7 @@ describe('Misconfigured integration', () => {
       { onSubmit: 'checkout', hasSession: false },
       {
         versionInfo: makeVersionInfo({ detected: '5.0.0', latest: '6.5.0' }),
-        analyticsData: { flavor: 'components', version: '5.0.0' },
+        analytics: makeAnalytics({ flavor: 'components', version: '5.0.0' }),
       }
     );
 
