@@ -3,6 +3,7 @@ import {
   MSG_CHECKOUT_ACTIVITY_CLEARED,
   MSG_CHECKOUT_ACTIVITY_DETECTED,
   MSG_GET_TAB_STATE,
+  MSG_REPORT_CHECKOUT_ACTIVITY,
   MSG_SCAN_REQUEST,
   MSG_TAB_STATE_CHANGED,
   type TabSnapshot,
@@ -10,12 +11,13 @@ import {
 
 type MessageListener = (
   message: unknown,
-  sender: { tab?: { id?: number } },
+  sender: { tab?: { id?: number }; url?: string; documentLifecycle?: string },
   sendResponse: (response?: unknown) => void
 ) => boolean;
 type TabListener = (tabId: number, changeInfo: { status?: string }) => void;
 
 const TAB = 5;
+const EXTENSION_ORIGIN = 'chrome-extension://inspector/';
 
 const harness = {} as {
   onMessage: MessageListener;
@@ -24,6 +26,7 @@ const harness = {} as {
   stored: Map<string, unknown>;
   isStorageFailing: boolean;
   notify: ReturnType<typeof vi.fn>;
+  sendToTab: ReturnType<typeof vi.fn>;
 };
 
 function failIfAsked(): void {
@@ -49,13 +52,16 @@ function stubChrome(): void {
   };
   const listenerSlot = { addListener: vi.fn(), removeListener: vi.fn() };
   harness.notify = vi.fn().mockResolvedValue(undefined);
+  harness.sendToTab = vi.fn().mockRejectedValue(new Error('Receiving end does not exist.'));
   vi.stubGlobal('chrome', {
     runtime: {
       onMessage: { addListener: (onEvent: MessageListener) => (harness.onMessage = onEvent) },
       sendMessage: harness.notify,
+      getURL: (path: string) => `${EXTENSION_ORIGIN}${path}`,
     },
     tabs: {
       get: vi.fn().mockRejectedValue(new Error('No tab with id: 5')),
+      sendMessage: harness.sendToTab,
       onRemoved: {
         addListener: (onEvent: (tabId: number) => void) => (harness.onRemoved = onEvent),
       },
@@ -76,14 +82,22 @@ function stubChrome(): void {
 
 /**
 Sends a runtime message to the worker; `respond` records its answer, if any.
+Without a sender tab, the message comes from an extension page such as the popup.
 */
 function send(
   message: unknown,
   senderTabId?: number
 ): { keptOpen: boolean; respond: ReturnType<typeof vi.fn> } {
   const respond = vi.fn();
-  const sender = senderTabId === undefined ? {} : { tab: { id: senderTabId } };
+  const sender =
+    senderTabId === undefined
+      ? { url: `${EXTENSION_ORIGIN}popup/index.html` }
+      : { tab: { id: senderTabId }, url: 'https://merchant.example/checkout' };
   return { keptOpen: harness.onMessage(message, sender, respond), respond };
+}
+
+function tabSender(documentLifecycle: string): object {
+  return { tab: { id: TAB }, url: 'https://merchant.example/checkout', documentLifecycle };
 }
 
 async function readTab(): Promise<unknown> {
@@ -136,6 +150,35 @@ describe('service worker routing', () => {
     expect(harness.stored.size).toBe(0);
   });
 
+  it('ignores activity from a prerendered document, which the tab does not show yet', async () => {
+    const respond = vi.fn<(response?: unknown) => void>();
+    harness.onMessage({ type: MSG_CHECKOUT_ACTIVITY_DETECTED }, tabSender('prerender'), respond);
+    await expect(readTab()).resolves.toMatchObject({ checkoutActivity: { detected: false } });
+
+    harness.onMessage({ type: MSG_CHECKOUT_ACTIVITY_DETECTED }, tabSender('active'), respond);
+    await expect(readTab()).resolves.toMatchObject({ checkoutActivity: { detected: true } });
+  });
+
+  it('ignores scan requests and state reads that a web page sent', async () => {
+    send({ type: MSG_CHECKOUT_ACTIVITY_DETECTED }, TAB);
+    await readTab();
+
+    expect(send({ type: MSG_SCAN_REQUEST, tabId: TAB }, TAB).keptOpen).toBe(false);
+    const { keptOpen, respond } = send({ type: MSG_GET_TAB_STATE, tabId: TAB }, TAB);
+    expect(keptOpen).toBe(false);
+    const forgedRespond = vi.fn<(response?: unknown) => void>();
+    harness.onMessage(
+      { type: MSG_GET_TAB_STATE, tabId: TAB },
+      { url: 'https://evil.example/chrome-extension://inspector/' },
+      forgedRespond
+    );
+
+    await readTab();
+    expect(respond).not.toHaveBeenCalled();
+    expect(forgedRespond).not.toHaveBeenCalled();
+    expect(chrome.tabs.get).not.toHaveBeenCalled();
+  });
+
   it('runs a requested scan and publishes its failure', async () => {
     expect(send({ type: MSG_SCAN_REQUEST, tabId: TAB }).keptOpen).toBe(false);
 
@@ -148,8 +191,17 @@ describe('service worker routing', () => {
     send({ type: MSG_CHECKOUT_ACTIVITY_DETECTED }, TAB);
     await readTab();
 
+    harness.onUpdated(TAB, {});
+    await expect(readTab()).resolves.toMatchObject({ checkoutActivity: { detected: true } });
+    expect(harness.sendToTab).not.toHaveBeenCalled();
+
     harness.onUpdated(TAB, { status: 'complete' });
     await expect(readTab()).resolves.toMatchObject({ checkoutActivity: { detected: true } });
+    expect(harness.sendToTab).toHaveBeenCalledWith(
+      TAB,
+      { type: MSG_REPORT_CHECKOUT_ACTIVITY },
+      { frameId: 0 }
+    );
 
     harness.onUpdated(TAB, { status: 'loading' });
     await expect(readTab()).resolves.toMatchObject({ checkoutActivity: { detected: false } });

@@ -41,6 +41,14 @@ preserving an old scan for a different route would not be an adequate fix.
 Also verify leaving checkout, returning after asynchronous mount, browser
 back/forward, and actual document reloads.
 
+**Fixed (2026-11-24).** Chrome reports hash changes and `pushState` as
+`status: loading` then `status: complete` without loading a new document. The
+tab state still resets on `loading`, and on `complete` it asks the tab's
+top-frame detector to report again (`MSG_REPORT_CHECKOUT_ACTIVITY`), even when
+its state is unchanged. Whichever document is showing answers, so an old route
+cannot restore detection for a new document, and a page without the detector
+stays clear.
+
 The earlier reload workaround restored detection, but did not establish that
 all detection failures were caused by an outdated loaded extension.
 
@@ -64,6 +72,11 @@ The resource predicate in `shared/adyen-endpoint.ts` accepts the entire
 that the resource is the SDK. A fix should distinguish SDK assets from risk
 scripts, API calls, images, translations, and other auxiliary resources.
 
+**Fixed (2026-11-24).** `isAdyenCheckoutResource()` now accepts only SDK asset
+paths (`/checkoutshopper/sdk/…`) on Adyen hosts, matched against the URL path
+alone. The CDN environment and region signals read only SDK script and
+stylesheet requests, and the import method reads only SDK scripts.
+
 The three corresponding assertions in
 [live-site-regressions.test.ts](../tests/integration/live-site-regressions.test.ts)
 were run as ordinary tests first and failed with the observed false positives.
@@ -78,12 +91,11 @@ pnpm build
 pnpm exec playwright test tests/e2e/live-navigation.test.ts
 ```
 
-The three known integration defects use `it.fails`; the browser defect uses
-`test.fail` immediately before its final assertion. These execute the desired
-behavior assertions rather than skipping them. Unexpected passes fail the run,
-so remove the annotations when fixes land. A green suite with these annotations
-does **not** mean the four defect assertions have been fixed.
+The four reproductions now run as ordinary tests: the three integration
+defects in `live-site-regressions.test.ts` and the browser defect in
+`live-navigation.test.ts`, which also checks that detection clears after
+navigating to a page without checkout.
 
 Fixtures contain only minimal public resource URLs and synthetic configuration;
 they do not retain live client keys, session data, payment details, or full page
-captures. Production code is unchanged by this testing pass.
+captures.

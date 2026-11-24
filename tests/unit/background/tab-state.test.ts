@@ -265,6 +265,23 @@ describe('tab state navigation', () => {
     expect(harness.browser.badges.get(TAB)?.text).toBe('95');
   });
 
+  it('asks the detector to report again once a navigation has loaded, after the reset', async () => {
+    await harness.tabState.checkoutActivityDetected(TAB);
+    const reset = harness.tabState.navigated(TAB);
+    const loaded = harness.tabState.loaded(TAB);
+    expect(harness.browser.activityRequests).toEqual([]);
+
+    await reset;
+    await loaded;
+    expect(harness.browser.activityRequests).toEqual([TAB]);
+
+    // The same-document detector's report then restores the activity the reset cleared.
+    await harness.tabState.checkoutActivityDetected(TAB);
+    await expect(harness.tabState.read(TAB)).resolves.toMatchObject({
+      checkoutActivity: { detected: true },
+    });
+  });
+
   it('forgets a closed tab without storing its pending Scan', async () => {
     await harness.tabState.checkoutActivityDetected(TAB);
     const scan = harness.tabState.requestScan(TAB);

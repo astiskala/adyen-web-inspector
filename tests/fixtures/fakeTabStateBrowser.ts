@@ -18,6 +18,10 @@ export interface FakeTabStateBrowser extends TabStateBrowser {
   */
   readonly messages: BswToUiMessage[];
   /**
+  Tabs whose detector was asked to report again, in order.
+  */
+  readonly activityRequests: number[];
+  /**
   Makes the next writes reject, to exercise storage failures.
   */
   failWrites: boolean;
@@ -40,6 +44,7 @@ export function createFakeTabStateBrowser(): FakeTabStateBrowser {
     storage: new Map(),
     badges: new Map(),
     messages: [],
+    activityRequests: [],
     failWrites: false,
     failReads: false,
     onNotify: (listener) => {
@@ -68,6 +73,9 @@ export function createFakeTabStateBrowser(): FakeTabStateBrowser {
     notify: (message) => {
       browser.messages.push(message);
       for (const listener of listeners) listener(message);
+    },
+    requestCheckoutActivity: (tabId) => {
+      browser.activityRequests.push(tabId);
     },
   };
   return browser;

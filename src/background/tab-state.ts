@@ -56,6 +56,10 @@ export interface TabStateBrowser {
   Notifies open popups and DevTools panels.
   */
   notify: (message: BswToUiMessage) => void;
+  /**
+  Asks the passive detector in the tab's top document, if any, to report its checkout activity.
+  */
+  requestCheckoutActivity: (tabId: number) => void;
 }
 
 /**
@@ -77,6 +81,11 @@ interface TabState {
   The tab started loading a document: its state and any pending Scan are discarded.
   */
   navigated: (tabId: number) => Promise<void>;
+  /**
+  The tab finished loading. Same-document navigations reset the state but
+  keep the page's detector, so the document now showing reports again.
+  */
+  loaded: (tabId: number) => Promise<void>;
   removed: (tabId: number) => Promise<void>;
   /**
   Reads the tab's snapshot after its pending transitions.
@@ -264,6 +273,13 @@ export function createTabState(browser: TabStateBrowser, scan: RunScan): TabStat
         } finally {
           show(tabId, EMPTY_TAB_SNAPSHOT);
         }
+      });
+    },
+
+    loaded(tabId): Promise<void> {
+      // Queued, so the request follows any reset and the report lands after it.
+      return enqueue(runtime(tabId), () => {
+        browser.requestCheckoutActivity(tabId);
       });
     },
 

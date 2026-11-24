@@ -10,6 +10,7 @@ function stubChrome(): {
   session: Record<string, ReturnType<typeof vi.fn>>;
   action: Record<string, ReturnType<typeof vi.fn>>;
   sendMessage: ReturnType<typeof vi.fn>;
+  tabsSendMessage: ReturnType<typeof vi.fn>;
 } {
   const session = {
     get: vi.fn().mockResolvedValue({ scan_result_1: 'stored' }),
@@ -21,8 +22,14 @@ function stubChrome(): {
     setBadgeBackgroundColor: vi.fn().mockRejectedValue(new Error('No tab with id: 1')),
   };
   const sendMessage = vi.fn().mockRejectedValue(new Error('Receiving end does not exist.'));
-  vi.stubGlobal('chrome', { storage: { session }, action, runtime: { sendMessage } });
-  return { session, action, sendMessage };
+  const tabsSendMessage = vi.fn().mockRejectedValue(new Error('Receiving end does not exist.'));
+  vi.stubGlobal('chrome', {
+    storage: { session },
+    action,
+    runtime: { sendMessage },
+    tabs: { sendMessage: tabsSendMessage },
+  });
+  return { session, action, sendMessage, tabsSendMessage };
 }
 
 describe('chromeTabStateBrowser', () => {
@@ -62,5 +69,17 @@ describe('chromeTabStateBrowser', () => {
     chromeTabStateBrowser.notify(message);
 
     expect(sendMessage).toHaveBeenCalledWith(message);
+  });
+
+  it("asks the tab's top-frame detector to report, tolerating pages without one", () => {
+    const { tabsSendMessage } = stubChrome();
+
+    chromeTabStateBrowser.requestCheckoutActivity(3);
+
+    expect(tabsSendMessage).toHaveBeenCalledWith(
+      3,
+      { type: 'REPORT_CHECKOUT_ACTIVITY' },
+      { frameId: 0 }
+    );
   });
 });

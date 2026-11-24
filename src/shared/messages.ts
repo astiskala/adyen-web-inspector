@@ -14,6 +14,7 @@ export const MSG_CHECKOUT_ACTIVITY_CLEARED = 'CHECKOUT_ACTIVITY_CLEARED' as cons
 export const MSG_SCAN_REQUEST = 'SCAN_REQUEST' as const;
 export const MSG_GET_TAB_STATE = 'GET_TAB_STATE' as const;
 export const MSG_TAB_STATE_CHANGED = 'TAB_STATE_CHANGED' as const;
+export const MSG_REPORT_CHECKOUT_ACTIVITY = 'REPORT_CHECKOUT_ACTIVITY' as const;
 
 // ─── Tab State ────────────────────────────────────────────────────────────────
 
@@ -108,5 +109,12 @@ type UiToBswMessage = ScanRequestMessage | GetTabStateMessage;
 Messages sent from the background service worker to the popup or DevTools.
 */
 export type BswToUiMessage = TabStateChangedMessage;
+
+/**
+Asks a tab's passive detector to report its checkout activity again, even when unchanged.
+*/
+export interface BswToContentMessage {
+  readonly type: typeof MSG_REPORT_CHECKOUT_ACTIVITY;
+}
 
 export type ExtensionMessage = ContentToBswMessage | UiToBswMessage | BswToUiMessage;

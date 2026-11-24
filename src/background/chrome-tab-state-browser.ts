@@ -3,6 +3,7 @@ Chrome adapter for the tab state port: session storage, the action badge,
 and runtime messages to open popups and DevTools panels.
 */
 
+import { MSG_REPORT_CHECKOUT_ACTIVITY, type BswToContentMessage } from '../shared/messages.js';
 import type { TabStateBrowser } from './tab-state.js';
 
 /**
@@ -20,5 +21,10 @@ export const chromeTabStateBrowser: TabStateBrowser = {
   },
   notify(message) {
     void chrome.runtime.sendMessage(message).catch(() => {});
+  },
+  requestCheckoutActivity(tabId) {
+    const message: BswToContentMessage = { type: MSG_REPORT_CHECKOUT_ACTIVITY };
+    // Pages without the detector, such as chrome:// pages, have no receiver.
+    void chrome.tabs.sendMessage(tabId, message, { frameId: 0 }).catch(() => {});
   },
 };

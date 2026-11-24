@@ -28,13 +28,26 @@ async function respondWithTabState(
   sendResponse(read.status === 'fulfilled' ? read.value : null);
 }
 
+const EXTENSION_ORIGIN = chrome.runtime.getURL('');
+
+/**
+Scan requests and tab state reads may name any tab, so only the extension's
+own pages may send them; a page's renderer can forge content script messages.
+*/
+function isExtensionPage(sender: chrome.runtime.MessageSender): boolean {
+  return sender.url?.startsWith(EXTENSION_ORIGIN) === true;
+}
+
 chrome.runtime.onMessage.addListener(
   (
     message: ExtensionMessage,
     sender: chrome.runtime.MessageSender,
     sendResponse: (response?: unknown) => void
   ) => {
-    const senderTabId = sender.tab?.id;
+    // A prerendered or back/forward-cached document is not the page the tab shows.
+    const isShownDocument =
+      sender.documentLifecycle === undefined || sender.documentLifecycle === 'active';
+    const senderTabId = isShownDocument ? sender.tab?.id : undefined;
 
     if (senderTabId !== undefined && message.type === MSG_CHECKOUT_ACTIVITY_DETECTED) {
       void tabState.checkoutActivityDetected(senderTabId, message.version).catch(() => {});
@@ -45,6 +58,8 @@ chrome.runtime.onMessage.addListener(
       void tabState.checkoutActivityCleared(senderTabId).catch(() => {});
       return false;
     }
+
+    if (!isExtensionPage(sender)) return false;
 
     if (message.type === MSG_SCAN_REQUEST) {
       void tabState.requestScan(message.tabId).catch(() => {});
@@ -67,5 +82,7 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
   if (changeInfo.status === 'loading') {
     void tabState.navigated(tabId).catch(() => {});
+  } else if (changeInfo.status === 'complete') {
+    void tabState.loaded(tabId);
   }
 });

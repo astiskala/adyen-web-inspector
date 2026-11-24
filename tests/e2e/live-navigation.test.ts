@@ -17,9 +17,17 @@ test('keeps detecting mounted checkout after same-document navigation', async ({
   });
   await expect(page).toHaveURL(/#checkout$/);
   const popup = await openPopupFor(context, extensionId, page);
-  test.fail(
-    true,
-    'Hash navigation clears tab state but the detector suppresses unchanged activity.'
-  );
   await expect(popup.getByText('Adyen Web SDK detected')).toBeVisible();
+});
+
+test('clears detection after navigating to a page without checkout', async ({
+  context,
+  extensionId,
+}) => {
+  const page = await openFixture(context, 'adyen-merchant.html');
+  await expect.poll(() => getBadgeText(context, extensionId, page)).toBe('✓');
+  await page.goto('http://localhost:4321/no-adyen.html');
+  // eslint-disable-next-line sonarjs/no-fixed-wait-in-tests -- The re-report is sent on load; give it time to arrive before asserting it stayed clear.
+  await page.waitForTimeout(500);
+  await expect.poll(() => getBadgeText(context, extensionId, page)).toBe('');
 });

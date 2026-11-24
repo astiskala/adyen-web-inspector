@@ -9,6 +9,7 @@ import { readCheckoutDom, hasMountedCheckout } from '../shared/checkout-signals.
 import {
   MSG_CHECKOUT_ACTIVITY_CLEARED,
   MSG_CHECKOUT_ACTIVITY_DETECTED,
+  MSG_REPORT_CHECKOUT_ACTIVITY,
   type ContentToBswMessage,
 } from '../shared/messages.js';
 import { findSdkVersionInUrls } from '../shared/sdk-version.js';
@@ -138,8 +139,19 @@ function installSpaRouteHooks(): void {
   };
 }
 
+/**
+The tab state resets on every navigation, including same-document ones that
+keep this detector, then asks it to report again once the tab has loaded.
+*/
+function handleReportRequest(message: unknown): void {
+  if ((message as { type?: unknown } | null)?.type === MSG_REPORT_CHECKOUT_ACTIVITY) {
+    sendDetectionResult(true);
+  }
+}
+
 function initPassiveDetection(): void {
   sendDetectionResult(true);
+  chrome.runtime.onMessage.addListener(handleReportRequest);
 
   const observer = new MutationObserver(handleMutations);
   observer.observe(document.documentElement, { childList: true, subtree: true });
