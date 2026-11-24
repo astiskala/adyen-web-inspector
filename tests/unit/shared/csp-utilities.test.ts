@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { parseCsp, cspAllowsUrl, getEffectiveCspSources } from '../../../src/shared/csp-utils';
+import {
+  parseCsp,
+  isUrlAllowedByCsp,
+  getEffectiveCspSources,
+} from '../../../src/shared/csp-utilities';
 
 interface ParseDirectivesCase {
   readonly name: string;
@@ -98,7 +102,7 @@ describe('effective CSP sources', () => {
 
   it('uses script-src-elem before script-src, then default-src', () => {
     expect(
-      cspAllowsUrl(
+      isUrlAllowedByCsp(
         parseCsp("default-src https:; script-src 'self'"),
         'script-src',
         scriptUrl,
@@ -106,43 +110,53 @@ describe('effective CSP sources', () => {
       )
     ).toBe(false);
     expect(
-      cspAllowsUrl(
+      isUrlAllowedByCsp(
         parseCsp("script-src https:; script-src-elem 'self'"),
         'script-src',
         scriptUrl,
         pageUrl
       )
     ).toBe(false);
-    expect(cspAllowsUrl(parseCsp('default-src https:'), 'script-src', scriptUrl, pageUrl)).toBe(
-      true
-    );
+    expect(
+      isUrlAllowedByCsp(parseCsp('default-src https:'), 'script-src', scriptUrl, pageUrl)
+    ).toBe(true);
   });
 
   it('matches exact hosts and wildcard subdomains without matching lookalikes', () => {
     expect(
-      cspAllowsUrl(parseCsp('script-src https://*.adyen.com'), 'script-src', scriptUrl, pageUrl)
+      isUrlAllowedByCsp(
+        parseCsp('script-src https://*.adyen.com'),
+        'script-src',
+        scriptUrl,
+        pageUrl
+      )
     ).toBe(true);
     expect(
-      cspAllowsUrl(parseCsp('script-src https://adyen.com'), 'script-src', scriptUrl, pageUrl)
+      isUrlAllowedByCsp(parseCsp('script-src https://adyen.com'), 'script-src', scriptUrl, pageUrl)
     ).toBe(false);
     expect(
-      cspAllowsUrl(parseCsp('script-src https://notadyen.com'), 'script-src', scriptUrl, pageUrl)
+      isUrlAllowedByCsp(
+        parseCsp('script-src https://notadyen.com'),
+        'script-src',
+        scriptUrl,
+        pageUrl
+      )
     ).toBe(false);
   });
 
   it('honors self, scheme sources and none', () => {
     expect(
-      cspAllowsUrl(
+      isUrlAllowedByCsp(
         parseCsp("script-src 'self'"),
         'script-src',
         'https://merchant.example/app.js',
         pageUrl
       )
     ).toBe(true);
-    expect(cspAllowsUrl(parseCsp('script-src https:'), 'script-src', scriptUrl, pageUrl)).toBe(
+    expect(isUrlAllowedByCsp(parseCsp('script-src https:'), 'script-src', scriptUrl, pageUrl)).toBe(
       true
     );
-    expect(cspAllowsUrl(parseCsp("script-src 'none'"), 'script-src', scriptUrl, pageUrl)).toBe(
+    expect(isUrlAllowedByCsp(parseCsp("script-src 'none'"), 'script-src', scriptUrl, pageUrl)).toBe(
       false
     );
   });
@@ -166,14 +180,14 @@ describe('effective CSP sources', () => {
     ['*', true],
     ['data:', false],
   ])('matches the source %s against an HTTPS script: %s', (source, allowed) => {
-    expect(cspAllowsUrl(parseCsp(`script-src ${source}`), 'script-src', scriptUrl, pageUrl)).toBe(
-      allowed
-    );
+    expect(
+      isUrlAllowedByCsp(parseCsp(`script-src ${source}`), 'script-src', scriptUrl, pageUrl)
+    ).toBe(allowed);
   });
 
   it('matches explicit ports on plain HTTP resources', () => {
     expect(
-      cspAllowsUrl(
+      isUrlAllowedByCsp(
         parseCsp('img-src http://assets.example:80'),
         'img-src',
         'http://assets.example/logo.svg',
@@ -183,14 +197,16 @@ describe('effective CSP sources', () => {
   });
 
   it('rejects resources when the page URL cannot be parsed', () => {
-    expect(cspAllowsUrl(parseCsp("script-src 'self'"), 'script-src', scriptUrl, 'not a url')).toBe(
-      false
-    );
+    expect(
+      isUrlAllowedByCsp(parseCsp("script-src 'self'"), 'script-src', scriptUrl, 'not a url')
+    ).toBe(false);
   });
 
   it('returns null when a directive is unrestricted', () => {
     expect(getEffectiveCspSources(parseCsp("script-src 'self'"), 'connect-src')).toBeNull();
-    expect(cspAllowsUrl(parseCsp("script-src 'self'"), 'img-src', scriptUrl, pageUrl)).toBe(true);
+    expect(isUrlAllowedByCsp(parseCsp("script-src 'self'"), 'img-src', scriptUrl, pageUrl)).toBe(
+      true
+    );
   });
 
   it('does not apply default-src to form-action', () => {
@@ -202,12 +218,12 @@ describe('effective CSP sources', () => {
   });
 });
 
-describe('cspAllowsUrl wildcard sources', () => {
+describe('isUrlAllowedByCsp wildcard sources', () => {
   it('lets a bare * source allow http and https resources only', () => {
     const policy = parseCsp('img-src *');
     const page = 'https://merchant.example/checkout';
 
-    expect(cspAllowsUrl(policy, 'img-src', 'http://cdn.example/a.png', page)).toBe(true);
-    expect(cspAllowsUrl(policy, 'img-src', 'data:image/png;base64,AAAA', page)).toBe(false);
+    expect(isUrlAllowedByCsp(policy, 'img-src', 'http://cdn.example/a.png', page)).toBe(true);
+    expect(isUrlAllowedByCsp(policy, 'img-src', 'data:image/png;base64,AAAA', page)).toBe(false);
   });
 });

@@ -11,19 +11,29 @@
 
 import type { AdyenEnvironment, AdyenRegion } from './types.js';
 
-/** The part an Adyen host plays for Adyen Web. */
+/**
+The part an Adyen host plays for Adyen Web.
+ */
 type AdyenEndpointRole = 'cdn' | 'checkoutshopper' | 'checkout-api' | 'analytics' | 'other';
 
-/** An Adyen host read as an Adyen Web endpoint. */
+/**
+An Adyen host read as an Adyen Web endpoint.
+ */
 export interface AdyenEndpoint {
   readonly role: AdyenEndpointRole;
-  /** Environment the host names, such as live in checkoutshopper-live; null when it names none. */
+  /**
+  Environment the host names, such as live in checkoutshopper-live; null when it names none.
+   */
   readonly environment: AdyenEnvironment | null;
-  /** Live region the host names, such as US in checkoutshopper-live-us; null when it names none. */
+  /**
+  Live region the host names, such as US in checkoutshopper-live-us; null when it names none.
+   */
   readonly namedRegion: AdyenRegion | null;
 }
 
-/** Origins Adyen Web uses for API calls, CDN images and translations, and checkout analytics. */
+/**
+Origins Adyen Web uses for API calls, CDN images and translations, and checkout analytics.
+ */
 export interface AdyenWebOrigins {
   readonly api: string;
   readonly cdn: string;
@@ -46,7 +56,9 @@ const CHECKOUT_ROLES: ReadonlySet<AdyenEndpointRole> = new Set([
   'analytics',
 ]);
 
-/** A test or live label, optionally with a region token, as in checkout-live-us.adyenpayments.com. */
+/**
+A test or live label, optionally with a region token, as in checkout-live-us.adyenpayments.com.
+ */
 const ENVIRONMENT_LABEL = /(?:^|[.-])(test|live)(?:-([a-z]+))?(?=[.-])/;
 const CHECKOUT_API_LABEL = /(?:^|-)checkout-(?:test|live)/;
 const CHECKOUT_RESOURCE_PATH =
@@ -119,7 +131,9 @@ function hostnameOf(url: string): string | null {
   }
 }
 
-/** Returns true for hosts on Adyen-controlled domains (adyen.com, adyenpayments.com). */
+/**
+Returns true for hosts on Adyen-controlled domains (adyen.com, adyenpayments.com).
+ */
 function isAdyenHost(host: string): boolean {
   const normalized = host.toLowerCase();
   return (
@@ -134,8 +148,7 @@ function roleOf(host: string): AdyenEndpointRole {
   if (host.endsWith('.cdn.adyen.com')) return 'cdn';
   if (host.startsWith('checkoutshopper-')) return 'checkoutshopper';
   if (host.startsWith('checkoutanalytics')) return 'analytics';
-  if (CHECKOUT_API_LABEL.test(host)) return 'checkout-api';
-  return 'other';
+  return CHECKOUT_API_LABEL.test(host) ? 'checkout-api' : 'other';
 }
 
 function readEnvironment(host: string): Omit<AdyenEndpoint, 'role'> {
@@ -147,11 +160,14 @@ function readEnvironment(host: string): Omit<AdyenEndpoint, 'role'> {
   return { environment: namedRegion === 'IN' ? 'live-in' : 'live', namedRegion };
 }
 
-/** Reads a URL as an Adyen Web endpoint, or returns null for non-Adyen and unparsable URLs. */
+/**
+Reads a URL as an Adyen Web endpoint, or returns null for non-Adyen and unparsable URLs.
+ */
 export function readAdyenEndpoint(url: string): AdyenEndpoint | null {
   const host = hostnameOf(url);
-  if (host === null || !isAdyenHost(host)) return null;
-  return { role: roleOf(host), ...readEnvironment(host) };
+  return host === null || !isAdyenHost(host)
+    ? null
+    : { role: roleOf(host), ...readEnvironment(host) };
 }
 
 /**
@@ -163,13 +179,14 @@ export function servedRegion(endpoint: AdyenEndpoint): AdyenRegion | null {
   return endpoint.environment === 'live' && CHECKOUT_ROLES.has(endpoint.role) ? 'EU' : null;
 }
 
-/** The Adyen Web `environment` option an endpoint's host names, such as live-us; null when it names none. */
+/**
+The Adyen Web `environment` option an endpoint's host names, such as live-us; null when it names none.
+ */
 export function environmentOption(endpoint: AdyenEndpoint): string | null {
   const { environment, namedRegion } = endpoint;
-  if (environment !== 'live' || namedRegion === null || namedRegion === 'unknown') {
-    return environment;
-  }
-  return `live-${namedRegion.toLowerCase()}`;
+  return environment !== 'live' || namedRegion === null || namedRegion === 'unknown'
+    ? environment
+    : `live-${namedRegion.toLowerCase()}`;
 }
 
 /**
@@ -202,22 +219,30 @@ export function resolveAdyenWebOrigins(environment: string): AdyenWebOrigins {
   return isAdyenWebEnvironment(name) ? ADYEN_WEB_ORIGINS[name] : ADYEN_WEB_ORIGINS.live;
 }
 
-/** Returns true when a URL refers to an Adyen-hosted Adyen Web resource (SDK script or CSS). */
+/**
+Returns true when a URL refers to an Adyen-hosted Adyen Web resource (SDK script or CSS).
+ */
 export function isAdyenCheckoutResource(url: string): boolean {
   return readAdyenEndpoint(url) !== null && CHECKOUT_RESOURCE_PATH.test(url);
 }
 
-/** Returns true for Adyen Sessions API paths, such as /v71/sessions, on any host. */
+/**
+Returns true for Adyen Sessions API paths, such as /v71/sessions, on any host.
+ */
 export function isSessionsRequest(url: string): boolean {
   return SESSIONS_PATH.test(url);
 }
 
-/** Returns true for Checkout API paths Adyen Web calls or merchants proxy: sessions, payment methods, and payment details. */
+/**
+Returns true for Checkout API paths Adyen Web calls or merchants proxy: sessions, payment methods, and payment details.
+ */
 export function isCheckoutApiRequest(url: string): boolean {
   return SESSIONS_PATH.test(url) || PAYMENT_API_PATH.test(url);
 }
 
-/** Reads the locale of an Adyen Web translation file path, such as /translations/nl-NL.json. */
+/**
+Reads the locale of an Adyen Web translation file path, such as /translations/nl-NL.json.
+ */
 export function readTranslationLocale(url: string): string | null {
   const locale = TRANSLATION_PATH.exec(url)?.[1];
   return locale === undefined || locale === '' ? null : locale;

@@ -8,7 +8,9 @@
 
 import type { CallbackSource, CheckoutConfig } from './types.js';
 
-/** Callback registrations evaluated by the callback checks. */
+/**
+Callback registrations evaluated by the callback checks.
+ */
 export const CALLBACK_KEYS = [
   'onSubmit',
   'onAdditionalDetails',
@@ -18,7 +20,9 @@ export const CALLBACK_KEYS = [
   'beforeSubmit',
 ] as const satisfies readonly (keyof CheckoutConfig)[];
 
-/** Callbacks removed or renamed in Adyen Web v6. */
+/**
+Callbacks removed or renamed in Adyen Web v6.
+ */
 export const DEPRECATED_CALLBACK_KEYS = [
   'onValid',
   'onOrderCreated',
@@ -29,7 +33,9 @@ export const DEPRECATED_CALLBACK_KEYS = [
 const ALL_CALLBACK_KEYS = [...CALLBACK_KEYS, ...DEPRECATED_CALLBACK_KEYS] as const;
 type CallbackKey = (typeof ALL_CALLBACK_KEYS)[number];
 
-/** String options copied verbatim from checkout options. */
+/**
+String options copied verbatim from checkout options.
+ */
 export const STRING_OPTION_KEYS = [
   'clientKey',
   'environment',
@@ -49,7 +55,9 @@ const SOURCE_CALLBACK_KEYS = {
   beforeSubmit: 'beforeSubmitSource',
 } as const satisfies Partial<Record<keyof CheckoutConfig, keyof CheckoutConfig>>;
 
-/** Maximum captured callback source length; a source this long may be truncated. */
+/**
+Maximum captured callback source length; a source this long may be truncated.
+ */
 export const CALLBACK_SOURCE_LIMIT = 1200;
 
 type PlainRecord = Record<string, unknown>;
@@ -77,16 +85,18 @@ function readRiskEnabled(options: PlainRecord): boolean | undefined {
   const risk = readModuleToggle(options['risk']);
   if (risk !== undefined) return risk;
   const legacy = options['riskEnabled'];
-  if (typeof legacy === 'boolean') return legacy;
-  return typeof legacy === 'function' ? true : undefined;
+  return typeof legacy === 'boolean' ? legacy : typeof legacy === 'function' || undefined;
 }
 
-/** Payment method types whose per-method configuration hides the pay button. */
+/**
+Payment method types whose per-method configuration hides the pay button.
+ */
 function readHiddenPayButtonMethods(value: unknown): string[] {
-  if (!isPlainRecord(value)) return [];
-  return Object.entries(value)
-    .filter(([, config]) => isPlainRecord(config) && config['showPayButton'] === false)
-    .map(([type]) => type);
+  return isPlainRecord(value)
+    ? Object.entries(value)
+        .filter(([, config]) => isPlainRecord(config) && config['showPayButton'] === false)
+        .map(([type]) => type)
+    : [];
 }
 
 function readCallbackSource(callback: unknown): string | undefined {
@@ -149,7 +159,9 @@ export function readCheckoutOptions(
   return config;
 }
 
-/** Merges configurations where earlier values win and later ones only fill gaps. */
+/**
+Merges configurations where earlier values win and later ones only fill gaps.
+ */
 export function mergeCheckoutConfigs(configs: readonly CheckoutConfig[]): CheckoutConfig | null {
   let merged: CheckoutConfig | null = null;
   for (const config of configs) {

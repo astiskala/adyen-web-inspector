@@ -15,7 +15,7 @@ import { cssModule } from '../../popup/components/css-module.js';
 
 const s = cssModule(styles);
 
-interface Props {
+interface Properties {
   readonly result: ScanResult;
 }
 
@@ -28,11 +28,11 @@ const SEVERITY_CLASSES: Readonly<Record<Severity, string>> = {
   skip: 'severitySkip',
 };
 
-interface SeverityBadgeProps {
+interface SeverityBadgeProperties {
   readonly severity: Severity;
 }
 
-function SeverityBadge({ severity }: SeverityBadgeProps): JSX.Element {
+function SeverityBadge({ severity }: SeverityBadgeProperties): JSX.Element {
   return <span class={`${s('severity')} ${s(SEVERITY_CLASSES[severity])}`}>{severity}</span>;
 }
 
@@ -87,7 +87,7 @@ function SuccessfulCheckItem({ check }: { readonly check: CheckResult }): JSX.El
   );
 }
 
-interface CategorizedCheckTabProps {
+interface CategorizedCheckTabProperties {
   readonly issueGroups: readonly IssueGroup[];
   readonly successfulChecks: readonly CheckResult[];
   readonly issueEmptyState: string;
@@ -99,7 +99,7 @@ function CategorizedCheckTab({
   successfulChecks,
   issueEmptyState,
   successEmptyState,
-}: CategorizedCheckTabProps): JSX.Element {
+}: CategorizedCheckTabProperties): JSX.Element {
   return (
     <div class={s('tabContent')}>
       <div class={s('section')}>
@@ -132,7 +132,7 @@ function CategorizedCheckTab({
 /**
  * Combined overview of implementation identity, health score, and issues.
  */
-export function OverviewTab({ result }: Props): JSX.Element {
+export function OverviewTab({ result }: Properties): JSX.Element {
   return (
     <div class={s('tabContent')}>
       <div class={s('overviewCard')}>
@@ -150,7 +150,7 @@ export function OverviewTab({ result }: Props): JSX.Element {
 /**
  * Best-practice findings grouped by impact plus successful best-practice checks.
  */
-export function BestPracticesTab({ result }: Props): JSX.Element {
+export function BestPracticesTab({ result }: Properties): JSX.Element {
   const { issueGroups, successfulChecks } = buildFindingProjection(result).bestPractices;
 
   return (
@@ -166,7 +166,7 @@ export function BestPracticesTab({ result }: Props): JSX.Element {
 /**
  * Security and third-party findings grouped by impact plus successful checks.
  */
-export function SecurityTab({ result }: Props): JSX.Element {
+export function SecurityTab({ result }: Properties): JSX.Element {
   const { issueGroups, successfulChecks } = buildFindingProjection(result).security;
 
   return (
@@ -182,7 +182,7 @@ export function SecurityTab({ result }: Props): JSX.Element {
 /**
  * Network capture table for requests recorded during the scan.
  */
-export function NetworkTab({ result }: Props): JSX.Element {
+export function NetworkTab({ result }: Properties): JSX.Element {
   const reqs = buildFindingProjection(result).network.capturedRequests;
 
   return (
@@ -201,11 +201,11 @@ export function NetworkTab({ result }: Props): JSX.Element {
               </tr>
             </thead>
             <tbody>
-              {reqs.map((req) => (
-                <tr key={`${req.type}-${req.url}-${req.statusCode}`}>
-                  <td>{req.type}</td>
-                  <td>{req.url}</td>
-                  <td>{req.statusCode === 0 ? '—' : req.statusCode}</td>
+              {reqs.map((request) => (
+                <tr key={`${request.type}-${request.url}-${request.statusCode}`}>
+                  <td>{request.type}</td>
+                  <td>{request.url}</td>
+                  <td>{request.statusCode === 0 ? '—' : request.statusCode}</td>
                 </tr>
               ))}
             </tbody>
@@ -219,7 +219,7 @@ export function NetworkTab({ result }: Props): JSX.Element {
 /**
  * JSON view of selected captured/inferred checkout fields and SDK metadata.
  */
-export function RawConfigTab({ result }: Props): JSX.Element {
+export function RawConfigTab({ result }: Properties): JSX.Element {
   const sections = buildRawConfigSections(buildFindingProjection(result).rawConfig);
 
   return (
@@ -237,7 +237,7 @@ export function RawConfigTab({ result }: Props): JSX.Element {
 /**
  * Lists skipped checks and the extracted skip reason for each entry.
  */
-export function SkippedChecksTab({ result }: Props): JSX.Element {
+export function SkippedChecksTab({ result }: Properties): JSX.Element {
   const skipped = buildFindingProjection(result).skippedChecks;
 
   return (

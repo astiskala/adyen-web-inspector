@@ -12,7 +12,7 @@ import {
   type TabScanStatus,
   type TabSnapshot,
 } from '../../shared/messages.js';
-import { isRecord, isScanResult } from '../../shared/utils.js';
+import { isRecord, isScanResult } from '../../shared/utilities.js';
 import type { TabStateClient } from './useScanLifecycle.js';
 
 function readActivity(value: unknown): CheckoutActivity {
@@ -25,12 +25,14 @@ function readScanStatus(value: unknown): TabScanStatus {
   if (!isRecord(value)) return { state: 'idle' };
   if (value['state'] === 'running') return { state: 'running' };
   const error = value['error'];
-  return value['state'] === 'failed' && typeof error === 'string'
+  return typeof error === 'string' && value['state'] === 'failed'
     ? { state: 'failed', error }
     : { state: 'idle' };
 }
 
-/** Reads a snapshot from a runtime message, tolerating a missing or malformed value. */
+/**
+Reads a snapshot from a runtime message, tolerating a missing or malformed value.
+ */
 function readSnapshot(value: unknown): TabSnapshot {
   if (!isRecord(value)) return EMPTY_TAB_SNAPSHOT;
   return {
@@ -40,7 +42,9 @@ function readSnapshot(value: unknown): TabSnapshot {
   };
 }
 
-/** Chrome adapter: the worker answers reads and publishes every tab state transition. */
+/**
+Chrome adapter: the worker answers reads and publishes every tab state transition.
+ */
 export const chromeTabStateClient: TabStateClient = {
   async read(tabId) {
     return readSnapshot(await chrome.runtime.sendMessage({ type: MSG_GET_TAB_STATE, tabId }));

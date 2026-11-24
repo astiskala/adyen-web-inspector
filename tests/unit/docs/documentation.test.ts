@@ -68,7 +68,7 @@ describe('repository documentation', () => {
       const markdown = readFileSync(document, 'utf8');
       for (const match of markdown.matchAll(/(?:`pnpm[ \t]+|^[ \t]*pnpm[ \t]+)([a-z][\w:-]*)/gm)) {
         const command = match[1];
-        if (command !== undefined && !builtins.has(command) && !(command in scripts)) {
+        if (command !== undefined && !builtins.has(command) && !Object.hasOwn(scripts, command)) {
           unknown.push(`${relative(ROOT, document)}: pnpm ${command}`);
         }
       }
@@ -95,7 +95,10 @@ describe('repository documentation', () => {
   it('lists the health tiers actually produced by the scoring logic', () => {
     const readme = readFileSync(resolve(ROOT, 'README.md'), 'utf8');
     const tierText = /health score with tiering \(([^)]+)\)/.exec(readme)?.[1] ?? '';
-    const documented = [...tierText.matchAll(/`([^`]+)`/g)].map((match) => match[1]);
+    const documented = tierText
+      .matchAll(/`([^`]+)`/g)
+      .map((match) => match[1])
+      .toArray();
     const actual = (['pass', 'warn', 'fail'] as const).map((severity) => {
       const check: CheckResult = {
         id: 'sdk-detected',

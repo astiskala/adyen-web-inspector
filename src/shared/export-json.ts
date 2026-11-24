@@ -18,7 +18,9 @@ interface JsonExportData extends ReportExportData {
   readonly scanResult: ScanResult;
 }
 
-/** Builds the JSON export payload from the same report sections used by the PDF export. */
+/**
+Builds the JSON export payload from the same report sections used by the PDF export.
+ */
 export function buildJsonExport(
   result: ScanResult,
   metadata: PrintableReportMetadata,

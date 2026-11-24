@@ -115,7 +115,9 @@ function hasMissingSriAttributes(resource: SriAttributableResource): boolean {
   );
 }
 
-/** An observed header's value, or null when the document did not send it. */
+/**
+An observed header's value, or null when the document did not send it.
+ */
 function valueOf(header: Exclude<DocumentHeaderEvidence, { state: 'unavailable' }>): string | null {
   return header.state === 'present' ? header.value : null;
 }
@@ -132,16 +134,14 @@ export const SECURITY_CHECKS = createRegistry(CATEGORY)
     }
 
     const { pageProtocol } = payload.page;
-    if (pageProtocol === 'https:') {
-      return pass(STRINGS.HTTPS_PASS_TITLE);
-    }
-
-    return fail(
-      STRINGS.HTTPS_FAIL_TITLE,
-      `Page protocol is "${pageProtocol}". Payment pages on live environments must use HTTPS.`,
-      STRINGS.HTTPS_FAIL_REMEDIATION,
-      STRINGS.HTTPS_FAIL_URL
-    );
+    return pageProtocol === 'https:'
+      ? pass(STRINGS.HTTPS_PASS_TITLE)
+      : fail(
+          STRINGS.HTTPS_FAIL_TITLE,
+          `Page protocol is "${pageProtocol}". Payment pages on live environments must use HTTPS.`,
+          STRINGS.HTTPS_FAIL_REMEDIATION,
+          STRINGS.HTTPS_FAIL_URL
+        );
   })
   // SRI Checks
   .add('security-sri-script', (payload, { pass, fail, skip }) => {
@@ -153,16 +153,14 @@ export const SECURITY_CHECKS = createRegistry(CATEGORY)
     }
 
     const missing = adyenScripts.filter(hasMissingSriAttributes);
-    if (missing.length > 0) {
-      return fail(
-        `${missing.length} Adyen script tag(s) missing SRI attributes.`,
-        STRINGS.SRI_SCRIPT_FAIL_DETAIL,
-        STRINGS.SRI_SCRIPT_FAIL_REMEDIATION,
-        STRINGS.SRI_SCRIPT_FAIL_URL
-      );
-    }
-
-    return pass(STRINGS.SRI_SCRIPT_PASS_TITLE);
+    return missing.length > 0
+      ? fail(
+          `${missing.length} Adyen script tag(s) missing SRI attributes.`,
+          STRINGS.SRI_SCRIPT_FAIL_DETAIL,
+          STRINGS.SRI_SCRIPT_FAIL_REMEDIATION,
+          STRINGS.SRI_SCRIPT_FAIL_URL
+        )
+      : pass(STRINGS.SRI_SCRIPT_PASS_TITLE);
   })
   .add(
     'security-sri-css',
@@ -175,15 +173,14 @@ export const SECURITY_CHECKS = createRegistry(CATEGORY)
       }
 
       const missing = adyenLinks.filter(hasMissingSriAttributes);
-      if (missing.length > 0) {
-        return warn(
-          `${missing.length} Adyen stylesheet link(s) missing SRI attributes.`,
-          STRINGS.SRI_CSS_WARN_DETAIL,
-          STRINGS.SRI_CSS_WARN_REMEDIATION,
-          STRINGS.SRI_CSS_WARN_URL
-        );
-      }
-      return pass(STRINGS.SRI_CSS_PASS_TITLE);
+      return missing.length > 0
+        ? warn(
+            `${missing.length} Adyen stylesheet link(s) missing SRI attributes.`,
+            STRINGS.SRI_CSS_WARN_DETAIL,
+            STRINGS.SRI_CSS_WARN_REMEDIATION,
+            STRINGS.SRI_CSS_WARN_URL
+          )
+        : pass(STRINGS.SRI_CSS_PASS_TITLE);
     },
     { warnImpact: 'high' }
   )
@@ -217,15 +214,14 @@ export const SECURITY_CHECKS = createRegistry(CATEGORY)
       if (header.state === 'unavailable') {
         return skip(STRINGS.XCTO_SKIP_TITLE, SKIP_REASONS.HEADERS_UNAVAILABLE);
       }
-      if (valueOf(header)?.toLowerCase() === 'nosniff') {
-        return pass(STRINGS.XCTO_PASS_TITLE);
-      }
-      return notice(
-        STRINGS.XCTO_NOTICE_TITLE,
-        STRINGS.XCTO_NOTICE_DETAIL,
-        STRINGS.XCTO_NOTICE_REMEDIATION,
-        STRINGS.XCTO_NOTICE_URL
-      );
+      return valueOf(header)?.toLowerCase() === 'nosniff'
+        ? pass(STRINGS.XCTO_PASS_TITLE)
+        : notice(
+            STRINGS.XCTO_NOTICE_TITLE,
+            STRINGS.XCTO_NOTICE_DETAIL,
+            STRINGS.XCTO_NOTICE_REMEDIATION,
+            STRINGS.XCTO_NOTICE_URL
+          );
     },
     { noticeImpact: 'low' }
   )
@@ -236,15 +232,14 @@ export const SECURITY_CHECKS = createRegistry(CATEGORY)
       if (header.state === 'unavailable') {
         return skip(STRINGS.XSS_SKIP_TITLE, SKIP_REASONS.HEADERS_UNAVAILABLE);
       }
-      if (DISABLED_XSS_PROTECTION_VALUES.has(valueOf(header))) {
-        return pass(STRINGS.XSS_PASS_TITLE);
-      }
-      return notice(
-        STRINGS.XSS_NOTICE_TITLE,
-        STRINGS.XSS_NOTICE_DETAIL,
-        STRINGS.XSS_NOTICE_REMEDIATION,
-        STRINGS.XSS_NOTICE_URL
-      );
+      return DISABLED_XSS_PROTECTION_VALUES.has(valueOf(header))
+        ? pass(STRINGS.XSS_PASS_TITLE)
+        : notice(
+            STRINGS.XSS_NOTICE_TITLE,
+            STRINGS.XSS_NOTICE_DETAIL,
+            STRINGS.XSS_NOTICE_REMEDIATION,
+            STRINGS.XSS_NOTICE_URL
+          );
     },
     { noticeImpact: 'low' }
   )
@@ -259,13 +254,14 @@ export const SECURITY_CHECKS = createRegistry(CATEGORY)
         return skip(STRINGS.HSTS_SKIP_TITLE, SKIP_REASONS.HEADERS_UNAVAILABLE);
       }
       const value = valueOf(header);
-      if (value !== null && value !== '') return pass(STRINGS.HSTS_PASS_TITLE);
-      return notice(
-        STRINGS.HSTS_NOTICE_TITLE,
-        STRINGS.HSTS_NOTICE_DETAIL,
-        STRINGS.HSTS_NOTICE_REMEDIATION,
-        STRINGS.HSTS_NOTICE_URL
-      );
+      return value !== null && value !== ''
+        ? pass(STRINGS.HSTS_PASS_TITLE)
+        : notice(
+            STRINGS.HSTS_NOTICE_TITLE,
+            STRINGS.HSTS_NOTICE_DETAIL,
+            STRINGS.HSTS_NOTICE_REMEDIATION,
+            STRINGS.HSTS_NOTICE_URL
+          );
     },
     { noticeImpact: 'low' }
   )
@@ -279,19 +275,18 @@ export const SECURITY_CHECKS = createRegistry(CATEGORY)
     const missing = adyenIframes.filter(
       (f) => f.referrerpolicy === undefined || f.referrerpolicy === ''
     );
-    if (missing.length === 0) return pass(STRINGS.IFRAME_RP_PASS_TITLE);
-
-    return info(STRINGS.IFRAME_RP_MISSING_INFO_TITLE, STRINGS.IFRAME_RP_MISSING_INFO_DETAIL);
+    return missing.length === 0
+      ? pass(STRINGS.IFRAME_RP_PASS_TITLE)
+      : info(STRINGS.IFRAME_RP_MISSING_INFO_TITLE, STRINGS.IFRAME_RP_MISSING_INFO_DETAIL);
   })
-  .add('security-api-key-exposed', (payload, { pass, fail }) => {
-    if (payload.page.apiKeyDetected === true) {
-      return fail(
-        STRINGS.API_KEY_FAIL_TITLE,
-        STRINGS.API_KEY_FAIL_DETAIL,
-        STRINGS.API_KEY_FAIL_REMEDIATION,
-        STRINGS.API_KEY_FAIL_URL
-      );
-    }
-    return pass(STRINGS.API_KEY_PASS_TITLE);
-  })
+  .add('security-api-key-exposed', (payload, { pass, fail }) =>
+    payload.page.apiKeyDetected === true
+      ? fail(
+          STRINGS.API_KEY_FAIL_TITLE,
+          STRINGS.API_KEY_FAIL_DETAIL,
+          STRINGS.API_KEY_FAIL_REMEDIATION,
+          STRINGS.API_KEY_FAIL_URL
+        )
+      : pass(STRINGS.API_KEY_PASS_TITLE)
+  )
   .getChecks();

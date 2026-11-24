@@ -6,19 +6,21 @@ import { cssModule } from './css-module.js';
 
 const s = cssModule(styles);
 
-interface Props {
+interface Properties {
   readonly compliance: StandardCompliance;
 }
 
-/** Displays the browser-visible Standard Drop-in assessment. */
-export function StandardComplianceBadge({ compliance }: Props): JSX.Element {
+/**
+Displays the browser-visible Standard Drop-in assessment.
+ */
+export function StandardComplianceBadge({ compliance }: Properties): JSX.Element {
   const { compliant, reasons } = compliance;
 
   return (
     <div class={s('container')}>
       <div class={s('header')}>
-        <span class={`${s('icon')} ${compliant ? s('iconCompliant') : s('iconNonCompliant')}`}>
-          {compliant ? '\u2713' : '\u2717'}
+        <span class={`${s('icon')} ${s(compliant ? 'iconCompliant' : 'iconNonCompliant')}`}>
+          {compliant ? '\u{2713}' : '\u{2717}'}
         </span>
         <span class={s('title')}>
           {compliant ? STANDARD_COMPLIANCE_COPY.metLabel : STANDARD_COMPLIANCE_COPY.unmetLabel}

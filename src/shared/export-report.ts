@@ -38,34 +38,48 @@ const BEST_PRACTICE_CATEGORIES: ReadonlySet<CheckCategory> = new Set([
 ]);
 const SECURITY_CATEGORIES: ReadonlySet<CheckCategory> = new Set(['security', 'third-party']);
 
-/** Display values of the implementation attributes, shared by the popup, panel, and reports. */
+/**
+Display values of the implementation attributes, shared by the popup, panel, and reports.
+ */
 interface ImplementationSummary {
   readonly sdkVersion: string;
   readonly environment: AdyenEnvironment | 'unknown';
-  /** Null for test, which uses a global endpoint rather than a live region. */
+  /**
+  Null for test, which uses a global endpoint rather than a live region.
+   */
   readonly region: AdyenRegion | null;
   readonly flow: IntegrationFlow;
   readonly flavor: IntegrationFlavor;
   readonly importMethod: ImplementationAttributes['importMethod'];
 }
 
-/** One issue as every view renders it. */
+/**
+One issue as every view renders it.
+ */
 export interface IssueRow {
   readonly id: CheckId;
   readonly category: CheckCategory;
   readonly severity: Severity;
   readonly title: string;
-  /** Label of the issue's impact group. */
+  /**
+  Label of the issue's impact group.
+   */
   readonly impact: string;
   readonly impactLevel: CheckImpact;
   readonly detail: string | null;
-  /** Reader-friendly remediation; a severity-based default when the check has none. */
+  /**
+  Reader-friendly remediation; a severity-based default when the check has none.
+   */
   readonly remediation: string;
-  /** The check's documentation, else the Adyen Web best practices. */
+  /**
+  The check's documentation, else the Adyen Web best practices.
+   */
   readonly docsUrl: string;
 }
 
-/** Issues of one impact, sorted by severity then title. */
+/**
+Issues of one impact, sorted by severity then title.
+ */
 export interface IssueGroup {
   readonly impact: CheckImpact;
   readonly label: string;
@@ -90,9 +104,13 @@ interface ExportNetworkData {
 }
 
 interface ExportRawConfigData {
-  /** Options captured from AdyenCheckout and component calls. */
+  /**
+  Options captured from AdyenCheckout and component calls.
+   */
   readonly checkoutConfig: CheckoutConfig | null;
-  /** True when AdyenCheckout's options were captured whole. */
+  /**
+  True when AdyenCheckout's options were captured whole.
+   */
   readonly checkoutConfigComplete: boolean;
   readonly componentConfig: CheckoutConfig | null;
   readonly inferredCheckoutConfig: CheckoutConfig | null;
@@ -141,10 +159,9 @@ function frameRemediationExample(text: string): string {
   if (/^[A-Z-]+:\s+/i.test(text)) {
     return `Set this response header on the checkout page: ${text}`;
   }
-  if (text.startsWith('<script') || text.startsWith('<link') || text.startsWith('<iframe')) {
-    return `Update your markup to match this secure example: ${text}`;
-  }
-  return text;
+  return text.startsWith('<script') || text.startsWith('<link') || text.startsWith('<iframe')
+    ? `Update your markup to match this secure example: ${text}`
+    : text;
 }
 
 function resolveRemediation(check: CheckResult, impact: CheckImpact): string {
@@ -248,7 +265,9 @@ function formatConfig(config: object | null, emptyMessage: string): string {
   return config === null ? emptyMessage : JSON.stringify(config, null, 2);
 }
 
-/** Titles and pretty-printed contents of each extracted config source, shared by every view. */
+/**
+Titles and pretty-printed contents of each extracted config source, shared by every view.
+ */
 export function buildRawConfigSections(rawConfig: ExportRawConfigData): RawConfigSection[] {
   return [
     {
@@ -283,7 +302,9 @@ function buildRawConfigData(result: ScanResult): ExportRawConfigData {
   };
 }
 
-/** Reads the scan's implementation attributes as the values every view displays. */
+/**
+Reads the scan's implementation attributes as the values every view displays.
+ */
 export function summarizeImplementation(result: ScanResult): ImplementationSummary {
   const { attributes } = result;
   const environment = attributes.environment.value ?? 'unknown';
@@ -297,7 +318,9 @@ export function summarizeImplementation(result: ScanResult): ImplementationSumma
   };
 }
 
-/** Projects a scan result into the sections shared by the DevTools panel and reports. */
+/**
+Projects a scan result into the sections shared by the DevTools panel and reports.
+ */
 export function buildFindingProjection(result: ScanResult): FindingProjection {
   return {
     bestPractices: buildFindingSection(result.checks, BEST_PRACTICE_CATEGORIES),
