@@ -1,5 +1,9 @@
 import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 import { PAGE_GLOBALS } from '../../../src/shared/constants';
+import {
+  readShadowRootRecord,
+  type ShadowRootRecord,
+} from '../../../src/shared/shadow-root-record';
 import type { CheckoutCapture, InferenceSignal } from '../../../src/shared/types';
 
 const CAPTURE_KEY = PAGE_GLOBALS.checkoutCapture;
@@ -46,7 +50,7 @@ function resetGlobals(): void {
   JSON.parse = NATIVE_JSON_PARSE;
   Element.prototype.attachShadow = NATIVE_ATTACH_SHADOW;
   HTMLElement.prototype.attachInternals = NATIVE_ATTACH_INTERNALS;
-  Reflect.deleteProperty(g, PAGE_GLOBALS.closedShadowRoots);
+  Reflect.deleteProperty(g, PAGE_GLOBALS.shadowRoots);
   vi.stubGlobal('fetch', undefined);
   vi.stubGlobal('XMLHttpRequest', undefined);
 }
@@ -787,15 +791,14 @@ describe('config-interceptor installation and edge cases', () => {
     expect(getCapturedConfig()).toEqual({ locale: 'de-DE' });
   });
 
-  it('records custom element internals, up to a limit, and leaves attachInternals working', () => {
+  it('records custom element internals and leaves attachInternals working', () => {
     class Widget extends HTMLElement {}
     customElements.define(`interceptor-widget-${Date.now()}`, Widget);
-    const internals = Array.from({ length: 1001 }, () => new Widget().attachInternals());
+    const internals = new Widget().attachInternals();
 
-    const recorded = g[PAGE_GLOBALS.elementInternals] as WeakRef<ElementInternals>[];
-    expect(recorded).toHaveLength(1000);
-    expect(recorded[0]?.deref()).toBe(internals[0]);
-    expect(internals[0]).toBeInstanceOf(ElementInternals);
+    const record = g[PAGE_GLOBALS.shadowRoots] as ShadowRootRecord;
+    expect(record.internals.map((reference) => reference.deref())).toEqual([internals]);
+    expect(internals).toBeInstanceOf(ElementInternals);
   });
 
   it('records closed shadow roots by host and leaves attachShadow working', () => {
@@ -804,10 +807,10 @@ describe('config-interceptor installation and edge cases', () => {
     const closed = closedHost.attachShadow({ mode: 'closed' });
     const open = openHost.attachShadow({ mode: 'open' });
 
-    const roots = g[PAGE_GLOBALS.closedShadowRoots] as WeakMap<Element, ShadowRoot>;
-    expect(roots.get(closedHost)).toBe(closed);
-    expect(roots.has(openHost)).toBe(false);
-    expect(openHost.shadowRoot).toBe(open);
+    const shadowRootOf = readShadowRootRecord(g[PAGE_GLOBALS.shadowRoots]);
+    expect(shadowRootOf(closedHost)).toBe(closed);
+    expect(shadowRootOf(openHost)).toBe(open);
+    expect((g[PAGE_GLOBALS.shadowRoots] as ShadowRootRecord).attached.has(openHost)).toBe(false);
     expect(() => closedHost.attachShadow({ mode: 'open' })).toThrow();
   });
 

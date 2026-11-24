@@ -7,9 +7,10 @@ serialises a plain result onto a page global for the background scan to read.
 import { readAdyenEndpoint } from '../shared/adyen-endpoint.js';
 import { reportedAnalytics } from '../shared/checkout-analytics.js';
 import { readCheckoutCapture } from '../shared/checkout-capture.js';
-import { readCheckoutDom, type ShadowRootLookup } from '../shared/checkout-signals.js';
+import { readCheckoutDom } from '../shared/checkout-signals.js';
 import { PAGE_GLOBALS, type PageGlobalValues } from '../shared/constants.js';
 import { readObservedRequest } from '../shared/observed-requests.js';
+import { readShadowRootRecord } from '../shared/shadow-root-record.js';
 import { readMountedCheckout } from './mounted-checkout.js';
 import type {
   AdyenStyleInfo,
@@ -106,37 +107,6 @@ function extractObservedRequests(): ObservedRequest[] {
     }
   }
   return requests.values().toArray();
-}
-
-/**
-Reads the closed shadow roots custom elements reach through the internals the config interceptor recorded.
-*/
-function readInternalsShadowRoots(internals: unknown): ShadowRoot[] {
-  const references: unknown[] = Array.isArray(internals) ? internals : [];
-  return references.flatMap((reference) => {
-    const target: unknown = reference instanceof WeakRef ? reference.deref() : undefined;
-    const shadowRoot = target instanceof ElementInternals ? target.shadowRoot : null;
-    return shadowRoot === null ? [] : [shadowRoot];
-  });
-}
-
-/**
-Builds the shadow root lookup for one extraction: open roots, closed ones the
-config interceptor saw the page attach, and closed ones declared in HTML that
-custom elements reach through their internals. Page scripts can replace
-either record, so both are checked.
-*/
-function createShadowRootLookup(): ShadowRootLookup {
-  const g = globalThis as GlobalWithAdyen;
-  const attached = g[PAGE_GLOBALS.closedShadowRoots];
-  const declared = new Map(
-    readInternalsShadowRoots(g[PAGE_GLOBALS.elementInternals]).map((root) => [root.host, root])
-  );
-  return (element) =>
-    element.shadowRoot ??
-    (attached instanceof WeakMap ? attached.get(element) : undefined) ??
-    declared.get(element) ??
-    null;
 }
 
 /**
@@ -258,7 +228,7 @@ function extract(): PageExtractResult {
   const g = globalThis as GlobalWithAdyen;
 
   const metadata = extractMetadata(g);
-  const shadowRootOf = createShadowRootLookup();
+  const shadowRootOf = readShadowRootRecord(g[PAGE_GLOBALS.shadowRoots]);
   const { config: componentConfig, mountCount } = readMountedCheckout(document, shadowRootOf);
   const capture = readCheckoutCapture(g[PAGE_GLOBALS.checkoutCapture]);
   const isApiKeyDetected = isApiKeyExposed(capture);

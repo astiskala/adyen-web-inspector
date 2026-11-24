@@ -2,6 +2,7 @@
 Shared constants used across all extension components.
 */
 
+import type { ShadowRootRecord } from './shadow-root-record.js';
 import type { CheckoutCapture, HealthScore, IntegrationFlow, Severity } from './types.js';
 
 // ─── Client Key Prefixes ──────────────────────────────────────────────────────
@@ -113,9 +114,8 @@ export const PAGE_GLOBALS = {
   checkoutCapture: '__adyenWebInspectorCheckoutCapture',
   interceptorInstalled: '__adyenWebInspectorCapturedConfig__installed',
   pageExtractResultJson: '__adyenWebInspectorPageExtractResultJson',
-  closedShadowRoots: '__adyenWebInspectorClosedShadowRoots',
+  shadowRoots: '__adyenWebInspectorShadowRoots',
   observedResources: '__adyenWebInspectorObservedResources',
-  elementInternals: '__adyenWebInspectorElementInternals',
 } as const;
 
 /**
@@ -135,17 +135,13 @@ export interface PageGlobalValues {
   */
   [PAGE_GLOBALS.pageExtractResultJson]?: string;
   /**
-  Closed shadow roots by host, recorded as the page attaches them, so the page extractor can read checkout mounted inside them.
+  The closed shadow roots the config interceptor recorded, so the page extractor can read checkout mounted inside them.
   */
-  [PAGE_GLOBALS.closedShadowRoots]?: WeakMap<Element, ShadowRoot>;
+  [PAGE_GLOBALS.shadowRoots]?: ShadowRootRecord;
   /**
   Checkout-related Resource Timing entries recorded from the start of the page, past the browser's buffer limit.
   */
   [PAGE_GLOBALS.observedResources]?: PerformanceEntry[];
-  /**
-  Custom elements' internals, whose shadowRoot is the only reach into a closed root declared in HTML.
-  */
-  [PAGE_GLOBALS.elementInternals]?: WeakRef<ElementInternals>[];
 }
 
 // ─── Version Gates ────────────────────────────────────────────────────────────

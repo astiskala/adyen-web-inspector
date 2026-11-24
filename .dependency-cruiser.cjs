@@ -153,6 +153,14 @@ const SEAM_RULES = [
     },
   },
   {
+    name: 'shadow-root-record-inline-safe',
+    comment:
+      'The shadow-root record is inlined into the config interceptor and page extractor, so it may depend on nothing',
+    severity: 'error',
+    from: { path: '^src/shared/shadow-root-record\\.ts$' },
+    to: { path: '^src/' },
+  },
+  {
     name: 'checkout-analytics-inline-safe',
     comment:
       'Checkout analytics is inlined into the config interceptor and page extractor, so it may depend on shared types only',

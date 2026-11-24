@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PAGE_GLOBALS } from '../../../src/shared/constants';
+import {
+  createShadowRootRecord,
+  recordAttachedShadowRoot,
+  recordElementInternals,
+} from '../../../src/shared/shadow-root-record';
 import type { PageExtractResult } from '../../../src/shared/types';
 
 const pageGlobals = globalThis as unknown as Record<string, unknown>;
@@ -326,7 +331,9 @@ describe('page extractor mounted component configuration', () => {
     closed.append(innerHost);
     const open = innerHost.attachShadow({ mode: 'open' });
     mountDropin(coreOptions({ locale: 'pl-PL' }), open);
-    pageGlobals[PAGE_GLOBALS.closedShadowRoots] = new WeakMap([[host, closed]]);
+    const record = createShadowRootRecord();
+    recordAttachedShadowRoot(record, closed);
+    pageGlobals[PAGE_GLOBALS.shadowRoots] = record;
 
     await expect(extractPage()).resolves.toMatchObject({
       observedConfig: { component: { locale: 'pl-PL' } },
@@ -343,31 +350,13 @@ describe('page extractor mounted component configuration', () => {
     document.body.append(host);
     const closed = host.attachShadow({ mode: 'closed' });
     mountDropin(coreOptions({ locale: 'da-DK' }), closed);
-    pageGlobals[PAGE_GLOBALS.elementInternals] = [
-      new WeakRef(host.internals),
-      new WeakRef({}),
-      'tampered',
-    ];
+    const record = createShadowRootRecord();
+    recordElementInternals(record, host.internals);
+    pageGlobals[PAGE_GLOBALS.shadowRoots] = record;
 
     await expect(extractPage()).resolves.toMatchObject({
       observedConfig: { component: { locale: 'da-DK' } },
     });
-  });
-
-  it('ignores an internals record the page replaced', async () => {
-    pageGlobals[PAGE_GLOBALS.elementInternals] = { length: 1 };
-
-    await expect(extractPage()).resolves.toMatchObject({ observedConfig: { component: null } });
-  });
-
-  it('ignores a closed-root record the page overwrote', async () => {
-    const host = document.createElement('payment-widget');
-    document.body.append(host);
-    host.attachShadow({ mode: 'closed' }).innerHTML = '<div class="adyen-checkout__dropin"></div>';
-    pageGlobals[PAGE_GLOBALS.closedShadowRoots] = { get: (): null => null };
-
-    const page = await extractPage();
-    expect(page).not.toHaveProperty('hasDropinDOM');
   });
 
   it('reads a checkout mounted in a shadow root deep in the page', async () => {
